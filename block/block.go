@@ -6,8 +6,10 @@ import (
 	"github.com/renproject/hyperdrive/sig"
 )
 
+// The Round in which a Block was proposed.
 type Round int64
 
+// The Height at which a Block was proposed.
 type Height int64
 
 type Block struct {
@@ -20,29 +22,56 @@ type Block struct {
 	Signatory    sig.Signatory
 }
 
+func Genesis() Block {
+	return Block{
+		Time:         time.Unix(0, 0),
+		Round:        0,
+		Height:       0,
+		Header:       sig.Hash{},
+		ParentHeader: sig.Hash{},
+		Signature:    sig.Signature{},
+		Signatory:    sig.Signatory{},
+	}
+}
+
 type Blockchain struct {
-	head Block
-	tail map[sig.Hash]Block
+	head Commit
+	tail map[sig.Hash]Commit
 }
 
 func (blockchain *Blockchain) Height() Height {
-	return blockchain.head.Height
+	if blockchain.head.Polka.Block == nil {
+		return Genesis().Height
+	}
+	return blockchain.head.Polka.Block.Height
 }
 
 func (blockchain *Blockchain) Round() Round {
-	return blockchain.head.Round
+	if blockchain.head.Polka.Block == nil {
+		return Genesis().Round
+	}
+	return blockchain.head.Polka.Block.Round
 }
 
-func (blockchain *Blockchain) Head() Block {
-	return blockchain.head
+func (blockchain *Blockchain) Head() (Block, bool) {
+	if blockchain.head.Polka.Block == nil {
+		return Genesis(), false
+	}
+	return *blockchain.head.Polka.Block, true
 }
 
 func (blockchain *Blockchain) Block(header sig.Hash) (Block, bool) {
-	block, ok := blockchain.tail[header]
-	return block, ok
+	commit, ok := blockchain.tail[header]
+	if !ok || commit.Polka.Block == nil {
+		return Genesis(), false
+	}
+	return *commit.Polka.Block, true
 }
 
-func (blockchain *Blockchain) Extend(nextBlock Block) {
-	blockchain.tail[nextBlock.Header] = nextBlock
-	blockchain.head = nextBlock
+func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
+	if commitToNextBlock.Polka.Block == nil {
+		return
+	}
+	blockchain.tail[commitToNextBlock.Polka.Block.Header] = commitToNextBlock
+	blockchain.head = commitToNextBlock
 }
