@@ -7,21 +7,12 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-const PrefixPreCommit = "PreCommit: "
-
 type PreCommit struct {
 	Polka Polka
 }
 
 func (preCommit PreCommit) Sign(signer sig.Signer) SignedPreCommit {
-	data := []byte(PrefixPreCommit)
-	if preCommit.Polka.Block != nil {
-		data = append(data, preCommit.Polka.Block.Header[:]...)
-	} else {
-		data = append(data, []byte("Nil")...)
-	}
-	data = append(data, []byte(fmt.Sprintf(" Round: %d", preCommit.Polka.Round))...)
-	data = append(data, []byte(fmt.Sprintf(" Height: %d", preCommit.Polka.Height))...)
+	data := []byte(preCommit.String())
 
 	hashSum256 := sha3.Sum256(data)
 	hash := sig.Hash{}

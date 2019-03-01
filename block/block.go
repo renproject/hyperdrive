@@ -1,6 +1,8 @@
 package block
 
 import (
+	"encoding/base64"
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/sig"
@@ -32,6 +34,10 @@ func Genesis() Block {
 		Signature:    sig.Signature{},
 		Signatory:    sig.Signatory{},
 	}
+}
+
+func (block Block) String() string {
+	return fmt.Sprintf("Block(Header=%s,Round=%d,Height=%d)", base64.StdEncoding.EncodeToString(block.Header[:]), block.Round, block.Height)
 }
 
 type Blockchain struct {

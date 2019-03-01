@@ -38,11 +38,11 @@ func (preVote PreVote) Sign(signer sig.Signer) SignedPreVote {
 }
 
 func (preVote PreVote) String() string {
-	blockHeader := "Nil"
+	block := "Nil"
 	if preVote.Block != nil {
-		blockHeader = base64.StdEncoding.EncodeToString(preVote.Block.Header[:])
+		block = preVote.Block.String()
 	}
-	return fmt.Sprintf("PreVote(Block=%s,Round=%d,Height=%d)", blockHeader, preVote.Round, preVote.Height)
+	return fmt.Sprintf("PreVote(%s,Round=%d,Height=%d)", block, preVote.Round, preVote.Height)
 }
 
 type SignedPreVote struct {
