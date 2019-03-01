@@ -152,8 +152,7 @@ func (stateMachine *stateMachine) reducePreCommitted(currentState State, preComm
 		if commit.Polka.Block == nil {
 			return WaitForPropose(currentState.Round()+1, currentState.Height())
 		}
-
-		stateMachine.blockchain.Extend(*commit.Polka.Block)
+		stateMachine.blockchain.Extend(commit)
 		return WaitForPropose(currentState.Round(), currentState.Height()+1)
 	}
 
