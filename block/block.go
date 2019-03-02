@@ -8,10 +8,10 @@ import (
 	"github.com/renproject/hyperdrive/sig"
 )
 
-// The Round in which a Block was proposed.
+// The Round in which a `Block` was proposed.
 type Round int64
 
-// The Height at which a Block was proposed.
+// The Height at which a `Block` was proposed.
 type Height int64
 
 type Block struct {
