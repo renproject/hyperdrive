@@ -205,7 +205,7 @@ func (sv *supervisor) Stop() {
 	<-sv.runningQuit
 }
 
-// Restarts returns a read-only channel of errors thrown by`Runners`. The channel has a non-zero capacity but the
+// Restarts returns a read-only channel of errors thrown by `Runners`. The channel has a non-zero capacity but the
 // `Supervisor` will not block when writing. The channel will be closed when the `Supervisor` is stopped.
 func (sv *supervisor) Restarts() <-chan error {
 	return sv.restarts
