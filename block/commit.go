@@ -17,7 +17,11 @@ func (preCommit PreCommit) Sign(signer sig.Signer) SignedPreCommit {
 	hashSum256 := sha3.Sum256(data)
 	hash := sig.Hash{}
 	copy(hash[:], hashSum256[:])
-	signature, signatory := signer.Sign(hash)
+	signature, signatory, err := signer.Sign(hash)
+
+	if err != nil {
+		panic(fmt.Sprintf("Signer failed: %v", err))
+	}
 
 	return SignedPreCommit{
 		PreCommit: preCommit,
