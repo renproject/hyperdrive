@@ -28,11 +28,19 @@ func (preVote PreVote) Sign(signer sig.Signer) SignedPreVote {
 	hashSum256 := sha3.Sum256(data)
 	hash := sig.Hash{}
 	copy(hash[:], hashSum256[:])
-	signature, signatory := signer.Sign(hash)
+	signature, signatory, err := signer.Sign(hash)
+
+	if err != nil {
+		panic(fmt.Sprintf("Signer failed: %v", err))
+	}
 
 	return SignedPreVote{
 		PreVote:   preVote,
 		Signature: signature,
+		// TODO: clarify why we need a signatory. Since we cannot know
+		// if the provided signatory is valid; we only care about the
+		// public key we extract from the signature to know who this
+		// message came from
 		Signatory: signatory,
 	}
 }
