@@ -9,5 +9,5 @@ import (
 
 func TestEcdsa(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Ecdsa Suite")
+	RunSpecs(t, "ECDSA Suite")
 }
