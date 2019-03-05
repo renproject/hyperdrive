@@ -2,10 +2,8 @@ package sig
 
 import (
 	"bytes"
-	"crypto/ecdsa"
 )
 
-// Hash is the result of SHA3_256
 type Hash [32]byte
 
 func (hash Hash) Equal(other Hash) bool {
@@ -16,27 +14,26 @@ type Signature []byte
 
 type Signatures []Signature
 
-type Signatory [40]byte
+type Signatory [20]byte
 
 type Signatories []Signatory
 
 // Signer signs the provided hash, returning a signature
 type Signer interface {
-	// TODO: Signatory is simply passed through this interface, maybe
-	// belongs somewhere else
-	Sign(hash Hash) (Signature, Signatory, error)
-	PubKey() *ecdsa.PublicKey
+	// Sign a `Hash` and return the resulting `Signature`.
+	Sign(hash Hash) (Signature, error)
+
+	// Signatory returns the `Signatory` that is returned when verifying a `Signature`.
+	Signatory() Signatory
 }
 
-// Verifier take a hash of the data you want to check and the
-// signature, then returns the PublicKey iff it is a signature of the
-// provided hash
+// A Verifier can return the `Signatory` that produced a `Signature`.
 type Verifier interface {
-	Verify(hash Hash, sig Signature) (*ecdsa.PublicKey, error)
+	Verify(hash Hash, signature Signature) (Signatory, error)
 }
 
-// Authenticator combines a Signer and Verifier
-type Authenticator interface {
+// A SignerVerifier combines the `Signer` and `Verifier` interfaces.
+type SignerVerifier interface {
 	Signer
 	Verifier
 }
