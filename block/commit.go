@@ -11,23 +11,23 @@ type PreCommit struct {
 	Polka Polka
 }
 
-func (preCommit PreCommit) Sign(signer sig.Signer) SignedPreCommit {
+func (preCommit PreCommit) Sign(signer sig.Signer) (SignedPreCommit, error) {
 	data := []byte(preCommit.String())
 
 	hashSum256 := sha3.Sum256(data)
 	hash := sig.Hash{}
 	copy(hash[:], hashSum256[:])
-	signature, signatory, err := signer.Sign(hash)
 
+	signature, err := signer.Sign(hash)
 	if err != nil {
-		panic(fmt.Sprintf("Signer failed: %v", err))
+		return SignedPreCommit{}, err
 	}
 
 	return SignedPreCommit{
 		PreCommit: preCommit,
 		Signature: signature,
-		Signatory: signatory,
-	}
+		Signatory: signer.Signatory(),
+	}, nil
 }
 
 func (preCommit PreCommit) String() string {
