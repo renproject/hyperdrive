@@ -154,6 +154,7 @@ jobs:
                 /go/bin/govendor add +e
                 rm -rf /go/src/github.com/renproject/hyperdrive/vendor/github.com/ethereum/go-ethereum/crypto/secp256k1/
                 /go/bin/govendor add github.com/ethereum/go-ethereum/crypto/secp256k1/^
+                go get github.com/loongy/covermerge
             else
                 echo "Dependencies were restored from cache."
             fi
@@ -170,9 +171,7 @@ jobs:
           name: Building and testing
           command: |
             mkdir -p $GOCACHE
-            cd cmd
-            go build -v
-            ./cmd
+            sh /go/src/github.com/renproject/hyperdrive/.circleci/test.sh
       - save_cache:
           key: build-cache-{{ .Branch }}-{{ .Environment.CIRCLE_BUILD_NUM }}
           paths:
@@ -183,52 +182,3 @@ workflows:
   build:
     jobs:
     - build
-  # - deploy
-  fake_activity:
-    triggers:
-      - schedule:
-          cron: "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"  # every five minutes
-          filters:
-            branches:
-              only:
-                - master
-    jobs:
-      - fake_activity:
-          filters:
-            branches:
-              only: master
-  nightly:
-    triggers:
-      - schedule:
-          cron: "2,12,22,32,42,52 * * * *"  # every ten minutes
-          # cron: "0 2 * * *" # every night at 02:00
-          filters:
-            branches:
-              only:
-                - master
-    jobs:
-      - merge_nightly:
-          filters:
-            branches:
-              only: master
-  monthly:
-    triggers:
-      - schedule:
-          cron: "0,15,30,45 * * * *"  # every fifteen minutes
-          # cron: "0 0 1 * *" # on the 1st of every month at 00:00
-          filters:
-            branches:
-              only:
-                - master
-    jobs:
-      - merge_stable:
-          filters:
-            branches:
-              only: master
-      - merge_beta:
-          filters:
-            branches:
-              only: master
-          # Only run merge_beta after merge_stable is run
-          requires:
-            - merge_stable

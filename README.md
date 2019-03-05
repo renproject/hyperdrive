@@ -20,6 +20,8 @@ rm -rf ./vendor/github.com/ethereum/go-ethereum/crypto/secp256k1/
 govendor add github.com/ethereum/go-ethereum/crypto/secp256k1/^
 ```
 
+Note: you get covermerge from here: `go get github.com/loongy/covermerge`
+
 ### Message signatures with ECDSA
 
 I picked ethereum-go's implementation of ECDSA instead of the built in
