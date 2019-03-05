@@ -1,4 +1,4 @@
-package hyperdrive_test
+package ecdsa_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestHyperdrive(t *testing.T) {
+func TestEcdsa(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Hyperdrive Suite")
+	RunSpecs(t, "Ecdsa Suite")
 }
