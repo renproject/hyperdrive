@@ -14,7 +14,6 @@ var _ = Describe("Supervisor", func() {
 	Context("when stopping the supervisor", func() {
 
 		Context("when using the `RestartNone` policy", func() {
-
 			It("should terminate", func() {
 				sv := supervisor.New(supervisor.RestartNone)
 
@@ -29,7 +28,6 @@ var _ = Describe("Supervisor", func() {
 		})
 
 		Context("when using the `RestartAll` policy", func() {
-
 			It("should terminate", func() {
 				sv := supervisor.New(supervisor.RestartAll)
 
@@ -47,7 +45,6 @@ var _ = Describe("Supervisor", func() {
 	Context("when spawning runners into the supervisor", func() {
 
 		Context("when using the `RestartNone` policy", func() {
-
 			It("should stop after panicking", func() {
 				sv := supervisor.New(supervisor.RestartNone)
 
@@ -66,7 +63,6 @@ var _ = Describe("Supervisor", func() {
 		})
 
 		Context("when using the `RestartAll` policy", func() {
-
 			It("should continue after panicking", func() {
 				sv := supervisor.New(supervisor.RestartAll)
 

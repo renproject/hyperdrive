@@ -6,48 +6,37 @@ import (
 	"github.com/renproject/hyperdrive/block"
 )
 
-type Dispatcher interface {
-	Dispatch(action Action)
-}
-
 type StateMachine interface {
-	Transition(state State, transition Transition) State
+	Transition(state State, transition Transition) (State, Action)
 }
 
 type stateMachine struct {
-	dispatcher Dispatcher
-
 	polkaBuilder       block.PolkaBuilder
 	commitBuilder      block.CommitBuilder
-	blockchain         block.Blockchain
 	consensusThreshold int64
 }
 
-func NewStateMachine(dispatcher Dispatcher, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, blockchain block.Blockchain, consensusThreshold int64) StateMachine {
+func NewStateMachine(polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, consensusThreshold int64) StateMachine {
 	return &stateMachine{
-		dispatcher:         dispatcher,
 		polkaBuilder:       polkaBuilder,
 		commitBuilder:      commitBuilder,
-		blockchain:         blockchain,
 		consensusThreshold: consensusThreshold,
 	}
 }
 
-func (stateMachine *stateMachine) Transition(state State, transition Transition) State {
+func (stateMachine *stateMachine) Transition(state State, transition Transition) (State, Action) {
 	switch state := state.(type) {
 	case WaitingForPropose:
 		return stateMachine.waitForPropose(state, transition)
-
 	case WaitingForPolka:
 		return stateMachine.waitForPolka(state, transition)
-
 	case WaitingForCommit:
 		return stateMachine.waitForCommit(state, transition)
 	}
-	return nil
+	return nil, nil
 }
 
-func (stateMachine *stateMachine) waitForPropose(state WaitingForPropose, transition Transition) State {
+func (stateMachine *stateMachine) waitForPropose(state WaitingForPropose, transition Transition) (State, Action) {
 	switch transition := transition.(type) {
 	case TimedOut:
 		return stateMachine.reduceTimedOut(state, transition)
@@ -58,108 +47,104 @@ func (stateMachine *stateMachine) waitForPropose(state WaitingForPropose, transi
 	case PreCommitted:
 		return stateMachine.reducePreCommitted(state, transition)
 	}
-	return state
+	return state, nil
 }
 
-func (stateMachine *stateMachine) waitForPolka(state WaitingForPolka, transition Transition) State {
+func (stateMachine *stateMachine) waitForPolka(state WaitingForPolka, transition Transition) (State, Action) {
 	switch transition := transition.(type) {
 	case PreVoted:
 		return stateMachine.reducePreVoted(state, transition)
 	case PreCommitted:
 		return stateMachine.reducePreCommitted(state, transition)
 	}
-	return state
+	return state, nil
 }
 
-func (stateMachine *stateMachine) waitForCommit(state WaitingForCommit, transition Transition) State {
+func (stateMachine *stateMachine) waitForCommit(state WaitingForCommit, transition Transition) (State, Action) {
 	switch transition := transition.(type) {
 	case PreCommitted:
 		return stateMachine.reducePreCommitted(state, transition)
 	}
-	return state
+	return state, nil
 }
 
-func (stateMachine *stateMachine) reduceTimedOut(currentState State, timedOut TimedOut) State {
-	stateMachine.dispatcher.Dispatch(PreVote{
+func (stateMachine *stateMachine) reduceTimedOut(currentState State, timedOut TimedOut) (State, Action) {
+	return WaitForPolka(currentState.Round(), currentState.Height()), PreVote{
 		PreVote: block.PreVote{
 			Block:  nil,
 			Round:  currentState.Round(),
 			Height: currentState.Height(),
 		},
-	})
-	return WaitForPolka(currentState.Round(), currentState.Height())
+	}
 }
 
-func (stateMachine *stateMachine) reduceProposed(currentState State, proposed Proposed) State {
+func (stateMachine *stateMachine) reduceProposed(currentState State, proposed Proposed) (State, Action) {
 	if proposed.Block.Round != currentState.Round() {
-		return currentState
+		return currentState, nil
 	}
 	if proposed.Block.Height != currentState.Height() {
-		return currentState
+		return currentState, nil
 	}
 	if proposed.Block.Time.After(time.Now()) {
-		return currentState
+		return currentState, nil
 	}
 
-	stateMachine.dispatcher.Dispatch(PreVote{
+	return WaitForPolka(currentState.Round(), currentState.Height()), PreVote{
 		PreVote: block.PreVote{
 			Block:  &proposed.Block,
 			Round:  proposed.Block.Round,
 			Height: proposed.Block.Height,
 		},
-	})
-	return WaitForPolka(currentState.Round(), currentState.Height())
+	}
 }
 
-func (stateMachine *stateMachine) reducePreVoted(currentState State, preVoted PreVoted) State {
+func (stateMachine *stateMachine) reducePreVoted(currentState State, preVoted PreVoted) (State, Action) {
 	if preVoted.Round != currentState.Round() {
-		return currentState
+		return currentState, nil
 	}
 	if preVoted.Height != currentState.Height() {
-		return currentState
+		return currentState, nil
 	}
 
 	stateMachine.polkaBuilder.Insert(preVoted.SignedPreVote)
 	if polka, ok := stateMachine.polkaBuilder.Polka(stateMachine.consensusThreshold); ok {
-		stateMachine.dispatcher.Dispatch(PreCommit{
+		return WaitForCommit(polka), PreCommit{
 			PreCommit: block.PreCommit{
 				Polka: polka,
 			},
-		})
-		return WaitForCommit(polka)
+		}
 	}
 
-	stateMachine.dispatcher.Dispatch(PreVote{
+	return WaitForPolka(currentState.Round(), currentState.Height()), PreVote{
 		PreVote: block.PreVote{
 			Block:  preVoted.Block,
 			Round:  preVoted.Block.Round,
 			Height: preVoted.Block.Height,
 		},
-	})
-	return WaitForPolka(currentState.Round(), currentState.Height())
+	}
 }
 
-func (stateMachine *stateMachine) reducePreCommitted(currentState State, preCommitted PreCommitted) State {
+func (stateMachine *stateMachine) reducePreCommitted(currentState State, preCommitted PreCommitted) (State, Action) {
 	if preCommitted.Polka.Round != currentState.Round() {
-		return currentState
+		return currentState, nil
 	}
 	if preCommitted.Polka.Height != currentState.Height() {
-		return currentState
+		return currentState, nil
 	}
 
 	stateMachine.commitBuilder.Insert(preCommitted.SignedPreCommit)
 	if commit, ok := stateMachine.commitBuilder.Commit(stateMachine.consensusThreshold); ok {
 		if commit.Polka.Block == nil {
-			return WaitForPropose(currentState.Round()+1, currentState.Height())
+			return WaitForPropose(currentState.Round()+1, currentState.Height()), nil
 		}
-		stateMachine.blockchain.Extend(commit)
-		return WaitForPropose(currentState.Round(), currentState.Height()+1)
+		return WaitForPropose(currentState.Round(), currentState.Height()+1), Commit{
+			Commit: commit,
+		}
 	}
 
-	stateMachine.dispatcher.Dispatch(PreCommit{
+	return WaitForCommit(preCommitted.Polka), PreCommit{
 		PreCommit: block.PreCommit{
 			Polka: preCommitted.Polka,
 		},
-	})
-	return WaitForCommit(preCommitted.Polka)
+	}
 }

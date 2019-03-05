@@ -6,6 +6,14 @@ import (
 	"github.com/renproject/hyperdrive/block"
 )
 
+// A TransitionBuffer is used to temporarily buffer `Transitions` that are not ready to be processed because of the
+// `State`. All `Transitions` are buffered against their respective `Height` and will be dequeued one by one.
+type TransitionBuffer interface {
+	Enqueue(transition Transition)
+	Dequeue(height block.Height) (Transition, bool)
+	Drop(height block.Height)
+}
+
 // A Transition is an event that transitions a `StateMachine` from one State to another. It is generated externally to
 // the `StateMachine`.
 type Transition interface {
@@ -46,22 +54,4 @@ type PreCommitted struct {
 
 // IsTransition implements the `Transition` interface for the `PreCommitted` event.
 func (preCommitted PreCommitted) IsTransition() {
-}
-
-type Action interface {
-	IsAction()
-}
-
-type PreVote struct {
-	block.PreVote
-}
-
-func (preVote PreVote) IsAction() {
-}
-
-type PreCommit struct {
-	block.PreCommit
-}
-
-func (preCommit PreCommit) IsAction() {
 }
