@@ -1,3 +1,9 @@
+/*Package replica core package
+
+I assume that all provided `Transition`s are well formed and valid by
+the time they reach this module.
+
+*/
 package replica
 
 import (
