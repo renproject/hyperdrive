@@ -42,12 +42,9 @@ func NewFromPrivKey(privKey *ecdsa.PrivateKey) sig.SignerVerifier {
 // NewFromRandom generates a new random Private Key
 func NewFromRandom() (sig.SignerVerifier, error) {
 	privKey, err := crypto.GenerateKey()
-	if err != nil {
-		return nil, err
-	}
 	return signerVerifier{
 		privKey: privKey,
-	}, nil
+	}, err
 }
 
 func (signerVerifier signerVerifier) Sign(hash sig.Hash) (sig.Signature, error) {
@@ -64,8 +61,5 @@ func (signerVerifier signerVerifier) Signatory() sig.Signatory {
 func (signerVerifier signerVerifier) Verify(hash sig.Hash,
 	signature sig.Signature) (sig.Signatory, error) {
 	pubKey, err := crypto.SigToPub(hash[:], signature[:])
-	if err != nil {
-		return sig.Signatory{}, err
-	}
-	return PubKeyToSignatory(pubKey), nil
+	return PubKeyToSignatory(pubKey), err
 }
