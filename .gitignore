@@ -16,8 +16,6 @@
 *.out
 *.coverprofile
 
-/vendor
-
 .direnv.*
 .envrc
 shell.nix
