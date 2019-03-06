@@ -1,7 +1,6 @@
 package ecdsa_test
 
 import (
-	"fmt"
 	"testing/quick"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -33,31 +32,26 @@ var _ = Describe("ecdsa SignerVerifier", func() {
 		It("NewFromRandom should not error", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 		})
-		It("forall hash. Verify(hash, Sign(hash)) == Signatory()", func() {
-			test := func(data []byte) bool {
+		It("Verify should always return the Signatory of the signer", func() {
+			test := func(data []byte, flag bool) bool {
+				var newSV sig.SignerVerifier
+				if flag {
+					newSV, err = NewFromRandom()
+					Expect(err).ShouldNot(HaveOccurred())
+				} else {
+					privKey, err := crypto.GenerateKey()
+					Expect(err).ShouldNot(HaveOccurred())
+					newSV = NewFromPrivKey(privKey)
+				}
 				hash := Hash(data)
-				sig, err := signerVerifier.Sign(hash)
+
+				sig, err := newSV.Sign(hash)
 				Expect(err).ShouldNot(HaveOccurred())
+
 				signatory, err := signerVerifier.Verify(hash, sig)
 				Expect(err).ShouldNot(HaveOccurred())
-				return signatory == signerVerifier.Signatory()
-			}
-			Expect(quick.Check(test, &conf)).ShouldNot(HaveOccurred())
-		})
-		It("Verify should return an error when hash does not match", func() {
-			test := func(h1 sig.Hash, h2 sig.Hash) bool {
-				if h1 != h2 {
-					sig, err := signerVerifier.Sign(h1)
-					fmt.Printf("Sig %v\n", sig)
-					Expect(err).ShouldNot(HaveOccurred())
-					pubKey, err := signerVerifier.Verify(h2, sig)
-					fmt.Printf("What %v\n", pubKey)
-					pubKey, _ = signerVerifier.Verify(h1, sig)
-					fmt.Printf("What 2! %v\n", pubKey)
-					// Expect(err).ShouldNot(HaveOccurred())
-					Expect(err).Should(HaveOccurred())
-				}
-				return true
+
+				return signatory == newSV.Signatory()
 			}
 			Expect(quick.Check(test, &conf)).ShouldNot(HaveOccurred())
 		})

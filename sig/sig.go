@@ -40,6 +40,8 @@ type Signer interface {
 
 // A Verifier can return the `Signatory` that produced a `Signature`.
 type Verifier interface {
+	// Note: Verify will not return an error if the hash and signature
+	// do not match, but the returned public key is effectively random.
 	Verify(hash Hash, signature Signature) (Signatory, error)
 }
 
