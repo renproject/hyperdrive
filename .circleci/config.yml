@@ -20,9 +20,10 @@ jobs:
             go build ./...
             go get -u github.com/onsi/ginkgo/ginkgo
             go get -u github.com/loongy/covermerge
-            GOMAXPROCS=1 CI=true ~/go/bin/ginkgo -v --race \
+            find / -name "ginkgo"
+            GOMAXPROCS=1 CI=true /go/bin/ginkgo -v --race \
             --cover --coverprofile coverprofile.out ./...
-            ~/go/bin/covermerge block/coverprofile.out \
+            /go/bin/covermerge block/coverprofile.out \
               cmd/node/coverprofile.out \
               replica/coverprofile.out \
               sig/coverprofile.out \
@@ -32,7 +33,7 @@ jobs:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
-            - "~/go/bin"
+            - "/go/bin"
 
 workflows:
   version: 2.1
