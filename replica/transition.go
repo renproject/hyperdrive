@@ -1,6 +1,8 @@
 /*Package replica contains the interface TransitionBuffer and its
 implementation
 
+Note: TransitionBuffer is not thread safe
+
 There are two types of `Transition`, those with a `Height` and those
 that are "immediate". Any "immediate" `Transition`s will be
 `Dequeue`ed first, regardless of the provided `Height`. Otherwise,
@@ -37,6 +39,14 @@ type TransitionBuffer interface {
 	// the moment you know everything below the current height is
 	// meaningless.
 	Drop(height block.Height)
+}
+
+// NewTransitionBuffer creates an empty TransitionBuffer
+func NewTransitionBuffer() TransitionBuffer {
+	return &transitionBuffer{
+		buf:       make(map[block.Height]*transitionQueue),
+		immediate: newQueue(),
+	}
 }
 
 // A Transition is an event that transitions a `StateMachine` from one
@@ -89,15 +99,41 @@ type PreCommitted struct {
 func (preCommitted PreCommitted) IsTransition() {
 }
 
-//TODO: needs to remove obsolete Transitions
 func (buffer *transitionBuffer) Enqueue(transition Transition) {
 	switch transition := transition.(type) {
 	case Proposed:
+		buffer.initMapKey(transition.Height)
 		buffer.buf[transition.Height].enqueue(transition)
 	case PreVoted:
-		buffer.buf[transition.Height].enqueue(transition)
+		buffer.initMapKey(transition.Height)
+		queue := buffer.buf[transition.Height]
+		if tran, ok := queue.peek(); ok {
+			switch tran.(type) {
+			case Proposed:
+				queue.reset()
+			case PreVoted:
+			case PreCommitted:
+				panic("You Enqueued a PreCommitted before a PreVoted")
+			default:
+			}
+		}
+		queue.enqueue(transition)
 	case PreCommitted:
-		buffer.buf[transition.Polka.Height].enqueue(transition)
+		buffer.initMapKey(transition.Polka.Height)
+		queue := buffer.buf[transition.Polka.Height]
+		if tran, ok := queue.peek(); ok {
+			switch tran.(type) {
+			case Proposed:
+				queue.reset()
+			case PreVoted:
+				queue.reset()
+			case PreCommitted:
+			default:
+			}
+		}
+		queue.enqueue(transition)
+	default:
+		buffer.immediate.enqueue(transition)
 	}
 }
 
@@ -108,8 +144,20 @@ func (buffer *transitionBuffer) Dequeue(height block.Height) (Transition, bool) 
 	return buffer.buf[height].dequeue()
 }
 
-func (tq *transitionQueue) Drop(height block.Height) {
-	//TODO: think of a nice way to implement this
+func (buffer *transitionBuffer) Drop(height block.Height) {
+	for k := range buffer.buf {
+		if k < height {
+			delete(buffer.buf, k)
+		}
+	}
+}
+
+// Convenience function to make sure the map already has a Queue
+// for the provided height
+func (buffer *transitionBuffer) initMapKey(height block.Height) {
+	if _, ok := buffer.buf[height]; !ok {
+		buffer.buf[height] = newQueue()
+	}
 }
 
 // The logic behind the buf is to delete the transitionQueue whenever
@@ -147,4 +195,15 @@ func (tq *transitionQueue) dequeue() (Transition, bool) {
 	}
 	tq.end--
 	return tq.queue[tq.end], true
+}
+
+func (tq *transitionQueue) reset() {
+	tq.end = 0
+}
+
+func (tq *transitionQueue) peek() (Transition, bool) {
+	if tq.end == 0 {
+		return nil, false
+	}
+	return tq.queue[tq.end-1], true
 }
