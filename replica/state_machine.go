@@ -16,7 +16,9 @@ type stateMachine struct {
 	consensusThreshold int64
 }
 
-func NewStateMachine(polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, consensusThreshold int64) StateMachine {
+func NewStateMachine(polkaBuilder block.PolkaBuilder,
+	commitBuilder block.CommitBuilder,
+	consensusThreshold int64) StateMachine {
 	return &stateMachine{
 		polkaBuilder:       polkaBuilder,
 		commitBuilder:      commitBuilder,

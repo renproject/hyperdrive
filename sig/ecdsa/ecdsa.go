@@ -1,15 +1,13 @@
-/*Package ecdsa provides Sign and Verify capabilities using ECDSA
-
-I picked ethereum-go's implementation of ECDSA instead of the built in
-go libraries since it provides both build in marshaling/unmarshaling
-for the signature and a way to recover the Public Key from the
-signature. The reality is, we don't want to check if a given signature
-matches a given Public Key. Instead we want to know who signed this
-message, which is the Public Key. Then its easy to write logic to
-ensure nobody votes twice given a list of Public Keys or a list of
-hashed Public Keys, etc...
-
-*/
+// Package ecdsa provides Sign and Verify capabilities using ECDSA
+//
+// I picked ethereum-go's implementation of ECDSA instead of the built in
+// go libraries since it provides both build in marshaling/unmarshaling
+// for the signature and a way to recover the Public Key from the
+// signature. The reality is, we don't want to check if a given signature
+// matches a given Public Key. Instead we want to know who signed this
+// message, which is the Public Key. Then its easy to write logic to
+// ensure nobody votes twice given a list of Public Keys or a list of
+// hashed Public Keys, etc...
 package ecdsa
 
 import (
