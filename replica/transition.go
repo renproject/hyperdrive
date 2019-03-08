@@ -89,8 +89,6 @@ type PreCommitted struct {
 	block.SignedPreCommit
 }
 
-//TODO: should we have Commited as well?
-
 // IsTransition implements the `Transition` interface for the
 // `PreCommitted` event.
 func (preCommitted PreCommitted) IsTransition() {
