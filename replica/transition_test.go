@@ -1,6 +1,7 @@
 package replica_test
 
 import (
+	"math/rand"
 	"testing/quick"
 	"time"
 
@@ -11,17 +12,18 @@ import (
 )
 
 var conf = quick.Config{
+	// FIXME
 	MaxCount:      256,
 	MaxCountScale: 0,
 	Rand:          nil,
 	Values:        nil,
 }
 
-var _ = Describe("replica TransitionBuffer", func() {
-	Context("When only given Proposed Transitions", func() {
-		It("Number of Enqueue matches Dequeue for same height", func() {
+var _ = Describe("Transition buffer", func() {
+	Context("when only given Proposed Transitions", func() {
+		It("should enqueue the same number of times as it dequeues for a given height", func() {
 			test := func(num uint8, incrementHeight uint8) bool {
-				tb := NewTransitionBuffer()
+				tb := NewTransitionBuffer(20)
 				// cannot do (x % 0)
 				if incrementHeight == 0 {
 					incrementHeight++
@@ -47,163 +49,59 @@ var _ = Describe("replica TransitionBuffer", func() {
 				for k, v := range scratch {
 					for i := uint8(0); i < v; i++ {
 						_, ok := tb.Dequeue(k)
-						Expect(ok).To(Equal(true))
+						Expect(ok).To(Equal(true),
+							"Dequeue was empty! should have %v, had %v",
+							v, i)
 					}
 					_, ok := tb.Dequeue(k)
-					Expect(ok).To(Equal(false))
+					Expect(ok).To(Equal(false),
+						"Dequeue was Not empty when it shouldn't")
 				}
 				return true
 			}
 			Expect(quick.Check(test, &conf)).ShouldNot(HaveOccurred())
 		})
 	})
-	Context("When given TimedOut -> Proposed -> Proposed -> PreVoted", func() {
-		tb := NewTransitionBuffer()
+	Context("when given semi-random Transitions", func() {
+		It("should always give you back the most relevant Transition", func() {
+			test := func(size uint32, numInputs uint8) bool {
+				tb := NewTransitionBuffer(size % 50)
 
-		tb.Enqueue(TimedOut{Time: time.Now()})
-		tb.Enqueue(Proposed{Block: block.Genesis()})
-		tb.Enqueue(Proposed{Block: block.Genesis()})
-		prevote := PreVoted{}
-		prevote.Height = 0
-		tb.Enqueue(prevote)
-		It("First TimedOut should come out", func() {
-			tran, ok := tb.Dequeue(0)
-			Expect(ok).To(Equal(true))
-			switch tranType := tran.(type) {
-			case TimedOut:
-			default:
-				Expect("TimedOut type").To(Equal(""), "Type is: %T", tranType)
+				mock := newMock()
+
+				for i := uint8(0); i < numInputs; i++ {
+					tb.Enqueue(mock.nextTransition())
+				}
+
+				for height, mockTran := range mock.Map {
+					tran, ok := tb.Dequeue(height)
+					Expect(ok).To(Equal(true))
+					switch tranType := tran.(type) {
+					case Proposed:
+						Expect(mockTran).To(Equal(mockProposed),
+							"expected %v, got: %T", show(mockTran), tranType)
+					case PreVoted:
+						Expect(mockTran).To(Equal(mockPreVoted),
+							"expected %v, got: %T", show(mockTran), tranType)
+					case PreCommitted:
+						Expect(mockTran).To(Equal(mockPreCommitted),
+							"expected %v, got: %T", show(mockTran), tranType)
+					case TimedOut:
+						Expect(mock.GotImmediate).To(Equal(true),
+							"expected %v, got: %T", show(mockTran), tranType)
+					default:
+						Expect(false).To(Equal(true),
+							"unexpected Transition type: %T FIXME!", tranType)
+					}
+				}
+				return true
 			}
-		})
-		It("Second is PreVoted", func() {
-			tran, ok := tb.Dequeue(0)
-			Expect(ok).To(Equal(true))
-			switch tranType := tran.(type) {
-			case PreVoted:
-			default:
-				Expect("PreVoted type").To(Equal(""), "Type is: %T", tranType)
-			}
-		})
-		It("Third should have nothing", func() {
-			tran, ok := tb.Dequeue(0)
-			Expect(ok).To(Equal(false), "dequeued type %T", tran)
+			Expect(quick.Check(test, &conf)).ShouldNot(HaveOccurred())
 		})
 	})
-	Context("When given PreVoted -> PreVoted -> PreCommitted -> PreCommitted", func() {
-		tb := NewTransitionBuffer()
-
-		tb.Enqueue(Proposed{Block: block.Genesis()})
-		prevote := PreVoted{}
-		prevote.Height = 0
-		tb.Enqueue(prevote)
-		tb.Enqueue(prevote)
-		precom := PreCommitted{}
-		precom.Polka.Height = 0
-		tb.Enqueue(precom)
-		tb.Enqueue(precom)
-		It("First and Second should be a PreCommitted", func() {
-			tran, ok := tb.Dequeue(0)
-			Expect(ok).To(Equal(true))
-			switch tranType := tran.(type) {
-			case PreCommitted:
-			default:
-				Expect("PreCommitted type").To(Equal(""),
-					"Type is: %T", tranType)
-			}
-			tran, ok = tb.Dequeue(0)
-			Expect(ok).To(Equal(true))
-			switch tranType := tran.(type) {
-			case PreCommitted:
-			default:
-				Expect("PreCommitted type").To(Equal(""),
-					"Type is: %T", tranType)
-			}
-		})
-		It("Third should have nothing", func() {
-			tran, ok := tb.Dequeue(0)
-			Expect(ok).To(Equal(false), "dequeued type %t", tran)
-		})
-	})
-	Context("When given Proposed -> PreCommitted -> PreCommitted", func() {
-		tb := NewTransitionBuffer()
-
-		tb.Enqueue(Proposed{Block: block.Genesis()})
-		precom := PreCommitted{}
-		precom.Polka.Height = 0
-		tb.Enqueue(precom)
-		tb.Enqueue(precom)
-		It("First and Second should be a PreCommitted", func() {
-			tran, ok := tb.Dequeue(0)
-			Expect(ok).To(Equal(true))
-			switch tranType := tran.(type) {
-			case PreCommitted:
-			default:
-				Expect("PreCommitted type").To(Equal(""),
-					"Type is: %T", tranType)
-			}
-			tran, ok = tb.Dequeue(0)
-			Expect(ok).To(Equal(true))
-			switch tranType := tran.(type) {
-			case PreCommitted:
-			default:
-				Expect("PreCommitted type").To(Equal(""),
-					"Type is: %T", tranType)
-			}
-		})
-		It("Fourth should have nothing", func() {
-			tran, ok := tb.Dequeue(0)
-			Expect(ok).To(Equal(false), "dequeued type %t", tran)
-		})
-	})
-	Context("When given Transitions in incorrect order, panics", func() {
-		It("Should panic when PreCommitted -> Proposed", func() {
-			tb := NewTransitionBuffer()
-
-			precom := PreCommitted{}
-			precom.Polka.Height = 0
-			tb.Enqueue(precom)
-			Expect(func() {
-				tb.Enqueue(Proposed{Block: block.Genesis()})
-			}).Should(Panic())
-			_, ok := tb.Dequeue(0)
-			Expect(ok).To(Equal(true))
-			tran, ok := tb.Dequeue(0)
-			Expect(ok).To(Equal(false), "dequeued type %T", tran)
-		})
-		It("Should panic when PreVoted -> Proposed", func() {
-			tb := NewTransitionBuffer()
-
-			prevote := PreVoted{}
-			prevote.Height = 0
-			tb.Enqueue(prevote)
-			Expect(func() {
-				tb.Enqueue(Proposed{Block: block.Genesis()})
-			}).Should(Panic())
-			_, ok := tb.Dequeue(0)
-			Expect(ok).To(Equal(true))
-			tran, ok := tb.Dequeue(0)
-			Expect(ok).To(Equal(false), "dequeued type %T", tran)
-		})
-		It("Should panic when PreCommitted -> PreVoted", func() {
-			tb := NewTransitionBuffer()
-
-			precom := PreCommitted{}
-			precom.Polka.Height = 0
-			tb.Enqueue(precom)
-			Expect(func() {
-				prevote := PreVoted{}
-				prevote.Height = 0
-				tb.Enqueue(prevote)
-			}).Should(Panic())
-			_, ok := tb.Dequeue(0)
-			Expect(ok).To(Equal(true))
-			tran, ok := tb.Dequeue(0)
-			Expect(ok).To(Equal(false), "dequeued type %T", tran)
-		})
-	})
-	Context("When Drop is called", func() {
-		It("Should remove everything below the given height", func() {
-			tb := NewTransitionBuffer()
+	Context("when Drop is called", func() {
+		It("should remove everything below the given height", func() {
+			tb := NewTransitionBuffer(5)
 
 			precom := PreCommitted{}
 			precom.Polka.Height = 0
@@ -220,79 +118,119 @@ var _ = Describe("replica TransitionBuffer", func() {
 	})
 })
 
-// type mockInput struct {
-// 	height block.Height
-// 	rnd    *rand.Rand
-// 	state  mockState
-// 	Map    map[block.Height][]mockState
-// }
+type mockInput struct {
+	height block.Height
+	rnd    *rand.Rand
+	// This keeps track of the Transition the TransitionBuffer at the
+	// given Height should return with Dequeue
+	Map          map[block.Height]mockTran
+	GotImmediate bool
+}
 
-// type mockState uint8
+type mockTran uint8
 
-// const (
-// 	ProposedState mockState = iota
-// 	PreVotedState
-// 	PreCommittedState
-// 	Immediate
-// )
+const (
+	mockProposed mockTran = iota
+	mockPreVoted
+	mockPreCommitted
+	mockImmediate
+)
 
-// func newMock() *mockInput {
-// 	return &mockInput{
-// 		height: 0,
-// 		rnd:    rand.New(rand.NewSource(time.Now().UnixNano())),
-// 		state:  ProposedState,
-// 		Map:    make(map[block.Height][]mockState),
-// 	}
-// }
+func show(tran mockTran) string {
+	switch tran {
+	case mockProposed:
+		return "Proposed"
+	case mockPreVoted:
+		return "PreVoted"
+	case mockPreCommitted:
+		return "PreCommitted"
+	case mockImmediate:
+		return "TimedOut"
+	default:
+		return "FIXME, Not a mockTran"
+	}
+}
 
-// func (m *mockInput) nextTransition() Transition {
-// 	var rndTransition Transition
-// 	mState := m.state
+func newMock() *mockInput {
+	return &mockInput{
+		height:       0,
+		rnd:          rand.New(rand.NewSource(time.Now().UnixNano())),
+		Map:          make(map[block.Height]mockTran),
+		GotImmediate: false,
+	}
+}
 
-// 	// maybe increment height
-// 	if m.rnd.Intn(6) == 1 {
-// 		m.height++
-// 	}
+func (m *mockInput) nextTransition() Transition {
+	var rndTransition Transition
 
-// 	// maybe change state
-// 	if m.rnd.Intn(3) == 1 {
-// 		if m.state == 2 {
-// 			m.state = 0
-// 		} else {
-// 			m.state++
-// 		}
-// 	}
+	// maybe increase height
+	if m.rnd.Intn(6) == 1 {
+		m.height = m.height + block.Height(m.rnd.Intn(4))
+	}
+	// maybe decrease height
+	if m.rnd.Intn(6) == 1 {
+		tmp := m.height - block.Height(m.rnd.Intn(4))
+		if tmp > 0 {
+			m.height = tmp
+		}
+	}
 
-// 	switch m.state {
-// 	case ProposedState:
-// 		gen := Proposed{Block: block.Genesis()}
-// 		gen.Height = m.height
-// 		rndTransition = gen
-// 	case PreVotedState:
-// 		prevote := PreVoted{}
-// 		prevote.Height = m.height
-// 		rndTransition = prevote
-// 	case PreCommittedState:
-// 		precom := PreCommitted{}
-// 		precom.Polka.Height = m.height
-// 		rndTransition = precom
-// 	}
+	// pick Transition
+	nextTran := mockTran(m.rnd.Intn(3))
 
-// 	// maybe send other message
-// 	if m.rnd.Intn(6) == 1 {
-// 		rndTransition = TimedOut{Time: time.Now()}
-// 		mState = Immediate
-// 	}
+	// rarely pick a timout
+	if m.rnd.Intn(100) == 1 {
+		nextTran = mockImmediate
+	}
 
-// 	// keep track of what we did
-// 	if _, ok := m.Map[m.height]; !ok {
-// 		states := make([]mockState, 1)
-// 		states[0] = mState
-// 		m.Map[m.height] = states
-// 	} else {
-// 		states := m.Map[m.height]
-// 		states = append(states, mState)
-// 	}
+	switch nextTran {
+	case mockProposed:
+		gen := Proposed{Block: block.Genesis()}
+		gen.Height = m.height
+		rndTransition = gen
+		// The only time I would ever Dequeue a Propose is if either
+		// there already was a Propose or nothing else in the queue at
+		// that height
+		if _, ok := m.Map[m.height]; !ok {
+			m.Map[m.height] = mockProposed
+		}
+	case mockPreVoted:
+		prevote := PreVoted{}
+		prevote.Height = m.height
+		rndTransition = prevote
+		// The only time I would change what I Dequeue to a PreVoted
+		// is if a Propose was the last thing in the queue
+		if mock, ok := m.Map[m.height]; ok {
+			switch mock {
+			case mockProposed:
+				m.Map[m.height] = mockPreVoted
+			default:
+			}
+		} else {
+			m.Map[m.height] = mockPreVoted
+		}
+	case mockPreCommitted:
+		precom := PreCommitted{}
+		precom.Polka.Height = m.height
+		rndTransition = precom
+		// The only time I would change what I Dequeue to a
+		// PreCommitted is if either a Propose or a PreVoted
+		// was at the top of the queue
+		if mock, ok := m.Map[m.height]; ok {
+			switch mock {
+			case mockProposed:
+				m.Map[m.height] = mockPreCommitted
+			case mockPreVoted:
+				m.Map[m.height] = mockPreCommitted
+			default:
+			}
+		} else {
+			m.Map[m.height] = mockPreCommitted
+		}
+	case mockImmediate:
+		rndTransition = TimedOut{Time: time.Now()}
+		m.GotImmediate = true
+	}
 
-// 	return rndTransition
-// }
+	return rndTransition
+}
