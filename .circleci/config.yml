@@ -32,8 +32,8 @@ jobs:
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
-            - "/go/pkg/mod"
-            - "/go/bin"
+            - "~/go/pkg/mod"
+            - "~/go/bin"
 
 workflows:
   version: 2.1
