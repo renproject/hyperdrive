@@ -103,7 +103,18 @@ func (buffer *transitionBuffer) Enqueue(transition Transition) {
 	switch transition := transition.(type) {
 	case Proposed:
 		buffer.initMapKey(transition.Height)
-		buffer.buf[transition.Height].enqueue(transition)
+		queue := buffer.buf[transition.Height]
+		if tran, ok := queue.peek(); ok {
+			switch tran.(type) {
+			case Proposed:
+			case PreVoted:
+				panic("You Enqueued a PreVoted before a Proposed")
+			case PreCommitted:
+				panic("You Enqueued a PreCommitted before a Proposed")
+			default:
+			}
+		}
+		queue.enqueue(transition)
 	case PreVoted:
 		buffer.initMapKey(transition.Height)
 		queue := buffer.buf[transition.Height]
@@ -141,7 +152,10 @@ func (buffer *transitionBuffer) Dequeue(height block.Height) (Transition, bool) 
 	if tran, ok := buffer.immediate.dequeue(); ok {
 		return tran, true
 	}
-	return buffer.buf[height].dequeue()
+	if queue, ok := buffer.buf[height]; ok {
+		return queue.dequeue()
+	}
+	return nil, false
 }
 
 func (buffer *transitionBuffer) Drop(height block.Height) {
