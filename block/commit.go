@@ -62,10 +62,13 @@ func (builder CommitBuilder) Commit(consensusThreshold int64) (Commit, bool) {
 	highestCommit := Commit{}
 	for height, preCommits := range builder {
 		if !highestCommitFound || height > highestCommit.Polka.Block.Height {
+			if int64(len(preCommits)) < consensusThreshold {
+				continue
+			}
+			highestCommitFound = true
 
 			preCommitsForNil := int64(0)
 			preCommitsForBlock := map[sig.Hash]int64{}
-
 			for _, preCommit := range preCommits {
 				if preCommit.Polka.Block == nil {
 					preCommitsForNil++
@@ -76,20 +79,10 @@ func (builder CommitBuilder) Commit(consensusThreshold int64) (Commit, bool) {
 				preCommitsForBlock[preCommit.Polka.Block.Header] = numPreCommits
 			}
 
-			if preCommitsForNil >= consensusThreshold {
-				highestCommitFound = true
-				for _, preCommit := range preCommits {
-					if preCommit.Polka.Block == nil {
-						highestCommit.Polka.Block = preCommit.Polka.Block
-						highestCommit.Signatories = append(highestCommit.Signatories, preCommit.Signatory)
-						highestCommit.Signatures = append(highestCommit.Signatures, preCommit.Signature)
-					}
-				}
-			}
-
+			commitFound := false
 			for blockHeader, numPreCommits := range preCommitsForBlock {
 				if numPreCommits >= consensusThreshold {
-					highestCommitFound = true
+					commitFound = true
 					for _, preCommit := range preCommits {
 						if preCommit.Polka.Block != nil && preCommit.Polka.Block.Header.Equal(blockHeader) {
 							highestCommit.Polka.Block = preCommit.Polka.Block
@@ -98,6 +91,17 @@ func (builder CommitBuilder) Commit(consensusThreshold int64) (Commit, bool) {
 						}
 					}
 					break
+				}
+			}
+			if commitFound {
+				continue
+			}
+
+			for _, preCommit := range preCommits {
+				if preCommit.Polka.Block == nil {
+					highestCommit.Polka.Block = preCommit.Polka.Block
+					highestCommit.Signatories = append(highestCommit.Signatories, preCommit.Signatory)
+					highestCommit.Signatures = append(highestCommit.Signatures, preCommit.Signature)
 				}
 			}
 		}
