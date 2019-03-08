@@ -1,25 +1,23 @@
-/*Package replica contains the interface TransitionBuffer and its
-implementation
-
-Note: TransitionBuffer is not thread safe
-
-There are two types of `Transition`, those with a `Height` and those
-that are "immediate". Any "immediate" `Transition`s will be
-`Dequeue`ed first, regardless of the provided `Height`. Otherwise,
-`Dequeue` will return the most relevant `Transition` for the given
-`Height`. For example: you will not get a `PreVoted` if a
-`PreCommitted` was already `Enqueue`ed at that `Height`.
-
-Keep in mind`Transition`s that don't have a `Height` are not pruned.
-For example: if you `Enqueue` a `TimedOut` twice then the next two
-`Dequeue` will return a `TimedOut`. The "immediate" `Transition`s are
-stored in a FIFO queue.
-
-I also assume you will call `Drop` with your current `Height`
-whenever you are done processing all previous `Height`s to prevent
-`TransitionBuffer` from becoming a memory leak.
-
-*/
+// Package replica contains the interface TransitionBuffer and its
+// implementation
+//
+// Note: TransitionBuffer is not thread safe
+//
+// There are two types of `Transition`, those with a `Height` and those
+// that are "immediate". Any "immediate" `Transition`s will be
+// `Dequeue`ed first, regardless of the provided `Height`. Otherwise,
+// `Dequeue` will return the most relevant `Transition` for the given
+// `Height`. For example: you will not get a `PreVoted` if a
+// `PreCommitted` was already `Enqueue`ed at that `Height`.
+//
+// Keep in mind`Transition`s that don't have a `Height` are not pruned.
+// For example: if you `Enqueue` a `TimedOut` twice then the next two
+// `Dequeue` will return a `TimedOut`. The "immediate" `Transition`s are
+// stored in a FIFO queue.
+//
+// I also assume you will call `Drop` with your current `Height`
+// whenever you are done processing all previous `Height`s to prevent
+// `TransitionBuffer` from becoming a memory leak.
 package replica
 
 import (
