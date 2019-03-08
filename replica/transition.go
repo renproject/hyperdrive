@@ -14,10 +14,6 @@
 // For example: if you `Enqueue` a `TimedOut` twice then the next two
 // `Dequeue` will return a `TimedOut`. The "immediate" `Transition`s are
 // stored in a FIFO queue.
-//
-// I also assume you will call `Drop` with your current `Height`
-// whenever you are done processing all previous `Height`s to prevent
-// `TransitionBuffer` from becoming a memory leak.
 package replica
 
 import (
@@ -39,11 +35,14 @@ type TransitionBuffer interface {
 	Drop(height block.Height)
 }
 
-// NewTransitionBuffer creates an empty TransitionBuffer
-func NewTransitionBuffer() TransitionBuffer {
+// NewTransitionBuffer creates an empty TransitionBuffer with an
+// expected queue size. The size is an educated guess on how many
+// Transitions you expect to be queued for a given height
+func NewTransitionBuffer(size uint32) TransitionBuffer {
 	return &transitionBuffer{
-		buf:       make(map[block.Height]*transitionQueue),
-		immediate: newQueue(),
+		buf:              make(map[block.Height]*transitionQueue),
+		immediate:        newQueue(size),
+		initialQueueSize: size,
 	}
 }
 
@@ -100,35 +99,41 @@ func (preCommitted PreCommitted) IsTransition() {
 func (buffer *transitionBuffer) Enqueue(transition Transition) {
 	switch transition := transition.(type) {
 	case Proposed:
-		buffer.initMapKey(transition.Height)
+		buffer.initMapKey(transition.Height,
+			buffer.initialQueueSize)
 		queue := buffer.buf[transition.Height]
 		if tran, ok := queue.peek(); ok {
 			switch tran.(type) {
-			case Proposed:
 			case PreVoted:
-				panic("You Enqueued a PreVoted before a Proposed")
+				// Don't enqueue
 			case PreCommitted:
-				panic("You Enqueued a PreCommitted before a Proposed")
+				// Don't enqueue
 			default:
+				queue.enqueue(transition)
 			}
+		} else {
+			queue.enqueue(transition)
 		}
-		queue.enqueue(transition)
 	case PreVoted:
-		buffer.initMapKey(transition.Height)
+		buffer.initMapKey(transition.Height,
+			buffer.initialQueueSize)
 		queue := buffer.buf[transition.Height]
 		if tran, ok := queue.peek(); ok {
 			switch tran.(type) {
 			case Proposed:
 				queue.reset()
-			case PreVoted:
+				queue.enqueue(transition)
 			case PreCommitted:
-				panic("You Enqueued a PreCommitted before a PreVoted")
+				// Don't enqueue
 			default:
+				queue.enqueue(transition)
 			}
+		} else {
+			queue.enqueue(transition)
 		}
-		queue.enqueue(transition)
 	case PreCommitted:
-		buffer.initMapKey(transition.Polka.Height)
+		buffer.initMapKey(transition.Polka.Height,
+			buffer.initialQueueSize)
 		queue := buffer.buf[transition.Polka.Height]
 		if tran, ok := queue.peek(); ok {
 			switch tran.(type) {
@@ -146,6 +151,9 @@ func (buffer *transitionBuffer) Enqueue(transition Transition) {
 	}
 }
 
+// Dequeue picks things that don't have a height first, like timeouts
+// then takes the next Transition for the provided height. If there is
+// nothing at that height or the queue is empty it will return false.
 func (buffer *transitionBuffer) Dequeue(height block.Height) (Transition, bool) {
 	if tran, ok := buffer.immediate.dequeue(); ok {
 		return tran, true
@@ -156,6 +164,10 @@ func (buffer *transitionBuffer) Dequeue(height block.Height) (Transition, bool) 
 	return nil, false
 }
 
+// Drop deletes all entries below the provided height. I assume you
+// will call `Drop` with your current `Height` whenever you are done
+// processing all previous `Height`s to prevent `TransitionBuffer`
+// from becoming a memory leak.
 func (buffer *transitionBuffer) Drop(height block.Height) {
 	for k := range buffer.buf {
 		if k < height {
@@ -166,22 +178,24 @@ func (buffer *transitionBuffer) Drop(height block.Height) {
 
 // Convenience function to make sure the map already has a Queue
 // for the provided height
-func (buffer *transitionBuffer) initMapKey(height block.Height) {
+func (buffer *transitionBuffer) initMapKey(height block.Height,
+	size uint32) {
 	if _, ok := buffer.buf[height]; !ok {
-		buffer.buf[height] = newQueue()
+		buffer.buf[height] = newQueue(size)
 	}
 }
 
 // The logic behind the buf is to delete the transitionQueue whenever
 // we get a Transition that makes the previous messages obsolete
 type transitionBuffer struct {
-	buf       map[block.Height]*transitionQueue
-	immediate *transitionQueue
+	buf              map[block.Height]*transitionQueue
+	immediate        *transitionQueue
+	initialQueueSize uint32
 }
 
-func newQueue() *transitionQueue {
+func newQueue(size uint32) *transitionQueue {
 	return &transitionQueue{
-		queue: make([]Transition, 0),
+		queue: make([]Transition, size),
 		end:   0,
 	}
 }
@@ -189,11 +203,11 @@ func newQueue() *transitionQueue {
 // FIFO queue for `Transition`
 type transitionQueue struct {
 	queue []Transition
-	end   int
+	end   uint32
 }
 
 func (tq *transitionQueue) enqueue(tran Transition) {
-	if len(tq.queue) == tq.end {
+	if uint32(len(tq.queue)) == tq.end {
 		tq.queue = append(tq.queue, tran)
 	} else {
 		tq.queue[tq.end] = tran
