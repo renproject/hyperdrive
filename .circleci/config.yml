@@ -13,7 +13,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
+          key: go-mod-v2-{{ checksum "go.sum" }}
       - run:
           name: Building and testing
           command: |
@@ -30,7 +30,7 @@ jobs:
               sig/ecdsa/coverprofile.out \
               supervisor/coverprofile.out > coverprofile.out
       - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
+          key: go-mod-v2-{{ checksum "go.sum" }}
           paths:
             - "~/go/pkg/mod"
             - "~/go/bin"
