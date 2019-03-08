@@ -21,3 +21,4 @@ govendor add github.com/ethereum/go-ethereum/crypto/secp256k1/^
 ```
 
 Note: you get covermerge from here: `go get github.com/loongy/covermerge`
+
