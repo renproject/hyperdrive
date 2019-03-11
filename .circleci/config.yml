@@ -5,177 +5,34 @@ version: 2.1
 
 _defaults: &defaults
     docker:
-      # specify the version
-      - image: circleci/golang:1.9
-    environment:
-      - GOCACHE: "/tmp/go/cache"
-      - DEP_VERSION: 0.5.0
-      - GHR_VERSION: 0.12.0
-    working_directory: /go/src/github.com/renproject/hyperdrive
-
-commands:
-  patch_version:
-    description: Patches the version key of a JSON file with branch name and date
-    parameters:
-      file:
-        description: The file to be patched
-        type: string
-    steps:
-      - run:
-          name: Install JQ
-          command: |
-            if ! [ -x "$(command -v jq)" ]; then
-              sudo apt-get install jq
-            fi
-      - run:
-          name: Patching version
-          command: |
-            branch=$(git branch | grep \* | cut -d ' ' -f2)
-            timestamp=$(date +"%Y%m%d")
-            tmp=$(mktemp)
-            jq --arg suffix "-${branch}.${timestamp}" '.version += $suffix' << parameters.file >> > "$tmp" && mv -f "$tmp" << parameters.file >>
-  deploy:
-    description: Deploy
-    parameters:
-      file:
-        description: The file to be patched and deployed
-        type: string
-    steps:
-      - patch_version:
-          file: << parameters.file >>
-      - run:
-          name: Install GHR
-          command: |
-            curl -L -s https://github.com/tcnksm/ghr/releases/download/v${GHR_VERSION}/ghr_v${GHR_VERSION}_linux_amd64.tar.gz -o ./ghr.tar.gz
-            tar xvzf ./ghr.tar.gz
-            sudo mv ./ghr_v${GHR_VERSION}_linux_amd64/ghr /usr/local/bin
-      - run:
-          name: Deploy to Github Releases
-          command: |
-            ver=$(jq -r '.version' << parameters.file >>)
-            echo "v${ver}"
-            cat << parameters.file >>
-            ghr "v${ver}" << parameters.file >>
-  rw_checkout:
-    description: "Checkout with Read/Write Privileges"
-    steps:
-      - run:
-          name: Setup Git
-          command: |
-            export RW_REPO_URL="https://${GITHUB_TOKEN}@github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
-
-            if [ -e ${CIRCLE_WORKING_DIRECTORY}/.git ]
-            then
-              cd ${CIRCLE_WORKING_DIRECTORY}
-              git remote set-url origin "${RW_REPO_URL}" || true
-              git fetch --force origin "master:remotes/origin/master"
-            else
-              mkdir -p ${CIRCLE_WORKING_DIRECTORY}
-              cd ${CIRCLE_WORKING_DIRECTORY}
-              git clone ${RW_REPO_URL} .
-            fi
-            git fetch --all
-  merge:
-    description: "Merge from branch into another branch"
-    parameters:
-      from:
-        description: The branch with changes to be merged into another branch
-        type: string
-      into:
-        description: The branch onto which changes will be applied
-        type: string
-    steps:
-      - rw_checkout
-      - run:
-          name: Merging branch
-          command: |
-            git reset --hard
-            git checkout --track origin/<< parameters.into >>
-            git merge origin/<< parameters.from >> -v
-            git push
+      - image: circleci/golang:1.11
 
 jobs:
-  deploy:
-    <<: *defaults
-    steps:
-      - rw_checkout
-      - deploy:
-          file: config.json
-  fake_activity:
-    <<: *defaults
-    steps:
-      - rw_checkout
-      - run:
-          name: Making a random commit
-          command: |
-            git reset --hard
-            git checkout master
-            git config --global user.name "CircleCI"
-            git config --global user.email "circleci"
-            export NUM="$(( ( RANDOM % 10 )  + 1 ))"
-            echo "${NUM}" >> numbers.txt
-            git commit -am "CircleCI - Add number (${NUM})"
-            git push
-  merge_nightly:
-    <<: *defaults
-    steps:
-      - merge:
-          from: master
-          into: nightly
-  merge_beta:
-    <<: *defaults
-    steps:
-      - merge:
-          from: nightly
-          into: beta
-  merge_stable:
-    <<: *defaults
-    steps:
-      - merge:
-          from: beta
-          into: stable
   build:
     <<: *defaults
     steps:
       - checkout
       - restore_cache:
-          key: gopkg-{{ .Branch }}-{{ checksum "Gopkg.lock" }}
-          paths:
-              - /go/src/github.com/renproject/hyperdrive/vendor
-      - run:
-          name: Download dependencies
-          command: |
-            if [ ! -d /go/src/github.com/renproject/hyperdrive/vendor ]; then
-                curl -L -s https://github.com/golang/dep/releases/download/v${DEP_VERSION}/dep-linux-amd64 -o /go/bin/dep
-                chmod +x /go/bin/dep
-                /go/bin/dep ensure -v
-                go get github.com/kardianos/govendor
-                /go/bin/govendor init
-                /go/bin/govendor add +e
-                rm -rf /go/src/github.com/renproject/hyperdrive/vendor/github.com/ethereum/go-ethereum/crypto/secp256k1/
-                /go/bin/govendor add github.com/ethereum/go-ethereum/crypto/secp256k1/^
-                go get github.com/loongy/covermerge
-            else
-                echo "Dependencies were restored from cache."
-            fi
-      - save_cache:
-          key: gopkg-{{ .Branch }}-{{ checksum "Gopkg.lock" }}
-          paths:
-              - /go/src/github.com/renproject/hyperdrive/vendor
-      - restore_cache:
-          keys:
-              - build-cache-{{ .Branch }}-{{ .Environment.CIRCLE_PREVIOUS_BUILD_NUM }}
-          paths:
-              - /tmp/go/cache
+          key: go-mod-v3-{{ checksum "go.sum" }}
       - run:
           name: Building and testing
           command: |
-            mkdir -p $GOCACHE
-            sh /go/src/github.com/renproject/hyperdrive/.circleci/test.sh
+            go build ./...
+            go get -u github.com/onsi/ginkgo/ginkgo
+            go get -u github.com/loongy/covermerge
+            go test ./...
+            CI=true /go/bin/ginkgo -v --race \
+            --cover --coverprofile coverprofile.out ./...
+            /go/bin/covermerge block/coverprofile.out \
+              cmd/node/coverprofile.out \
+              replica/coverprofile.out \
+              sig/coverprofile.out \
+              sig/ecdsa/coverprofile.out \
+              supervisor/coverprofile.out > coverprofile.out
       - save_cache:
-          key: build-cache-{{ .Branch }}-{{ .Environment.CIRCLE_BUILD_NUM }}
+          key: go-mod-v3-{{ checksum "go.sum" }}
           paths:
-              - /tmp/go/cache
+            - "~/go"
 
 workflows:
   version: 2.1

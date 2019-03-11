@@ -1,3 +1,7 @@
+// Package replica core package
+//
+// I assume that all provided `Transition`s are well formed and valid by
+// the time they reach this module.
 package replica
 
 import (
@@ -18,7 +22,12 @@ type replica struct {
 	blockchain       block.Blockchain
 }
 
-func New(transitions <-chan Transition, transitionBuffer TransitionBuffer, dispatcher Dispatcher, state State, stateMachine StateMachine, blockchain block.Blockchain) supervisor.Runner {
+func New(transitions <-chan Transition,
+	transitionBuffer TransitionBuffer,
+	dispatcher Dispatcher,
+	state State,
+	stateMachine StateMachine,
+	blockchain block.Blockchain) supervisor.Runner {
 	return &replica{
 		transitions:      transitions,
 		transitionBuffer: transitionBuffer,
