@@ -82,6 +82,8 @@ func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
 	}
 }
 
+// Polka finds the `Polka` with the highest height that has enough
+// `PreVotes` to be greater than or equal to the `consensusThreshold`
 func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 	highestPolkaFound := false
 	highestPolka := Polka{}
@@ -109,12 +111,18 @@ func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 				if numPreVotes >= consensusThreshold {
 					polkaFound = true
 					for _, preVote := range preVotes {
-						if preVote.Block != nil && preVote.Block.Header.Equal(blockHeader) {
+						if preVote.Block != nil &&
+							preVote.Block.Header.Equal(blockHeader) {
+
 							highestPolka.Block = preVote.Block
 							highestPolka.Round = preVote.Round
 							highestPolka.Height = preVote.Height
-							highestPolka.Signatories = append(highestPolka.Signatories, preVote.Signatory)
-							highestPolka.Signatures = append(highestPolka.Signatures, preVote.Signature)
+							highestPolka.Signatories =
+								append(highestPolka.Signatories,
+									preVote.Signatory)
+							highestPolka.Signatures =
+								append(highestPolka.Signatures,
+									preVote.Signature)
 						}
 					}
 					break
@@ -129,8 +137,10 @@ func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 					highestPolka.Block = preVote.Block
 					highestPolka.Round = preVote.Round
 					highestPolka.Height = preVote.Height
-					highestPolka.Signatories = append(highestPolka.Signatories, preVote.Signatory)
-					highestPolka.Signatures = append(highestPolka.Signatures, preVote.Signature)
+					highestPolka.Signatories =
+						append(highestPolka.Signatories, preVote.Signatory)
+					highestPolka.Signatures =
+						append(highestPolka.Signatures, preVote.Signature)
 				}
 			}
 		}
