@@ -7,61 +7,73 @@ package replica
 import (
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/consensus"
-	"github.com/renproject/hyperdrive/supervisor"
+	"github.com/renproject/hyperdrive/shard"
+	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/tx"
 )
 
 type Dispatcher interface {
 	Dispatch(action consensus.Action)
 }
 
+type Replica interface {
+	Shard(shard shard.Shard)
+	Transact(transaction tx.Transaction)
+	Transition(transition consensus.Transition)
+}
+
 type replica struct {
-	transitions      <-chan consensus.Transition
-	transitionBuffer consensus.TransitionBuffer
-	dispatcher       Dispatcher
+	dispatcher Dispatcher
+
+	signer           sig.Signer
+	txPool           tx.Pool
 	state            consensus.State
 	stateMachine     consensus.StateMachine
+	transitionBuffer consensus.TransitionBuffer
 	blockchain       block.Blockchain
 }
 
 func New(
-	transitions <-chan consensus.Transition,
-	transitionBuffer consensus.TransitionBuffer,
 	dispatcher Dispatcher,
+	signer sig.Signer,
+	txPool tx.Pool,
 	state consensus.State,
 	stateMachine consensus.StateMachine,
+	transitionBuffer consensus.TransitionBuffer,
 	blockchain block.Blockchain,
-) supervisor.Runner {
+) Replica {
 	return &replica{
-		transitions:      transitions,
-		transitionBuffer: transitionBuffer,
 		dispatcher:       dispatcher,
 		state:            state,
 		stateMachine:     stateMachine,
+		transitionBuffer: transitionBuffer,
 		blockchain:       blockchain,
 	}
 }
 
-func (replica *replica) Run(ctx supervisor.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case transition := <-replica.transitions:
-			if replica.shouldDropTransition(transition) {
-				continue
-			}
-			if replica.shouldBufferTransition(transition) {
-				replica.transitionBuffer.Enqueue(transition)
-				continue
-			}
+func (replica *replica) Shard(shard shard.Shard) {
+	// TODO: There is still a lot to figure out here.
+}
 
-			for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.state.Height()) {
-				nextState, action := replica.stateMachine.Transition(replica.state, transition)
-				replica.dispatchAction(action)
-				replica.state = nextState
-				replica.transitionBuffer.Drop(replica.state.Height())
-			}
-		}
+func (replica *replica) Transact(tx tx.Transaction) {
+	replica.txPool.Enqueue(tx)
+}
+
+func (replica *replica) Transition(transition consensus.Transition) {
+	if replica.shouldDropTransition(transition) {
+		return
+	}
+	if replica.shouldBufferTransition(transition) {
+		replica.transitionBuffer.Enqueue(transition)
+		return
+	}
+	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.state.Height()) {
+		nextState, action := replica.stateMachine.Transition(replica.state, transition)
+		replica.state = nextState
+		replica.transitionBuffer.Drop(replica.state.Height())
+		// WARNING: It is important that the Action is dispatched after the State has been completely transitioned in
+		// the Replica. Otherwise, re-entrance into the Replica may cause issues.
+		replica.dispatchAction(action)
 	}
 }
 
@@ -81,9 +93,11 @@ func (replica *replica) dispatchAction(action consensus.Action) {
 }
 
 func (replica *replica) handlePreVote(preVote consensus.PreVote) {
+	// Passthrough
 }
 
 func (replica *replica) handlePreCommit(preCommit consensus.PreCommit) {
+	// Passthrough
 }
 
 func (replica *replica) handleCommit(commit consensus.Commit) {
