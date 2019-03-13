@@ -6,23 +6,30 @@ type Action interface {
 	IsAction()
 }
 
+type Propose struct {
+	block.Block
+}
+
+func (Propose) IsAction() {
+}
+
 type PreVote struct {
 	block.PreVote
 }
 
-func (preVote PreVote) IsAction() {
+func (PreVote) IsAction() {
 }
 
 type PreCommit struct {
 	block.PreCommit
 }
 
-func (preCommit PreCommit) IsAction() {
+func (PreCommit) IsAction() {
 }
 
 type Commit struct {
 	block.Commit
 }
 
-func (commit Commit) IsAction() {
+func (Commit) IsAction() {
 }

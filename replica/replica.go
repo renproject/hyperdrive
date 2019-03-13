@@ -17,7 +17,6 @@ type Dispatcher interface {
 }
 
 type Replica interface {
-	Shard(shard shard.Shard)
 	Transact(transaction tx.Transaction)
 	Transition(transition consensus.Transition)
 }
@@ -31,6 +30,7 @@ type replica struct {
 	stateMachine     consensus.StateMachine
 	transitionBuffer consensus.TransitionBuffer
 	blockchain       block.Blockchain
+	shard            shard.Shard
 }
 
 func New(
@@ -41,18 +41,19 @@ func New(
 	stateMachine consensus.StateMachine,
 	transitionBuffer consensus.TransitionBuffer,
 	blockchain block.Blockchain,
+	shard shard.Shard,
 ) Replica {
 	return &replica{
-		dispatcher:       dispatcher,
+		dispatcher: dispatcher,
+
+		signer:           signer,
+		txPool:           txPool,
 		state:            state,
 		stateMachine:     stateMachine,
 		transitionBuffer: transitionBuffer,
 		blockchain:       blockchain,
+		shard:            shard,
 	}
-}
-
-func (replica *replica) Shard(shard shard.Shard) {
-	// TODO: There is still a lot to figure out here.
 }
 
 func (replica *replica) Transact(tx tx.Transaction) {
@@ -71,8 +72,8 @@ func (replica *replica) Transition(transition consensus.Transition) {
 		nextState, action := replica.stateMachine.Transition(replica.state, transition)
 		replica.state = nextState
 		replica.transitionBuffer.Drop(replica.state.Height())
-		// WARNING: It is important that the Action is dispatched after the State has been completely transitioned in
-		// the Replica. Otherwise, re-entrance into the Replica may cause issues.
+		// It is important that the Action is dispatched after the State has been completely transitioned in the
+		// Replica. Otherwise, re-entrance into the Replica may cause issues.
 		replica.dispatchAction(action)
 	}
 }
@@ -102,6 +103,11 @@ func (replica *replica) handlePreCommit(preCommit consensus.PreCommit) {
 
 func (replica *replica) handleCommit(commit consensus.Commit) {
 	replica.blockchain.Extend(commit.Commit)
+	if replica.shouldProposeBlock() {
+		replica.dispatcher.Dispatch(consensus.Propose{
+			Block: replica.generateBlock(),
+		})
+	}
 }
 
 func (replica *replica) shouldDropTransition(transition consensus.Transition) bool {
@@ -138,4 +144,13 @@ func (replica *replica) shouldBufferTransition(transition consensus.Transition) 
 		}
 	}
 	return false
+}
+
+func (replica *replica) shouldProposeBlock() bool {
+	return replica.signer.Signatory().Equal(replica.shard.Leader(replica.state.Round()))
+}
+
+func (replica *replica) generateBlock() block.Block {
+	// TODO: Generate a Block using the transaction Pool, current Blockchain, and current Shard.
+	return block.Block{}
 }
