@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/tx"
 )
 
 // The Round in which a `Block` was proposed.
@@ -22,6 +23,7 @@ type Block struct {
 	ParentHeader sig.Hash
 	Signature    sig.Signature
 	Signatory    sig.Signatory
+	Txs          tx.Transactions
 }
 
 func Genesis() Block {
@@ -33,6 +35,7 @@ func Genesis() Block {
 		ParentHeader: sig.Hash{},
 		Signature:    sig.Signature{},
 		Signatory:    sig.Signatory{},
+		Txs:          tx.Transactions{},
 	}
 }
 
