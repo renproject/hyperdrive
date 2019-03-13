@@ -13,7 +13,7 @@ import (
 )
 
 var conf = quick.Config{
-	MaxCount:      50,
+	MaxCount:      256,
 	MaxCountScale: 0,
 	Rand:          nil,
 	Values:        nil,

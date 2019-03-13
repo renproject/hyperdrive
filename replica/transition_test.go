@@ -12,7 +12,6 @@ import (
 )
 
 var conf = quick.Config{
-	// FIXME
 	MaxCount:      256,
 	MaxCountScale: 0,
 	Rand:          nil,
