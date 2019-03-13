@@ -76,7 +76,7 @@ func (polka Polka) String() string {
 	if polka.Block != nil {
 		blockHeader = base64.StdEncoding.EncodeToString(polka.Block.Header[:])
 	}
-	return fmt.Sprintf("Polka(Block=%s,Round=%d,Height=%d)", blockHeader, polka.Round, polka.Height)
+	return fmt.Sprintf("Polka(%s,Round=%d,Height=%d)", blockHeader, polka.Round, polka.Height)
 }
 
 // PolkaBuilder should start empty and be filled with valid
