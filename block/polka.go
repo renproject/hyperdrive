@@ -8,12 +8,15 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+// PreVote is you voting for the encapsulated block to be added
+// during this round at this height
 type PreVote struct {
 	Block  *Block
 	Round  Round
 	Height Height
 }
 
+// NewPreVote creates a PreVote
 func NewPreVote(block *Block, round Round, height Height) PreVote {
 	return PreVote{
 		Block:  block,
@@ -22,6 +25,8 @@ func NewPreVote(block *Block, round Round, height Height) PreVote {
 	}
 }
 
+// Sign is indented to be the way you sign your PreVote with your
+// private key
 func (preVote PreVote) Sign(signer sig.Signer) (SignedPreVote, error) {
 	data := []byte(preVote.String())
 
@@ -49,12 +54,15 @@ func (preVote PreVote) String() string {
 	return fmt.Sprintf("PreVote(%s,Round=%d,Height=%d)", block, preVote.Round, preVote.Height)
 }
 
+// SignedPreVote is the signed version of a PreVote
 type SignedPreVote struct {
 	PreVote
 	Signature sig.Signature
 	Signatory sig.Signatory
 }
 
+// Polka is created when 2/3 of the nodes in the network have all
+// PreVoted for a given block.
 type Polka struct {
 	Block       *Block
 	Round       Round
@@ -71,8 +79,13 @@ func (polka Polka) String() string {
 	return fmt.Sprintf("Polka(Block=%s,Round=%d,Height=%d)", blockHeader, polka.Round, polka.Height)
 }
 
+// PolkaBuilder should start empty and be filled with valid
+// SignedPreVote with Insert
 type PolkaBuilder map[Height]map[sig.Signatory]SignedPreVote
 
+// Insert takes a valid SignedPreVote to register the vote. You can
+// give this duplicate valid SignedPreVote and only one vote will be
+// registered.
 func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
 	if _, ok := builder[preVote.Block.Height]; !ok {
 		builder[preVote.Block.Height] = map[sig.Signatory]SignedPreVote{}
@@ -84,6 +97,10 @@ func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
 
 // Polka finds the `Polka` with the highest height that has enough
 // `PreVotes` to be greater than or equal to the `consensusThreshold`
+//
+// By construction duplicate votes from the same signatory will only
+// count as one vote. However, it does assume that each SignedPreVote
+// has a valid header and signature.
 func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 	highestPolkaFound := false
 	highestPolka := Polka{}
@@ -94,11 +111,21 @@ func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 			}
 			highestPolkaFound = true
 
+			// Note: also not used
 			preVotesForNil := int64(0)
+
 			preVotesForBlock := map[sig.Hash]int64{}
 			for _, preVote := range preVotes {
 				if preVote.Block == nil {
+					// This is dead code since `preVotesForNil` is
+					// never used
 					preVotesForNil++
+
+					// This does let us skip nill blocks, but we
+					// already need to check for valid headers and
+					// signatures before any votes reach to this
+					// function. In other words, I think we should
+					// remove the whole if statement here.
 					continue
 				}
 				numPreVotes := preVotesForBlock[preVote.Block.Header]
@@ -132,6 +159,10 @@ func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 				continue
 			}
 
+			// I am unable to get this code to be run given the
+			// assumption that only valid SignedPreVote will be
+			// inserted. Let me know what case this is supposed to
+			// catch and if we need it here.
 			for _, preVote := range preVotes {
 				if preVote.Block == nil {
 					highestPolka.Block = preVote.Block
@@ -148,6 +179,9 @@ func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 	return highestPolka, highestPolkaFound
 }
 
+// Drop removes all registered SignedPreVote below the given height.
+// Essentially, call this on your current height when you have found a
+// polka.
 func (builder PolkaBuilder) Drop(dropHeight Height) {
 	for height := range builder {
 		if height < dropHeight {

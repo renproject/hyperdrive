@@ -13,31 +13,25 @@ import (
 )
 
 var conf = quick.Config{
-	MaxCount:      256,
+	MaxCount:      50,
 	MaxCountScale: 0,
 	Rand:          nil,
 	Values:        nil,
 }
 
 var _ = Describe("Polka Builder", func() {
-	Context("when given nothing", func() {
-		It("should return false", func() {
-			builder := make(PolkaBuilder)
-
-			polka, found := builder.Polka(5)
-
-			Expect(polka.String()).To(Equal(Polka{}.String()))
-			Expect(found).To(Equal(false))
-		})
-	})
 	Context("when given a set of semi-random PreVote", func() {
 		It("should always return the most relevant Polka", func() {
-			test := func(mock mockPreVotes) bool {
+			test := func(mock mockPreVotes, testDrop bool) bool {
 
 				builder := make(PolkaBuilder)
 
 				for _, signedPreVote := range mock.votes {
 					builder.Insert(signedPreVote)
+				}
+
+				if testDrop {
+					builder.Drop(mock.expectedPolka.Height)
 				}
 
 				polka, found := builder.Polka(mock.consensusThreshold)
@@ -75,8 +69,8 @@ func (mockPreVotes) Generate(rand *rand.Rand, size int) reflect.Value {
 		headersSeed[i] = val.Interface().(sig.Hash)
 	}
 
-	numPreVotes := rand.Uint32() % 100
-	consensusThreshold := ((numPreVotes * 2) / 3)
+	numPreVotes := rand.Uint32() % 50
+	consensusThreshold := rand.Uint32() % 50
 
 	signedPreVotes := make([]SignedPreVote, numPreVotes)
 
