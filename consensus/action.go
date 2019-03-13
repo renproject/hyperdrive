@@ -1,4 +1,4 @@
-package replica
+package consensus
 
 import "github.com/renproject/hyperdrive/block"
 

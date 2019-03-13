@@ -6,28 +6,31 @@ package replica
 
 import (
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/consensus"
 	"github.com/renproject/hyperdrive/supervisor"
 )
 
 type Dispatcher interface {
-	Dispatch(action Action)
+	Dispatch(action consensus.Action)
 }
 
 type replica struct {
-	transitions      <-chan Transition
-	transitionBuffer TransitionBuffer
+	transitions      <-chan consensus.Transition
+	transitionBuffer consensus.TransitionBuffer
 	dispatcher       Dispatcher
-	state            State
-	stateMachine     StateMachine
+	state            consensus.State
+	stateMachine     consensus.StateMachine
 	blockchain       block.Blockchain
 }
 
-func New(transitions <-chan Transition,
-	transitionBuffer TransitionBuffer,
+func New(
+	transitions <-chan consensus.Transition,
+	transitionBuffer consensus.TransitionBuffer,
 	dispatcher Dispatcher,
-	state State,
-	stateMachine StateMachine,
-	blockchain block.Blockchain) supervisor.Runner {
+	state consensus.State,
+	stateMachine consensus.StateMachine,
+	blockchain block.Blockchain,
+) supervisor.Runner {
 	return &replica{
 		transitions:      transitions,
 		transitionBuffer: transitionBuffer,
@@ -62,42 +65,42 @@ func (replica *replica) Run(ctx supervisor.Context) {
 	}
 }
 
-func (replica *replica) dispatchAction(action Action) {
+func (replica *replica) dispatchAction(action consensus.Action) {
 	if action == nil {
 		return
 	}
 	switch action := action.(type) {
-	case PreVote:
+	case consensus.PreVote:
 		replica.handlePreVote(action)
-	case PreCommit:
+	case consensus.PreCommit:
 		replica.handlePreCommit(action)
-	case Commit:
+	case consensus.Commit:
 		replica.handleCommit(action)
 	}
 	replica.dispatcher.Dispatch(action)
 }
 
-func (replica *replica) handlePreVote(preVote PreVote) {
+func (replica *replica) handlePreVote(preVote consensus.PreVote) {
 }
 
-func (replica *replica) handlePreCommit(preCommit PreCommit) {
+func (replica *replica) handlePreCommit(preCommit consensus.PreCommit) {
 }
 
-func (replica *replica) handleCommit(commit Commit) {
+func (replica *replica) handleCommit(commit consensus.Commit) {
 	replica.blockchain.Extend(commit.Commit)
 }
 
-func (replica *replica) shouldDropTransition(transition Transition) bool {
+func (replica *replica) shouldDropTransition(transition consensus.Transition) bool {
 	switch transition := transition.(type) {
-	case Proposed:
+	case consensus.Proposed:
 		if transition.Height < replica.state.Height() {
 			return true
 		}
-	case PreVoted:
+	case consensus.PreVoted:
 		if transition.Height < replica.state.Height() {
 			return true
 		}
-	case PreCommitted:
+	case consensus.PreCommitted:
 		if transition.Polka.Height < replica.state.Height() {
 			return true
 		}
@@ -105,17 +108,17 @@ func (replica *replica) shouldDropTransition(transition Transition) bool {
 	return false
 }
 
-func (replica *replica) shouldBufferTransition(transition Transition) bool {
+func (replica *replica) shouldBufferTransition(transition consensus.Transition) bool {
 	switch transition := transition.(type) {
-	case Proposed:
+	case consensus.Proposed:
 		if transition.Height > replica.state.Height() {
 			return true
 		}
-	case PreVoted:
+	case consensus.PreVoted:
 		if transition.Height > replica.state.Height() {
 			return true
 		}
-	case PreCommitted:
+	case consensus.PreCommitted:
 		if transition.Polka.Height > replica.state.Height() {
 			return true
 		}

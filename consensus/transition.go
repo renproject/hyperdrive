@@ -1,4 +1,4 @@
-// Package replica contains the interface TransitionBuffer and its
+// Package consensus contains the interface TransitionBuffer and its
 // implementation
 //
 // Note: TransitionBuffer is not thread safe
@@ -14,7 +14,7 @@
 // For example: if you `Enqueue` a `TimedOut` twice then the next two
 // `Dequeue` will return a `TimedOut`. The "immediate" `Transition`s are
 // stored in a FIFO queue.
-package replica
+package consensus
 
 import (
 	"time"

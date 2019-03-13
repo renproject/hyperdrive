@@ -1,14 +1,15 @@
-package replica_test
+package consensus_test
 
 import (
 	"math/rand"
 	"testing/quick"
 	"time"
 
+	"github.com/renproject/hyperdrive/block"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/hyperdrive/block"
-	. "github.com/renproject/hyperdrive/replica"
+	. "github.com/renproject/hyperdrive/consensus"
 )
 
 var conf = quick.Config{
