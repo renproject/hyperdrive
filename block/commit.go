@@ -11,6 +11,7 @@ type PreCommit struct {
 	Polka Polka
 }
 
+// Sign a PreCommit with your private key
 func (preCommit PreCommit) Sign(signer sig.Signer) (SignedPreCommit, error) {
 	data := []byte(preCommit.String())
 
@@ -46,14 +47,21 @@ type Commit struct {
 	Signatories sig.Signatories
 }
 
+func (commit Commit) String() string {
+	return fmt.Sprintf("Polka(%s)", commit.Polka.String())
+}
+
 type CommitBuilder map[Height]map[sig.Signatory]SignedPreCommit
 
 func (builder CommitBuilder) Insert(preCommit SignedPreCommit) {
 	if _, ok := builder[preCommit.Polka.Block.Height]; !ok {
-		builder[preCommit.Polka.Block.Height] = map[sig.Signatory]SignedPreCommit{}
+		builder[preCommit.Polka.Block.Height] =
+			map[sig.Signatory]SignedPreCommit{}
 	}
 	if _, ok := builder[preCommit.Polka.Block.Height][preCommit.Signatory]; !ok {
-		builder[preCommit.Polka.Block.Height][preCommit.Signatory] = preCommit
+
+		builder[preCommit.Polka.Block.Height][preCommit.Signatory] =
+			preCommit
 	}
 }
 
@@ -74,9 +82,11 @@ func (builder CommitBuilder) Commit(consensusThreshold int64) (Commit, bool) {
 					preCommitsForNil++
 					continue
 				}
-				numPreCommits := preCommitsForBlock[preCommit.Polka.Block.Header]
+				numPreCommits :=
+					preCommitsForBlock[preCommit.Polka.Block.Header]
 				numPreCommits++
-				preCommitsForBlock[preCommit.Polka.Block.Header] = numPreCommits
+				preCommitsForBlock[preCommit.Polka.Block.Header] =
+					numPreCommits
 			}
 
 			commitFound := false
@@ -84,10 +94,18 @@ func (builder CommitBuilder) Commit(consensusThreshold int64) (Commit, bool) {
 				if numPreCommits >= consensusThreshold {
 					commitFound = true
 					for _, preCommit := range preCommits {
-						if preCommit.Polka.Block != nil && preCommit.Polka.Block.Header.Equal(blockHeader) {
+						if preCommit.Polka.Block != nil &&
+							preCommit.Polka.Block.Header.Equal(blockHeader) {
+
 							highestCommit.Polka.Block = preCommit.Polka.Block
-							highestCommit.Signatories = append(highestCommit.Signatories, preCommit.Signatory)
-							highestCommit.Signatures = append(highestCommit.Signatures, preCommit.Signature)
+							highestCommit.Polka.Height =
+								preCommit.Polka.Height
+							highestCommit.Signatories =
+								append(highestCommit.Signatories,
+									preCommit.Signatory)
+							highestCommit.Signatures =
+								append(highestCommit.Signatures,
+									preCommit.Signature)
 						}
 					}
 					break
@@ -100,8 +118,12 @@ func (builder CommitBuilder) Commit(consensusThreshold int64) (Commit, bool) {
 			for _, preCommit := range preCommits {
 				if preCommit.Polka.Block == nil {
 					highestCommit.Polka.Block = preCommit.Polka.Block
-					highestCommit.Signatories = append(highestCommit.Signatories, preCommit.Signatory)
-					highestCommit.Signatures = append(highestCommit.Signatures, preCommit.Signature)
+					highestCommit.Signatories =
+						append(highestCommit.Signatories,
+							preCommit.Signatory)
+					highestCommit.Signatures =
+						append(highestCommit.Signatures,
+							preCommit.Signature)
 				}
 			}
 		}

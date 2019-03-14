@@ -5,14 +5,18 @@ import (
 	"fmt"
 
 	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"golang.org/x/crypto/sha3"
 )
 
 // PreVote is you voting for the encapsulated block to be added
 // during this round at this height
 type PreVote struct {
-	Block  *Block
-	Round  Round
+	Block *Block
+	// TODO: Can this be different from the Round in the block? If so
+	// why do we have a Round inside of the block?
+	Round Round
+	//TODO: why do we have this duplicated from the block?
 	Height Height
 }
 
@@ -28,6 +32,7 @@ func NewPreVote(block *Block, round Round, height Height) PreVote {
 // Sign is indented to be the way you sign your PreVote with your
 // private key
 func (preVote PreVote) Sign(signer sig.Signer) (SignedPreVote, error) {
+	//FIXME: this does not guarantee the contents of the block
 	data := []byte(preVote.String())
 
 	hashSum256 := sha3.Sum256(data)
@@ -51,7 +56,10 @@ func (preVote PreVote) String() string {
 	if preVote.Block != nil {
 		block = preVote.Block.String()
 	}
-	return fmt.Sprintf("PreVote(%s,Round=%d,Height=%d)", block, preVote.Round, preVote.Height)
+	return fmt.Sprintf("PreVote(%s,Round=%d,Height=%d)",
+		block,
+		preVote.Round,
+		preVote.Height)
 }
 
 // SignedPreVote is the signed version of a PreVote
@@ -59,6 +67,28 @@ type SignedPreVote struct {
 	PreVote
 	Signature sig.Signature
 	Signatory sig.Signatory
+}
+
+func (sPreVote SignedPreVote) String() string {
+	return fmt.Sprintf("SignedPreVote(%s,Signature=%v,Signatory=%v)",
+		sPreVote.PreVote.String(),
+		sPreVote.Signature,
+		sPreVote.Signatory)
+}
+
+// GenerateSignedPreVote from a block signed with a random private
+// key
+func GenerateSignedPreVote(block *Block) SignedPreVote {
+	preVote := NewPreVote(block, block.Round, block.Height)
+	newSV, err := ecdsa.NewFromRandom()
+	if err != nil {
+		panic("SignedPreVote.Generate: ecdsa failed")
+	}
+	signed, err := preVote.Sign(newSV)
+	if err != nil {
+		panic("SignedPreVote.Generate: sign failed")
+	}
+	return signed
 }
 
 // Polka is created when 2/3 of the nodes in the network have all
@@ -71,12 +101,27 @@ type Polka struct {
 	Signatories sig.Signatories
 }
 
+// Equal checks that two Polka are functionally equivalent
+func (polka Polka) Equal(other Polka) bool {
+	if other.Block == nil {
+		return polka.Block == other.Block
+	}
+	return polka.Block.Equal(*other.Block) &&
+		polka.Round == other.Round &&
+		polka.Height == other.Height &&
+		polka.Signatures.Equal(other.Signatures) &&
+		polka.Signatories.Equal(other.Signatories)
+}
+
 func (polka Polka) String() string {
 	blockHeader := "Nil"
 	if polka.Block != nil {
 		blockHeader = base64.StdEncoding.EncodeToString(polka.Block.Header[:])
 	}
-	return fmt.Sprintf("Polka(Block=%s,Round=%d,Height=%d)", blockHeader, polka.Round, polka.Height)
+	return fmt.Sprintf("Polka(Block=%s,Round=%d,Height=%d)",
+		blockHeader,
+		polka.Round,
+		polka.Height)
 }
 
 // PolkaBuilder should start empty and be filled with valid
