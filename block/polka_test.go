@@ -9,14 +9,10 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/sig"
-	"github.com/renproject/hyperdrive/sig/ecdsa"
 )
 
 var conf = quick.Config{
-	MaxCount:      256,
-	MaxCountScale: 0,
-	Rand:          nil,
-	Values:        nil,
+	MaxCount: 256,
 }
 
 var _ = Describe("Polka Builder", func() {
@@ -36,14 +32,24 @@ var _ = Describe("Polka Builder", func() {
 
 				polka, found := builder.Polka(mock.consensusThreshold)
 
-				Expect(polka.String()).To(Equal(mock.expectedPolka.String()),
-					"input PreVotes: %v\nthreshold: %v\nexpectedFound: %v\nbuilder map: %v\nfound: %v",
+				Expect(polka.Signatures.Equal(mock.expectedPolka.Signatures)).Should(BeTrue(), "Signatures not equal:\n\t%v\n\n\t%v\n\ninput SignedPreVotes\n\t%v\n\npolka:\n\t%+v\n\nexpectedPolka:\n\t%+v",
+					polka.Signatures,
+					mock.expectedPolka.Signatures,
+					mock.votes,
+					polka,
+					mock.expectedPolka,
+				)
+
+				Expect(polka.Equal(mock.expectedPolka) &&
+					(found == mock.expectedFound)).Should(BeTrue(),
+					"input SignedPreVotes: %+v\nthreshold: %+v\nexpectedFound: %+v\nbuilder map: %+v\nfound: %+v\n polka: %+v\nexpectedPolka: %+v",
 					mock.votes,
 					mock.consensusThreshold,
 					mock.expectedFound,
 					builder,
-					found)
-				Expect(found).To(Equal(mock.expectedFound))
+					found,
+					polka,
+					mock.expectedPolka)
 
 				return true
 			}
@@ -57,76 +63,78 @@ type mockPreVotes struct {
 	expectedPolka      Polka
 	expectedFound      bool
 	consensusThreshold int64
+	scratch            map[sig.Hash]*tuple
+}
+
+type tuple struct {
+	num   uint32
+	polka *Polka
 }
 
 func (mockPreVotes) Generate(rand *rand.Rand, size int) reflect.Value {
-	headersSeed := make([]sig.Hash, (rand.Intn(10) + 1))
-	for i := range headersSeed {
-		val, err := quick.Value(reflect.TypeOf(sig.Hash{}), rand)
-		if !err {
-			panic("reflect failed")
-		}
-		headersSeed[i] = val.Interface().(sig.Hash)
+	blocks := make([]Block, (rand.Intn(4) + 1))
+
+	for i := range blocks {
+		//FIXME should generate multiple blocks for the same height
+		blocks[i] = GenerateBlock(rand, Height(rand.Intn(len(blocks))))
 	}
 
-	numPreVotes := rand.Uint32() % 50
-	consensusThreshold := rand.Uint32() % 50
+	numPreVotes := rand.Uint32() % 5
+	consensusThreshold := rand.Uint32() % 5
 
 	signedPreVotes := make([]SignedPreVote, numPreVotes)
 
-	heighestPolka := Polka{}
+	var heighestPolka *Polka
+	heighestPolka = &Polka{}
 	found := false
 
-	scratch := make(map[Height]map[sig.Hash]uint32)
+	scratch := make(map[sig.Hash]*tuple)
 
 	for i := uint32(0); i < numPreVotes; i++ {
 
-		randHashIndex := rand.Intn(len(headersSeed))
-		hash := headersSeed[randHashIndex]
-		height := Height(randHashIndex)
+		block := blocks[rand.Intn(len(blocks))]
 
-		if val, ok := scratch[height]; ok {
-			if _, ok := val[hash]; !ok {
-				val[hash] = 1
-			} else {
-				val[hash]++
-			}
-		} else {
-			scratch[height] = make(map[sig.Hash]uint32)
-			scratch[height][hash] = 1
-		}
-
-		blk := Genesis()
-		blk.Height = height
-		blk.Header = hash
-		preVote := NewPreVote(&blk, 0, height)
-
-		newSV, err := ecdsa.NewFromRandom()
-		if err != nil {
-			panic("ecdsa failed")
-		}
-		signed, err := preVote.Sign(newSV)
-		if err != nil {
-			panic("sign failed")
-		}
-
+		signed := GenerateSignedPreVote(&block)
 		signedPreVotes[i] = signed
 
-		if scratch[height][hash] >= consensusThreshold &&
-			(heighestPolka.Height < height || !found) {
-			heighestPolka = Polka{
-				Block:  &blk,
-				Round:  0,
-				Height: height,
+		if _, ok := scratch[block.Header]; !ok {
+			sigs := make(sig.Signatures, 1)
+			sigs[0] = signed.Signature
+			signa := make(sig.Signatories, 1)
+			signa[0] = signed.Signatory
+			scratch[block.Header] = &tuple{
+				num: 1,
+				polka: &Polka{
+					Block:       &block,
+					Round:       block.Round,
+					Height:      block.Height,
+					Signatures:  sigs,
+					Signatories: signa,
+				},
 			}
+		} else {
+			tuple := scratch[block.Header]
+			tuple.num++
+			tuple.polka.Signatures =
+				append(tuple.polka.Signatures,
+					signed.Signature)
+			tuple.polka.Signatories =
+				append(tuple.polka.Signatories,
+					signed.Signatory)
+		}
+
+		if scratch[block.Header].num >= consensusThreshold &&
+			(heighestPolka.Height < block.Height || !found) {
+			heighestPolka = scratch[block.Header].polka
 			found = true
 		}
 	}
 
 	return reflect.ValueOf(mockPreVotes{
 		votes:              signedPreVotes,
-		expectedPolka:      heighestPolka,
+		expectedPolka:      *heighestPolka,
 		expectedFound:      found,
 		consensusThreshold: int64(consensusThreshold),
+		scratch:            scratch,
 	})
 }
