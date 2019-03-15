@@ -1,6 +1,7 @@
 package block_test
 
 import (
+	"math"
 	"math/rand"
 	"reflect"
 	"testing/quick"
@@ -32,24 +33,21 @@ var _ = Describe("Polka Builder", func() {
 
 				polka, found := builder.Polka(mock.consensusThreshold)
 
-				Expect(polka.Signatures.Equal(mock.expectedPolka.Signatures)).Should(BeTrue(), "Signatures not equal:\n\t%v\n\n\t%v\n\ninput SignedPreVotes\n\t%v\n\npolka:\n\t%+v\n\nexpectedPolka:\n\t%+v",
-					polka.Signatures,
-					mock.expectedPolka.Signatures,
-					mock.votes,
-					polka,
-					mock.expectedPolka,
-				)
-
 				Expect(polka.Equal(mock.expectedPolka) &&
 					(found == mock.expectedFound)).Should(BeTrue(),
-					"input SignedPreVotes: %+v\nthreshold: %+v\nexpectedFound: %+v\nbuilder map: %+v\nfound: %+v\n polka: %+v\nexpectedPolka: %+v",
+					"input SignedPreVotes: %+v\n\nfound: %+v\n\nexpectedFound: %+v\n\nbuilder map: %+v\n\nthreshold: %+v\n\npolka: %+v\n\nexpectedPolka: %+v\n\npolka signatures: %v\n\npolka signatories:%v\n\nexpectedPolka signatures: %v\n\n expectedPolka signatories: %v\n",
 					mock.votes,
-					mock.consensusThreshold,
+					found,
 					mock.expectedFound,
 					builder,
-					found,
+					mock.consensusThreshold,
 					polka,
-					mock.expectedPolka)
+					mock.expectedPolka,
+					polka.Signatures,
+					polka.Signatories,
+					mock.expectedPolka.Signatures,
+					mock.expectedPolka.Signatories,
+				)
 
 				return true
 			}
@@ -72,16 +70,29 @@ type tuple struct {
 }
 
 func (mockPreVotes) Generate(rand *rand.Rand, size int) reflect.Value {
-	blocks := make([]Block, (rand.Intn(4) + 1))
 
-	for i := range blocks {
-		//FIXME should generate multiple blocks for the same height
-		blocks[i] = GenerateBlock(rand, Height(rand.Intn(len(blocks))))
+	// pick how many blocks you want to generate
+	blocks := make([]Block, (rand.Intn(40) + 1))
+
+	// Decide how many PreVotes you want to send
+	numPreVotes := rand.Uint32() % 50
+
+	// Decide on the max height (must be less than the number of
+	// blocks)
+	//
+	// essentially the height range is 0 to maxHeight
+	maxHeight := rand.Int() % len(blocks)
+	if maxHeight == 0 {
+		maxHeight++
 	}
 
-	numPreVotes := rand.Uint32() % 5
-	consensusThreshold := rand.Uint32() % 5
+	for i := range blocks {
+		// Now we will put at least on block for each height in the
+		// blocks array and some duplicate heights.
+		blocks[i] = GenerateBlock(rand, Height(i%maxHeight))
+	}
 
+	// Store for SignedPreVote
 	signedPreVotes := make([]SignedPreVote, numPreVotes)
 
 	var heighestPolka *Polka
@@ -90,9 +101,26 @@ func (mockPreVotes) Generate(rand *rand.Rand, size int) reflect.Value {
 
 	scratch := make(map[sig.Hash]*tuple)
 
+	// This logic is to both have multiple blocks at the same height,
+	// but at the same time prevent any one height from having more
+	// than maxPreVotesAtGivenHeight SignedPreVote. This is so I can have a
+	// sensible consensusThreshold
+	maxPreVotesAtGivenHeight := uint32(math.Ceil(float64(numPreVotes) / float64(maxHeight)))
+	preVotesAtGivenHeight := make([]uint32, maxHeight)
+
+	// An approximation for 2/3 of the votes at a given height needed
+	// to consider a block valid
+	consensusThreshold := uint32(math.Ceil(float64(maxPreVotesAtGivenHeight*2) / float64(3)))
+
 	for i := uint32(0); i < numPreVotes; i++ {
 
-		block := blocks[rand.Intn(len(blocks))]
+		randBlockIndex := rand.Intn(len(blocks))
+		block := blocks[randBlockIndex]
+		for preVotesAtGivenHeight[block.Height] >= maxPreVotesAtGivenHeight {
+			randBlockIndex = (randBlockIndex + 1) % len(blocks)
+			block = blocks[randBlockIndex]
+		}
+		preVotesAtGivenHeight[block.Height]++
 
 		signed := GenerateSignedPreVote(&block)
 		signedPreVotes[i] = signed

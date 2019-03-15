@@ -146,6 +146,9 @@ func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
 // By construction duplicate votes from the same signatory will only
 // count as one vote. However, it does assume that each SignedPreVote
 // has a valid header and signature.
+//
+// Note: you must set the consensusThreshold to greater than 1/2 of the total
+// number of expected SignedPreVote for this algorithm to work.
 func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 	highestPolkaFound := false
 	highestPolka := Polka{}
@@ -179,12 +182,26 @@ func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 			}
 
 			polkaFound := false
+
+			// I needed to re-write this portion because it keeps the
+			// signatories and signatures from blocks at a lower
+			// height that also had enough prevotes to pass the
+			// consensusThreshold.
 			for blockHeader, numPreVotes := range preVotesForBlock {
 				if numPreVotes >= consensusThreshold {
 					polkaFound = true
 					for _, preVote := range preVotes {
 						if preVote.Block != nil &&
 							preVote.Block.Header.Equal(blockHeader) {
+
+							// if this happens you need to reset the
+							// signatories since you have just found a
+							// polka that has enough preVotes at a
+							// higher height.
+							if preVote.Height > highestPolka.Height {
+								highestPolka.Signatories = sig.Signatories{}
+								highestPolka.Signatures = sig.Signatures{}
+							}
 
 							highestPolka.Block = preVote.Block
 							highestPolka.Round = preVote.Round
@@ -202,6 +219,18 @@ func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 			}
 			if polkaFound {
 				continue
+			}
+
+			// if there are two different blocks voted for the same
+			// height then there are enough preVote to "think" there
+			// might be a polka, but the for loop above will realise
+			// none of the blocks have enough votes. So, we need to
+			// set the highestPolkaFound to false so we don't return a
+			// nil Polka and True. At the same time we don't want to
+			// set highestPolkaFound to false if we have already found
+			// a polka at a lower height.
+			if highestPolka.Block == nil {
+				highestPolkaFound = false
 			}
 
 			// I am unable to get this code to be run given the
