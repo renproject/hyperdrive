@@ -10,13 +10,11 @@ import (
 )
 
 // PreVote is you voting for the encapsulated block to be added
-// during this round at this height
+// during this round at this height. It is a PreVoteNil when the block
+// is nil.
 type PreVote struct {
-	Block *Block
-	// TODO: Can this be different from the Round in the block? If so
-	// why do we have a Round inside of the block?
-	Round Round
-	//TODO: why do we have this duplicated from the block?
+	Block  *Block
+	Round  Round
 	Height Height
 }
 
@@ -103,7 +101,7 @@ type Polka struct {
 
 // Equal checks that two Polka are functionally equivalent
 func (polka Polka) Equal(other Polka) bool {
-	if other.Block == nil {
+	if other.Block == nil || polka.Block == nil {
 		return polka.Block == other.Block
 	}
 	return polka.Block.Equal(*other.Block) &&
@@ -132,11 +130,11 @@ type PolkaBuilder map[Height]map[sig.Signatory]SignedPreVote
 // give this duplicate valid SignedPreVote and only one vote will be
 // registered.
 func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
-	if _, ok := builder[preVote.Block.Height]; !ok {
-		builder[preVote.Block.Height] = map[sig.Signatory]SignedPreVote{}
+	if _, ok := builder[preVote.Height]; !ok {
+		builder[preVote.Height] = map[sig.Signatory]SignedPreVote{}
 	}
-	if _, ok := builder[preVote.Block.Height][preVote.Signatory]; !ok {
-		builder[preVote.Block.Height][preVote.Signatory] = preVote
+	if _, ok := builder[preVote.Height][preVote.Signatory]; !ok {
+		builder[preVote.Height][preVote.Signatory] = preVote
 	}
 }
 
@@ -153,7 +151,7 @@ func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 	highestPolkaFound := false
 	highestPolka := Polka{}
 	for height, preVotes := range builder {
-		if !highestPolkaFound || height > highestPolka.Block.Height {
+		if highestPolka.Block != nil && (!highestPolkaFound || height > highestPolka.Block.Height) {
 			if int64(len(preVotes)) < consensusThreshold {
 				continue
 			}
@@ -165,15 +163,7 @@ func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 			preVotesForBlock := map[sig.Hash]int64{}
 			for _, preVote := range preVotes {
 				if preVote.Block == nil {
-					// This is dead code since `preVotesForNil` is
-					// never used
 					preVotesForNil++
-
-					// This does let us skip nill blocks, but we
-					// already need to check for valid headers and
-					// signatures before any votes reach to this
-					// function. In other words, I think we should
-					// remove the whole if statement here.
 					continue
 				}
 				numPreVotes := preVotesForBlock[preVote.Block.Header]
@@ -202,8 +192,9 @@ func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 								highestPolka.Signatories = sig.Signatories{}
 								highestPolka.Signatures = sig.Signatures{}
 							}
-
-							highestPolka.Block = preVote.Block
+							if preVote.Block != nil {
+								highestPolka.Block = preVote.Block
+							}
 							highestPolka.Round = preVote.Round
 							highestPolka.Height = preVote.Height
 							highestPolka.Signatories =
@@ -217,6 +208,7 @@ func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 					break
 				}
 			}
+
 			if polkaFound {
 				continue
 			}

@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/sig/ecdsa"
 )
 
 var conf = quick.Config{
@@ -122,40 +123,55 @@ func (mockPreVotes) Generate(rand *rand.Rand, size int) reflect.Value {
 		}
 		preVotesAtGivenHeight[block.Height]++
 
-		signed := GenerateSignedPreVote(&block)
-		signedPreVotes[i] = signed
-
-		if _, ok := scratch[block.Header]; !ok {
-			sigs := make(sig.Signatures, 1)
-			sigs[0] = signed.Signature
-			signa := make(sig.Signatories, 1)
-			signa[0] = signed.Signatory
-			scratch[block.Header] = &tuple{
-				num: 1,
-				polka: &Polka{
-					Block:       &block,
-					Round:       block.Round,
-					Height:      block.Height,
-					Signatures:  sigs,
-					Signatories: signa,
-				},
+		var signed SignedPreVote
+		if rand.Uint32()%10 == 0 {
+			preVote := NewPreVote(nil, block.Round, block.Height)
+			newSV, err := ecdsa.NewFromRandom()
+			if err != nil {
+				panic("SignedPreVote.Generate: ecdsa failed")
+			}
+			signed, err = preVote.Sign(newSV)
+			if err != nil {
+				panic("SignedPreVote.Generate: sign failed")
 			}
 		} else {
-			tuple := scratch[block.Header]
-			tuple.num++
-			tuple.polka.Signatures =
-				append(tuple.polka.Signatures,
-					signed.Signature)
-			tuple.polka.Signatories =
-				append(tuple.polka.Signatories,
-					signed.Signatory)
-		}
+			signed = GenerateSignedPreVote(&block)
 
-		if scratch[block.Header].num >= consensusThreshold &&
-			(heighestPolka.Height < block.Height || !found) {
-			heighestPolka = scratch[block.Header].polka
-			found = true
+			if _, ok := scratch[block.Header]; !ok {
+				sigs := make(sig.Signatures, 1)
+				sigs[0] = signed.Signature
+				signa := make(sig.Signatories, 1)
+				signa[0] = signed.Signatory
+				scratch[block.Header] = &tuple{
+					num: 1,
+					polka: &Polka{
+						Block:       &block,
+						Round:       block.Round,
+						Height:      block.Height,
+						Signatures:  sigs,
+						Signatories: signa,
+					},
+				}
+			} else {
+				tuple := scratch[block.Header]
+				tuple.num++
+				tuple.polka.Signatures =
+					append(tuple.polka.Signatures,
+						signed.Signature)
+				tuple.polka.Signatories =
+					append(tuple.polka.Signatories,
+						signed.Signatory)
+			}
+
+			if scratch[block.Header].num >= consensusThreshold &&
+				(heighestPolka.Height < block.Height || !found) {
+				heighestPolka = scratch[block.Header].polka
+				found = true
+			}
+
 		}
+		signedPreVotes[i] = signed
+
 	}
 
 	return reflect.ValueOf(mockPreVotes{
