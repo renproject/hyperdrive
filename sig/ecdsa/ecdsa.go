@@ -1,13 +1,3 @@
-// Package ecdsa provides Sign and Verify capabilities using ECDSA
-//
-// I picked ethereum-go's implementation of ECDSA instead of the built in
-// go libraries since it provides both build in marshaling/unmarshaling
-// for the signature and a way to recover the Public Key from the
-// signature. The reality is, we don't want to check if a given signature
-// matches a given Public Key. Instead we want to know who signed this
-// message, which is the Public Key. Then its easy to write logic to
-// ensure nobody votes twice given a list of Public Keys or a list of
-// hashed Public Keys, etc...
 package ecdsa
 
 import (
@@ -38,6 +28,12 @@ func Hash(data []byte) sig.Hash {
 	return hashed
 }
 
+// signerVerifier provides Sign and Verify capabilities using ECDSA
+//
+// Ethereum-go's ECDSA implementation was chosen instead of the built-in go
+// library since it provides both built-in marshaling/unmarshaling for the
+// signature and a way to recover the Public Key from the signature, which
+// can be used to identify the party that signed a message.
 type signerVerifier struct {
 	privKey *ecdsa.PrivateKey
 }
@@ -57,6 +53,7 @@ func NewFromRandom() (sig.SignerVerifier, error) {
 	}, err
 }
 
+// Sign implements the `sig.SignerVerifier` interface
 func (signerVerifier signerVerifier) Sign(hash sig.Hash) (sig.Signature, error) {
 	signed, err := crypto.Sign(hash[:], signerVerifier.privKey)
 	sig := sig.Signature{}
@@ -64,10 +61,12 @@ func (signerVerifier signerVerifier) Sign(hash sig.Hash) (sig.Signature, error) 
 	return sig, err
 }
 
+// Signatory implements the `sig.SignerVerifier` interface
 func (signerVerifier signerVerifier) Signatory() sig.Signatory {
 	return PubKeyToSignatory(&signerVerifier.privKey.PublicKey)
 }
 
+// Verify implements the `sig.SignerVerifier` interface
 func (signerVerifier signerVerifier) Verify(hash sig.Hash,
 	signature sig.Signature) (sig.Signatory, error) {
 	pubKey, err := crypto.SigToPub(hash[:], signature[:])
