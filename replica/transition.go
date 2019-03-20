@@ -10,7 +10,7 @@
 // `Height`. For example: you will not get a `PreVoted` if a
 // `PreCommitted` was already `Enqueue`ed at that `Height`.
 //
-// Keep in mind`Transition`s that don't have a `Height` are not pruned.
+// Keep in mind `Transition`s that don't have a `Height` are not pruned.
 // For example: if you `Enqueue` a `TimedOut` twice then the next two
 // `Dequeue` will return a `TimedOut`. The "immediate" `Transition`s are
 // stored in a FIFO queue.

@@ -7,8 +7,9 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/hyperdrive/block"
 	. "github.com/renproject/hyperdrive/replica"
+
+	"github.com/renproject/hyperdrive/block"
 )
 
 var conf = quick.Config{
