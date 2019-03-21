@@ -87,11 +87,11 @@ type PolkaBuilder map[Height]map[sig.Signatory]SignedPreVote
 // give this duplicate valid SignedPreVote and only one vote will be
 // registered.
 func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
-	if _, ok := builder[preVote.Block.Height]; !ok {
-		builder[preVote.Block.Height] = map[sig.Signatory]SignedPreVote{}
+	if _, ok := builder[preVote.Height]; !ok {
+		builder[preVote.Height] = map[sig.Signatory]SignedPreVote{}
 	}
-	if _, ok := builder[preVote.Block.Height][preVote.Signatory]; !ok {
-		builder[preVote.Block.Height][preVote.Signatory] = preVote
+	if _, ok := builder[preVote.Height][preVote.Signatory]; !ok {
+		builder[preVote.Height][preVote.Signatory] = preVote
 	}
 }
 
@@ -105,7 +105,7 @@ func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
 	highestPolkaFound := false
 	highestPolka := Polka{}
 	for height, preVotes := range builder {
-		if !highestPolkaFound || height > highestPolka.Block.Height {
+		if !highestPolkaFound || height > highestPolka.Height {
 			if int64(len(preVotes)) < consensusThreshold {
 				continue
 			}
