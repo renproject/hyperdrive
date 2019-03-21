@@ -16,8 +16,7 @@ import (
 
 var _ = Describe("State Machine", func() {
 
-	polkaBuilder := make(map[block.Height]map[sig.Signatory]block.SignedPreVote)
-	stateMachine := NewStateMachine(polkaBuilder, block.CommitBuilder{}, 2)
+	stateMachine := NewStateMachine(block.PolkaBuilder{}, block.CommitBuilder{}, 2)
 
 	testCases := generateTestCases()
 
