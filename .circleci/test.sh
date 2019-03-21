@@ -9,9 +9,13 @@
 
 go build ./...
 GOMAXPROCS=1 CI=true ginkgo -v --race --cover --coverprofile coverprofile.out ./...
-covermerge block/coverprofile.out \
-  cmd/node/coverprofile.out \
-  replica/coverprofile.out \
-  sig/coverprofile.out \
-  sig/ecdsa/coverprofile.out \
-  supervisor/coverprofile.out > coverprofile.out
+covermerge 
+  block/coverprofile.out          \
+  cmd/hyperdrive/coverprofile.out \
+  consensus/coverprofile.out      \
+  replica/coverprofile.out        \
+  shard/coverprofile.out          \
+  sig/ecdsa/coverprofile.out      \
+  sig/coverprofile.out            \
+  supervisor/coverprofile.out     \
+  tx/coverprofile.out > coverprofile.out
