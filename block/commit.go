@@ -49,11 +49,11 @@ type Commit struct {
 type CommitBuilder map[Height]map[sig.Signatory]SignedPreCommit
 
 func (builder CommitBuilder) Insert(preCommit SignedPreCommit) {
-	if _, ok := builder[preCommit.Polka.Block.Height]; !ok {
-		builder[preCommit.Polka.Block.Height] = map[sig.Signatory]SignedPreCommit{}
+	if _, ok := builder[preCommit.Polka.Height]; !ok {
+		builder[preCommit.Polka.Height] = map[sig.Signatory]SignedPreCommit{}
 	}
-	if _, ok := builder[preCommit.Polka.Block.Height][preCommit.Signatory]; !ok {
-		builder[preCommit.Polka.Block.Height][preCommit.Signatory] = preCommit
+	if _, ok := builder[preCommit.Polka.Height][preCommit.Signatory]; !ok {
+		builder[preCommit.Polka.Height][preCommit.Signatory] = preCommit
 	}
 }
 
@@ -61,7 +61,7 @@ func (builder CommitBuilder) Commit(consensusThreshold int64) (Commit, bool) {
 	highestCommitFound := false
 	highestCommit := Commit{}
 	for height, preCommits := range builder {
-		if !highestCommitFound || height > highestCommit.Polka.Block.Height {
+		if !highestCommitFound || height > highestCommit.Polka.Height {
 			if int64(len(preCommits)) < consensusThreshold {
 				continue
 			}
