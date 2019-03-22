@@ -48,6 +48,18 @@ type Blockchain struct {
 	tail map[sig.Hash]Commit
 }
 
+func NewBlockchain() Blockchain {
+	genesis := Genesis()
+	return Blockchain{
+		head: Commit{
+			Polka: Polka{
+				Block: &genesis,
+			},
+		},
+		tail: map[sig.Hash]Commit{},
+	}
+}
+
 func (blockchain *Blockchain) Height() Height {
 	if blockchain.head.Polka.Block == nil {
 		return Genesis().Height
