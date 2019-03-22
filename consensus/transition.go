@@ -53,6 +53,7 @@ type Transition interface {
 }
 
 // TimedOut waiting for some other external event.
+// FIXME: TimedOut should probably have Height and Round
 type TimedOut struct {
 	time.Time
 }
