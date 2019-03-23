@@ -8,19 +8,15 @@ type Pool interface {
 type fifoPool struct {
 }
 
+func FIFOPool() Pool {
+	return &fifoPool{}
+}
+
 func (pool *fifoPool) Enqueue(tx Transaction) {
+	// TODO: Implement.
 }
 
 func (pool *fifoPool) Dequeue() (Transaction, bool) {
-	return Transaction{}, false
-}
-
-type priorityPool struct {
-}
-
-func (pool *priorityPool) Enqueue(tx Transaction) {
-}
-
-func (pool *priorityPool) Dequeue() (Transaction, bool) {
+	// TODO: Implement.
 	return Transaction{}, false
 }
