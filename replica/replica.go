@@ -24,7 +24,7 @@ type Replica interface {
 type replica struct {
 	dispatcher Dispatcher
 
-	signer           sig.Signer
+	signatory        sig.Signatory
 	txPool           tx.Pool
 	state            consensus.State
 	stateMachine     consensus.StateMachine
@@ -35,7 +35,7 @@ type replica struct {
 
 func New(
 	dispatcher Dispatcher,
-	signer sig.Signer,
+	signatory sig.Signatory,
 	txPool tx.Pool,
 	state consensus.State,
 	stateMachine consensus.StateMachine,
@@ -43,10 +43,10 @@ func New(
 	blockchain block.Blockchain,
 	shard shard.Shard,
 ) Replica {
-	return &replica{
+	replica := &replica{
 		dispatcher: dispatcher,
 
-		signer:           signer,
+		signatory:        signatory,
 		txPool:           txPool,
 		state:            state,
 		stateMachine:     stateMachine,
@@ -54,6 +54,7 @@ func New(
 		blockchain:       blockchain,
 		shard:            shard,
 	}
+	return replica
 }
 
 func (replica *replica) Transact(tx tx.Transaction) {
@@ -147,10 +148,10 @@ func (replica *replica) shouldBufferTransition(transition consensus.Transition) 
 }
 
 func (replica *replica) shouldProposeBlock() bool {
-	return replica.signer.Signatory().Equal(replica.shard.Leader(replica.state.Round()))
+	return replica.signatory.Equal(replica.shard.Leader(replica.state.Round()))
 }
 
 func (replica *replica) generateBlock() block.Block {
-	// TODO: Generate a Block using the transaction Pool, current Blockchain, and current Shard.
+	// TODO: Implement.
 	return block.Block{}
 }
