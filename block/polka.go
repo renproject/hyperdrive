@@ -83,6 +83,10 @@ func (polka Polka) String() string {
 // SignedPreVote with Insert
 type PolkaBuilder map[Height]map[sig.Signatory]SignedPreVote
 
+func NewPolkaBuilder() PolkaBuilder {
+	return PolkaBuilder{}
+}
+
 // Insert takes a valid SignedPreVote to register the vote. You can
 // give this duplicate valid SignedPreVote and only one vote will be
 // registered.
@@ -101,20 +105,20 @@ func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
 // By construction duplicate votes from the same signatory will only
 // count as one vote. However, it does assume that each SignedPreVote
 // has a valid header and signature.
-func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
+func (builder PolkaBuilder) Polka(consensusThreshold int) (Polka, bool) {
 	highestPolkaFound := false
 	highestPolka := Polka{}
 	for height, preVotes := range builder {
 		if !highestPolkaFound || height > highestPolka.Block.Height {
-			if int64(len(preVotes)) < consensusThreshold {
+			if len(preVotes) < consensusThreshold {
 				continue
 			}
 			highestPolkaFound = true
 
 			// Note: also not used
-			preVotesForNil := int64(0)
+			preVotesForNil := 0
 
-			preVotesForBlock := map[sig.Hash]int64{}
+			preVotesForBlock := map[sig.Hash]int{}
 			for _, preVote := range preVotes {
 				if preVote.Block == nil {
 					// This is dead code since `preVotesForNil` is
