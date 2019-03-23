@@ -38,7 +38,7 @@ type TransitionBuffer interface {
 // NewTransitionBuffer creates an empty TransitionBuffer with an
 // expected queue size. The size is an educated guess on how many
 // Transitions you expect to be queued for a given height
-func NewTransitionBuffer(size uint32) TransitionBuffer {
+func NewTransitionBuffer(size int) TransitionBuffer {
 	return &transitionBuffer{
 		buf:              make(map[block.Height]*transitionQueue),
 		immediate:        newQueue(size),
@@ -176,8 +176,7 @@ func (buffer *transitionBuffer) Drop(height block.Height) {
 
 // Convenience function to make sure the map already has a Queue
 // for the provided height
-func (buffer *transitionBuffer) initMapKey(height block.Height,
-	size uint32) {
+func (buffer *transitionBuffer) initMapKey(height block.Height, size int) {
 	if _, ok := buffer.buf[height]; !ok {
 		buffer.buf[height] = newQueue(size)
 	}
@@ -188,10 +187,10 @@ func (buffer *transitionBuffer) initMapKey(height block.Height,
 type transitionBuffer struct {
 	buf              map[block.Height]*transitionQueue
 	immediate        *transitionQueue
-	initialQueueSize uint32
+	initialQueueSize int
 }
 
-func newQueue(size uint32) *transitionQueue {
+func newQueue(size int) *transitionQueue {
 	return &transitionQueue{
 		queue: make([]Transition, size),
 		end:   0,
@@ -201,11 +200,11 @@ func newQueue(size uint32) *transitionQueue {
 // FIFO queue for `Transition`
 type transitionQueue struct {
 	queue []Transition
-	end   uint32
+	end   int
 }
 
 func (tq *transitionQueue) enqueue(tran Transition) {
-	if uint32(len(tq.queue)) == tq.end {
+	if len(tq.queue) == tq.end {
 		tq.queue = append(tq.queue, tran)
 	} else {
 		tq.queue[tq.end] = tran

@@ -13,12 +13,10 @@ type StateMachine interface {
 type stateMachine struct {
 	polkaBuilder       block.PolkaBuilder
 	commitBuilder      block.CommitBuilder
-	consensusThreshold int64
+	consensusThreshold int
 }
 
-func NewStateMachine(polkaBuilder block.PolkaBuilder,
-	commitBuilder block.CommitBuilder,
-	consensusThreshold int64) StateMachine {
+func NewStateMachine(polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, consensusThreshold int) StateMachine {
 	return &stateMachine{
 		polkaBuilder:       polkaBuilder,
 		commitBuilder:      commitBuilder,
