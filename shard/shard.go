@@ -26,6 +26,15 @@ func (shard Shard) Size() int {
 	return len(shard.Signatories)
 }
 
+// ConsensusThreshold returns the number of honest Signatories that are required to reach consensus.
+func (shard Shard) ConsensusThreshold() int {
+	size := shard.Size()
+	if size <= 3 {
+		return size
+	}
+	return size - (size-1)/3
+}
+
 // Includes returns whether or not a given Signatory is one of the Signatories maintaining the Shard.
 func (shard Shard) Includes(signatory sig.Signatory) bool {
 	for i := range shard.Signatories {
