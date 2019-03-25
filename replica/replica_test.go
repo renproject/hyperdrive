@@ -25,7 +25,12 @@ var _ = Describe("Replica", func() {
 		stateMachine := consensus.NewStateMachine(block.PolkaBuilder{}, block.CommitBuilder{}, 1)
 		transitionBuffer = newMockTransitionBuffer()
 
-		shard := shard.Shard{sig.Hash{}, sig.Hash{}, 0, sig.Signatories{signer.Signatory()}}
+		shard := shard.Shard{
+			Hash:        sig.Hash{},
+			BlockHeader: sig.Hash{},
+			BlockHeight: 0,
+			Signatories: sig.Signatories{signer.Signatory()},
+		}
 
 		pool = NewMockLifoPool()
 
@@ -79,7 +84,7 @@ func generateTestCases() []TestCase {
 		// Proposed with invalid Height
 		{
 			inputTransition: consensus.Proposed{
-				block.Block{
+				Block: block.Block{
 					Height: -1,
 				}},
 
@@ -91,7 +96,7 @@ func generateTestCases() []TestCase {
 		// PreVoted with invalid Height
 		{
 			inputTransition: consensus.PreVoted{
-				block.SignedPreVote{
+				SignedPreVote: block.SignedPreVote{
 					PreVote: block.PreVote{
 						Height: -1,
 					},
@@ -106,9 +111,9 @@ func generateTestCases() []TestCase {
 		// PreCommitted with invalid Height
 		{
 			inputTransition: consensus.PreCommitted{
-				block.SignedPreCommit{
+				SignedPreCommit: block.SignedPreCommit{
 					PreCommit: block.PreCommit{
-						block.Polka{
+						Polka: block.Polka{
 							Block:  &block.Block{},
 							Height: -1,
 						},
@@ -124,7 +129,7 @@ func generateTestCases() []TestCase {
 		// Proposed from the future
 		{
 			inputTransition: consensus.Proposed{
-				block.Block{
+				Block: block.Block{
 					Height: 1,
 				}},
 
@@ -136,7 +141,7 @@ func generateTestCases() []TestCase {
 		// PreVoted from the future
 		{
 			inputTransition: consensus.PreVoted{
-				block.SignedPreVote{
+				SignedPreVote: block.SignedPreVote{
 					PreVote: block.PreVote{
 						Height: 1,
 					},
@@ -151,9 +156,9 @@ func generateTestCases() []TestCase {
 		// PreCommitted from the future
 		{
 			inputTransition: consensus.PreCommitted{
-				block.SignedPreCommit{
+				SignedPreCommit: block.SignedPreCommit{
 					PreCommit: block.PreCommit{
-						block.Polka{
+						Polka: block.Polka{
 							Block:  &block.Block{},
 							Height: 1,
 						},
@@ -169,7 +174,7 @@ func generateTestCases() []TestCase {
 		// Proposed for the current Height
 		{
 			inputTransition: consensus.Proposed{
-				block.Block{
+				Block: block.Block{
 					Height: 0,
 				}},
 
@@ -181,7 +186,7 @@ func generateTestCases() []TestCase {
 		// PreVoted for the current height
 		{
 			inputTransition: consensus.PreVoted{
-				block.SignedPreVote{
+				SignedPreVote: block.SignedPreVote{
 					PreVote: block.PreVote{
 						Height: 0,
 					},
@@ -196,9 +201,9 @@ func generateTestCases() []TestCase {
 		// PreCommitted for the current height
 		{
 			inputTransition: consensus.PreCommitted{
-				block.SignedPreCommit{
+				SignedPreCommit: block.SignedPreCommit{
 					PreCommit: block.PreCommit{
-						block.Polka{
+						Polka: block.Polka{
 							Block:  &block.Block{},
 							Height: 0,
 						},
