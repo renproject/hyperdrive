@@ -26,8 +26,7 @@ func NewDispatcher(shard shard.Shard) replica.Dispatcher {
 
 func (d *Dispatcher) Dispatch(action consensus.Action) {
 	// TODO:
-	// 1. Sign the action
-	// 2. Broadcast the action to the entire shard
+	// 1. Broadcast the action to the entire shard
 }
 
 type Hyperdrive interface {
@@ -44,22 +43,33 @@ type hyperdrive struct {
 	shards        map[sig.Hash]shard.Shard
 	shardReplicas map[sig.Hash]replica.Replica
 	shardHistory  []sig.Hash
+
+	ticksPerShard    map[sig.Hash]int
+	timeoutThreshold int
 }
 
-func New(signer sig.Signer) Hyperdrive {
+func New(signer sig.Signer, timeoutThreshold int) Hyperdrive {
 	return &hyperdrive{
 		signer: signer,
 
 		shards:        map[sig.Hash]shard.Shard{},
 		shardReplicas: map[sig.Hash]replica.Replica{},
 		shardHistory:  []sig.Hash{},
+
+		ticksPerShard:    map[sig.Hash]int{},
+		timeoutThreshold: timeoutThreshold,
 	}
 }
 
 func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
-	// TODO:
 	// 1. Increment number of ticks seen by each shard
-	// 2. After a number of ticks send a TimedOut transition to the shard
+	for i, shard := range hyperdrive.shards {
+		hyperdrive.ticksPerShard[i]++
+
+		if hyperdrive.ticksPerShard[i] > hyperdrive.timeoutThreshold {
+			// 2. After a number of ticks send a TimedOut transition to the shard
+		}
+	}
 }
 
 func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.Block) {
