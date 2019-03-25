@@ -65,7 +65,7 @@ func (timedOut TimedOut) IsTransition() {
 
 // A Proposed block has been received by another Replica.
 type Proposed struct {
-	block.Block
+	block.SignedBlock
 }
 
 // IsTransition implements the `Transition` interface for the

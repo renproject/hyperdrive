@@ -91,9 +91,9 @@ func (stateMachine *stateMachine) reduceProposed(currentState State, proposed Pr
 
 	return WaitForPolka(currentState.Round(), currentState.Height()), PreVote{
 		PreVote: block.PreVote{
-			Block:  &proposed.Block,
-			Round:  proposed.Block.Round,
-			Height: proposed.Block.Height,
+			Block:  &proposed.SignedBlock,
+			Round:  proposed.SignedBlock.Round,
+			Height: proposed.SignedBlock.Height,
 		},
 	}
 }

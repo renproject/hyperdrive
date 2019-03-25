@@ -7,7 +7,7 @@ type Action interface {
 }
 
 type Propose struct {
-	block.Block
+	block.SignedBlock
 }
 
 func (Propose) IsAction() {
@@ -20,11 +20,25 @@ type PreVote struct {
 func (PreVote) IsAction() {
 }
 
+type SignedPreVote struct {
+	block.SignedPreVote
+}
+
+func (SignedPreVote) IsAction() {
+}
+
 type PreCommit struct {
 	block.PreCommit
 }
 
 func (PreCommit) IsAction() {
+}
+
+type SignedPreCommit struct {
+	block.SignedPreCommit
+}
+
+func (SignedPreCommit) IsAction() {
 }
 
 type Commit struct {
