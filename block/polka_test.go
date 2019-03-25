@@ -56,7 +56,7 @@ type mockPreVotes struct {
 	votes              []SignedPreVote
 	expectedPolka      Polka
 	expectedFound      bool
-	consensusThreshold int64
+	consensusThreshold int
 }
 
 func (mockPreVotes) Generate(rand *rand.Rand, size int) reflect.Value {
@@ -69,17 +69,17 @@ func (mockPreVotes) Generate(rand *rand.Rand, size int) reflect.Value {
 		headersSeed[i] = val.Interface().(sig.Hash)
 	}
 
-	numPreVotes := rand.Uint32() % 50
-	consensusThreshold := rand.Uint32() % 50
+	numPreVotes := rand.Int() % 50
+	consensusThreshold := rand.Int() % 50
 
 	signedPreVotes := make([]SignedPreVote, numPreVotes)
 
 	heighestPolka := Polka{}
 	found := false
 
-	scratch := make(map[Height]map[sig.Hash]uint32)
+	scratch := make(map[Height]map[sig.Hash]int)
 
-	for i := uint32(0); i < numPreVotes; i++ {
+	for i := 0; i < numPreVotes; i++ {
 
 		randHashIndex := rand.Intn(len(headersSeed))
 		hash := headersSeed[randHashIndex]
@@ -92,7 +92,7 @@ func (mockPreVotes) Generate(rand *rand.Rand, size int) reflect.Value {
 				val[hash]++
 			}
 		} else {
-			scratch[height] = make(map[sig.Hash]uint32)
+			scratch[height] = make(map[sig.Hash]int)
 			scratch[height][hash] = 1
 		}
 
@@ -127,6 +127,6 @@ func (mockPreVotes) Generate(rand *rand.Rand, size int) reflect.Value {
 		votes:              signedPreVotes,
 		expectedPolka:      heighestPolka,
 		expectedFound:      found,
-		consensusThreshold: int64(consensusThreshold),
+		consensusThreshold: consensusThreshold,
 	})
 }
