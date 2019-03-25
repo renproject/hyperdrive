@@ -83,7 +83,7 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Blockchain) {
 	r := replica.New(
 		NewDispatcher(shard),
-		hyperdrive.signer.Signatory(),
+		hyperdrive.signer,
 		tx.FIFOPool(),
 		consensus.WaitForPropose(blockchain.Round(), blockchain.Height()),
 		consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), shard.ConsensusThreshold()),
