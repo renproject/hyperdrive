@@ -39,6 +39,29 @@ func Genesis() Block {
 	}
 }
 
+func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions) Block {
+	block := Block{
+		Time:         time.Now(),
+		Round:        round,
+		Height:       height,
+		ParentHeader: parentHeader,
+		Txs:          txs,
+	}
+	// FIXME: At this point we should calculate the block header. It should be the SHA3 hash of the timestamp, round,
+	// height, parentHeader, and transactions.
+	block.Header = sig.Hash{}
+	return block
+}
+
+func (block *Block) Sign(signer sig.Signer) (err error) {
+	block.Signature, err = signer.Sign(block.Header)
+	if err != nil {
+		return
+	}
+	block.Signatory = signer.Signatory()
+	return
+}
+
 func (block Block) String() string {
 	return fmt.Sprintf("Block(Header=%s,Round=%d,Height=%d)", base64.StdEncoding.EncodeToString(block.Header[:]), block.Round, block.Height)
 }
