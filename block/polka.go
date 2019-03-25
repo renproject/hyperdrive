@@ -127,7 +127,7 @@ func (polka Polka) String() string {
 type PolkaBuilder map[Height]map[Round]map[sig.Signatory]SignedPreVote
 
 // Insert a SignedPreVote into the PolkaBuilder. This will include the SignedPreVote in all attempts to build a Polka
-// for its Height and Round.
+// for the respective Height.
 func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
 	// Pre-condition check
 	if preVote.Block != nil {
@@ -150,9 +150,8 @@ func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
 	}
 }
 
-// Polka returns a Polka for the given Height and Round. A boolean is returned that signals whether or not a Polka could
-// be returned.
-func (builder PolkaBuilder) Polka(height Height, round Round, consensusThreshold int) (Polka, bool) {
+// Polka returns a Polka for the given Height in the latest Round.
+func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka, bool) {
 	// Pre-condition check
 	if consensusThreshold < 1 {
 		panic(fmt.Errorf("expected consensus threshold (%v) to be greater than 1", consensusThreshold))
@@ -163,110 +162,113 @@ func (builder PolkaBuilder) Polka(height Height, round Round, consensusThreshold
 	if !ok {
 		return Polka{}, false
 	}
-	preVotes, ok := preVotesByRound[round]
-	if !ok || len(preVotes) < consensusThreshold {
-		return Polka{}, false
-	}
 
-	// Build a mapping of the pre-votes for each block
-	preVotesForBlock := map[sig.Hash]int{}
-	for _, preVote := range preVotes {
-		// Invariant check
-		if preVote.Height != height {
-			panic(fmt.Errorf("expected pre-vote height (%v) to equal %v", preVote.Height, height))
+	polkaFound := false
+	polka := Polka{}
+
+	for round, preVotes := range preVotesByRound {
+		if polkaFound && round <= polka.Round {
+			continue
 		}
-		if preVote.Round != round {
-			panic(fmt.Errorf("expected pre-vote round (%v) to equal %v", preVote.Round, round))
-		}
-		if preVote.Block == nil {
+		if len(preVotes) < consensusThreshold {
 			continue
 		}
 
-		// Invariant check
-		if preVote.Block.Height != height {
-			panic(fmt.Errorf("expected pre-vote block height (%v) to equal %v", preVote.Block.Height, height))
-		}
-		if preVote.Block.Round != round {
-			panic(fmt.Errorf("expected pre-vote block round (%v) to equal %v", preVote.Block.Round, round))
-		}
-		numPreVotes := preVotesForBlock[preVote.Block.Header]
-		numPreVotes++
-		preVotesForBlock[preVote.Block.Header] = numPreVotes
-	}
-
-	// Search for a polka of pre-votes for non-nil block
-	for blockHeader, numPreVotes := range preVotesForBlock {
-		if numPreVotes >= consensusThreshold {
-			polka := Polka{
-				Signatures:  make(sig.Signatures, 0, consensusThreshold),
-				Signatories: make(sig.Signatories, 0, consensusThreshold),
+		// Build a mapping of the pre-votes for each block
+		preVotesForBlock := map[sig.Hash]int{}
+		for _, preVote := range preVotes {
+			// Invariant check
+			if preVote.Height != height {
+				panic(fmt.Errorf("expected pre-vote height (%v) to equal %v", preVote.Height, height))
 			}
-			for _, preVote := range preVotes {
-				if preVote.Block != nil && preVote.Block.Header.Equal(blockHeader) {
-					if polka.Block != nil {
-						// Invariant check
-						if polka.Round != preVote.Round {
-							panic(fmt.Errorf("expected polka round (%v) to equal pre-vote round (%v)", polka.Round, preVote.Round))
-						}
-						if polka.Height != preVote.Height {
-							panic(fmt.Errorf("expected polka height (%v) to equal pre-vote height (%v)", polka.Height, preVote.Height))
-						}
-					} else {
-						polka.Block = preVote.Block
-						polka.Round = preVote.Round
-						polka.Height = preVote.Height
-					}
-					polka.Signatures = append(polka.Signatures, preVote.Signature)
-					polka.Signatories = append(polka.Signatories, preVote.Signatory)
+			if preVote.Round != round {
+				panic(fmt.Errorf("expected pre-vote round (%v) to equal %v", preVote.Round, round))
+			}
+			if preVote.Block == nil {
+				continue
+			}
+
+			// Invariant check
+			if preVote.Block.Height != height {
+				panic(fmt.Errorf("expected pre-vote block height (%v) to equal %v", preVote.Block.Height, height))
+			}
+			if preVote.Block.Round != round {
+				panic(fmt.Errorf("expected pre-vote block round (%v) to equal %v", preVote.Block.Round, round))
+			}
+			numPreVotes := preVotesForBlock[preVote.Block.Header]
+			numPreVotes++
+			preVotesForBlock[preVote.Block.Header] = numPreVotes
+		}
+
+		// Search for a polka of pre-votes for non-nil block
+		for blockHeader, numPreVotes := range preVotesForBlock {
+			if numPreVotes >= consensusThreshold {
+				polkaFound = true
+				polka = Polka{
+					Signatures:  make(sig.Signatures, 0, consensusThreshold),
+					Signatories: make(sig.Signatories, 0, consensusThreshold),
 				}
+				for _, preVote := range preVotes {
+					if preVote.Block != nil && preVote.Block.Header.Equal(blockHeader) {
+						if polka.Block != nil {
+							// Invariant check
+							if polka.Round != preVote.Round {
+								panic(fmt.Errorf("expected polka round (%v) to equal pre-vote round (%v)", polka.Round, preVote.Round))
+							}
+							if polka.Height != preVote.Height {
+								panic(fmt.Errorf("expected polka height (%v) to equal pre-vote height (%v)", polka.Height, preVote.Height))
+							}
+						} else {
+							// Invariant check
+							if preVote.Round != round {
+								panic(fmt.Errorf("expected pre-vote round (%v) to equal pre-vote round (%v)", polka.Round, preVote.Round))
+							}
+							polka.Block = preVote.Block
+							polka.Round = preVote.Round
+							polka.Height = preVote.Height
+						}
+						polka.Signatures = append(polka.Signatures, preVote.Signature)
+						polka.Signatories = append(polka.Signatories, preVote.Signatory)
+					}
+				}
+				break
 			}
+		}
+		if polkaFound {
+			continue
+		}
 
-			// Post-condition check
-			if len(polka.Signatures) != len(polka.Signatories) {
-				panic(fmt.Errorf("expected the number of signatures (%v) to be equal to the number of signatories (%v)", len(polka.Signatures), len(polka.Signatories)))
+		// Return a nil-Polka with a set of signatures and signatories to prove that it is reasonable to return a nil-Polka
+		polkaFound = true
+		polka = Polka{
+			Block:       nil,
+			Height:      height,
+			Round:       round,
+			Signatures:  make(sig.Signatures, 0, consensusThreshold),
+			Signatories: make(sig.Signatories, 0, consensusThreshold),
+		}
+		for _, preVote := range preVotes {
+			polka.Signatures = append(polka.Signatures, preVote.Signature)
+			polka.Signatories = append(polka.Signatories, preVote.Signatory)
+			if len(polka.Signatures) == consensusThreshold {
+				break
 			}
-			if len(polka.Signatures) >= consensusThreshold {
-				panic(fmt.Errorf("expected the number of signatures (%v) to be greater than or equal to the consensus threshold (%v)", len(polka.Signatures), consensusThreshold))
-			}
-			if polka.Height != height {
-				panic(fmt.Errorf("expected the polka height (%v) to equal %v", polka.Height, height))
-			}
-			if polka.Round != round {
-				panic(fmt.Errorf("expected the polka round (%v) to equal %v", polka.Round, round))
-			}
-			return polka, true
 		}
 	}
 
-	// Return a nil-Polka with a set of signatures and signatories to prove that it is reasonable to return a nil-Polka
-	polka := Polka{
-		Block:       nil,
-		Height:      height,
-		Round:       round,
-		Signatures:  make(sig.Signatures, 0, consensusThreshold),
-		Signatories: make(sig.Signatories, 0, consensusThreshold),
-	}
-	for _, preVote := range preVotes {
-		polka.Signatures = append(polka.Signatures, preVote.Signature)
-		polka.Signatories = append(polka.Signatories, preVote.Signatory)
-		if len(polka.Signatures) == consensusThreshold {
-			break
+	if polkaFound {
+		// Post-condition check
+		if len(polka.Signatures) != len(polka.Signatories) {
+			panic(fmt.Errorf("expected the number of signatures (%v) to be equal to the number of signatories (%v)", len(polka.Signatures), len(polka.Signatories)))
+		}
+		if len(polka.Signatures) >= consensusThreshold {
+			panic(fmt.Errorf("expected the number of signatures (%v) to be greater than or equal to the consensus threshold (%v)", len(polka.Signatures), consensusThreshold))
+		}
+		if polka.Height != height {
+			panic(fmt.Errorf("expected the polka height (%v) to equal %v", polka.Height, height))
 		}
 	}
-	// Post-condition check
-	if len(polka.Signatures) != len(polka.Signatories) {
-		panic(fmt.Errorf("expected the number of signatures (%v) to be equal to the number of signatories (%v)", len(polka.Signatures), len(polka.Signatories)))
-	}
-	if len(polka.Signatures) == consensusThreshold {
-		panic(fmt.Errorf("expected the number of signatures (%v) to be greater than or equal to the consensus threshold (%v)", len(polka.Signatures), consensusThreshold))
-	}
-	if polka.Height != height {
-		panic(fmt.Errorf("expected the polka height (%v) to equal %v", polka.Height, height))
-	}
-	if polka.Round != round {
-		panic(fmt.Errorf("expected the polka round (%v) to equal %v", polka.Round, round))
-	}
-	return polka, true
+	return polka, polkaFound
 }
 
 // Drop removes all SignedPreVotes below the given Height.
