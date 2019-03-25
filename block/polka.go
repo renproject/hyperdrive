@@ -220,8 +220,11 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 							}
 						} else {
 							// Invariant check
+							if preVote.Height != height {
+								panic(fmt.Errorf("expected pre-vote height (%v) to equal %v", preVote.Height, height))
+							}
 							if preVote.Round != round {
-								panic(fmt.Errorf("expected pre-vote round (%v) to equal pre-vote round (%v)", polka.Round, preVote.Round))
+								panic(fmt.Errorf("expected pre-vote round (%v) to equal %v", preVote.Round, round))
 							}
 							polka.Block = preVote.Block
 							polka.Round = preVote.Round
@@ -238,31 +241,26 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 			continue
 		}
 
-		// Return a nil-Polka with a set of signatures and signatories to prove that it is reasonable to return a nil-Polka
+		// Return a nil-Polka
 		polkaFound = true
 		polka = Polka{
 			Block:       nil,
 			Height:      height,
 			Round:       round,
-			Signatures:  make(sig.Signatures, 0, consensusThreshold),
-			Signatories: make(sig.Signatories, 0, consensusThreshold),
-		}
-		for _, preVote := range preVotes {
-			polka.Signatures = append(polka.Signatures, preVote.Signature)
-			polka.Signatories = append(polka.Signatories, preVote.Signatory)
-			if len(polka.Signatures) == consensusThreshold {
-				break
-			}
+			Signatures:  make(sig.Signatures, 0),
+			Signatories: make(sig.Signatories, 0),
 		}
 	}
 
 	if polkaFound {
 		// Post-condition check
-		if len(polka.Signatures) != len(polka.Signatories) {
-			panic(fmt.Errorf("expected the number of signatures (%v) to be equal to the number of signatories (%v)", len(polka.Signatures), len(polka.Signatories)))
-		}
-		if len(polka.Signatures) >= consensusThreshold {
-			panic(fmt.Errorf("expected the number of signatures (%v) to be greater than or equal to the consensus threshold (%v)", len(polka.Signatures), consensusThreshold))
+		if polka.Block != nil {
+			if len(polka.Signatures) != len(polka.Signatories) {
+				panic(fmt.Errorf("expected the number of signatures (%v) to be equal to the number of signatories (%v)", len(polka.Signatures), len(polka.Signatories)))
+			}
+			if len(polka.Signatures) >= consensusThreshold {
+				panic(fmt.Errorf("expected the number of signatures (%v) to be greater than or equal to the consensus threshold (%v)", len(polka.Signatures), consensusThreshold))
+			}
 		}
 		if polka.Height != height {
 			panic(fmt.Errorf("expected the polka height (%v) to equal %v", polka.Height, height))
