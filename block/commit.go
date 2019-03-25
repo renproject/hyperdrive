@@ -186,7 +186,7 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (Comm
 			if len(commit.Signatures) != len(commit.Signatories) {
 				panic(fmt.Errorf("expected the number of signatures (%v) to be equal to the number of signatories (%v)", len(commit.Signatures), len(commit.Signatories)))
 			}
-			if len(commit.Signatures) >= consensusThreshold {
+			if len(commit.Signatures) < consensusThreshold {
 				panic(fmt.Errorf("expected the number of signatures (%v) to be greater than or equal to the consensus threshold (%v)", len(commit.Signatures), consensusThreshold))
 			}
 		}
