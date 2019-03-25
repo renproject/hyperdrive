@@ -26,7 +26,6 @@ var _ = Describe("Replica", func() {
 	})
 
 	Context("when a new Transaction is sent using Transact", func() {
-
 		It("should update the TxPool", func() {
 			signer, err := ecdsa.NewFromRandom()
 			Expect(err).ShouldNot(HaveOccurred())
@@ -42,7 +41,6 @@ var _ = Describe("Replica", func() {
 			replica.Transact(tx.Transaction{})
 			Expect(pool.Length()).Should(Equal(1))
 		})
-
 	})
 
 	Context("when new Transitions are sent", func() {
@@ -51,8 +49,8 @@ var _ = Describe("Replica", func() {
 		for _, t := range testCases {
 			t := t
 
-			Context(fmt.Sprintf("when the replica gets transition - %s", reflect.TypeOf(t.startingState).Name()), func() {
-				It("should ", func() {
+			Context(fmt.Sprintf("when replica starts with intial state - %s", reflect.TypeOf(t.startingState).Name()), func() {
+				It("should pass", func() {
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
 					shard := shard.Shard{
@@ -71,7 +69,6 @@ var _ = Describe("Replica", func() {
 				})
 			})
 		}
-
 	})
 })
 
