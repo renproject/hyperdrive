@@ -81,7 +81,7 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 }
 
 func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Blockchain) {
-	hyperdrive.shardReplicas[shard.Hash] = replica.New(
+	r := replica.New(
 		NewDispatcher(shard),
 		hyperdrive.signer.Signatory(),
 		tx.FIFOPool(),
@@ -91,10 +91,13 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Bl
 		blockchain,
 		shard,
 	)
-	hyperdrive.shardHistory = append(hyperdrive.shardHistory, shard.Hash)
 
+	hyperdrive.shardReplicas[shard.Hash] = r
+	hyperdrive.shardHistory = append(hyperdrive.shardHistory, shard.Hash)
 	if len(hyperdrive.shardHistory) > NumHistoricalShards {
 		delete(hyperdrive.shardReplicas, hyperdrive.shardHistory[0])
 		hyperdrive.shardHistory = hyperdrive.shardHistory[1:]
 	}
+
+	r.GenerateBlock()
 }

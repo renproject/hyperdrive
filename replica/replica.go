@@ -17,6 +17,7 @@ type Dispatcher interface {
 type Replica interface {
 	Transact(transaction tx.Transaction)
 	Transition(transition consensus.Transition)
+	GenerateBlock()
 }
 
 type replica struct {
@@ -77,6 +78,14 @@ func (replica *replica) Transition(transition consensus.Transition) {
 	}
 }
 
+func (replica *replica) GenerateBlock() {
+	if replica.shouldProposeBlock() {
+		replica.dispatcher.Dispatch(consensus.Propose{
+			Block: replica.generateBlock(),
+		})
+	}
+}
+
 func (replica *replica) dispatchAction(action consensus.Action) {
 	if action == nil {
 		return
@@ -102,11 +111,7 @@ func (replica *replica) handlePreCommit(preCommit consensus.PreCommit) {
 
 func (replica *replica) handleCommit(commit consensus.Commit) {
 	replica.blockchain.Extend(commit.Commit)
-	if replica.shouldProposeBlock() {
-		replica.dispatcher.Dispatch(consensus.Propose{
-			Block: replica.generateBlock(),
-		})
-	}
+	replica.GenerateBlock()
 }
 
 func (replica *replica) shouldDropTransition(transition consensus.Transition) bool {
