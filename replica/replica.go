@@ -1,14 +1,14 @@
-// Package replica core package
-//
-// I assume that all provided `Transition`s are well formed and valid by
-// the time they reach this module.
 package replica
 
 import (
+	"log"
+	"time"
+
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/consensus"
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"github.com/renproject/hyperdrive/tx"
 )
 
@@ -132,19 +132,19 @@ func (replica *replica) shouldDropTransition(transition consensus.Transition) bo
 func (replica *replica) shouldBufferTransition(transition consensus.Transition) bool {
 	switch transition := transition.(type) {
 	case consensus.Proposed:
-		if transition.Height > replica.state.Height() {
-			return true
+		if transition.Height <= replica.state.Height() {
+			return false
 		}
 	case consensus.PreVoted:
-		if transition.Height > replica.state.Height() {
-			return true
+		if transition.Height <= replica.state.Height() {
+			return false
 		}
 	case consensus.PreCommitted:
-		if transition.Polka.Height > replica.state.Height() {
-			return true
+		if transition.Polka.Height <= replica.state.Height() {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func (replica *replica) shouldProposeBlock() bool {
@@ -152,6 +152,34 @@ func (replica *replica) shouldProposeBlock() bool {
 }
 
 func (replica *replica) generateBlock() block.Block {
-	// TODO: Implement.
-	return block.Block{}
+	// TODO: Generate a Block using the transaction Pool, current Blockchain, and current Shard.
+	transaction, ok := replica.txPool.Dequeue()
+	if !ok {
+		return block.Block{}
+	}
+
+	parent, ok := replica.blockchain.Head()
+	if !ok {
+		parent = block.Genesis()
+	}
+
+	newBlock := block.Block{
+		Time:         time.Now(),
+		Round:        replica.blockchain.Round() + 1,
+		Height:       replica.blockchain.Height() + 1,
+		Header:       replica.shard.Hash,
+		ParentHeader: parent.Header,
+		Signatory:    replica.signer.Signatory(),
+		Txs:          []tx.Transaction{transaction}, // TODO: get all pending txs in the pool
+	}
+
+	var err error
+	// TODO: (review) Sign the entire block?
+	newBlock.Signature, err = replica.signer.Sign(ecdsa.Hash([]byte(newBlock.String())))
+	if err != nil {
+		log.Println(err)
+		return block.Block{}
+	}
+	return newBlock
+
 }
