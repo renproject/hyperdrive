@@ -122,132 +122,154 @@ func (polka Polka) String() string {
 		polka.Height)
 }
 
-// PolkaBuilder should start empty and be filled with valid
-// SignedPreVote with Insert
-type PolkaBuilder map[Height]map[sig.Signatory]SignedPreVote
+// PolkaBuilder is used to build up collections of SignedPreVotes at different Heights and Rounds and then build Polkas
+// wherever there are enough SignedPreVotes to do so.
+type PolkaBuilder map[Height]map[Round]map[sig.Signatory]SignedPreVote
 
-// Insert takes a valid SignedPreVote to register the vote. You can
-// give this duplicate valid SignedPreVote and only one vote will be
-// registered.
+// Insert a SignedPreVote into the PolkaBuilder. This will include the SignedPreVote in all attempts to build a Polka
+// for its Height and Round.
 func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
-	if _, ok := builder[preVote.Height]; !ok {
-		builder[preVote.Height] = map[sig.Signatory]SignedPreVote{}
-	}
-	if _, ok := builder[preVote.Height][preVote.Signatory]; !ok {
-		builder[preVote.Height][preVote.Signatory] = preVote
-	}
-}
-
-// Polka finds the `Polka` with the highest height that has enough
-// `PreVotes` to be greater than or equal to the `consensusThreshold`
-//
-// By construction duplicate votes from the same signatory will only
-// count as one vote. However, it does assume that each SignedPreVote
-// has a valid header and signature.
-//
-// Note: you must set the consensusThreshold to greater than 1/2 of the total
-// number of expected SignedPreVote for this algorithm to work.
-func (builder PolkaBuilder) Polka(consensusThreshold int64) (Polka, bool) {
-	highestPolkaFound := false
-	highestPolka := Polka{}
-	for height, preVotes := range builder {
-		if highestPolka.Block != nil && (!highestPolkaFound || height > highestPolka.Block.Height) {
-			if int64(len(preVotes)) < consensusThreshold {
-				continue
-			}
-			highestPolkaFound = true
-
-			// Note: also not used
-			preVotesForNil := int64(0)
-
-			preVotesForBlock := map[sig.Hash]int64{}
-			for _, preVote := range preVotes {
-				if preVote.Block == nil {
-					preVotesForNil++
-					continue
-				}
-				numPreVotes := preVotesForBlock[preVote.Block.Header]
-				numPreVotes++
-				preVotesForBlock[preVote.Block.Header] = numPreVotes
-			}
-
-			polkaFound := false
-
-			// I needed to re-write this portion because it keeps the
-			// signatories and signatures from blocks at a lower
-			// height that also had enough prevotes to pass the
-			// consensusThreshold.
-			for blockHeader, numPreVotes := range preVotesForBlock {
-				if numPreVotes >= consensusThreshold {
-					polkaFound = true
-					for _, preVote := range preVotes {
-						if preVote.Block != nil &&
-							preVote.Block.Header.Equal(blockHeader) {
-
-							// if this happens you need to reset the
-							// signatories since you have just found a
-							// polka that has enough preVotes at a
-							// higher height.
-							if preVote.Height > highestPolka.Height {
-								highestPolka.Signatories = sig.Signatories{}
-								highestPolka.Signatures = sig.Signatures{}
-							}
-							if preVote.Block != nil {
-								highestPolka.Block = preVote.Block
-							}
-							highestPolka.Round = preVote.Round
-							highestPolka.Height = preVote.Height
-							highestPolka.Signatories =
-								append(highestPolka.Signatories,
-									preVote.Signatory)
-							highestPolka.Signatures =
-								append(highestPolka.Signatures,
-									preVote.Signature)
-						}
-					}
-					break
-				}
-			}
-
-			if polkaFound {
-				continue
-			}
-
-			// if there are two different blocks voted for the same
-			// height then there are enough preVote to "think" there
-			// might be a polka, but the for loop above will realise
-			// none of the blocks have enough votes. So, we need to
-			// set the highestPolkaFound to false so we don't return a
-			// nil Polka and True. At the same time we don't want to
-			// set highestPolkaFound to false if we have already found
-			// a polka at a lower height.
-			if highestPolka.Block == nil {
-				highestPolkaFound = false
-			}
-
-			// I am unable to get this code to be run given the
-			// assumption that only valid SignedPreVote will be
-			// inserted. Let me know what case this is supposed to
-			// catch and if we need it here.
-			for _, preVote := range preVotes {
-				if preVote.Block == nil {
-					highestPolka.Block = preVote.Block
-					highestPolka.Round = preVote.Round
-					highestPolka.Height = preVote.Height
-					highestPolka.Signatories =
-						append(highestPolka.Signatories, preVote.Signatory)
-					highestPolka.Signatures =
-						append(highestPolka.Signatures, preVote.Signature)
-				}
-			}
+	// Pre-condition check
+	if preVote.Block != nil {
+		if preVote.Block.Height != preVote.Height {
+			panic(fmt.Errorf("expected pre-vote height (%v) to equal pre-vote block height (%v)", preVote.Height, preVote.Block.Height))
+		}
+		if preVote.Block.Round != preVote.Round {
+			panic(fmt.Errorf("expected pre-vote round (%v) to equal pre-vote block round (%v)", preVote.Round, preVote.Block.Round))
 		}
 	}
-	return highestPolka, highestPolkaFound
+
+	if _, ok := builder[preVote.Height]; !ok {
+		builder[preVote.Height] = map[Round]map[sig.Signatory]SignedPreVote{}
+	}
+	if _, ok := builder[preVote.Height][preVote.Round]; !ok {
+		builder[preVote.Height][preVote.Round] = map[sig.Signatory]SignedPreVote{}
+	}
+	if _, ok := builder[preVote.Height][preVote.Round][preVote.Signatory]; !ok {
+		builder[preVote.Height][preVote.Round][preVote.Signatory] = preVote
+	}
 }
 
-// Drop removes all registered SignedPreVote below the given height.
-// Essentially, call this on your current height when you have found a
-// polka.
+// Polka returns a Polka for the given Height and Round. A boolean is returned that signals whether or not a Polka could
+// be returned.
+func (builder PolkaBuilder) Polka(height Height, round Round, consensusThreshold int) (Polka, bool) {
+	// Pre-condition check
+	if consensusThreshold < 1 {
+		panic(fmt.Errorf("expected consensus threshold (%v) to be greater than 1", consensusThreshold))
+	}
+
+	// Short-circuit when too few pre-votes have been received
+	preVotesByRound, ok := builder[height]
+	if !ok {
+		return Polka{}, false
+	}
+	preVotes, ok := preVotesByRound[round]
+	if !ok || len(preVotes) < consensusThreshold {
+		return Polka{}, false
+	}
+
+	// Build a mapping of the pre-votes for each block
+	preVotesForBlock := map[sig.Hash]int{}
+	for _, preVote := range preVotes {
+		// Invariant check
+		if preVote.Height != height {
+			panic(fmt.Errorf("expected pre-vote height (%v) to equal %v", preVote.Height, height))
+		}
+		if preVote.Round != round {
+			panic(fmt.Errorf("expected pre-vote round (%v) to equal %v", preVote.Round, round))
+		}
+		if preVote.Block == nil {
+			continue
+		}
+
+		// Invariant check
+		if preVote.Block.Height != height {
+			panic(fmt.Errorf("expected pre-vote block height (%v) to equal %v", preVote.Block.Height, height))
+		}
+		if preVote.Block.Round != round {
+			panic(fmt.Errorf("expected pre-vote block round (%v) to equal %v", preVote.Block.Round, round))
+		}
+		numPreVotes := preVotesForBlock[preVote.Block.Header]
+		numPreVotes++
+		preVotesForBlock[preVote.Block.Header] = numPreVotes
+	}
+
+	// Search for a polka of pre-votes for non-nil block
+	for blockHeader, numPreVotes := range preVotesForBlock {
+		if numPreVotes >= consensusThreshold {
+			polka := Polka{
+				Signatures:  make(sig.Signatures, 0, consensusThreshold),
+				Signatories: make(sig.Signatories, 0, consensusThreshold),
+			}
+			for _, preVote := range preVotes {
+				if preVote.Block != nil && preVote.Block.Header.Equal(blockHeader) {
+					if polka.Block != nil {
+						// Invariant check
+						if polka.Round != preVote.Round {
+							panic(fmt.Errorf("expected polka round (%v) to equal pre-vote round (%v)", polka.Round, preVote.Round))
+						}
+						if polka.Height != preVote.Height {
+							panic(fmt.Errorf("expected polka height (%v) to equal pre-vote height (%v)", polka.Height, preVote.Height))
+						}
+					} else {
+						polka.Block = preVote.Block
+						polka.Round = preVote.Round
+						polka.Height = preVote.Height
+					}
+					polka.Signatures = append(polka.Signatures, preVote.Signature)
+					polka.Signatories = append(polka.Signatories, preVote.Signatory)
+				}
+			}
+
+			// Post-condition check
+			if len(polka.Signatures) != len(polka.Signatories) {
+				panic(fmt.Errorf("expected the number of signatures (%v) to be equal to the number of signatories (%v)", len(polka.Signatures), len(polka.Signatories)))
+			}
+			if len(polka.Signatures) >= consensusThreshold {
+				panic(fmt.Errorf("expected the number of signatures (%v) to be greater than or equal to the consensus threshold (%v)", len(polka.Signatures), consensusThreshold))
+			}
+			if polka.Height != height {
+				panic(fmt.Errorf("expected the polka height (%v) to equal %v", polka.Height, height))
+			}
+			if polka.Round != round {
+				panic(fmt.Errorf("expected the polka round (%v) to equal %v", polka.Round, round))
+			}
+			return polka, true
+		}
+	}
+
+	// Return a nil-Polka with a set of signatures and signatories to prove that it is reasonable to return a nil-Polka
+	polka := Polka{
+		Block:       nil,
+		Height:      height,
+		Round:       round,
+		Signatures:  make(sig.Signatures, 0, consensusThreshold),
+		Signatories: make(sig.Signatories, 0, consensusThreshold),
+	}
+	for _, preVote := range preVotes {
+		polka.Signatures = append(polka.Signatures, preVote.Signature)
+		polka.Signatories = append(polka.Signatories, preVote.Signatory)
+		if len(polka.Signatures) == consensusThreshold {
+			break
+		}
+	}
+	// Post-condition check
+	if len(polka.Signatures) != len(polka.Signatories) {
+		panic(fmt.Errorf("expected the number of signatures (%v) to be equal to the number of signatories (%v)", len(polka.Signatures), len(polka.Signatories)))
+	}
+	if len(polka.Signatures) == consensusThreshold {
+		panic(fmt.Errorf("expected the number of signatures (%v) to be greater than or equal to the consensus threshold (%v)", len(polka.Signatures), consensusThreshold))
+	}
+	if polka.Height != height {
+		panic(fmt.Errorf("expected the polka height (%v) to equal %v", polka.Height, height))
+	}
+	if polka.Round != round {
+		panic(fmt.Errorf("expected the polka round (%v) to equal %v", polka.Round, round))
+	}
+	return polka, true
+}
+
+// Drop removes all SignedPreVotes below the given Height.
 func (builder PolkaBuilder) Drop(dropHeight Height) {
 	for height := range builder {
 		if height < dropHeight {
