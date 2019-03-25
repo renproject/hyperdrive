@@ -21,7 +21,7 @@ type Replica interface {
 type replica struct {
 	dispatcher Dispatcher
 
-	signatory        sig.Signatory
+	signer           sig.Signer
 	txPool           tx.Pool
 	state            consensus.State
 	stateMachine     consensus.StateMachine
@@ -32,7 +32,7 @@ type replica struct {
 
 func New(
 	dispatcher Dispatcher,
-	signatory sig.Signatory,
+	signer sig.Signer,
 	txPool tx.Pool,
 	state consensus.State,
 	stateMachine consensus.StateMachine,
@@ -43,7 +43,7 @@ func New(
 	replica := &replica{
 		dispatcher: dispatcher,
 
-		signatory:        signatory,
+		signer:           signer,
 		txPool:           txPool,
 		state:            state,
 		stateMachine:     stateMachine,
@@ -79,7 +79,7 @@ func (replica *replica) Transition(transition consensus.Transition) {
 func (replica *replica) GenerateBlock() {
 	if replica.shouldProposeBlock() {
 		replica.dispatcher.Dispatch(consensus.Propose{
-			Block: replica.generateBlock(),
+			SignedBlock: replica.generateSignedBlock(),
 		})
 	}
 }
@@ -90,20 +90,36 @@ func (replica *replica) dispatchAction(action consensus.Action) {
 	}
 	switch action := action.(type) {
 	case consensus.PreVote:
-		replica.handlePreVote(action)
+		signedPreVote, err := action.PreVote.Sign(replica.signer)
+		if err != nil {
+			// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
+			// least be some sane logging and recovery.
+			panic(err)
+		}
+		replica.handlePreVote(consensus.SignedPreVote{
+			SignedPreVote: signedPreVote,
+		})
 	case consensus.PreCommit:
-		replica.handlePreCommit(action)
+		signedPreCommit, err := action.PreCommit.Sign(replica.signer)
+		if err != nil {
+			// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
+			// least be some sane logging and recovery.
+			panic(err)
+		}
+		replica.handlePreCommit(consensus.SignedPreCommit{
+			SignedPreCommit: signedPreCommit,
+		})
 	case consensus.Commit:
 		replica.handleCommit(action)
 	}
 	replica.dispatcher.Dispatch(action)
 }
 
-func (replica *replica) handlePreVote(preVote consensus.PreVote) {
+func (replica *replica) handlePreVote(preVote consensus.SignedPreVote) {
 	// Passthrough
 }
 
-func (replica *replica) handlePreCommit(preCommit consensus.PreCommit) {
+func (replica *replica) handlePreCommit(preCommit consensus.SignedPreCommit) {
 	// Passthrough
 }
 
@@ -149,10 +165,10 @@ func (replica *replica) shouldBufferTransition(transition consensus.Transition) 
 }
 
 func (replica *replica) shouldProposeBlock() bool {
-	return replica.signatory.Equal(replica.shard.Leader(replica.state.Round()))
+	return replica.signer.Signatory().Equal(replica.shard.Leader(replica.state.Round()))
 }
 
-func (replica *replica) generateBlock() block.Block {
+func (replica *replica) generateSignedBlock() block.SignedBlock {
 	// TODO: We should put more than one transaction into a block.
 	transactions := tx.Transactions{}
 	transaction, ok := replica.txPool.Dequeue()
@@ -165,10 +181,17 @@ func (replica *replica) generateBlock() block.Block {
 		parent = block.Genesis()
 	}
 
-	return block.New(
+	block := block.New(
 		replica.state.Round(),
 		replica.state.Height(),
 		parent.Header,
 		transactions,
 	)
+	signedBlock, err := block.Sign(replica.signer)
+	if err != nil {
+		// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
+		// least be some sane logging and recovery.
+		panic(err)
+	}
+	return signedBlock
 }
