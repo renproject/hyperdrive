@@ -1,8 +1,6 @@
 package replica
 
 import (
-	"time"
-
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/consensus"
 	"github.com/renproject/hyperdrive/shard"
@@ -155,10 +153,11 @@ func (replica *replica) shouldProposeBlock() bool {
 }
 
 func (replica *replica) generateBlock() block.Block {
-	// TODO: Generate a Block using the transaction Pool, current Blockchain, and current Shard.
+	// TODO: We should put more than one transaction into a block.
+	transactions := tx.Transactions{}
 	transaction, ok := replica.txPool.Dequeue()
-	if !ok {
-		return block.Block{}
+	if ok {
+		transactions = append(transactions, transaction)
 	}
 
 	parent, ok := replica.blockchain.Head()
@@ -166,23 +165,10 @@ func (replica *replica) generateBlock() block.Block {
 		parent = block.Genesis()
 	}
 
-	newBlock := block.Block{
-		Time:         time.Now(),
-		Round:        replica.blockchain.Round() + 1,
-		Height:       replica.blockchain.Height() + 1,
-		Header:       replica.shard.Hash,
-		ParentHeader: parent.Header,
-		Signatory:    replica.signatory,
-		Txs:          []tx.Transaction{transaction}, // TODO: get all pending txs in the pool
-	}
-
-	// var err error
-	// // TODO: (review) Sign the entire block?
-	// newBlock.Signature, err = replica.signer.Sign(ecdsa.Hash([]byte(newBlock.String())))
-	// if err != nil {
-	// 	log.Println(err)
-	// 	return block.Block{}
-	// }
-	return newBlock
-
+	return block.New(
+		replica.state.Round(),
+		replica.state.Height(),
+		parent.Header,
+		transactions,
+	)
 }
