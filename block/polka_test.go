@@ -3,7 +3,6 @@ package block_test
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/block"
 )
 
 var _ = Describe("PolkaBuilder", func() {
