@@ -19,6 +19,7 @@ type Dispatcher interface {
 type Replica interface {
 	Transact(transaction tx.Transaction)
 	Transition(transition consensus.Transition)
+	State() consensus.State
 }
 
 type replica struct {
@@ -76,6 +77,10 @@ func (replica *replica) Transition(transition consensus.Transition) {
 		// Replica. Otherwise, re-entrance into the Replica may cause issues.
 		replica.dispatchAction(action)
 	}
+}
+
+func (replica *replica) State() consensus.State {
+	return replica.state
 }
 
 func (replica *replica) dispatchAction(action consensus.Action) {
