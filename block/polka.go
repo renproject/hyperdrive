@@ -258,7 +258,7 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 			if len(polka.Signatures) != len(polka.Signatories) {
 				panic(fmt.Errorf("expected the number of signatures (%v) to be equal to the number of signatories (%v)", len(polka.Signatures), len(polka.Signatories)))
 			}
-			if len(polka.Signatures) >= consensusThreshold {
+			if len(polka.Signatures) < consensusThreshold {
 				panic(fmt.Errorf("expected the number of signatures (%v) to be greater than or equal to the consensus threshold (%v)", len(polka.Signatures), consensusThreshold))
 			}
 		}
