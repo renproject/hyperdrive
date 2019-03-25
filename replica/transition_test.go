@@ -67,6 +67,10 @@ var _ = Describe("TransitionBuffer", func() {
 	Context("when random transitions are enqueued", func() {
 		It("should dequeue the most relevant transition", func() {
 			test := func(size int, numInputs uint8) bool {
+				// size cannot be negative
+				if size < 0 {
+					size *= -1
+				}
 				size = size % 100
 				tb := NewTransitionBuffer(int(size % 67))
 
