@@ -35,7 +35,7 @@ var _ = Describe("Replica", func() {
 		pool = NewMockLifoPool()
 
 		dispatcher = newMockDispatcher()
-		replica = New(dispatcher, signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, block.NewBlockchain(), shard)
+		replica = New(dispatcher, signer.Signatory(), pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, block.NewBlockchain(), shard)
 
 	})
 

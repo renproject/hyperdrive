@@ -66,7 +66,7 @@ var _ = Describe("Transition buffer", func() {
 		It("should always give you back the most relevant Transition", func() {
 			test := func(size uint32, numInputs uint8) bool {
 				size = size % 100
-				tb := NewTransitionBuffer(size % 67)
+				tb := NewTransitionBuffer(int(size % 67))
 
 				mock := newMock()
 

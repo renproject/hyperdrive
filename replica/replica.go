@@ -1,14 +1,12 @@
 package replica
 
 import (
-	"log"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/consensus"
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
-	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"github.com/renproject/hyperdrive/tx"
 )
 
@@ -169,17 +167,17 @@ func (replica *replica) generateBlock() block.Block {
 		Height:       replica.blockchain.Height() + 1,
 		Header:       replica.shard.Hash,
 		ParentHeader: parent.Header,
-		Signatory:    replica.signer.Signatory(),
+		Signatory:    replica.signatory,
 		Txs:          []tx.Transaction{transaction}, // TODO: get all pending txs in the pool
 	}
 
-	var err error
-	// TODO: (review) Sign the entire block?
-	newBlock.Signature, err = replica.signer.Sign(ecdsa.Hash([]byte(newBlock.String())))
-	if err != nil {
-		log.Println(err)
-		return block.Block{}
-	}
+	// var err error
+	// // TODO: (review) Sign the entire block?
+	// newBlock.Signature, err = replica.signer.Sign(ecdsa.Hash([]byte(newBlock.String())))
+	// if err != nil {
+	// 	log.Println(err)
+	// 	return block.Block{}
+	// }
 	return newBlock
 
 }
