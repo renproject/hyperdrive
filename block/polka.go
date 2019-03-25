@@ -11,13 +11,13 @@ import (
 // PreVote is you voting for the encapsulated block to be added
 // during this round at this height
 type PreVote struct {
-	Block  *Block
+	Block  *SignedBlock
 	Round  Round
 	Height Height
 }
 
 // NewPreVote creates a PreVote
-func NewPreVote(block *Block, round Round, height Height) PreVote {
+func NewPreVote(block *SignedBlock, round Round, height Height) PreVote {
 	return PreVote{
 		Block:  block,
 		Round:  round,
@@ -64,7 +64,7 @@ type SignedPreVote struct {
 // Polka is created when 2/3 of the nodes in the network have all
 // PreVoted for a given block.
 type Polka struct {
-	Block       *Block
+	Block       *SignedBlock
 	Round       Round
 	Height      Height
 	Signatures  sig.Signatures

@@ -21,22 +21,7 @@ type Block struct {
 	Height       Height
 	Header       sig.Hash
 	ParentHeader sig.Hash
-	Signature    sig.Signature
-	Signatory    sig.Signatory
 	Txs          tx.Transactions
-}
-
-func Genesis() Block {
-	return Block{
-		Time:         time.Unix(0, 0),
-		Round:        0,
-		Height:       0,
-		Header:       sig.Hash{},
-		ParentHeader: sig.Hash{},
-		Signature:    sig.Signature{},
-		Signatory:    sig.Signatory{},
-		Txs:          tx.Transactions{},
-	}
 }
 
 func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions) Block {
@@ -53,17 +38,49 @@ func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions)
 	return block
 }
 
-func (block *Block) Sign(signer sig.Signer) (err error) {
-	block.Signature, err = signer.Sign(block.Header)
-	if err != nil {
-		return
+func (block Block) Sign(signer sig.Signer) (SignedBlock, error) {
+	signedBlock := SignedBlock{
+		Block: block,
 	}
-	block.Signatory = signer.Signatory()
-	return
+
+	signature, err := signer.Sign(signedBlock.Header)
+	if err != nil {
+		return SignedBlock{}, err
+	}
+	signedBlock.Signature = signature
+	signedBlock.Signatory = signer.Signatory()
+
+	return signedBlock, nil
 }
 
 func (block Block) String() string {
 	return fmt.Sprintf("Block(Header=%s,Round=%d,Height=%d)", base64.StdEncoding.EncodeToString(block.Header[:]), block.Round, block.Height)
+}
+
+type SignedBlock struct {
+	Block
+
+	Signature sig.Signature
+	Signatory sig.Signatory
+}
+
+func Genesis() SignedBlock {
+	return SignedBlock{
+		Block: Block{
+			Time:         time.Unix(0, 0),
+			Round:        0,
+			Height:       0,
+			Header:       sig.Hash{},
+			ParentHeader: sig.Hash{},
+			Txs:          tx.Transactions{},
+		},
+		Signature: sig.Signature{},
+		Signatory: sig.Signatory{},
+	}
+}
+
+func (signedBlock SignedBlock) String() string {
+	return fmt.Sprintf("Block(Header=%s,Round=%d,Height=%d)", base64.StdEncoding.EncodeToString(signedBlock.Header[:]), signedBlock.Round, signedBlock.Height)
 }
 
 type Blockchain struct {
@@ -97,14 +114,14 @@ func (blockchain *Blockchain) Round() Round {
 	return blockchain.head.Polka.Block.Round
 }
 
-func (blockchain *Blockchain) Head() (Block, bool) {
+func (blockchain *Blockchain) Head() (SignedBlock, bool) {
 	if blockchain.head.Polka.Block == nil {
 		return Genesis(), false
 	}
 	return *blockchain.head.Polka.Block, true
 }
 
-func (blockchain *Blockchain) Block(header sig.Hash) (Block, bool) {
+func (blockchain *Blockchain) Block(header sig.Hash) (SignedBlock, bool) {
 	commit, ok := blockchain.tail[header]
 	if !ok || commit.Polka.Block == nil {
 		return Genesis(), false
