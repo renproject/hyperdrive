@@ -177,7 +177,7 @@ func generateTestCases() []TestCase {
 			inputTransition: PreCommitted{
 				block.SignedPreCommit{
 					PreCommit: block.PreCommit{
-						block.Polka{
+						Polka: block.Polka{
 							Block: &genesis,
 						},
 					},
@@ -205,7 +205,7 @@ func generateTestCases() []TestCase {
 			inputTransition: PreCommitted{
 				block.SignedPreCommit{
 					PreCommit: block.PreCommit{
-						block.Polka{
+						Polka: block.Polka{
 							Block: &genesis,
 						},
 					},
@@ -327,7 +327,7 @@ func generateTestCases() []TestCase {
 			inputTransition: PreCommitted{
 				block.SignedPreCommit{
 					PreCommit: block.PreCommit{
-						block.Polka{
+						Polka: block.Polka{
 							Block: &block.Block{
 								Height: 0,
 								Round:  0,
@@ -354,7 +354,7 @@ func generateTestCases() []TestCase {
 			inputTransition: PreCommitted{
 				block.SignedPreCommit{
 					PreCommit: block.PreCommit{
-						block.Polka{
+						Polka: block.Polka{
 							Block: &block.Block{
 								Height: 0,
 								Round:  0,
@@ -426,7 +426,7 @@ func generateTestCases() []TestCase {
 			inputTransition: PreCommitted{
 				block.SignedPreCommit{
 					PreCommit: block.PreCommit{
-						block.Polka{
+						Polka: block.Polka{
 							Block: &block.Block{
 								Height: 0,
 								Round:  0,
@@ -512,7 +512,7 @@ func generateTestCases() []TestCase {
 			inputTransition: PreCommitted{
 				block.SignedPreCommit{
 					PreCommit: block.PreCommit{
-						block.Polka{
+						Polka: block.Polka{
 							Block: &genesis,
 						},
 					},
@@ -544,7 +544,7 @@ func generateTestCases() []TestCase {
 			inputTransition: PreCommitted{
 				block.SignedPreCommit{
 					PreCommit: block.PreCommit{
-						block.Polka{
+						Polka: block.Polka{
 							Block:  nil,
 							Height: 1,
 							Round:  1,
@@ -577,7 +577,7 @@ func generateTestCases() []TestCase {
 			inputTransition: PreCommitted{
 				block.SignedPreCommit{
 					PreCommit: block.PreCommit{
-						block.Polka{
+						Polka: block.Polka{
 							Block:  nil,
 							Height: 1,
 							Round:  1,
