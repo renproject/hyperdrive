@@ -92,9 +92,12 @@ func generateTestCases() []TestCase {
 
 			transitions: []consensus.Transition{
 				consensus.Proposed{
-					Block: block.Block{
-						Height: -1,
-					}},
+					SignedBlock: block.SignedBlock{
+						Block: block.Block{
+							Height: -1,
+						},
+					},
+				},
 				consensus.PreVoted{
 					SignedPreVote: block.SignedPreVote{
 						PreVote: block.PreVote{
@@ -106,15 +109,21 @@ func generateTestCases() []TestCase {
 					SignedPreCommit: block.SignedPreCommit{
 						PreCommit: block.PreCommit{
 							Polka: block.Polka{
-								Block:  &block.Block{},
+								Block: &block.SignedBlock{
+									Block: block.Block{
+										Height: -1,
+									},
+								},
 								Height: -1,
 							},
 						},
 					},
 				},
 				consensus.Proposed{
-					Block: block.Block{
-						Height: 1,
+					SignedBlock: block.SignedBlock{
+						Block: block.Block{
+							Height: 1,
+						},
 					},
 				},
 				consensus.PreVoted{
@@ -128,15 +137,19 @@ func generateTestCases() []TestCase {
 					SignedPreCommit: block.SignedPreCommit{
 						PreCommit: block.PreCommit{
 							Polka: block.Polka{
-								Block:  &block.Block{},
+								Block: &block.SignedBlock{
+									Block: block.Block{},
+								},
 								Height: 1,
 							},
 						},
 					},
 				},
 				consensus.Proposed{
-					Block: block.Block{
-						Height: 0,
+					SignedBlock: block.SignedBlock{
+						Block: block.Block{
+							Height: 0,
+						},
 					},
 				},
 				consensus.PreVoted{
@@ -150,7 +163,9 @@ func generateTestCases() []TestCase {
 					SignedPreCommit: block.SignedPreCommit{
 						PreCommit: block.PreCommit{
 							Polka: block.Polka{
-								Block:  &block.Block{},
+								Block: &block.SignedBlock{
+									Block: block.Block{},
+								},
 								Height: 0,
 							},
 						},
