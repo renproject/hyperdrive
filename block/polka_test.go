@@ -16,9 +16,12 @@ var _ = Describe("PolkaBuilder", func() {
 			Context("when the height is different from the block's height", func() {
 				It("should panic", func() {
 					builder := PolkaBuilder{}
+					block := Block{Height: 0, Round: 0}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
-					prevote := NewPreVote(&Block{Height: 0, Round: 0}, 0, 1)
+					signedBlock, err := block.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
+					prevote := NewPreVote(&signedBlock, 0, 1)
 					signedPreVote, err := prevote.Sign(signer)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(func() { builder.Insert(signedPreVote) }).Should(Panic())
@@ -28,9 +31,12 @@ var _ = Describe("PolkaBuilder", func() {
 			Context("when the round is different from the block's round", func() {
 				It("should panic", func() {
 					builder := PolkaBuilder{}
+					block := Block{Height: 0, Round: 0}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
-					prevote := NewPreVote(&Block{Height: 0, Round: 0}, 1, 0)
+					signedBlock, err := block.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
+					prevote := NewPreVote(&signedBlock, 1, 0)
 					signedPreVote, err := prevote.Sign(signer)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(func() { builder.Insert(signedPreVote) }).Should(Panic())
@@ -60,9 +66,12 @@ var _ = Describe("PolkaBuilder", func() {
 				It("should never return a Polka", func() {
 					builder := PolkaBuilder{}
 					for i := 0; i < 10; i++ {
+						block := Block{Height: 0, Round: 0}
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
-						prevote := NewPreVote(&Block{Height: 0, Round: 0}, 0, 0)
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
+						prevote := NewPreVote(&signedBlock, 0, 0)
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
 						builder.Insert(signedPreVote)
@@ -76,9 +85,12 @@ var _ = Describe("PolkaBuilder", func() {
 				It("should never return a Polka", func() {
 					builder := PolkaBuilder{}
 					for i := 0; i < 10; i++ {
+						block := Block{Height: 0, Round: Round(i)}
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
-						prevote := NewPreVote(&Block{Height: 0, Round: Round(i)}, Round(i), 0)
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
+						prevote := NewPreVote(&signedBlock, Round(i), 0)
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
 						builder.Insert(signedPreVote)
@@ -92,9 +104,12 @@ var _ = Describe("PolkaBuilder", func() {
 				It("should never return a Polka", func() {
 					builder := PolkaBuilder{}
 					for i := 0; i < 10; i++ {
+						block := Block{Height: Height(i), Round: 0}
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
-						prevote := NewPreVote(&Block{Height: Height(i), Round: 0}, 0, Height(i))
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
+						prevote := NewPreVote(&signedBlock, 0, Height(i))
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
 						builder.Insert(signedPreVote)
@@ -111,9 +126,12 @@ var _ = Describe("PolkaBuilder", func() {
 					for i := 0; i < 10; i++ {
 						height = Height(mathRand.Intn(100))
 						round := Round(mathRand.Intn(100))
+						block := Block{Height: height, Round: round}
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
-						prevote := NewPreVote(&Block{Height: height, Round: round}, round, height)
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
+						prevote := NewPreVote(&signedBlock, round, height)
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
 						builder.Insert(signedPreVote)
@@ -138,14 +156,16 @@ var _ = Describe("PolkaBuilder", func() {
 					for i := 0; i < 10; i++ {
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
-						prevote := NewPreVote(&block, round, height)
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
+						prevote := NewPreVote(&signedBlock, round, height)
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
 						builder.Insert(signedPreVote)
 					}
 					polka, ok := builder.Polka(height, 9)
 					Expect(ok).To(BeTrue())
-					Expect(polka.Block).To(Equal(&block))
+					Expect(polka.Block.Block).To(Equal(block))
 				})
 			})
 
@@ -163,7 +183,9 @@ var _ = Describe("PolkaBuilder", func() {
 						}
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
-						prevote := NewPreVote(&block, round, height)
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
+						prevote := NewPreVote(&signedBlock, round, height)
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
 						builder.Insert(signedPreVote)
@@ -180,9 +202,12 @@ var _ = Describe("PolkaBuilder", func() {
 				builder := PolkaBuilder{}
 				for j := 0; j < 10; j++ {
 					for i := 0; i < 10; i++ {
-						prevote := NewPreVote(&Block{Height: 1, Round: Round(i)}, Round(i), 1)
+						block := Block{Height: 1, Round: Round(i)}
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
+						prevote := NewPreVote(&signedBlock, Round(i), 1)
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
 						builder.Insert(signedPreVote)
@@ -198,9 +223,12 @@ var _ = Describe("PolkaBuilder", func() {
 
 	Context("when SignedPreVote is converted to string format", func() {
 		It("should return the correct string representation", func() {
+			block := Block{Height: 1, Round: 1}
 			signer, err := ecdsa.NewFromRandom()
 			Expect(err).ShouldNot(HaveOccurred())
-			prevote := NewPreVote(&Block{Height: 1, Round: 1}, 1, 1)
+			signedBlock, err := block.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
+			prevote := NewPreVote(&signedBlock, 1, 1)
 			signedPreVote, err := prevote.Sign(signer)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(signedPreVote.String()).Should(ContainSubstring("SignedPreVote(PreVote(Block(Header=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,Round=1,Height=1),Round=1,Height=1),Signature=["))
@@ -209,8 +237,13 @@ var _ = Describe("PolkaBuilder", func() {
 
 	Context("when Polka is converted to string format", func() {
 		It("should return the correct string representation", func() {
+			block := Block{Height: 1, Round: 1}
+			signer, err := ecdsa.NewFromRandom()
+			Expect(err).ShouldNot(HaveOccurred())
+			signedBlock, err := block.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
 			polka := Polka{
-				Block:       &Block{Height: 1, Round: 1},
+				Block:       &signedBlock,
 				Round:       0,
 				Height:      0,
 				Signatures:  randomSignatures(10),
@@ -222,8 +255,13 @@ var _ = Describe("PolkaBuilder", func() {
 
 	Context("when Polkas are compared", func() {
 		It("should return true if both Polkas are equal", func() {
+			block := Block{Height: 1, Round: 1}
+			signer, err := ecdsa.NewFromRandom()
+			Expect(err).ShouldNot(HaveOccurred())
+			signedBlock, err := block.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
 			polka := Polka{
-				Block:       &Block{Height: 1, Round: 1},
+				Block:       &signedBlock,
 				Round:       0,
 				Height:      0,
 				Signatures:  randomSignatures(10),
@@ -234,15 +272,20 @@ var _ = Describe("PolkaBuilder", func() {
 		})
 
 		It("should return false if both Polkas are equal, but signatories are different", func() {
+			block := Block{Height: 1, Round: 1}
+			signer, err := ecdsa.NewFromRandom()
+			Expect(err).ShouldNot(HaveOccurred())
+			signedBlock, err := block.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
 			polka := Polka{
-				Block:       &Block{Height: 1, Round: 1},
+				Block:       &signedBlock,
 				Round:       0,
 				Height:      0,
 				Signatures:  randomSignatures(10),
 				Signatories: randomSignatories(10),
 			}
 			newPolka := Polka{
-				Block:       &Block{Height: 1, Round: 1},
+				Block:       &signedBlock,
 				Round:       0,
 				Height:      0,
 				Signatures:  randomSignatures(10),
@@ -252,8 +295,13 @@ var _ = Describe("PolkaBuilder", func() {
 		})
 
 		It("should return false if both Polkas are equal, but one of the blocks is nil", func() {
+			block := Block{Height: 1, Round: 1}
+			signer, err := ecdsa.NewFromRandom()
+			Expect(err).ShouldNot(HaveOccurred())
+			signedBlock, err := block.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
 			polka := Polka{
-				Block:       &Block{Height: 1, Round: 1},
+				Block:       &signedBlock,
 				Round:       0,
 				Height:      0,
 				Signatures:  randomSignatures(10),
@@ -275,18 +323,24 @@ var _ = Describe("PolkaBuilder", func() {
 			builder := PolkaBuilder{}
 			for j := 0; j < 10; j++ {
 				for i := 0; i < 10; i++ {
-					prevote := NewPreVote(&Block{Height: 1, Round: Round(i)}, Round(i), 1)
+					block := Block{Height: 1, Round: Round(i)}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
+					signedBlock, err := block.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
+					prevote := NewPreVote(&signedBlock, Round(i), 1)
 					signedPreVote, err := prevote.Sign(signer)
 					Expect(err).ShouldNot(HaveOccurred())
 					builder.Insert(signedPreVote)
 				}
 			}
 
-			prevote := NewPreVote(&Block{Height: 2, Round: Round(10)}, Round(10), 2)
+			block := Block{Height: 2, Round: Round(10)}
 			signer, err := ecdsa.NewFromRandom()
 			Expect(err).ShouldNot(HaveOccurred())
+			signedBlock, err := block.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
+			prevote := NewPreVote(&signedBlock, Round(10), 2)
 			signedPreVote, err := prevote.Sign(signer)
 			Expect(err).ShouldNot(HaveOccurred())
 			builder.Insert(signedPreVote)

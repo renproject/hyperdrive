@@ -18,18 +18,22 @@ var _ = Describe("CommitBuilder", func() {
 			Context("when the height is different from the block's height", func() {
 				It("should panic", func() {
 					builder := CommitBuilder{}
+					block := Block{
+						Height: 1,
+						Round:  0,
+					}
+					signer, err := ecdsa.NewFromRandom()
+					Expect(err).ShouldNot(HaveOccurred())
+					signedBlock, err := block.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
+
 					precommit := PreCommit{
 						Polka: Polka{
-							Block: &Block{
-								Height: 1,
-								Round:  0,
-							},
+							Block:  &signedBlock,
 							Height: 0,
 							Round:  0,
 						},
 					}
-					signer, err := ecdsa.NewFromRandom()
-					Expect(err).ShouldNot(HaveOccurred())
 					signedPreCommit, err := precommit.Sign(signer)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(func() { builder.Insert(signedPreCommit) }).Should(Panic())
@@ -39,18 +43,21 @@ var _ = Describe("CommitBuilder", func() {
 			Context("when the round is different from the block's round", func() {
 				It("should panic", func() {
 					builder := CommitBuilder{}
+					block := Block{
+						Height: 0,
+						Round:  1,
+					}
+					signer, err := ecdsa.NewFromRandom()
+					Expect(err).ShouldNot(HaveOccurred())
+					signedBlock, err := block.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
 					precommit := PreCommit{
 						Polka: Polka{
-							Block: &Block{
-								Height: 0,
-								Round:  1,
-							},
+							Block:  &signedBlock,
 							Height: 0,
 							Round:  0,
 						},
 					}
-					signer, err := ecdsa.NewFromRandom()
-					Expect(err).ShouldNot(HaveOccurred())
 					signedPreCommit, err := precommit.Sign(signer)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(func() { builder.Insert(signedPreCommit) }).Should(Panic())
@@ -80,18 +87,21 @@ var _ = Describe("CommitBuilder", func() {
 				It("should never return a Commit", func() {
 					builder := CommitBuilder{}
 					for i := 0; i < 10; i++ {
+						block := Block{
+							Height: 0,
+							Round:  0,
+						}
+						signer, err := ecdsa.NewFromRandom()
+						Expect(err).ShouldNot(HaveOccurred())
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
 						precommit := PreCommit{
 							Polka: Polka{
-								Block: &Block{
-									Height: 0,
-									Round:  0,
-								},
+								Block:  &signedBlock,
 								Height: 0,
 								Round:  0,
 							},
 						}
-						signer, err := ecdsa.NewFromRandom()
-						Expect(err).ShouldNot(HaveOccurred())
 						signedPreCommit, err := precommit.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
 						builder.Insert(signedPreCommit)
@@ -105,18 +115,21 @@ var _ = Describe("CommitBuilder", func() {
 				It("should never return a Commit", func() {
 					builder := CommitBuilder{}
 					for i := 0; i < 10; i++ {
+						block := Block{
+							Height: 0,
+							Round:  Round(i),
+						}
+						signer, err := ecdsa.NewFromRandom()
+						Expect(err).ShouldNot(HaveOccurred())
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
 						precommit := PreCommit{
 							Polka: Polka{
-								Block: &Block{
-									Height: 0,
-									Round:  Round(i),
-								},
+								Block:  &signedBlock,
 								Height: 0,
 								Round:  Round(i),
 							},
 						}
-						signer, err := ecdsa.NewFromRandom()
-						Expect(err).ShouldNot(HaveOccurred())
 						signedPreCommit, err := precommit.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
 						builder.Insert(signedPreCommit)
@@ -130,18 +143,21 @@ var _ = Describe("CommitBuilder", func() {
 				It("should never return a Commit", func() {
 					builder := CommitBuilder{}
 					for i := 0; i < 10; i++ {
+						block := Block{
+							Height: Height(i),
+							Round:  0,
+						}
+						signer, err := ecdsa.NewFromRandom()
+						Expect(err).ShouldNot(HaveOccurred())
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
 						precommit := PreCommit{
 							Polka: Polka{
-								Block: &Block{
-									Height: Height(i),
-									Round:  0,
-								},
+								Block:  &signedBlock,
 								Height: Height(i),
 								Round:  0,
 							},
 						}
-						signer, err := ecdsa.NewFromRandom()
-						Expect(err).ShouldNot(HaveOccurred())
 						signedPreCommit, err := precommit.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
 						builder.Insert(signedPreCommit)
@@ -158,18 +174,21 @@ var _ = Describe("CommitBuilder", func() {
 					for i := 0; i < 10; i++ {
 						height = Height(mathRand.Intn(100))
 						round := Round(mathRand.Intn(100))
+						block := Block{
+							Height: height,
+							Round:  round,
+						}
+						signer, err := ecdsa.NewFromRandom()
+						Expect(err).ShouldNot(HaveOccurred())
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
 						precommit := PreCommit{
 							Polka: Polka{
-								Block: &Block{
-									Height: height,
-									Round:  round,
-								},
+								Block:  &signedBlock,
 								Height: height,
 								Round:  round,
 							},
 						}
-						signer, err := ecdsa.NewFromRandom()
-						Expect(err).ShouldNot(HaveOccurred())
 						signedPreCommit, err := precommit.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
 						builder.Insert(signedPreCommit)
@@ -192,11 +211,15 @@ var _ = Describe("CommitBuilder", func() {
 						Round:  round,
 						Header: randomHash(),
 					}
+					signer, err := ecdsa.NewFromRandom()
+					Expect(err).ShouldNot(HaveOccurred())
+					signedBlock, err := block.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
 
 					for i := 0; i < 10; i++ {
 						precommit := PreCommit{
 							Polka: Polka{
-								Block:  &block,
+								Block:  &signedBlock,
 								Height: height,
 								Round:  round,
 							},
@@ -209,7 +232,7 @@ var _ = Describe("CommitBuilder", func() {
 					}
 					commit, ok := builder.Commit(height, 9)
 					Expect(ok).To(BeTrue())
-					Expect(commit.Polka.Block).To(Equal(&block))
+					Expect(commit.Polka.Block).To(Equal(&signedBlock))
 				})
 			})
 
@@ -225,15 +248,17 @@ var _ = Describe("CommitBuilder", func() {
 							Round:  round,
 							Header: randomHash(),
 						}
+						signer, err := ecdsa.NewFromRandom()
+						Expect(err).ShouldNot(HaveOccurred())
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
 						precommit := PreCommit{
 							Polka: Polka{
-								Block:  &block,
+								Block:  &signedBlock,
 								Height: height,
 								Round:  round,
 							},
 						}
-						signer, err := ecdsa.NewFromRandom()
-						Expect(err).ShouldNot(HaveOccurred())
 						signedPreCommit, err := precommit.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
 						builder.Insert(signedPreCommit)
@@ -250,18 +275,21 @@ var _ = Describe("CommitBuilder", func() {
 				builder := CommitBuilder{}
 				for j := 0; j < 10; j++ {
 					for i := 0; i < 10; i++ {
+						block := Block{
+							Height: 1,
+							Round:  Round(i),
+						}
+						signer, err := ecdsa.NewFromRandom()
+						Expect(err).ShouldNot(HaveOccurred())
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
 						precommit := PreCommit{
 							Polka: Polka{
-								Block: &Block{
-									Height: 1,
-									Round:  Round(i),
-								},
+								Block:  &signedBlock,
 								Height: 1,
 								Round:  Round(i),
 							},
 						}
-						signer, err := ecdsa.NewFromRandom()
-						Expect(err).ShouldNot(HaveOccurred())
 						signedPreCommit, err := precommit.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
 						builder.Insert(signedPreCommit)
@@ -278,9 +306,14 @@ var _ = Describe("CommitBuilder", func() {
 
 	Context("when Commit is converted to string format", func() {
 		It("should return the correct string representation", func() {
+			block := Block{Height: 1, Round: 1}
+			signer, err := ecdsa.NewFromRandom()
+			Expect(err).ShouldNot(HaveOccurred())
+			signedBlock, err := block.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
 			commit := Commit{
 				Polka: Polka{
-					Block:       &Block{Height: 1, Round: 1},
+					Block:       &signedBlock,
 					Round:       0,
 					Height:      0,
 					Signatures:  randomSignatures(10),
@@ -296,30 +329,36 @@ var _ = Describe("CommitBuilder", func() {
 			builder := CommitBuilder{}
 			for j := 0; j < 10; j++ {
 				for i := 0; i < 10; i++ {
+					block := Block{Height: 1, Round: Round(i)}
+					signer, err := ecdsa.NewFromRandom()
+					Expect(err).ShouldNot(HaveOccurred())
+					signedBlock, err := block.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
 					precommit := PreCommit{
 						Polka: Polka{
-							Block:  &Block{Height: 1, Round: Round(i)},
+							Block:  &signedBlock,
 							Height: 1,
 							Round:  Round(i),
 						},
 					}
-					signer, err := ecdsa.NewFromRandom()
-					Expect(err).ShouldNot(HaveOccurred())
 					signedPreCommit, err := precommit.Sign(signer)
 					Expect(err).ShouldNot(HaveOccurred())
 					builder.Insert(signedPreCommit)
 				}
 			}
 
+			block := Block{Height: 2, Round: Round(10)}
+			signer, err := ecdsa.NewFromRandom()
+			Expect(err).ShouldNot(HaveOccurred())
+			signedBlock, err := block.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
 			precommit := PreCommit{
 				Polka: Polka{
-					Block:  &Block{Height: 2, Round: Round(10)},
+					Block:  &signedBlock,
 					Height: 2,
 					Round:  10,
 				},
 			}
-			signer, err := ecdsa.NewFromRandom()
-			Expect(err).ShouldNot(HaveOccurred())
 			signedPreCommit, err := precommit.Sign(signer)
 			Expect(err).ShouldNot(HaveOccurred())
 			builder.Insert(signedPreCommit)
