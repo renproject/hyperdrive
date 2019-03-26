@@ -13,9 +13,10 @@ type Dispatcher interface {
 }
 
 type Replica interface {
+	Init()
+	State() consensus.State
 	Transact(transaction tx.Transaction)
 	Transition(transition consensus.Transition)
-	GenerateBlock()
 }
 
 type replica struct {
@@ -54,6 +55,14 @@ func New(
 	return replica
 }
 
+func (replica *replica) Init() {
+	replica.generateSignedBlock()
+}
+
+func (replica *replica) State() consensus.State {
+	return replica.state
+}
+
 func (replica *replica) Transact(tx tx.Transaction) {
 	replica.txPool.Enqueue(tx)
 }
@@ -73,14 +82,6 @@ func (replica *replica) Transition(transition consensus.Transition) {
 		// It is important that the Action is dispatched after the State has been completely transitioned in the
 		// Replica. Otherwise, re-entrance into the Replica may cause issues.
 		replica.dispatchAction(action)
-	}
-}
-
-func (replica *replica) GenerateBlock() {
-	if replica.shouldProposeBlock() {
-		replica.dispatcher.Dispatch(consensus.Propose{
-			SignedBlock: replica.generateSignedBlock(),
-		})
 	}
 }
 
@@ -125,7 +126,7 @@ func (replica *replica) handlePreCommit(preCommit consensus.SignedPreCommit) {
 
 func (replica *replica) handleCommit(commit consensus.Commit) {
 	replica.blockchain.Extend(commit.Commit)
-	replica.GenerateBlock()
+	replica.generateSignedBlock()
 }
 
 func (replica *replica) shouldDropTransition(transition consensus.Transition) bool {
@@ -168,7 +169,15 @@ func (replica *replica) shouldProposeBlock() bool {
 	return replica.signer.Signatory().Equal(replica.shard.Leader(replica.state.Round()))
 }
 
-func (replica *replica) generateSignedBlock() block.SignedBlock {
+func (replica *replica) generateSignedBlock() {
+	if replica.shouldProposeBlock() {
+		replica.dispatcher.Dispatch(consensus.Propose{
+			SignedBlock: replica.buildSignedBlock(),
+		})
+	}
+}
+
+func (replica *replica) buildSignedBlock() block.SignedBlock {
 	// TODO: We should put more than one transaction into a block.
 	transactions := tx.Transactions{}
 	transaction, ok := replica.txPool.Dequeue()

@@ -84,19 +84,20 @@ func (signedBlock SignedBlock) String() string {
 }
 
 type Blockchain struct {
-	head Commit
-	tail map[sig.Hash]Commit
+	head   Commit
+	blocks map[sig.Hash]Commit
 }
 
 func NewBlockchain() Blockchain {
 	genesis := Genesis()
-	return Blockchain{
-		head: Commit{
-			Polka: Polka{
-				Block: &genesis,
-			},
+	genesisCommit := Commit{
+		Polka: Polka{
+			Block: &genesis,
 		},
-		tail: map[sig.Hash]Commit{},
+	}
+	return Blockchain{
+		head:   genesisCommit,
+		blocks: map[sig.Hash]Commit{genesis.Header: genesisCommit},
 	}
 }
 
@@ -122,7 +123,7 @@ func (blockchain *Blockchain) Head() (SignedBlock, bool) {
 }
 
 func (blockchain *Blockchain) Block(header sig.Hash) (SignedBlock, bool) {
-	commit, ok := blockchain.tail[header]
+	commit, ok := blockchain.blocks[header]
 	if !ok || commit.Polka.Block == nil {
 		return Genesis(), false
 	}
@@ -133,6 +134,6 @@ func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
 	if commitToNextBlock.Polka.Block == nil {
 		return
 	}
-	blockchain.tail[commitToNextBlock.Polka.Block.Header] = commitToNextBlock
+	blockchain.blocks[commitToNextBlock.Polka.Block.Header] = commitToNextBlock
 	blockchain.head = commitToNextBlock
 }

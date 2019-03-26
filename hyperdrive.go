@@ -63,10 +63,12 @@ func New(signer sig.Signer, timeoutThreshold int) Hyperdrive {
 
 func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 	// 1. Increment number of ticks seen by each shard
-	for i, shard := range hyperdrive.shards {
-		hyperdrive.ticksPerShard[i]++
-
-		if hyperdrive.ticksPerShard[i] > hyperdrive.timeoutThreshold {
+	for shardHash, _ := range hyperdrive.shards {
+		ticks := hyperdrive.ticksPerShard[shardHash]
+		ticks++
+		hyperdrive.ticksPerShard[shardHash] = ticks
+		
+		if hyperdrive.ticksPerShard[shardHash] > hyperdrive.timeoutThreshold {
 			// 2. After a number of ticks send a TimedOut transition to the shard
 		}
 	}
@@ -109,5 +111,5 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Bl
 		hyperdrive.shardHistory = hyperdrive.shardHistory[1:]
 	}
 
-	r.GenerateBlock()
+	r.Init()
 }

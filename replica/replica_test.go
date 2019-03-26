@@ -20,32 +20,27 @@ import (
 var _ = Describe("Replica", func() {
 
 	BeforeSuite(func() {
-		signer, err := ecdsa.NewFromRandom()
-		Expect(err).ShouldNot(HaveOccurred())
-		stateMachine := consensus.NewStateMachine(block.PolkaBuilder{}, block.CommitBuilder{}, 1)
 		transitionBuffer = newMockTransitionBuffer()
-
-		shard := shard.Shard{
-			Hash:        sig.Hash{},
-			BlockHeader: sig.Hash{},
-			BlockHeight: 0,
-			Signatories: sig.Signatories{signer.Signatory()},
-		}
-
 		pool = NewMockLifoPool()
-
 		dispatcher = newMockDispatcher()
-		replica = New(dispatcher, signer.Signatory(), pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, block.NewBlockchain(), shard)
-
 	})
 
 	Context("when a new Transaction is sent using Transact", func() {
-
 		It("should update the TxPool", func() {
+			signer, err := ecdsa.NewFromRandom()
+			Expect(err).ShouldNot(HaveOccurred())
+			shard := shard.Shard{
+				Hash:        sig.Hash{},
+				BlockHeader: sig.Hash{},
+				BlockHeight: 0,
+				Signatories: sig.Signatories{signer.Signatory()},
+			}
+			stateMachine := consensus.NewStateMachine(block.PolkaBuilder{}, block.CommitBuilder{}, 1)
+
+			replica := New(dispatcher, signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, block.NewBlockchain(), shard)
 			replica.Transact(tx.Transaction{})
 			Expect(pool.Length()).Should(Equal(1))
 		})
-
 	})
 
 	Context("when new Transitions are sent", func() {
@@ -54,25 +49,36 @@ var _ = Describe("Replica", func() {
 		for _, t := range testCases {
 			t := t
 
-			Context(fmt.Sprintf("when the replica gets transition - %s", reflect.TypeOf(t.inputTransition).Name()), func() {
-				It("should ", func() {
+			Context(fmt.Sprintf("when replica starts with intial state - %s", reflect.TypeOf(t.startingState).Name()), func() {
+				It("should pass", func() {
+					signer, err := ecdsa.NewFromRandom()
+					Expect(err).ShouldNot(HaveOccurred())
+					shard := shard.Shard{
+						Hash:        sig.Hash{},
+						BlockHeader: sig.Hash{},
+						BlockHeight: 0,
+						Signatories: sig.Signatories{signer.Signatory()},
+					}
+					stateMachine := consensus.NewStateMachine(block.PolkaBuilder{}, block.CommitBuilder{}, 1)
 
-					replica.Transition(t.inputTransition)
-					t.validateResults()
+					replica := New(dispatcher, signer, pool, t.startingState, stateMachine, transitionBuffer, block.NewBlockchain(), shard)
+					for _, transition := range t.transitions {
+						replica.Transition(transition)
+					}
+					Expect(replica.State()).To(Equal(t.finalState))
 				})
 			})
 		}
-
 	})
 })
 
 type TestCase struct {
-	inputTransition consensus.Transition
+	startingState consensus.State
+	finalState    consensus.State
 
-	validateResults func()
+	transitions []consensus.Transition
 }
 
-var replica Replica
 var dispatcher *mockDispatcher
 var transitionBuffer *mockTransitionBuffer
 var pool *mockLifoPool
@@ -80,139 +86,76 @@ var pool *mockLifoPool
 func generateTestCases() []TestCase {
 
 	return []TestCase{
-
-		// Proposed with invalid Height
 		{
-			inputTransition: consensus.Proposed{
-				Block: block.Block{
-					Height: -1,
-				}},
+			startingState: consensus.WaitForPropose(0, 0),
+			finalState:    consensus.WaitForPropose(0, 1),
 
-			validateResults: func() {
-				Expect(dispatcher.BufferLength()).Should(Equal(0))
-			},
-		},
-
-		// PreVoted with invalid Height
-		{
-			inputTransition: consensus.PreVoted{
-				SignedPreVote: block.SignedPreVote{
-					PreVote: block.PreVote{
+			transitions: []consensus.Transition{
+				consensus.Proposed{
+					Block: block.Block{
 						Height: -1,
-					},
-				},
-			},
-
-			validateResults: func() {
-				Expect(dispatcher.BufferLength()).Should(Equal(0))
-			},
-		},
-
-		// PreCommitted with invalid Height
-		{
-			inputTransition: consensus.PreCommitted{
-				SignedPreCommit: block.SignedPreCommit{
-					PreCommit: block.PreCommit{
-						Polka: block.Polka{
-							Block:  &block.Block{},
+					}},
+				consensus.PreVoted{
+					SignedPreVote: block.SignedPreVote{
+						PreVote: block.PreVote{
 							Height: -1,
 						},
 					},
 				},
-			},
-
-			validateResults: func() {
-				Expect(dispatcher.BufferLength()).Should(Equal(0))
-			},
-		},
-
-		// Proposed from the future
-		{
-			inputTransition: consensus.Proposed{
-				Block: block.Block{
-					Height: 1,
-				}},
-
-			validateResults: func() {
-				Expect(transitionBuffer.BufferLength()).Should(Equal(1))
-			},
-		},
-
-		// PreVoted from the future
-		{
-			inputTransition: consensus.PreVoted{
-				SignedPreVote: block.SignedPreVote{
-					PreVote: block.PreVote{
+				consensus.PreCommitted{
+					SignedPreCommit: block.SignedPreCommit{
+						PreCommit: block.PreCommit{
+							Polka: block.Polka{
+								Block:  &block.Block{},
+								Height: -1,
+							},
+						},
+					},
+				},
+				consensus.Proposed{
+					Block: block.Block{
 						Height: 1,
 					},
 				},
-			},
-
-			validateResults: func() {
-				Expect(transitionBuffer.BufferLength()).Should(Equal(2))
-			},
-		},
-
-		// PreCommitted from the future
-		{
-			inputTransition: consensus.PreCommitted{
-				SignedPreCommit: block.SignedPreCommit{
-					PreCommit: block.PreCommit{
-						Polka: block.Polka{
-							Block:  &block.Block{},
+				consensus.PreVoted{
+					SignedPreVote: block.SignedPreVote{
+						PreVote: block.PreVote{
 							Height: 1,
 						},
 					},
 				},
-			},
-
-			validateResults: func() {
-				Expect(transitionBuffer.BufferLength()).Should(Equal(3))
-			},
-		},
-
-		// Proposed for the current Height
-		{
-			inputTransition: consensus.Proposed{
-				Block: block.Block{
-					Height: 0,
-				}},
-
-			validateResults: func() {
-				Expect(dispatcher.BufferLength()).Should(Equal(1))
-			},
-		},
-
-		// PreVoted for the current height
-		{
-			inputTransition: consensus.PreVoted{
-				SignedPreVote: block.SignedPreVote{
-					PreVote: block.PreVote{
+				consensus.PreCommitted{
+					SignedPreCommit: block.SignedPreCommit{
+						PreCommit: block.PreCommit{
+							Polka: block.Polka{
+								Block:  &block.Block{},
+								Height: 1,
+							},
+						},
+					},
+				},
+				consensus.Proposed{
+					Block: block.Block{
 						Height: 0,
 					},
 				},
-			},
-
-			validateResults: func() {
-				Expect(dispatcher.BufferLength()).Should(Equal(2))
-			},
-		},
-
-		// PreCommitted for the current height
-		{
-			inputTransition: consensus.PreCommitted{
-				SignedPreCommit: block.SignedPreCommit{
-					PreCommit: block.PreCommit{
-						Polka: block.Polka{
-							Block:  &block.Block{},
+				consensus.PreVoted{
+					SignedPreVote: block.SignedPreVote{
+						PreVote: block.PreVote{
 							Height: 0,
 						},
 					},
 				},
-			},
-
-			validateResults: func() {
-				Expect(dispatcher.BufferLength()).Should(Equal(4))
+				consensus.PreCommitted{
+					SignedPreCommit: block.SignedPreCommit{
+						PreCommit: block.PreCommit{
+							Polka: block.Polka{
+								Block:  &block.Block{},
+								Height: 0,
+							},
+						},
+					},
+				},
 			},
 		},
 	}
