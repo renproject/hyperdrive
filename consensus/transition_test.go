@@ -9,7 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/consensus"
+	. "github.com/renproject/hyperdrive/replica"
 )
 
 var conf = quick.Config{
@@ -19,8 +19,9 @@ var conf = quick.Config{
 	Values:        nil,
 }
 
-var _ = Describe("Transition buffer", func() {
-	Context("when only given Proposed Transitions", func() {
+var _ = Describe("TransitionBuffer", func() {
+
+	Context("when only propose transitions are enqueued", func() {
 		It("should enqueue the same number of times as it dequeues for a given height", func() {
 			test := func(num uint8, incrementHeight uint8) bool {
 				tb := NewTransitionBuffer(20)
@@ -62,9 +63,14 @@ var _ = Describe("Transition buffer", func() {
 			Expect(quick.Check(test, &conf)).ShouldNot(HaveOccurred())
 		})
 	})
-	Context("when given semi-random Transitions", func() {
-		It("should always give you back the most relevant Transition", func() {
-			test := func(size uint32, numInputs uint8) bool {
+
+	Context("when random transitions are enqueued", func() {
+		It("should dequeue the most relevant transition", func() {
+			test := func(size int, numInputs uint8) bool {
+				// size cannot be negative
+				if size < 0 {
+					size *= -1
+				}
 				size = size % 100
 				tb := NewTransitionBuffer(int(size % 67))
 
@@ -100,8 +106,9 @@ var _ = Describe("Transition buffer", func() {
 			Expect(quick.Check(test, &conf)).ShouldNot(HaveOccurred())
 		})
 	})
-	Context("when Drop is called", func() {
-		It("should remove everything below the given height", func() {
+
+	Context("when dropping transitions", func() {
+		It("should remove everything below the dropped height", func() {
 			tb := NewTransitionBuffer(5)
 
 			precom := PreCommitted{}

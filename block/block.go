@@ -16,7 +16,8 @@ type Round int64
 type Height int64
 
 type Block struct {
-	Time         time.Time
+	Time time.Time
+	//TODO: request clarification on Round
 	Round        Round
 	Height       Height
 	Header       sig.Hash
@@ -36,6 +37,14 @@ func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions)
 	// height, parentHeader, and transactions.
 	block.Header = sig.Hash{}
 	return block
+}
+
+// Equal excludes time from equality check
+func (block Block) Equal(other Block) bool {
+	return block.Round == other.Round &&
+		block.Height == other.Height &&
+		block.Header.Equal(other.Header) &&
+		block.ParentHeader.Equal(other.ParentHeader)
 }
 
 func (block Block) Sign(signer sig.Signer) (SignedBlock, error) {

@@ -1,6 +1,7 @@
 package consensus
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -99,7 +100,7 @@ func (stateMachine *stateMachine) reduceProposed(currentState State, proposed Pr
 }
 
 func (stateMachine *stateMachine) reducePreVoted(currentState State, preVoted PreVoted) (State, Action) {
-	if preVoted.Round != currentState.Round() {
+	if preVoted.Round < currentState.Round() {
 		return currentState, nil
 	}
 	if preVoted.Height != currentState.Height() {
@@ -107,7 +108,11 @@ func (stateMachine *stateMachine) reducePreVoted(currentState State, preVoted Pr
 	}
 
 	stateMachine.polkaBuilder.Insert(preVoted.SignedPreVote)
-	if polka, ok := stateMachine.polkaBuilder.Polka(stateMachine.consensusThreshold); ok {
+	if polka, ok := stateMachine.polkaBuilder.Polka(currentState.Height(), stateMachine.consensusThreshold); ok {
+		// Invariant check
+		if polka.Round < currentState.Round() {
+			panic(fmt.Errorf("expected polka round (%v) to be greater or equal to the current round (%v)", polka.Round, currentState.Round()))
+		}
 		return WaitForCommit(polka), PreCommit{
 			PreCommit: block.PreCommit{
 				Polka: polka,
@@ -125,7 +130,7 @@ func (stateMachine *stateMachine) reducePreVoted(currentState State, preVoted Pr
 }
 
 func (stateMachine *stateMachine) reducePreCommitted(currentState State, preCommitted PreCommitted) (State, Action) {
-	if preCommitted.Polka.Round != currentState.Round() {
+	if preCommitted.Polka.Round < currentState.Round() {
 		return currentState, nil
 	}
 	if preCommitted.Polka.Height != currentState.Height() {
@@ -133,11 +138,15 @@ func (stateMachine *stateMachine) reducePreCommitted(currentState State, preComm
 	}
 
 	stateMachine.commitBuilder.Insert(preCommitted.SignedPreCommit)
-	if commit, ok := stateMachine.commitBuilder.Commit(stateMachine.consensusThreshold); ok {
-		if commit.Polka.Block == nil {
-			return WaitForPropose(currentState.Round()+1, currentState.Height()), nil
+	if commit, ok := stateMachine.commitBuilder.Commit(currentState.Height(), stateMachine.consensusThreshold); ok {
+		// Invariant check
+		if commit.Polka.Round < currentState.Round() {
+			panic(fmt.Errorf("expected commit round (%v) to be greater or equal to the current round (%v)", commit.Polka.Round, currentState.Round()))
 		}
-		return WaitForPropose(currentState.Round(), currentState.Height()+1), Commit{
+		if commit.Polka.Block == nil {
+			return WaitForPropose(commit.Polka.Round+1, currentState.Height()), nil
+		}
+		return WaitForPropose(commit.Polka.Round, currentState.Height()+1), Commit{
 			Commit: commit,
 		}
 	}

@@ -20,6 +20,7 @@ jobs:
             go build ./...
             go get -u github.com/onsi/ginkgo/ginkgo
             go get -u github.com/loongy/covermerge
+            go get -u github.com/mattn/goveralls
             go test ./...
             CI=true /go/bin/ginkgo -v --race \
             --cover --coverprofile coverprofile.out ./...
@@ -32,6 +33,7 @@ jobs:
               sig/ecdsa/coverprofile.out      \
               sig/coverprofile.out            \
               tx/coverprofile.out > coverprofile.out
+            goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
       - save_cache:
           key: go-mod-v3-{{ checksum "go.sum" }}
           paths:
