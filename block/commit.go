@@ -48,7 +48,7 @@ type Commit struct {
 }
 
 func (commit Commit) String() string {
-	return fmt.Sprintf("Polka(%s)", commit.Polka.String())
+	return fmt.Sprintf("Commit(%s)", commit.Polka.String())
 }
 
 // CommitBuilder is used to build up collections of SignedPreCommits at different Heights and Rounds and then build

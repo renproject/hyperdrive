@@ -125,21 +125,53 @@ var _ = Describe("PolkaBuilder", func() {
 		})
 
 		Context("when the threshold of PreVotes is inserted at the same round", func() {
-			It("should always return a Polka", func() {
-				builder := PolkaBuilder{}
-				height := Height(mathRand.Intn(10))
-				round := Round(mathRand.Intn(100))
+			Context("when PreVotes are inserted for the same block", func() {
+				It("should always return a Polka for the same block", func() {
+					builder := PolkaBuilder{}
+					height := Height(mathRand.Intn(10))
+					round := Round(mathRand.Intn(100))
+					block := Block{
+						Height: height,
+						Round:  round,
+						Header: randomHash(),
+					}
+					for i := 0; i < 10; i++ {
+						signer, err := ecdsa.NewFromRandom()
+						Expect(err).ShouldNot(HaveOccurred())
+						prevote := NewPreVote(&block, round, height)
+						signedPreVote, err := prevote.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
+						builder.Insert(signedPreVote)
+					}
+					polka, ok := builder.Polka(height, 9)
+					Expect(ok).To(BeTrue())
+					Expect(polka.Block).To(Equal(&block))
+				})
+			})
 
-				for i := 0; i < 10; i++ {
-					signer, err := ecdsa.NewFromRandom()
-					Expect(err).ShouldNot(HaveOccurred())
-					prevote := NewPreVote(&Block{Height: height, Round: round}, round, height)
-					signedPreVote, err := prevote.Sign(signer)
-					Expect(err).ShouldNot(HaveOccurred())
-					builder.Insert(signedPreVote)
-				}
-				_, ok := builder.Polka(height, 9)
-				Expect(ok).To(BeTrue())
+			Context("when PreVotes are inserted for different blocks", func() {
+				It("should return a Polka for a nil block", func() {
+					builder := PolkaBuilder{}
+					height := Height(mathRand.Intn(10))
+					round := Round(mathRand.Intn(100))
+
+					for i := 0; i < 10; i++ {
+						block := Block{
+							Height: height,
+							Round:  round,
+							Header: randomHash(),
+						}
+						signer, err := ecdsa.NewFromRandom()
+						Expect(err).ShouldNot(HaveOccurred())
+						prevote := NewPreVote(&block, round, height)
+						signedPreVote, err := prevote.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
+						builder.Insert(signedPreVote)
+					}
+					polka, ok := builder.Polka(height, 9)
+					Expect(ok).To(BeTrue())
+					Expect(polka.Block).To(BeNil())
+				})
 			})
 		})
 
