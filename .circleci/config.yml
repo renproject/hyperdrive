@@ -31,7 +31,6 @@ jobs:
               shard/coverprofile.out          \
               sig/ecdsa/coverprofile.out      \
               sig/coverprofile.out            \
-              supervisor/coverprofile.out     \
               tx/coverprofile.out > coverprofile.out
       - save_cache:
           key: go-mod-v3-{{ checksum "go.sum" }}

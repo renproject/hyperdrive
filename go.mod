@@ -37,6 +37,11 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.2 // indirect
 	github.com/nicksnyder/go-i18n v1.10.0 // indirect
 	github.com/nsf/gocode v0.0.0-20190302080247-5bee97b48836 // indirect
+	github.com/btcsuite/btcd v0.0.0-20190213025234-306aecffea32 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/ethereum/go-ethereum v1.8.23
+	github.com/golang/protobuf v1.3.0 // indirect
+	github.com/kr/pretty v0.1.0 // indirect
 	github.com/onsi/ginkgo v1.7.0
 	github.com/onsi/gomega v1.4.3
 	github.com/openzipkin/zipkin-go v0.1.5 // indirect
@@ -68,15 +73,10 @@ require (
 	go4.org v0.0.0-20190218023631-ce4c26f7be8e // indirect
 	golang.org/x/build v0.0.0-20190307001029-f3f195187831 // indirect
 	golang.org/x/crypto v0.0.0-20190228161510-8dd112bcdc25
-	golang.org/x/exp v0.0.0-20190306152737-a1d7652674e8 // indirect
-	golang.org/x/lint v0.0.0-20190301231843-5614ed5bae6f // indirect
 	golang.org/x/net v0.0.0-20190301231341-16b79f2e4e95 // indirect
-	golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421 // indirect
-	golang.org/x/perf v0.0.0-20190306144031-151b6387e3f2 // indirect
+	golang.org/x/sync v0.0.0-20190227155943-e225da77a7e6 // indirect
 	golang.org/x/sys v0.0.0-20190306220723-b294cbcfc56d // indirect
-	golang.org/x/tools v0.0.0-20190306162903-69e0dcfa1121 // indirect
-	google.golang.org/genproto v0.0.0-20190306222511-6e86cb5d2f12 // indirect
-	gopkg.in/alecthomas/kingpin.v3-unstable v3.0.0-20180810215634-df19058c872c // indirect
-	honnef.co/go/tools v0.0.0-20190215041234-466a0476246c // indirect
-	sourcegraph.com/sqs/pbtypes v1.0.0 // indirect
+	golang.org/x/text v0.3.1-0.20180807135948-17ff2d5776d2 // indirect
+	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
+	gopkg.in/yaml.v2 v2.2.2 // indirect
 )
