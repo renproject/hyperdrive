@@ -3,14 +3,9 @@ package block
 import (
 	"encoding/base64"
 	"fmt"
-	"math/rand"
-	"reflect"
-	"testing/quick"
 	"time"
 
 	"github.com/renproject/hyperdrive/sig"
-	"github.com/renproject/hyperdrive/sig/ecdsa"
-	"golang.org/x/crypto/sha3"
 )
 
 // The Round in which a `Block` was proposed.
@@ -28,46 +23,6 @@ type Block struct {
 	ParentHeader sig.Hash
 	Signature    sig.Signature
 	Signatory    sig.Signatory
-}
-
-// GenerateBlock makes a random Block with a given height, but random
-// ParentHeader and signed with a random public key. Should
-// be a valid block.
-func GenerateBlock(rand *rand.Rand, height Height) Block {
-	round := Round(height)
-
-	reflectHash, errBool := quick.Value(reflect.TypeOf(sig.Hash{}), rand)
-	if !errBool {
-		panic("Block.Generate: parentHeader type reflect failed")
-	}
-	parentHeader := reflectHash.Interface().(sig.Hash)
-
-	//TODO: check if this is the correct way to generate the hash of a
-	//block
-	data := []byte(fmt.Sprintf("%d%d%v", round, height, parentHeader))
-	hashSum256 := sha3.Sum256(data)
-	header := sig.Hash{}
-	copy(header[:], hashSum256[:])
-
-	newSV, err := ecdsa.NewFromRandom()
-	if err != nil {
-		panic("Block.Generate: ecdsa failed")
-	}
-
-	signature, err := newSV.Sign(header)
-	if err != nil {
-		panic("Block.Generate: sign failed")
-	}
-
-	return Block{
-		Time:         time.Unix(0, 0),
-		Round:        round,
-		Height:       height,
-		Header:       header,
-		ParentHeader: parentHeader,
-		Signature:    signature,
-		Signatory:    newSV.Signatory(),
-	}
 }
 
 // Equal excludes time from equality check
