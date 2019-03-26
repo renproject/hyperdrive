@@ -198,7 +198,11 @@ var _ = Describe("PolkaBuilder", func() {
 
 	Context("when SignedPreVote is converted to string format", func() {
 		It("should return the correct string representation", func() {
-			signedPreVote := GenerateSignedPreVote(&Block{Height: 1, Round: 1})
+			signer, err := ecdsa.NewFromRandom()
+			Expect(err).ShouldNot(HaveOccurred())
+			prevote := NewPreVote(&Block{Height: 1, Round: 1}, 1, 1)
+			signedPreVote, err := prevote.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
 			Expect(signedPreVote.String()).Should(ContainSubstring("SignedPreVote(PreVote(Block(Header=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,Round=1,Height=1),Round=1,Height=1),Signature=["))
 		})
 	})

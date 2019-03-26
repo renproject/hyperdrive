@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/renproject/hyperdrive/sig"
-	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -72,21 +71,6 @@ func (sPreVote SignedPreVote) String() string {
 		sPreVote.PreVote.String(),
 		sPreVote.Signature,
 		sPreVote.Signatory)
-}
-
-// GenerateSignedPreVote from a block signed with a random private
-// key
-func GenerateSignedPreVote(block *Block) SignedPreVote {
-	preVote := NewPreVote(block, block.Round, block.Height)
-	newSV, err := ecdsa.NewFromRandom()
-	if err != nil {
-		panic("SignedPreVote.Generate: ecdsa failed")
-	}
-	signed, err := preVote.Sign(newSV)
-	if err != nil {
-		panic("SignedPreVote.Generate: sign failed")
-	}
-	return signed
 }
 
 // Polka is created when 2/3 of the nodes in the network have all
