@@ -175,3 +175,32 @@ func randomSignatory() sig.Signatory {
 
 	return signatory
 }
+
+func randomSignatories(n int) []sig.Signatory {
+	signatories := []sig.Signatory{}
+	for i := 0; i < n; i++ {
+		signatories = append(signatories, randomSignatory())
+	}
+	return signatories
+}
+
+func randomSignatures(n int) []sig.Signature {
+	signatures := []sig.Signature{}
+	for i := 0; i < n; i++ {
+		signatures = append(signatures, randomSignature())
+	}
+	return signatures
+}
+
+func randomSignature() sig.Signature {
+	key := make([]byte, 65)
+	_, err := rand.Read(key)
+	if err != nil {
+		panic(err)
+	}
+
+	signature := sig.Signature{}
+	copy(signature[:], key[:])
+
+	return signature
+}
