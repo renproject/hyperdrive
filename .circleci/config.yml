@@ -30,7 +30,7 @@ jobs:
               sig/coverprofile.out \
               sig/ecdsa/coverprofile.out \
               supervisor/coverprofile.out > coverprofile.out
-            goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_TOKEN
+            goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
       - save_cache:
           key: go-mod-v3-{{ checksum "go.sum" }}
           paths:
