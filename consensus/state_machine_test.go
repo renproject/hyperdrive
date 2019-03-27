@@ -167,7 +167,6 @@ func generateTestCases() []TestCase {
 			expectedAction: "PreCommit",
 			validateResults: func(state State, action Action) {
 				_, ok := state.(WaitingForCommit)
-				fmt.Println(reflect.TypeOf(state).Name())
 				Expect(ok).To(Equal(true), "state should have been WaitingForCommit")
 				precommit, ok := action.(PreCommit)
 				Expect(ok).To(Equal(true), "action should have been PreCommit")
@@ -291,17 +290,17 @@ func generateTestCases() []TestCase {
 
 		// (WaitForPropose, Prevoted) state.Round != block.Round
 		{
-			inputState: WaitForPropose(0, 0),
+			inputState: WaitForPropose(1, 0),
 			inputTransition: PreVoted{
 				block.SignedPreVote{
 					PreVote: block.PreVote{
 						Block: &block.SignedBlock{
 							Block: block.Block{
 								Height: 0,
-								Round:  1,
+								Round:  0,
 							},
 						},
-						Round:  1,
+						Round:  0,
 						Height: 0,
 					},
 				},
@@ -547,6 +546,36 @@ func generateTestCases() []TestCase {
 			},
 		},
 
+		// (WaitForCommit, PreCommitted) state.Round > polka.Round
+		{
+			inputState: WaitForCommit(block.Polka{
+				Block:  nil,
+				Height: 1,
+				Round:  1,
+			}),
+			inputTransition: PreCommitted{
+				block.SignedPreCommit{
+					PreCommit: block.PreCommit{
+						Polka: block.Polka{
+							Block:  nil,
+							Height: 1,
+							Round:  0,
+						},
+					},
+					Signatory: randomSignatory(),
+					Signature: randomSignature(),
+				},
+			},
+
+			expectedState:  "WaitingForCommit",
+			expectedAction: "nil",
+			validateResults: func(state State, action Action) {
+				_, ok := state.(WaitingForCommit)
+				Expect(ok).To(Equal(true), "state should have been WaitingForCommit")
+				Expect(action).To(BeNil())
+			},
+		},
+
 		// (WaitForCommit, PreCommitted)
 		{
 			inputState: WaitForCommit(block.Polka{
@@ -598,15 +627,15 @@ func generateTestCases() []TestCase {
 				},
 			},
 
-			expectedState:  "WaitingForPropose",
-			expectedAction: "Commit",
+			expectedState:  "WaitingForCommit",
+			expectedAction: "PreCommit",
 			validateResults: func(state State, action Action) {
-				_, ok := state.(WaitingForPropose)
-				Expect(ok).To(Equal(true), "state should have been WaitingForPropose")
-				commit, ok := action.(Commit)
-				Expect(ok).To(Equal(true), "action should have been Commit")
-				Expect(commit.Commit.Polka.Round).NotTo(Equal(1))
-				Expect(commit.Commit.Polka.Height).NotTo(Equal(1))
+				_, ok := state.(WaitingForCommit)
+				Expect(ok).To(Equal(true), "state should have been WaitingForCommit")
+				precommit, ok := action.(PreCommit)
+				Expect(ok).To(Equal(true), "action should have been PreCommit")
+				Expect(precommit.Polka.Round).NotTo(Equal(1))
+				Expect(precommit.Polka.Height).NotTo(Equal(1))
 			},
 		},
 
