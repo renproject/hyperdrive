@@ -84,7 +84,6 @@ var transitionBuffer *mockTransitionBuffer
 var pool *mockLifoPool
 
 func generateTestCases() []TestCase {
-
 	return []TestCase{
 		{
 			startingState: consensus.WaitForPropose(0, 0),
