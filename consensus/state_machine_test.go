@@ -52,9 +52,11 @@ func generateTestCases() []TestCase {
 			inputTransition: PreVoted{
 				block.SignedPreVote{
 					PreVote: block.PreVote{
-						Block: &block.Block{
-							Height: 0,
-							Round:  0,
+						Block: &block.SignedBlock{
+							Block: block.Block{
+								Height: 0,
+								Round:  0,
+							},
 						},
 					},
 				},
@@ -102,8 +104,12 @@ func generateTestCases() []TestCase {
 
 		// (WaitForPropose, Proposed)
 		{
-			inputState:      WaitForPropose(0, 0),
-			inputTransition: Proposed{block.Block{}},
+			inputState: WaitForPropose(0, 0),
+			inputTransition: Proposed{
+				SignedBlock: block.SignedBlock{
+					Block: block.Block{},
+				},
+			},
 
 			expectedState:  "WaitingForPolka",
 			expectedAction: "PreVote",
@@ -229,8 +235,12 @@ func generateTestCases() []TestCase {
 
 		// (WaitForPropose, Proposed) state.Round != block.Round
 		{
-			inputState:      WaitForPropose(1, 0),
-			inputTransition: Proposed{block.Block{}},
+			inputState: WaitForPropose(1, 0),
+			inputTransition: Proposed{
+				SignedBlock: block.SignedBlock{
+					Block: block.Block{},
+				},
+			},
 
 			expectedState:  "WaitingForPropose",
 			expectedAction: "nil",
@@ -243,8 +253,12 @@ func generateTestCases() []TestCase {
 
 		// (WaitForPropose, Proposed) state.Height != block.Height
 		{
-			inputState:      WaitForPropose(0, 1),
-			inputTransition: Proposed{block.Block{}},
+			inputState: WaitForPropose(0, 1),
+			inputTransition: Proposed{
+				SignedBlock: block.SignedBlock{
+					Block: block.Block{},
+				},
+			},
 
 			expectedState:  "WaitingForPropose",
 			expectedAction: "nil",
@@ -258,9 +272,13 @@ func generateTestCases() []TestCase {
 		// (WaitForPropose, Proposed) block.Time > time.Now()
 		{
 			inputState: WaitForPropose(0, 0),
-			inputTransition: Proposed{block.Block{
-				Time: time.Now().Add(10 * time.Minute),
-			}},
+			inputTransition: Proposed{
+				SignedBlock: block.SignedBlock{
+					Block: block.Block{
+						Time: time.Now().Add(10 * time.Minute),
+					},
+				},
+			},
 
 			expectedState:  "WaitingForPropose",
 			expectedAction: "nil",
@@ -277,9 +295,11 @@ func generateTestCases() []TestCase {
 			inputTransition: PreVoted{
 				block.SignedPreVote{
 					PreVote: block.PreVote{
-						Block: &block.Block{
-							Height: 0,
-							Round:  1,
+						Block: &block.SignedBlock{
+							Block: block.Block{
+								Height: 0,
+								Round:  1,
+							},
 						},
 						Round:  1,
 						Height: 0,
@@ -302,9 +322,11 @@ func generateTestCases() []TestCase {
 			inputTransition: PreVoted{
 				block.SignedPreVote{
 					PreVote: block.PreVote{
-						Block: &block.Block{
-							Height: 1,
-							Round:  0,
+						Block: &block.SignedBlock{
+							Block: block.Block{
+								Height: 1,
+								Round:  0,
+							},
 						},
 						Round:  0,
 						Height: 1,
@@ -323,17 +345,19 @@ func generateTestCases() []TestCase {
 
 		// (WaitForPropose, PreCommitted) state.Round != block.Round
 		{
-			inputState: WaitForPropose(0, 0),
+			inputState: WaitForPropose(0, 1),
 			inputTransition: PreCommitted{
 				block.SignedPreCommit{
 					PreCommit: block.PreCommit{
 						Polka: block.Polka{
-							Block: &block.Block{
-								Height: 0,
-								Round:  0,
+							Block: &block.SignedBlock{
+								Block: block.Block{
+									Height: 0,
+									Round:  0,
+								},
 							},
 							Height: 0,
-							Round:  1,
+							Round:  0,
 						},
 					},
 				},
@@ -355,9 +379,11 @@ func generateTestCases() []TestCase {
 				block.SignedPreCommit{
 					PreCommit: block.PreCommit{
 						Polka: block.Polka{
-							Block: &block.Block{
-								Height: 0,
-								Round:  0,
+							Block: &block.SignedBlock{
+								Block: block.Block{
+									Height: 0,
+									Round:  0,
+								},
 							},
 							Height: 1,
 							Round:  0,
@@ -379,8 +405,12 @@ func generateTestCases() []TestCase {
 
 		// (WaitForPolka, Proposed)
 		{
-			inputState:      WaitForPolka(0, 0),
-			inputTransition: Proposed{block.Block{}},
+			inputState: WaitForPolka(0, 0),
+			inputTransition: Proposed{
+				SignedBlock: block.SignedBlock{
+					Block: block.Block{},
+				},
+			},
 
 			expectedState:  "WaitingForPolka",
 			expectedAction: "nil",
@@ -397,9 +427,11 @@ func generateTestCases() []TestCase {
 			inputTransition: PreVoted{
 				block.SignedPreVote{
 					PreVote: block.PreVote{
-						Block: &block.Block{
-							Height: 0,
-							Round:  0,
+						Block: &block.SignedBlock{
+							Block: block.Block{
+								Height: 0,
+								Round:  0,
+							},
 						},
 					},
 					Signatory: randomSignatory(),
@@ -427,9 +459,11 @@ func generateTestCases() []TestCase {
 				block.SignedPreCommit{
 					PreCommit: block.PreCommit{
 						Polka: block.Polka{
-							Block: &block.Block{
-								Height: 0,
-								Round:  0,
+							Block: &block.SignedBlock{
+								Block: block.Block{
+									Height: 0,
+									Round:  0,
+								},
 							},
 						},
 					},
@@ -454,16 +488,21 @@ func generateTestCases() []TestCase {
 		// (WaitForCommit, Proposed)
 		{
 			inputState: WaitForCommit(block.Polka{
-				Block: &block.Block{
-					Height: 0,
-					Round:  0,
+				Block: &block.SignedBlock{
+					Block: block.Block{
+						Height: 0,
+						Round:  0,
+					},
 				},
 			}),
 			inputTransition: Proposed{
-				block.Block{
-					Height: 0,
-					Round:  0,
-				}},
+				SignedBlock: block.SignedBlock{
+					Block: block.Block{
+						Height: 0,
+						Round:  0,
+					},
+				},
+			},
 
 			expectedState:  "WaitingForCommit",
 			expectedAction: "nil",
@@ -477,17 +516,21 @@ func generateTestCases() []TestCase {
 		// (WaitForCommit, PreVoted)
 		{
 			inputState: WaitForCommit(block.Polka{
-				Block: &block.Block{
-					Height: 0,
-					Round:  0,
+				Block: &block.SignedBlock{
+					Block: block.Block{
+						Height: 0,
+						Round:  0,
+					},
 				},
 			}),
 			inputTransition: PreVoted{
 				block.SignedPreVote{
 					PreVote: block.PreVote{
-						Block: &block.Block{
-							Height: 0,
-							Round:  0,
+						Block: &block.SignedBlock{
+							Block: block.Block{
+								Height: 0,
+								Round:  0,
+							},
 						},
 					},
 					Signatory: randomSignatory(),
@@ -599,7 +642,7 @@ func generateTestCases() []TestCase {
 	}
 }
 
-func verifyBlock(res *block.Block, expected *block.Block) {
+func verifyBlock(res, expected *block.SignedBlock) {
 	Expect(res.Round).To(Equal(expected.Round))
 	Expect(res.Height).To(Equal(expected.Height))
 	Expect(res.Header).To(Equal(expected.Header))
