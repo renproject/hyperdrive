@@ -9,6 +9,7 @@ import (
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/tx"
+	"golang.org/x/crypto/sha3"
 )
 
 const NumHistoricalShards = 3
@@ -31,33 +32,33 @@ func (d *Dispatcher) Dispatch(action consensus.Action) {
 
 type Hyperdrive interface {
 	AcceptTick(t time.Time)
-	AcceptPropose(shardHash sig.Hash, proposed block.Block)
+	AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock)
 	AcceptPreVote(shardHash sig.Hash, preVote block.SignedPreVote)
 	AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit)
 	AcceptShard(shard shard.Shard, blockchain block.Blockchain)
 }
 
 type hyperdrive struct {
-	signer sig.Signer
+	signer sig.SignerVerifier
 
-	shards        map[sig.Hash]shard.Shard
-	shardReplicas map[sig.Hash]replica.Replica
-	shardHistory  []sig.Hash
+	shards           map[sig.Hash]shard.Shard
+	shardReplicas    map[sig.Hash]replica.Replica
+	shardDispatchers map[sig.Hash]Dispatcher
+	shardHistory     []sig.Hash
 
-	ticksPerShard    map[sig.Hash]int
-	timeoutThreshold int
+	ticksPerShard map[sig.Hash]int
 }
 
-func New(signer sig.Signer, timeoutThreshold int) Hyperdrive {
+func New(signer sig.SignerVerifier, dispatchers map[sig.Hash]Dispatcher) Hyperdrive {
 	return &hyperdrive{
 		signer: signer,
 
-		shards:        map[sig.Hash]shard.Shard{},
-		shardReplicas: map[sig.Hash]replica.Replica{},
-		shardHistory:  []sig.Hash{},
+		shards:           map[sig.Hash]shard.Shard{},
+		shardReplicas:    map[sig.Hash]replica.Replica{},
+		shardDispatchers: dispatchers,
+		shardHistory:     []sig.Hash{},
 
-		ticksPerShard:    map[sig.Hash]int{},
-		timeoutThreshold: timeoutThreshold,
+		ticksPerShard: map[sig.Hash]int{},
 	}
 }
 
@@ -68,28 +69,77 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 		ticks++
 		hyperdrive.ticksPerShard[shardHash] = ticks
 
-		if hyperdrive.ticksPerShard[shardHash] > hyperdrive.timeoutThreshold {
-			// 2. After a number of ticks send a TimedOut transition to the shard
+		if ticks > NumTicksToTriggerTimeOut {
+			// 2. Send a TimedOut transition to the shard
+			if dispatcher, ok := hyperdrive.shardDispatchers[shardHash]; ok {
+				dispatcher.Dispatch(consensus.Timeout{t})
+			}
 		}
 	}
 }
 
-func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.Block) {
-	// TODO:
+func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock) {
 	// 1. Verify the block is well-formed
+	if proposed.Block.Time.After(time.Now()) {
+		return
+	}
+	// Proposed block cannot be nil
+	if proposed.Block.Equal(block.Block{}) {
+		return
+	}
 	// 2. Verify the signatory of the block
+	signatory, err := hyperdrive.signer.Verify(proposed.Block.Header, proposed.Signature)
+	if err != nil || !signatory.Equal(proposed.Signatory) {
+		return
+	}
+
+	if dispatcher, ok := hyperdrive.shardDispatchers[shardHash]; ok {
+		dispatcher.Dispatch(consensus.Propose{proposed})
+	}
 }
 
 func (hyperdrive *hyperdrive) AcceptPreVote(shardHash sig.Hash, preVote block.SignedPreVote) {
-	// TODO:
 	// 1. Verify the pre-vote is well-formed
+	if preVote.String() == (block.SignedPreVote{}).String() {
+		return
+	}
 	// 2. Verify the signatory of the pre-vote
+	data := []byte(preVote.PreVote.String())
+
+	hashSum256 := sha3.Sum256(data)
+	hash := sig.Hash{}
+	copy(hash[:], hashSum256[:])
+
+	signatory, err := hyperdrive.signer.Verify(hash, preVote.Signature)
+	if err != nil || !signatory.Equal(preVote.Signatory) {
+		return
+	}
+
+	if dispatcher, ok := hyperdrive.shardDispatchers[shardHash]; ok {
+		dispatcher.Dispatch(consensus.SignedPreVote{preVote})
+	}
 }
 
 func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit) {
-	// TODO:
 	// 1. Verify the pre-commit is well-formed
+	if preCommit.String() == (block.SignedPreCommit{}).String() {
+		return
+	}
 	// 2. Verify the signatory of the pre-commit
+	data := []byte(preCommit.PreCommit.String())
+
+	hashSum256 := sha3.Sum256(data)
+	hash := sig.Hash{}
+	copy(hash[:], hashSum256[:])
+
+	signatory, err := hyperdrive.signer.Verify(hash, preCommit.Signature)
+	if err != nil || !signatory.Equal(preCommit.Signatory) {
+		return
+	}
+
+	if dispatcher, ok := hyperdrive.shardDispatchers[shardHash]; ok {
+		dispatcher.Dispatch(consensus.SignedPreCommit{preCommit})
+	}
 }
 
 func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Blockchain) {
