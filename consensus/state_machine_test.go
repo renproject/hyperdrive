@@ -1,12 +1,11 @@
 package consensus_test
 
 import (
-	"crypto/rand"
 	"fmt"
 	"reflect"
 
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/testutils"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -84,8 +83,8 @@ func generateTestCases() []TestCase {
 						PreVote: block.PreVote{
 							Block: &genesis,
 						},
-						Signatory: randomSignatory(),
-						Signature: randomSignature(),
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 				PreVoted{
@@ -93,8 +92,8 @@ func generateTestCases() []TestCase {
 						PreVote: block.PreVote{
 							Block: &genesis,
 						},
-						Signatory: randomSignatory(),
-						Signature: randomSignature(),
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 				PreCommitted{
@@ -104,8 +103,8 @@ func generateTestCases() []TestCase {
 								Block: &genesis,
 							},
 						},
-						Signatory: randomSignatory(),
-						Signature: randomSignature(),
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 				PreCommitted{
@@ -115,8 +114,8 @@ func generateTestCases() []TestCase {
 								Block: &genesis,
 							},
 						},
-						Signatory: randomSignatory(),
-						Signature: randomSignature(),
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 			},
@@ -170,8 +169,8 @@ func generateTestCases() []TestCase {
 								},
 							},
 						},
-						Signatory: randomSignatory(),
-						Signature: randomSignature(),
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 				PreCommitted{
@@ -186,8 +185,8 @@ func generateTestCases() []TestCase {
 								},
 							},
 						},
-						Signatory: randomSignatory(),
-						Signature: randomSignature(),
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 				PreCommitted{
@@ -202,8 +201,8 @@ func generateTestCases() []TestCase {
 								},
 							},
 						},
-						Signatory: randomSignatory(),
-						Signature: randomSignature(),
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 			},
@@ -243,8 +242,8 @@ func generateTestCases() []TestCase {
 								},
 							},
 						},
-						Signatory: randomSignatory(),
-						Signature: randomSignature(),
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 				PreCommitted{
@@ -259,8 +258,8 @@ func generateTestCases() []TestCase {
 								},
 							},
 						},
-						Signatory: randomSignatory(),
-						Signature: randomSignature(),
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 				PreCommitted{
@@ -275,8 +274,8 @@ func generateTestCases() []TestCase {
 								},
 							},
 						},
-						Signatory: randomSignatory(),
-						Signature: randomSignature(),
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 			},
@@ -446,8 +445,8 @@ func generateTestCases() []TestCase {
 								Round:  0,
 							},
 						},
-						Signatory: randomSignatory(),
-						Signature: randomSignature(),
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 			},
@@ -472,29 +471,3 @@ type InvalidTransition struct {
 }
 
 func (transition InvalidTransition) IsTransition() {}
-
-func randomSignatory() sig.Signatory {
-	key := make([]byte, 20)
-	_, err := rand.Read(key)
-	if err != nil {
-		panic(err)
-	}
-
-	signatory := sig.Signatory{}
-	copy(signatory[:], key[:])
-
-	return signatory
-}
-
-func randomSignature() sig.Signature {
-	key := make([]byte, 65)
-	_, err := rand.Read(key)
-	if err != nil {
-		panic(err)
-	}
-
-	sign := sig.Signature{}
-	copy(sign[:], key[:])
-
-	return sign
-}

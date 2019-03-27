@@ -1,12 +1,13 @@
 package block_test
 
 import (
-	"github.com/renproject/hyperdrive/tx"
 	"math/rand"
 	"time"
 
 	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/sig/ecdsa"
+	"github.com/renproject/hyperdrive/testutils"
+	"github.com/renproject/hyperdrive/tx"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -35,7 +36,7 @@ var _ = Describe("Blockchain", func() {
 				block := Block{}
 				signedBlock := SignedBlock{}
 				for i := 0; i < 10; i++ {
-					block = Block{Height: Height(i), Round: Round(i), Header: randomHash()}
+					block = Block{Height: Height(i), Round: Round(i), Header: testutils.RandomHash()}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
 					signedBlock, err = block.Sign(signer)
@@ -46,8 +47,8 @@ var _ = Describe("Blockchain", func() {
 							Block:       &signedBlock,
 							Round:       Round(i),
 							Height:      Height(i),
-							Signatures:  randomSignatures(10),
-							Signatories: randomSignatories(10),
+							Signatures:  testutils.RandomSignatures(10),
+							Signatories: testutils.RandomSignatories(10),
 						},
 					}
 					blockchain.Extend(commit)
@@ -65,7 +66,7 @@ var _ = Describe("Blockchain", func() {
 				queryIndex := rand.Intn(10)
 				queryBlock := Genesis()
 				for i := 0; i < 10; i++ {
-					block := Block{Height: Height(i), Round: Round(i), Header: randomHash()}
+					block := Block{Height: Height(i), Round: Round(i), Header: testutils.RandomHash()}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
 					signedBlock, err := block.Sign(signer)
@@ -78,8 +79,8 @@ var _ = Describe("Blockchain", func() {
 							Block:       &signedBlock,
 							Round:       Round(i),
 							Height:      Height(i),
-							Signatures:  randomSignatures(10),
-							Signatories: randomSignatories(10),
+							Signatures:  testutils.RandomSignatures(10),
+							Signatories: testutils.RandomSignatories(10),
 						},
 					}
 					blockchain.Extend(commit)
@@ -98,8 +99,8 @@ var _ = Describe("Blockchain", func() {
 							Block:       nil,
 							Round:       0,
 							Height:      0,
-							Signatures:  randomSignatures(10),
-							Signatories: randomSignatories(10),
+							Signatures:  testutils.RandomSignatures(10),
+							Signatories: testutils.RandomSignatories(10),
 						},
 					}
 

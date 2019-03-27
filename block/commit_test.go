@@ -1,11 +1,10 @@
 package block_test
 
 import (
-	"crypto/rand"
 	mathRand "math/rand"
 
-	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/sig/ecdsa"
+	"github.com/renproject/hyperdrive/testutils"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -209,7 +208,7 @@ var _ = Describe("CommitBuilder", func() {
 					block := Block{
 						Height: height,
 						Round:  round,
-						Header: randomHash(),
+						Header: testutils.RandomHash(),
 					}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
@@ -246,7 +245,7 @@ var _ = Describe("CommitBuilder", func() {
 						block := Block{
 							Height: height,
 							Round:  round,
-							Header: randomHash(),
+							Header: testutils.RandomHash(),
 						}
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
@@ -316,8 +315,8 @@ var _ = Describe("CommitBuilder", func() {
 					Block:       &signedBlock,
 					Round:       0,
 					Height:      0,
-					Signatures:  randomSignatures(10),
-					Signatories: randomSignatories(10),
+					Signatures:  testutils.RandomSignatures(10),
+					Signatories: testutils.RandomSignatories(10),
 				},
 			}
 			Expect(commit.String()).Should(Equal("Commit(Polka(Block=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,Round=0,Height=0))"))
@@ -378,58 +377,3 @@ var _ = Describe("CommitBuilder", func() {
 		})
 	})
 })
-
-func randomHash() sig.Hash {
-	key := make([]byte, 32)
-	_, err := rand.Read(key)
-	if err != nil {
-		panic(err)
-	}
-
-	hash := sig.Hash{}
-	copy(hash[:], key[:])
-
-	return hash
-}
-
-func randomSignatory() sig.Signatory {
-	key := make([]byte, 20)
-	_, err := rand.Read(key)
-	if err != nil {
-		panic(err)
-	}
-
-	signatory := sig.Signatory{}
-	copy(signatory[:], key[:])
-
-	return signatory
-}
-
-func randomSignatories(n int) []sig.Signatory {
-	signatories := []sig.Signatory{}
-	for i := 0; i < n; i++ {
-		signatories = append(signatories, randomSignatory())
-	}
-	return signatories
-}
-
-func randomSignatures(n int) []sig.Signature {
-	signatures := []sig.Signature{}
-	for i := 0; i < n; i++ {
-		signatures = append(signatures, randomSignature())
-	}
-	return signatures
-}
-
-func randomSignature() sig.Signature {
-	key := make([]byte, 65)
-	_, err := rand.Read(key)
-	if err != nil {
-		panic(err)
-	}
-
-	signature := sig.Signature{}
-	copy(signature[:], key[:])
-
-	return signature
-}

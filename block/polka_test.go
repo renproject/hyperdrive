@@ -4,6 +4,7 @@ import (
 	mathRand "math/rand"
 
 	"github.com/renproject/hyperdrive/sig/ecdsa"
+	"github.com/renproject/hyperdrive/testutils"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -151,7 +152,7 @@ var _ = Describe("PolkaBuilder", func() {
 					block := Block{
 						Height: height,
 						Round:  round,
-						Header: randomHash(),
+						Header: testutils.RandomHash(),
 					}
 					for i := 0; i < 10; i++ {
 						signer, err := ecdsa.NewFromRandom()
@@ -179,7 +180,7 @@ var _ = Describe("PolkaBuilder", func() {
 						block := Block{
 							Height: height,
 							Round:  round,
-							Header: randomHash(),
+							Header: testutils.RandomHash(),
 						}
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
@@ -246,8 +247,8 @@ var _ = Describe("PolkaBuilder", func() {
 				Block:       &signedBlock,
 				Round:       0,
 				Height:      0,
-				Signatures:  randomSignatures(10),
-				Signatories: randomSignatories(10),
+				Signatures:  testutils.RandomSignatures(10),
+				Signatories: testutils.RandomSignatories(10),
 			}
 			Expect(polka.String()).Should(Equal("Polka(Block=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,Round=0,Height=0)"))
 		})
@@ -264,8 +265,8 @@ var _ = Describe("PolkaBuilder", func() {
 				Block:       &signedBlock,
 				Round:       0,
 				Height:      0,
-				Signatures:  randomSignatures(10),
-				Signatories: randomSignatories(10),
+				Signatures:  testutils.RandomSignatures(10),
+				Signatories: testutils.RandomSignatories(10),
 			}
 			newPolka := polka
 			Expect(polka.Equal(newPolka)).Should(BeTrue())
@@ -281,15 +282,15 @@ var _ = Describe("PolkaBuilder", func() {
 				Block:       &signedBlock,
 				Round:       0,
 				Height:      0,
-				Signatures:  randomSignatures(10),
-				Signatories: randomSignatories(10),
+				Signatures:  testutils.RandomSignatures(10),
+				Signatories: testutils.RandomSignatories(10),
 			}
 			newPolka := Polka{
 				Block:       &signedBlock,
 				Round:       0,
 				Height:      0,
-				Signatures:  randomSignatures(10),
-				Signatories: randomSignatories(10),
+				Signatures:  testutils.RandomSignatures(10),
+				Signatories: testutils.RandomSignatories(10),
 			}
 			Expect(polka.Equal(newPolka)).Should(BeFalse())
 		})
@@ -304,8 +305,8 @@ var _ = Describe("PolkaBuilder", func() {
 				Block:       &signedBlock,
 				Round:       0,
 				Height:      0,
-				Signatures:  randomSignatures(10),
-				Signatories: randomSignatories(10),
+				Signatures:  testutils.RandomSignatures(10),
+				Signatories: testutils.RandomSignatories(10),
 			}
 			newPolka := Polka{
 				Block:       nil,
