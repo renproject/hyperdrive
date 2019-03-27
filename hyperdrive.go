@@ -41,22 +41,20 @@ type Hyperdrive interface {
 type hyperdrive struct {
 	signer sig.SignerVerifier
 
-	shards           map[sig.Hash]shard.Shard
-	shardReplicas    map[sig.Hash]replica.Replica
-	shardDispatchers map[sig.Hash]Dispatcher
-	shardHistory     []sig.Hash
+	shards        map[sig.Hash]shard.Shard
+	shardReplicas map[sig.Hash]replica.Replica
+	shardHistory  []sig.Hash
 
 	ticksPerShard map[sig.Hash]int
 }
 
-func New(signer sig.SignerVerifier, dispatchers map[sig.Hash]Dispatcher) Hyperdrive {
+func New(signer sig.SignerVerifier) Hyperdrive {
 	return &hyperdrive{
 		signer: signer,
 
-		shards:           map[sig.Hash]shard.Shard{},
-		shardReplicas:    map[sig.Hash]replica.Replica{},
-		shardDispatchers: dispatchers,
-		shardHistory:     []sig.Hash{},
+		shards:        map[sig.Hash]shard.Shard{},
+		shardReplicas: map[sig.Hash]replica.Replica{},
+		shardHistory:  []sig.Hash{},
 
 		ticksPerShard: map[sig.Hash]int{},
 	}
@@ -71,8 +69,8 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 
 		if ticks > NumTicksToTriggerTimeOut {
 			// 2. Send a TimedOut transition to the shard
-			if dispatcher, ok := hyperdrive.shardDispatchers[shardHash]; ok {
-				dispatcher.Dispatch(consensus.Timeout{t})
+			if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
+				replica.Transition(consensus.TimedOut{t})
 			}
 		}
 	}
@@ -93,8 +91,8 @@ func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.S
 		return
 	}
 
-	if dispatcher, ok := hyperdrive.shardDispatchers[shardHash]; ok {
-		dispatcher.Dispatch(consensus.Propose{proposed})
+	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
+		replica.Transition(consensus.Proposed{proposed})
 	}
 }
 
@@ -115,8 +113,8 @@ func (hyperdrive *hyperdrive) AcceptPreVote(shardHash sig.Hash, preVote block.Si
 		return
 	}
 
-	if dispatcher, ok := hyperdrive.shardDispatchers[shardHash]; ok {
-		dispatcher.Dispatch(consensus.SignedPreVote{preVote})
+	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
+		replica.Transition(consensus.PreVoted{preVote})
 	}
 }
 
@@ -137,8 +135,8 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 		return
 	}
 
-	if dispatcher, ok := hyperdrive.shardDispatchers[shardHash]; ok {
-		dispatcher.Dispatch(consensus.SignedPreCommit{preCommit})
+	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
+		replica.Transition(consensus.PreCommitted{preCommit})
 	}
 }
 

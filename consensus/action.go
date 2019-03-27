@@ -1,8 +1,6 @@
 package consensus
 
 import (
-	"time"
-
 	"github.com/renproject/hyperdrive/block"
 )
 
@@ -50,11 +48,4 @@ type Commit struct {
 }
 
 func (Commit) IsAction() {
-}
-
-type Timeout struct {
-	time.Time
-}
-
-func (Timeout) IsAction() {
 }
