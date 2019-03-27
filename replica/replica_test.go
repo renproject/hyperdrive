@@ -3,13 +3,14 @@ package replica_test
 import (
 	"fmt"
 	"reflect"
-	"sync"
 
+	"github.com/renproject/hyperdrive"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/consensus"
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/sig/ecdsa"
+	"github.com/renproject/hyperdrive/testutils"
 	"github.com/renproject/hyperdrive/tx"
 
 	. "github.com/onsi/ginkgo"
@@ -20,13 +21,12 @@ import (
 var _ = Describe("Replica", func() {
 
 	BeforeSuite(func() {
-		transitionBuffer = newMockTransitionBuffer()
-		pool = NewMockLifoPool()
-		dispatcher = newMockDispatcher()
 	})
 
 	Context("when a new Transaction is sent using Transact", func() {
 		It("should update the TxPool", func() {
+			transitionBuffer := consensus.NewTransitionBuffer(128)
+			pool := tx.FIFOPool()
 			signer, err := ecdsa.NewFromRandom()
 			Expect(err).ShouldNot(HaveOccurred())
 			shard := shard.Shard{
@@ -37,9 +37,11 @@ var _ = Describe("Replica", func() {
 			}
 			stateMachine := consensus.NewStateMachine(block.PolkaBuilder{}, block.CommitBuilder{}, 1)
 
-			replica := New(dispatcher, signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, block.NewBlockchain(), shard)
+			replica := New(hyperdrive.NewDispatcher(shard), signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, block.NewBlockchain(), shard)
 			replica.Transact(tx.Transaction{})
-			Expect(pool.Length()).Should(Equal(1))
+			transaction, ok := pool.Dequeue()
+			Expect(ok).To(BeTrue())
+			Expect(transaction).Should(Equal(tx.Transaction{}))
 		})
 	})
 
@@ -50,7 +52,10 @@ var _ = Describe("Replica", func() {
 			t := t
 
 			Context(fmt.Sprintf("when replica starts with intial state - %s", reflect.TypeOf(t.startingState).Name()), func() {
-				It("should pass", func() {
+				It(fmt.Sprintf("should arrive at %s", reflect.TypeOf(t.finalState).Name()), func() {
+
+					transitionBuffer := consensus.NewTransitionBuffer(128)
+					pool := tx.FIFOPool()
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
 					shard := shard.Shard{
@@ -59,9 +64,9 @@ var _ = Describe("Replica", func() {
 						BlockHeight: 0,
 						Signatories: sig.Signatories{signer.Signatory()},
 					}
-					stateMachine := consensus.NewStateMachine(block.PolkaBuilder{}, block.CommitBuilder{}, 1)
+					stateMachine := consensus.NewStateMachine(block.PolkaBuilder{}, block.CommitBuilder{}, t.consensusThreshold)
 
-					replica := New(dispatcher, signer, pool, t.startingState, stateMachine, transitionBuffer, block.NewBlockchain(), shard)
+					replica := New(hyperdrive.NewDispatcher(shard), signer, pool, t.startingState, stateMachine, transitionBuffer, block.NewBlockchain(), shard)
 					for _, transition := range t.transitions {
 						replica.Transition(transition)
 					}
@@ -73,21 +78,24 @@ var _ = Describe("Replica", func() {
 })
 
 type TestCase struct {
+	consensusThreshold int
+
 	startingState consensus.State
 	finalState    consensus.State
 
 	transitions []consensus.Transition
 }
 
-var dispatcher *mockDispatcher
-var transitionBuffer *mockTransitionBuffer
-var pool *mockLifoPool
-
 func generateTestCases() []TestCase {
+	futureBlockHeader := testutils.RandomHash()
+	blockHeader := testutils.RandomHash()
+
 	return []TestCase{
 		{
+			consensusThreshold: 2,
+
 			startingState: consensus.WaitForPropose(0, 0),
-			finalState:    consensus.WaitForPropose(0, 1),
+			finalState:    consensus.WaitForPropose(0, 0),
 
 			transitions: []consensus.Transition{
 				consensus.Proposed{
@@ -102,6 +110,17 @@ func generateTestCases() []TestCase {
 						PreVote: block.PreVote{
 							Height: -1,
 						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+				consensus.PreVoted{
+					SignedPreVote: block.SignedPreVote{
+						PreVote: block.PreVote{
+							Height: -1,
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 				consensus.PreCommitted{
@@ -116,20 +135,8 @@ func generateTestCases() []TestCase {
 								Height: -1,
 							},
 						},
-					},
-				},
-				consensus.Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{
-							Height: 1,
-						},
-					},
-				},
-				consensus.PreVoted{
-					SignedPreVote: block.SignedPreVote{
-						PreVote: block.PreVote{
-							Height: 1,
-						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 				consensus.PreCommitted{
@@ -137,25 +144,152 @@ func generateTestCases() []TestCase {
 						PreCommit: block.PreCommit{
 							Polka: block.Polka{
 								Block: &block.SignedBlock{
-									Block: block.Block{},
+									Block: block.Block{
+										Height: -1,
+									},
+								},
+								Height: -1,
+							},
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+			},
+		},
+
+		{
+			consensusThreshold: 2,
+
+			startingState: consensus.WaitForPropose(0, 1),
+			finalState:    consensus.WaitForPropose(0, 3),
+
+			transitions: []consensus.Transition{
+				consensus.Proposed{
+					SignedBlock: block.SignedBlock{
+						Block: block.Block{
+							Height: 2,
+							Header: futureBlockHeader,
+						},
+					},
+				},
+				consensus.PreVoted{
+					SignedPreVote: block.SignedPreVote{
+						PreVote: block.PreVote{
+							Block: &block.SignedBlock{
+								Block: block.Block{
+									Height: 2,
+									Header: futureBlockHeader,
+								},
+							},
+							Height: 2,
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+				consensus.PreVoted{
+					SignedPreVote: block.SignedPreVote{
+						PreVote: block.PreVote{
+							Block: &block.SignedBlock{
+								Block: block.Block{
+									Height: 2,
+									Header: futureBlockHeader,
+								},
+							},
+							Height: 2,
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+				consensus.PreCommitted{
+					SignedPreCommit: block.SignedPreCommit{
+						PreCommit: block.PreCommit{
+							Polka: block.Polka{
+								Block: &block.SignedBlock{
+									Block: block.Block{
+										Height: 2,
+										Header: futureBlockHeader,
+									},
+								},
+								Height: 2,
+							},
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+				consensus.PreCommitted{
+					SignedPreCommit: block.SignedPreCommit{
+						PreCommit: block.PreCommit{
+							Polka: block.Polka{
+								Block: &block.SignedBlock{
+									Block: block.Block{
+										Height: 2,
+										Header: futureBlockHeader,
+									},
+								},
+								Height: 2,
+							},
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+				consensus.Proposed{
+					SignedBlock: block.SignedBlock{
+						Block: block.Block{
+							Height: 2,
+							Header: futureBlockHeader,
+						},
+					},
+				},
+				consensus.PreVoted{
+					SignedPreVote: block.SignedPreVote{
+						PreVote: block.PreVote{
+							Block: &block.SignedBlock{
+								Block: block.Block{
+									Height: 1,
+									Header: blockHeader,
+								},
+							},
+							Height: 1,
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+				consensus.PreVoted{
+					SignedPreVote: block.SignedPreVote{
+						PreVote: block.PreVote{
+							Block: &block.SignedBlock{
+								Block: block.Block{
+									Height: 1,
+									Header: blockHeader,
+								},
+							},
+							Height: 1,
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+				consensus.PreCommitted{
+					SignedPreCommit: block.SignedPreCommit{
+						PreCommit: block.PreCommit{
+							Polka: block.Polka{
+								Block: &block.SignedBlock{
+									Block: block.Block{
+										Height: 1,
+										Header: blockHeader,
+									},
 								},
 								Height: 1,
 							},
 						},
-					},
-				},
-				consensus.Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{
-							Height: 0,
-						},
-					},
-				},
-				consensus.PreVoted{
-					SignedPreVote: block.SignedPreVote{
-						PreVote: block.PreVote{
-							Height: 0,
-						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 				consensus.PreCommitted{
@@ -163,107 +297,19 @@ func generateTestCases() []TestCase {
 						PreCommit: block.PreCommit{
 							Polka: block.Polka{
 								Block: &block.SignedBlock{
-									Block: block.Block{},
+									Block: block.Block{
+										Height: 1,
+										Header: blockHeader,
+									},
 								},
-								Height: 0,
+								Height: 1,
 							},
 						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 			},
 		},
 	}
-}
-
-type mockDispatcher struct {
-	actionsMu *sync.Mutex
-	actions   []consensus.Action
-}
-
-func newMockDispatcher() *mockDispatcher {
-	return &mockDispatcher{
-		new(sync.Mutex),
-		[]consensus.Action{},
-	}
-}
-
-func (mockDispatcher *mockDispatcher) Dispatch(action consensus.Action) {
-	mockDispatcher.actionsMu.Lock()
-	defer mockDispatcher.actionsMu.Unlock()
-
-	mockDispatcher.actions = append(mockDispatcher.actions, action)
-}
-
-func (mockDispatcher *mockDispatcher) BufferLength() int {
-	mockDispatcher.actionsMu.Lock()
-	defer mockDispatcher.actionsMu.Unlock()
-
-	return len(mockDispatcher.actions)
-}
-
-type mockTransitionBuffer struct {
-	transitionsMu *sync.Mutex
-	transitions   []consensus.Transition
-}
-
-func newMockTransitionBuffer() *mockTransitionBuffer {
-	return &mockTransitionBuffer{
-		new(sync.Mutex),
-		[]consensus.Transition{},
-	}
-}
-
-func (mockTransitionBuffer *mockTransitionBuffer) Enqueue(transition consensus.Transition) {
-	mockTransitionBuffer.transitionsMu.Lock()
-	defer mockTransitionBuffer.transitionsMu.Unlock()
-
-	mockTransitionBuffer.transitions = append(mockTransitionBuffer.transitions, transition)
-}
-
-func (mockTransitionBuffer *mockTransitionBuffer) Dequeue(h block.Height) (consensus.Transition, bool) {
-	mockTransitionBuffer.transitionsMu.Lock()
-	defer mockTransitionBuffer.transitionsMu.Unlock()
-
-	if len(mockTransitionBuffer.transitions) > 0 {
-		tx := mockTransitionBuffer.transitions[len(mockTransitionBuffer.transitions)-1]
-		mockTransitionBuffer.transitions = mockTransitionBuffer.transitions[:len(mockTransitionBuffer.transitions)-1]
-		return tx, true
-	}
-	return nil, false
-}
-
-func (mockTransitionBuffer *mockTransitionBuffer) Drop(height block.Height) {
-
-}
-
-func (mockTransitionBuffer *mockTransitionBuffer) BufferLength() int {
-	mockTransitionBuffer.transitionsMu.Lock()
-	defer mockTransitionBuffer.transitionsMu.Unlock()
-
-	return len(mockTransitionBuffer.transitions)
-}
-
-type mockLifoPool struct {
-	txs []tx.Transaction
-}
-
-func NewMockLifoPool() *mockLifoPool {
-	return &mockLifoPool{[]tx.Transaction{}}
-}
-
-func (pool *mockLifoPool) Enqueue(tx tx.Transaction) {
-	pool.txs = append(pool.txs, tx)
-}
-
-func (pool *mockLifoPool) Dequeue() (tx.Transaction, bool) {
-	if len(pool.txs) > 0 {
-		tx := pool.txs[len(pool.txs)-1]
-		pool.txs = pool.txs[:len(pool.txs)-1]
-		return tx, true
-	}
-	return tx.Transaction{}, false
-}
-
-func (pool *mockLifoPool) Length() int {
-	return len(pool.txs)
 }
