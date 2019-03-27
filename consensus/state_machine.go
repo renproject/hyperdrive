@@ -2,7 +2,6 @@ package consensus
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/renproject/hyperdrive/block"
 )
@@ -84,9 +83,6 @@ func (stateMachine *stateMachine) reduceProposed(currentState State, proposed Pr
 		return currentState, nil
 	}
 	if proposed.Block.Height != currentState.Height() {
-		return currentState, nil
-	}
-	if proposed.Block.Time.After(time.Now()) {
 		return currentState, nil
 	}
 
