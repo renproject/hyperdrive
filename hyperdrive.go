@@ -70,7 +70,7 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 		if ticks > NumTicksToTriggerTimeOut {
 			// 2. Send a TimedOut transition to the shard
 			if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-				replica.Transition(consensus.TimedOut{t})
+				replica.Transition(consensus.TimedOut{Time: t})
 			}
 		}
 	}
@@ -92,7 +92,7 @@ func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.S
 	}
 
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		replica.Transition(consensus.Proposed{proposed})
+		replica.Transition(consensus.Proposed{SignedBlock: proposed})
 	}
 }
 
@@ -114,7 +114,7 @@ func (hyperdrive *hyperdrive) AcceptPreVote(shardHash sig.Hash, preVote block.Si
 	}
 
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		replica.Transition(consensus.PreVoted{preVote})
+		replica.Transition(consensus.PreVoted{SignedPreVote: preVote})
 	}
 }
 
@@ -136,7 +136,7 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 	}
 
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		replica.Transition(consensus.PreCommitted{preCommit})
+		replica.Transition(consensus.PreCommitted{SignedPreCommit: preCommit})
 	}
 }
 
