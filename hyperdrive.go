@@ -109,15 +109,12 @@ func (hyperdrive *hyperdrive) AcceptPreVote(shardHash sig.Hash, preVote block.Si
 		}
 	}
 
+	if preVote.PreVote.Round < 0 || preVote.PreVote.Height < 0 {
+		return
+	}
+
 	// 2. Verify the signatory of the pre-vote
-	data := []byte(preVote.PreVote.String())
-
-	hashSum256 := sha3.Sum256(data)
-	hash := sig.Hash{}
-	copy(hash[:], hashSum256[:])
-
-	signatory, err := hyperdrive.signer.Verify(hash, preVote.Signature)
-	if err != nil || !signatory.Equal(preVote.Signatory) {
+	if !hyperdrive.verifySignature(shardHash, []byte(preVote.PreVote.String()), preVote.Signature, preVote.Signatory) {
 		return
 	}
 
@@ -132,21 +129,12 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 		return
 	}
 
-	if preCommit.PreCommit.Polka.Block != nil {
-		if !hyperdrive.validateBlock(shardHash, *preCommit.PreCommit.Polka.Block) {
-			return
-		}
+	if !hyperdrive.validatePolka(shardHash, preCommit.PreCommit.Polka) {
+		return
 	}
 
 	// 2. Verify the signatory of the pre-commit
-	data := []byte(preCommit.PreCommit.String())
-
-	hashSum256 := sha3.Sum256(data)
-	hash := sig.Hash{}
-	copy(hash[:], hashSum256[:])
-
-	signatory, err := hyperdrive.signer.Verify(hash, preCommit.Signature)
-	if err != nil || !signatory.Equal(preCommit.Signatory) {
+	if !hyperdrive.verifySignature(shardHash, []byte(preCommit.PreCommit.String()), preCommit.Signature, preCommit.Signatory) {
 		return
 	}
 
@@ -200,14 +188,57 @@ func (hyperdrive *hyperdrive) validateBlock(shardHash sig.Hash, signedBlock bloc
 	if !signatory.Equal(signedBlock.Signatory) {
 		return false
 	}
-	if !hyperdrive.validateSignatory(shardHash, signatory) {
+	if !hyperdrive.isSignatoryInShard(shardHash, signatory) {
 		return false
 	}
 
 	return true
 }
 
-func (hyperdrive *hyperdrive) validateSignatory(shardHash sig.Hash, signatory sig.Signatory) bool {
+func (hyperdrive *hyperdrive) validatePolka(shardHash sig.Hash, polka block.Polka) bool {
+	// Polka cannot be nil
+	if polka.Equal(block.Polka{}) {
+		return false
+	}
+	if polka.Round < 0 || polka.Height < 0 {
+		return false
+	}
+
+	preVote := block.PreVote{
+		Block:  polka.Block,
+		Height: polka.Height,
+		Round:  polka.Round,
+	}
+
+	data := []byte(preVote.String())
+	for i, signature := range polka.Signatures {
+		if !hyperdrive.verifySignature(shardHash, data, signature, polka.Signatories[i]) {
+			return false
+		}
+	}
+
+	if polka.Block != nil {
+		return hyperdrive.validateBlock(shardHash, *polka.Block)
+	}
+
+	return true
+}
+
+func (hyperdrive *hyperdrive) verifySignature(shardHash sig.Hash, data []byte, signature sig.Signature, signatory sig.Signatory) bool {
+	hashSum256 := sha3.Sum256(data)
+	hash := sig.Hash{}
+	copy(hash[:], hashSum256[:])
+
+	verifiedSig, err := hyperdrive.signer.Verify(hash, signature)
+	if err != nil || !verifiedSig.Equal(signatory) {
+		// TODO: log the error
+		return false
+	}
+
+	return hyperdrive.isSignatoryInShard(shardHash, verifiedSig)
+}
+
+func (hyperdrive *hyperdrive) isSignatoryInShard(shardHash sig.Hash, signatory sig.Signatory) bool {
 	if shard, ok := hyperdrive.shards[shardHash]; ok {
 		for _, sig := range shard.Signatories {
 			if signatory.Equal(sig) {
