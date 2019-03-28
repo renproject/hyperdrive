@@ -53,10 +53,7 @@ func (preVote PreVote) String() string {
 	if preVote.Block != nil {
 		block = preVote.Block.String()
 	}
-	return fmt.Sprintf("PreVote(%s,Round=%d,Height=%d)",
-		block,
-		preVote.Round,
-		preVote.Height)
+	return fmt.Sprintf("PreVote(%s,Round=%d,Height=%d)", block, preVote.Round, preVote.Height)
 }
 
 // SignedPreVote is the signed version of a PreVote
