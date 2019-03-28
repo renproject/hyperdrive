@@ -125,7 +125,7 @@ func generateTestCases() []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: InvalidState{height: 0, round: 0},
+			startingState: testutils.InvalidState{},
 			finalState:    nil,
 			finalAction:   nil,
 
@@ -289,7 +289,7 @@ func generateTestCases() []TestCase {
 			finalState:    WaitForPropose(0, 0),
 			finalAction:   nil,
 
-			transitions: []Transition{InvalidTransition{}},
+			transitions: []Transition{testutils.InvalidTransition{}},
 		},
 
 		// (WaitForPropose, TimedOut)
@@ -453,21 +453,3 @@ func generateTestCases() []TestCase {
 		},
 	}
 }
-
-type InvalidState struct {
-	round  block.Round
-	height block.Height
-}
-
-func (state InvalidState) Round() block.Round {
-	return state.round
-}
-
-func (state InvalidState) Height() block.Height {
-	return state.height
-}
-
-type InvalidTransition struct {
-}
-
-func (transition InvalidTransition) IsTransition() {}
