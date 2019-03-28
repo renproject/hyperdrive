@@ -1,6 +1,8 @@
 package replica
 
 import (
+	"time"
+
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/consensus"
 	"github.com/renproject/hyperdrive/shard"
@@ -23,6 +25,7 @@ type replica struct {
 	dispatcher Dispatcher
 
 	signer           sig.Signer
+	validator        Validator
 	txPool           tx.Pool
 	state            consensus.State
 	stateMachine     consensus.StateMachine
@@ -33,7 +36,7 @@ type replica struct {
 
 func New(
 	dispatcher Dispatcher,
-	signer sig.Signer,
+	signer sig.SignerVerifier,
 	txPool tx.Pool,
 	state consensus.State,
 	stateMachine consensus.StateMachine,
@@ -45,6 +48,7 @@ func New(
 		dispatcher: dispatcher,
 
 		signer:           signer,
+		validator:        NewValidator(signer, shard, blockchain),
 		txPool:           txPool,
 		state:            state,
 		stateMachine:     stateMachine,
@@ -68,6 +72,9 @@ func (replica *replica) Transact(tx tx.Transaction) {
 }
 
 func (replica *replica) Transition(transition consensus.Transition) {
+	if !replica.isTransitionValid(transition) {
+		return
+	}
 	if replica.shouldDropTransition(transition) {
 		return
 	}
@@ -127,6 +134,20 @@ func (replica *replica) handlePreCommit(preCommit consensus.SignedPreCommit) {
 func (replica *replica) handleCommit(commit consensus.Commit) {
 	replica.blockchain.Extend(commit.Commit)
 	replica.generateSignedBlock()
+}
+
+func (replica *replica) isTransitionValid(transition consensus.Transition) bool {
+	switch transition := transition.(type) {
+	case consensus.Proposed:
+		return replica.validator.ValidateBlock(transition.SignedBlock)
+	case consensus.PreVoted:
+		return replica.validator.ValidatePreVote(transition.SignedPreVote)
+	case consensus.PreCommitted:
+		return replica.validator.ValidatePreCommit(transition.SignedPreCommit)
+	case consensus.TimedOut:
+		return !transition.Time.After(time.Now())
+	}
+	return false
 }
 
 func (replica *replica) shouldDropTransition(transition consensus.Transition) bool {
