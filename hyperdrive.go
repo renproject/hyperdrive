@@ -169,6 +169,7 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Bl
 	)
 
 	hyperdrive.shardReplicas[shard.Hash] = r
+	hyperdrive.shards[shard.Hash] = shard
 	hyperdrive.shardHistory = append(hyperdrive.shardHistory, shard.Hash)
 	if len(hyperdrive.shardHistory) > NumHistoricalShards {
 		delete(hyperdrive.shardReplicas, hyperdrive.shardHistory[0])
