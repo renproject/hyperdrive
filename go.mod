@@ -1,7 +1,7 @@
 module github.com/renproject/hyperdrive
 
 require (
-	github.com/btcsuite/btcd v0.0.0-20190213025234-306aecffea32 // indirect
+	github.com/btcsuite/btcd v0.0.0-20190213025234-306aecffea32
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/ethereum/go-ethereum v1.8.23
 	github.com/golang/protobuf v1.3.0 // indirect
