@@ -104,13 +104,11 @@ func (hyperdrive *hyperdrive) AcceptPreVote(shardHash sig.Hash, preVote block.Si
 	if preVote.String() == (block.SignedPreVote{}).String() {
 		return
 	}
-
 	if preVote.PreVote.Block != nil {
 		if !hyperdrive.validateBlock(shardHash, *preVote.PreVote.Block) {
 			return
 		}
 	}
-
 	if preVote.PreVote.Round < 0 || preVote.PreVote.Height < 0 {
 		return
 	}
@@ -130,7 +128,6 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 	if preCommit.String() == (block.SignedPreCommit{}).String() {
 		return
 	}
-
 	if !hyperdrive.validatePolka(shardHash, preCommit.PreCommit.Polka) {
 		return
 	}
@@ -170,19 +167,16 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Bl
 	r.Init()
 }
 
-// validateBlock will validate the contents of the block.
 // For a SignedBlock to be valid:
 // 1. must not be nil
-// 2. have a valid blockTime, Round and Height
+// 2. have valid blockTime, Round, and Height
 // 3. have a valid signature
-// 4. have signatory in the same shard
-// 5. parent header is the block at Head of the shard's blockchain
+// 4. signatory belongs to the same shard
+// 5. parent header is the block at head of the shard's blockchain
 func (hyperdrive *hyperdrive) validateBlock(shardHash sig.Hash, signedBlock block.SignedBlock) bool {
-	// Block cannot be nil
 	if signedBlock.Block.Equal(block.Block{}) {
 		return false
 	}
-	// Block time cannot be later than current time
 	if signedBlock.Time.After(time.Now()) {
 		return false
 	}
@@ -215,15 +209,16 @@ func (hyperdrive *hyperdrive) validateBlock(shardHash sig.Hash, signedBlock bloc
 	return parent.Header.Equal(signedBlock.ParentHeader)
 }
 
-// validatePolka will validate the polka.
 // For a Polka to be valid:
 // 1. must not be nil
 // 2. have a non-negative Round and Height
 // 3. all the signatures inside the polka must be valid and
 //    belong to signatories within the same shard
 // 4. have a valid block (if block is not nil)
+//
+// validatePolka assumes that `polka.Signatures` are ordered to match
+// the order of `polka.Signatories`.
 func (hyperdrive *hyperdrive) validatePolka(shardHash sig.Hash, polka block.Polka) bool {
-	// Polka cannot be nil
 	if polka.Equal(block.Polka{}) {
 		return false
 	}
@@ -236,8 +231,8 @@ func (hyperdrive *hyperdrive) validatePolka(shardHash sig.Hash, polka block.Polk
 		Height: polka.Height,
 		Round:  polka.Round,
 	}
-
 	data := []byte(preVote.String())
+
 	for i, signature := range polka.Signatures {
 		if !hyperdrive.verifySignature(shardHash, data, signature, polka.Signatories[i]) {
 			return false
