@@ -2,6 +2,7 @@ package replica_test
 
 import (
 	"fmt"
+	"github.com/renproject/hyperdrive/testutils"
 	"reflect"
 
 	"github.com/renproject/hyperdrive"
@@ -10,7 +11,6 @@ import (
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/sig/ecdsa"
-	"github.com/renproject/hyperdrive/testutils"
 	"github.com/renproject/hyperdrive/tx"
 
 	. "github.com/onsi/ginkgo"
@@ -107,6 +107,21 @@ func generateTestCases() []TestCase {
 	blockHeader := testutils.RandomHash()
 
 	return []TestCase{
+		{
+			consensusThreshold: 1,
+
+			startingState: consensus.WaitForPropose(1, 0),
+			finalState:    consensus.WaitForPropose(1, 0),
+
+			transitions: []consensus.Transition{
+				consensus.Proposed{
+					SignedBlock: block.SignedBlock{
+						Block: block.Block{},
+					},
+				},
+			},
+		},
+
 		{
 			consensusThreshold: 2,
 
