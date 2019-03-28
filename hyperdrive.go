@@ -88,16 +88,7 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 
 func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock) {
 	// 1. Verify the block is well-formed
-	if proposed.Block.Time.After(time.Now()) {
-		return
-	}
-	// Proposed block cannot be nil
-	if proposed.Block.Equal(block.Block{}) {
-		return
-	}
-	// 2. Verify the signatory of the block
-	signatory, err := hyperdrive.signer.Verify(proposed.Block.Header, proposed.Signature)
-	if err != nil || !signatory.Equal(proposed.Signatory) {
+	if !hyperdrive.validateBlock(proposed) {
 		return
 	}
 
@@ -111,6 +102,13 @@ func (hyperdrive *hyperdrive) AcceptPreVote(shardHash sig.Hash, preVote block.Si
 	if preVote.String() == (block.SignedPreVote{}).String() {
 		return
 	}
+
+	if preVote.PreVote.Block != nil {
+		if !hyperdrive.validateBlock(*preVote.PreVote.Block) {
+			return
+		}
+	}
+
 	// 2. Verify the signatory of the pre-vote
 	data := []byte(preVote.PreVote.String())
 
@@ -133,6 +131,13 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 	if preCommit.String() == (block.SignedPreCommit{}).String() {
 		return
 	}
+
+	if preCommit.PreCommit.Polka.Block != nil {
+		if !hyperdrive.validateBlock(*preCommit.PreCommit.Polka.Block) {
+			return
+		}
+	}
+
 	// 2. Verify the signatory of the pre-commit
 	data := []byte(preCommit.PreCommit.String())
 
@@ -151,6 +156,7 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 }
 
 func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Blockchain) {
+	// TODO: Will there be a scenario where a replica is already present for the shard?
 	r := replica.New(
 		NewDispatcher(shard),
 		hyperdrive.signer,
@@ -170,4 +176,26 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Bl
 	}
 
 	r.Init()
+}
+
+func (hyperdrive *hyperdrive) validateBlock(signedBlock block.SignedBlock) bool {
+	// Block cannot be nil
+	if signedBlock.Block.Equal(block.Block{}) {
+		return false
+	}
+	// Block time cannot be later than current time
+	if signedBlock.Time.After(time.Now()) {
+		return false
+	}
+	if signedBlock.Round < 0 || signedBlock.Height < 0 {
+		return false
+	}
+
+	// Verify the signatory of the signedBlock
+	signatory, err := hyperdrive.signer.Verify(signedBlock.Block.Header, signedBlock.Signature)
+	if err != nil || !signatory.Equal(signedBlock.Signatory) {
+		return false
+	}
+
+	return true
 }
