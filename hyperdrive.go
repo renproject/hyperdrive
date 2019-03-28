@@ -12,24 +12,33 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+// NumHistoricalShards specifies the number of historical shards allowed.
 const NumHistoricalShards = 3
+
+// NumTicksToTriggerTimeOut specifies the maximum number of Ticks to wait before
+// triggering a TimedOut  transition.
 const NumTicksToTriggerTimeOut = 2
 
+// Dispatcher is responsible for verifying and forwarding `Action`s to shards.
 type Dispatcher struct {
 	shard shard.Shard
 }
 
+// NewDispatcher returns a Dispatcher for the given `shard`.
 func NewDispatcher(shard shard.Shard) replica.Dispatcher {
 	return &Dispatcher{
 		shard: shard,
 	}
 }
 
+// Dispatch `action` to the shard.
 func (d *Dispatcher) Dispatch(action consensus.Action) {
 	// TODO:
 	// 1. Broadcast the action to the entire shard
 }
 
+// Hyperdrive accepts, validates and pre-processes blocks and ticks and sends
+// relevant Transitions to the respective replica.
 type Hyperdrive interface {
 	AcceptTick(t time.Time)
 	AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock)
@@ -48,6 +57,7 @@ type hyperdrive struct {
 	ticksPerShard map[sig.Hash]int
 }
 
+// New returns a Hyperdrive.
 func New(signer sig.SignerVerifier) Hyperdrive {
 	return &hyperdrive{
 		signer: signer,
