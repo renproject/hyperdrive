@@ -1,8 +1,6 @@
 package consensus
 
-import (
-	"github.com/renproject/hyperdrive/block"
-)
+import "github.com/renproject/hyperdrive/block"
 
 type Action interface {
 	IsAction()
