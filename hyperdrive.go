@@ -50,9 +50,10 @@ type Hyperdrive interface {
 type hyperdrive struct {
 	signer sig.SignerVerifier
 
-	shards        map[sig.Hash]shard.Shard
-	shardReplicas map[sig.Hash]replica.Replica
-	shardHistory  []sig.Hash
+	shards           map[sig.Hash]shard.Shard
+	shardReplicas    map[sig.Hash]replica.Replica
+	shardBlockchains map[sig.Hash]block.Blockchain
+	shardHistory     []sig.Hash
 
 	ticksPerShard map[sig.Hash]int
 }
@@ -62,9 +63,10 @@ func New(signer sig.SignerVerifier) Hyperdrive {
 	return &hyperdrive{
 		signer: signer,
 
-		shards:        map[sig.Hash]shard.Shard{},
-		shardReplicas: map[sig.Hash]replica.Replica{},
-		shardHistory:  []sig.Hash{},
+		shards:           map[sig.Hash]shard.Shard{},
+		shardReplicas:    map[sig.Hash]replica.Replica{},
+		shardBlockchains: map[sig.Hash]block.Blockchain{},
+		shardHistory:     []sig.Hash{},
 
 		ticksPerShard: map[sig.Hash]int{},
 	}
@@ -158,6 +160,7 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Bl
 
 	hyperdrive.shardReplicas[shard.Hash] = r
 	hyperdrive.shards[shard.Hash] = shard
+	hyperdrive.shardBlockchains[shard.Hash] = blockchain
 	hyperdrive.shardHistory = append(hyperdrive.shardHistory, shard.Hash)
 	if len(hyperdrive.shardHistory) > NumHistoricalShards {
 		delete(hyperdrive.shardReplicas, hyperdrive.shardHistory[0])
@@ -167,6 +170,13 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Bl
 	r.Init()
 }
 
+// validateBlock will validate the contents of the block.
+// For a SignedBlock to be valid:
+// 1. must not be nil
+// 2. have a valid blockTime, Round and Height
+// 3. have a valid signature
+// 4. have signatory in the same shard
+// 5. parent header is the block at Head of the shard's blockchain
 func (hyperdrive *hyperdrive) validateBlock(shardHash sig.Hash, signedBlock block.SignedBlock) bool {
 	// Block cannot be nil
 	if signedBlock.Block.Equal(block.Block{}) {
@@ -192,9 +202,26 @@ func (hyperdrive *hyperdrive) validateBlock(shardHash sig.Hash, signedBlock bloc
 		return false
 	}
 
-	return true
+	// Is block.ParentHeader (at H) == block.Header (at H-1)?
+	if _, ok := hyperdrive.shardBlockchains[shardHash]; !ok {
+		return false
+	}
+	blockchain := hyperdrive.shardBlockchains[shardHash]
+	parent, ok := blockchain.Head()
+	if !ok {
+		return false
+	}
+
+	return parent.Header.Equal(signedBlock.ParentHeader)
 }
 
+// validatePolka will validate the polka.
+// For a Polka to be valid:
+// 1. must not be nil
+// 2. have a non-negative Round and Height
+// 3. all the signatures inside the polka must be valid and
+//    belong to signatories within the same shard
+// 4. have a valid block (if block is not nil)
 func (hyperdrive *hyperdrive) validatePolka(shardHash sig.Hash, polka block.Polka) bool {
 	// Polka cannot be nil
 	if polka.Equal(block.Polka{}) {
@@ -224,6 +251,9 @@ func (hyperdrive *hyperdrive) validatePolka(shardHash sig.Hash, polka block.Polk
 	return true
 }
 
+// verifySignature verifies that the signatory provided was used to generate
+// the signature for the given data. Also verifies that the signatory is a
+// part of the given shard.
 func (hyperdrive *hyperdrive) verifySignature(shardHash sig.Hash, data []byte, signature sig.Signature, signatory sig.Signatory) bool {
 	hashSum256 := sha3.Sum256(data)
 	hash := sig.Hash{}
@@ -238,6 +268,8 @@ func (hyperdrive *hyperdrive) verifySignature(shardHash sig.Hash, data []byte, s
 	return hyperdrive.isSignatoryInShard(shardHash, verifiedSig)
 }
 
+// isSignatoryInShard returns true if the given signatory belongs to the
+// provided shard.
 func (hyperdrive *hyperdrive) isSignatoryInShard(shardHash sig.Hash, signatory sig.Signatory) bool {
 	if shard, ok := hyperdrive.shards[shardHash]; ok {
 		for _, sig := range shard.Signatories {
