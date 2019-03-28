@@ -67,8 +67,8 @@ func (signedPreVote SignedPreVote) String() string {
 	return fmt.Sprintf("SignedPreVote(%s,Signature=%v,Signatory=%v)", signedPreVote.PreVote.String(), signedPreVote.Signature, signedPreVote.Signatory)
 }
 
-// Polka is created when 2/3 of the nodes in the network have all
-// PreVoted for a given block.
+// Polka is created when 2/3 of the nodes have all PreVoted for a given block.
+// The Signatures are expected to be ordered to match the order of the Signatories.
 type Polka struct {
 	Block       *SignedBlock
 	Round       Round
