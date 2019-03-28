@@ -20,7 +20,23 @@ import (
 
 var _ = Describe("Replica", func() {
 
-	BeforeSuite(func() {
+	Context("when Init is called", func() {
+		It("should generate a new block", func() {
+			transitionBuffer := consensus.NewTransitionBuffer(128)
+			pool := tx.FIFOPool()
+			signer, err := ecdsa.NewFromRandom()
+			Expect(err).ShouldNot(HaveOccurred())
+			shard := shard.Shard{
+				Hash:        sig.Hash{},
+				BlockHeader: sig.Hash{},
+				BlockHeight: 0,
+				Signatories: sig.Signatories{signer.Signatory()},
+			}
+			stateMachine := consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), 1)
+
+			replica := New(hyperdrive.NewDispatcher(shard), signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, block.NewBlockchain(), shard)
+			Expect(func() { replica.Init() }).ToNot(Panic())
+		})
 	})
 
 	Context("when a new Transaction is sent using Transact", func() {
@@ -240,8 +256,8 @@ func generateTestCases() []TestCase {
 				consensus.Proposed{
 					SignedBlock: block.SignedBlock{
 						Block: block.Block{
-							Height: 2,
-							Header: futureBlockHeader,
+							Height: 1,
+							Header: blockHeader,
 						},
 					},
 				},
