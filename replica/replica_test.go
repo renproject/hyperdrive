@@ -35,7 +35,7 @@ var _ = Describe("Replica", func() {
 				BlockHeight: 0,
 				Signatories: sig.Signatories{signer.Signatory()},
 			}
-			stateMachine := consensus.NewStateMachine(block.PolkaBuilder{}, block.CommitBuilder{}, 1)
+			stateMachine := consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), 1)
 
 			replica := New(hyperdrive.NewDispatcher(shard), signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, block.NewBlockchain(), shard)
 			replica.Transact(tx.Transaction{})
@@ -64,7 +64,7 @@ var _ = Describe("Replica", func() {
 						BlockHeight: 0,
 						Signatories: sig.Signatories{signer.Signatory()},
 					}
-					stateMachine := consensus.NewStateMachine(block.PolkaBuilder{}, block.CommitBuilder{}, t.consensusThreshold)
+					stateMachine := consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
 
 					replica := New(hyperdrive.NewDispatcher(shard), signer, pool, t.startingState, stateMachine, transitionBuffer, block.NewBlockchain(), shard)
 					for _, transition := range t.transitions {

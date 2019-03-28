@@ -27,7 +27,7 @@ var _ = Describe("State Machine", func() {
 
 			Context(fmt.Sprintf("when state machine begins with state - %s", reflect.TypeOf(t.startingState).Name()), func() {
 				It(fmt.Sprintf("should eventually arrive at state %s", stateStr), func() {
-					stateMachine := NewStateMachine(block.PolkaBuilder{}, block.CommitBuilder{}, t.consensusThreshold)
+					stateMachine := NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
 					state := t.startingState
 					var action Action
 					for _, transition := range t.transitions {
