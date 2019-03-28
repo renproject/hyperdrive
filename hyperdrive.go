@@ -88,7 +88,7 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 
 func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock) {
 	// 1. Verify the block is well-formed
-	if !hyperdrive.validateBlock(proposed) {
+	if !hyperdrive.validateBlock(shardHash, proposed) {
 		return
 	}
 
@@ -104,7 +104,7 @@ func (hyperdrive *hyperdrive) AcceptPreVote(shardHash sig.Hash, preVote block.Si
 	}
 
 	if preVote.PreVote.Block != nil {
-		if !hyperdrive.validateBlock(*preVote.PreVote.Block) {
+		if !hyperdrive.validateBlock(shardHash, *preVote.PreVote.Block) {
 			return
 		}
 	}
@@ -133,7 +133,7 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 	}
 
 	if preCommit.PreCommit.Polka.Block != nil {
-		if !hyperdrive.validateBlock(*preCommit.PreCommit.Polka.Block) {
+		if !hyperdrive.validateBlock(shardHash, *preCommit.PreCommit.Polka.Block) {
 			return
 		}
 	}
@@ -179,7 +179,7 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Bl
 	r.Init()
 }
 
-func (hyperdrive *hyperdrive) validateBlock(signedBlock block.SignedBlock) bool {
+func (hyperdrive *hyperdrive) validateBlock(shardHash sig.Hash, signedBlock block.SignedBlock) bool {
 	// Block cannot be nil
 	if signedBlock.Block.Equal(block.Block{}) {
 		return false
@@ -194,9 +194,26 @@ func (hyperdrive *hyperdrive) validateBlock(signedBlock block.SignedBlock) bool 
 
 	// Verify the signatory of the signedBlock
 	signatory, err := hyperdrive.signer.Verify(signedBlock.Block.Header, signedBlock.Signature)
-	if err != nil || !signatory.Equal(signedBlock.Signatory) {
+	if err != nil {
+		return false
+	}
+	if !signatory.Equal(signedBlock.Signatory) {
+		return false
+	}
+	if !hyperdrive.validateSignatory(shardHash, signatory) {
 		return false
 	}
 
 	return true
+}
+
+func (hyperdrive *hyperdrive) validateSignatory(shardHash sig.Hash, signatory sig.Signatory) bool {
+	if shard, ok := hyperdrive.shards[shardHash]; ok {
+		for _, sig := range shard.Signatories {
+			if signatory.Equal(sig) {
+				return true
+			}
+		}
+	}
+	return false
 }
