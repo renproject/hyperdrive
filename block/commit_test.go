@@ -16,7 +16,7 @@ var _ = Describe("CommitBuilder", func() {
 		Context("when the pre-condition checks fails for Insert()", func() {
 			Context("when the height is different from the block's height", func() {
 				It("should panic", func() {
-					builder := CommitBuilder{}
+					builder := NewCommitBuilder()
 					block := Block{
 						Height: 1,
 						Round:  0,
@@ -41,7 +41,7 @@ var _ = Describe("CommitBuilder", func() {
 
 			Context("when the round is different from the block's round", func() {
 				It("should panic", func() {
-					builder := CommitBuilder{}
+					builder := NewCommitBuilder()
 					block := Block{
 						Height: 0,
 						Round:  1,
@@ -67,14 +67,14 @@ var _ = Describe("CommitBuilder", func() {
 		Context("when the pre-condition check fails for Commit()", func() {
 			Context("when the consensus threshold is less than 1", func() {
 				It("should panic", func() {
-					builder := CommitBuilder{}
+					builder := NewCommitBuilder()
 					Expect(func() { builder.Commit(0, 0) }).Should(Panic())
 				})
 			})
 
 			Context("when too few pre-votes have been received", func() {
 				It("should panic", func() {
-					builder := CommitBuilder{}
+					builder := NewCommitBuilder()
 					_, ok := builder.Commit(0, 11)
 					Expect(ok).To(BeFalse())
 				})
@@ -84,7 +84,7 @@ var _ = Describe("CommitBuilder", func() {
 		Context("when less than the threshold of PreCommits is inserted", func() {
 			Context("when PreCommits are inserted at the same height and the same round", func() {
 				It("should never return a Commit", func() {
-					builder := CommitBuilder{}
+					builder := NewCommitBuilder()
 					for i := 0; i < 10; i++ {
 						block := Block{
 							Height: 0,
@@ -112,7 +112,7 @@ var _ = Describe("CommitBuilder", func() {
 
 			Context("when PreCommits are inserted at the same height and multiple rounds", func() {
 				It("should never return a Commit", func() {
-					builder := CommitBuilder{}
+					builder := NewCommitBuilder()
 					for i := 0; i < 10; i++ {
 						block := Block{
 							Height: 0,
@@ -140,7 +140,7 @@ var _ = Describe("CommitBuilder", func() {
 
 			Context("when PreCommits are inserted at multiple heights and the same round", func() {
 				It("should never return a Commit", func() {
-					builder := CommitBuilder{}
+					builder := NewCommitBuilder()
 					for i := 0; i < 10; i++ {
 						block := Block{
 							Height: Height(i),
@@ -168,7 +168,7 @@ var _ = Describe("CommitBuilder", func() {
 
 			Context("when PreCommits are inserted at multiple heights and multiple rounds", func() {
 				It("should never return a Commit", func() {
-					builder := CommitBuilder{}
+					builder := NewCommitBuilder()
 					height := Height(mathRand.Intn(100))
 					for i := 0; i < 10; i++ {
 						height = Height(mathRand.Intn(100))
@@ -201,7 +201,7 @@ var _ = Describe("CommitBuilder", func() {
 		Context("when the threshold of PreCommits is inserted at the same round", func() {
 			Context("when PreCommits are inserted for the same block", func() {
 				It("should always return a Commit for the same block", func() {
-					builder := CommitBuilder{}
+					builder := NewCommitBuilder()
 					height := Height(mathRand.Intn(10))
 					round := Round(mathRand.Intn(100))
 
@@ -237,7 +237,7 @@ var _ = Describe("CommitBuilder", func() {
 
 			Context("when PreCommits are inserted for different blocks", func() {
 				It("should return a Commit for a nil block", func() {
-					builder := CommitBuilder{}
+					builder := NewCommitBuilder()
 					height := Height(mathRand.Intn(10))
 					round := Round(mathRand.Intn(100))
 
@@ -271,7 +271,7 @@ var _ = Describe("CommitBuilder", func() {
 
 		Context("when the threshold of PreCommits is inserted at multiple rounds", func() {
 			It("should always return a Commit at the latest round", func() {
-				builder := CommitBuilder{}
+				builder := NewCommitBuilder()
 				for j := 0; j < 10; j++ {
 					for i := 0; i < 10; i++ {
 						block := Block{
@@ -325,7 +325,7 @@ var _ = Describe("CommitBuilder", func() {
 
 	Context("when Drop is called on a specific Height", func() {
 		It("should remove all SignedPreCommits below the given Height", func() {
-			builder := CommitBuilder{}
+			builder := NewCommitBuilder()
 			for j := 0; j < 10; j++ {
 				for i := 0; i < 10; i++ {
 					block := Block{Height: 1, Round: Round(i)}

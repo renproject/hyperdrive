@@ -16,7 +16,7 @@ var _ = Describe("PolkaBuilder", func() {
 		Context("when the pre-condition checks fails for Insert()", func() {
 			Context("when the height is different from the block's height", func() {
 				It("should panic", func() {
-					builder := PolkaBuilder{}
+					builder := NewPolkaBuilder()
 					block := Block{Height: 0, Round: 0}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
@@ -31,7 +31,7 @@ var _ = Describe("PolkaBuilder", func() {
 
 			Context("when the round is different from the block's round", func() {
 				It("should panic", func() {
-					builder := PolkaBuilder{}
+					builder := NewPolkaBuilder()
 					block := Block{Height: 0, Round: 0}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
@@ -48,14 +48,14 @@ var _ = Describe("PolkaBuilder", func() {
 		Context("when the pre-condition check fails for Polka()", func() {
 			Context("when the consensus threshold is less than 1", func() {
 				It("should panic", func() {
-					builder := PolkaBuilder{}
+					builder := NewPolkaBuilder()
 					Expect(func() { builder.Polka(0, 0) }).Should(Panic())
 				})
 			})
 
 			Context("when too few pre-votes have been received", func() {
 				It("should panic", func() {
-					builder := PolkaBuilder{}
+					builder := NewPolkaBuilder()
 					_, ok := builder.Polka(0, 11)
 					Expect(ok).To(BeFalse())
 				})
@@ -65,7 +65,7 @@ var _ = Describe("PolkaBuilder", func() {
 		Context("when less than the threshold of PreVotes is inserted", func() {
 			Context("when PreVotes are inserted at the same height and the same round", func() {
 				It("should never return a Polka", func() {
-					builder := PolkaBuilder{}
+					builder := NewPolkaBuilder()
 					for i := 0; i < 10; i++ {
 						block := Block{Height: 0, Round: 0}
 						signer, err := ecdsa.NewFromRandom()
@@ -84,7 +84,7 @@ var _ = Describe("PolkaBuilder", func() {
 
 			Context("when PreVotes are inserted at the same height and multiple rounds", func() {
 				It("should never return a Polka", func() {
-					builder := PolkaBuilder{}
+					builder := NewPolkaBuilder()
 					for i := 0; i < 10; i++ {
 						block := Block{Height: 0, Round: Round(i)}
 						signer, err := ecdsa.NewFromRandom()
@@ -103,7 +103,7 @@ var _ = Describe("PolkaBuilder", func() {
 
 			Context("when PreVotes are inserted at multiple heights and the same round", func() {
 				It("should never return a Polka", func() {
-					builder := PolkaBuilder{}
+					builder := NewPolkaBuilder()
 					for i := 0; i < 10; i++ {
 						block := Block{Height: Height(i), Round: 0}
 						signer, err := ecdsa.NewFromRandom()
@@ -122,7 +122,7 @@ var _ = Describe("PolkaBuilder", func() {
 
 			Context("when PreVotes are inserted at multiple heights and multiple rounds", func() {
 				It("should never return a Polka", func() {
-					builder := PolkaBuilder{}
+					builder := NewPolkaBuilder()
 					height := Height(mathRand.Intn(100))
 					for i := 0; i < 10; i++ {
 						height = Height(mathRand.Intn(100))
@@ -146,7 +146,7 @@ var _ = Describe("PolkaBuilder", func() {
 		Context("when the threshold of PreVotes is inserted at the same round", func() {
 			Context("when PreVotes are inserted for the same block", func() {
 				It("should always return a Polka for the same block", func() {
-					builder := PolkaBuilder{}
+					builder := NewPolkaBuilder()
 					height := Height(mathRand.Intn(10))
 					round := Round(mathRand.Intn(100))
 					block := Block{
@@ -172,7 +172,7 @@ var _ = Describe("PolkaBuilder", func() {
 
 			Context("when PreVotes are inserted for different blocks", func() {
 				It("should return a Polka for a nil block", func() {
-					builder := PolkaBuilder{}
+					builder := NewPolkaBuilder()
 					height := Height(mathRand.Intn(10))
 					round := Round(mathRand.Intn(100))
 
@@ -200,7 +200,7 @@ var _ = Describe("PolkaBuilder", func() {
 
 		Context("when the threshold of PreVotes is inserted at multiple rounds", func() {
 			It("should always return a Polka at the latest round", func() {
-				builder := PolkaBuilder{}
+				builder := NewPolkaBuilder()
 				for j := 0; j < 10; j++ {
 					for i := 0; i < 10; i++ {
 						block := Block{Height: 1, Round: Round(i)}
@@ -321,7 +321,7 @@ var _ = Describe("PolkaBuilder", func() {
 
 	Context("when Drop is called on a specific Height", func() {
 		It("should remove all SignedPreVotes below the given Height", func() {
-			builder := PolkaBuilder{}
+			builder := NewPolkaBuilder()
 			for j := 0; j < 10; j++ {
 				for i := 0; i < 10; i++ {
 					block := Block{Height: 1, Round: Round(i)}
