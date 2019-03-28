@@ -89,6 +89,12 @@ func (validator *validator) ValidatePreVote(preVote block.SignedPreVote) bool {
 		if !validator.ValidateBlock(*preVote.PreVote.Block) {
 			return false
 		}
+		if preVote.PreVote.Round != preVote.PreVote.Block.Round {
+			return false
+		}
+		if preVote.PreVote.Height != preVote.PreVote.Block.Height {
+			return false
+		}
 	}
 	if preVote.PreVote.Round < 0 || preVote.PreVote.Height < 0 {
 		return false
@@ -134,6 +140,12 @@ func (validator *validator) ValidatePolka(polka block.Polka) bool {
 	validator.verifySignatures(data, polka.Signatures, polka.Signatories)
 
 	if polka.Block != nil {
+		if polka.Round != polka.Block.Round {
+			return false
+		}
+		if polka.Height != polka.Block.Height {
+			return false
+		}
 		return validator.ValidateBlock(*polka.Block)
 	}
 
@@ -174,7 +186,10 @@ func (validator *validator) verifySignature(hash sig.Hash, signature sig.Signatu
 }
 
 func (validator *validator) verifySignatures(data []byte, signatures sig.Signatures, signatories sig.Signatories) bool {
-	if len(signatories) != len(signatures) || len(signatories) < validator.shard.ConsensusThreshold() {
+	if len(signatories) != len(signatures) {
+		return false
+	}
+	if len(signatories) < validator.shard.ConsensusThreshold() {
 		return false
 	}
 	hashSum256 := sha3.Sum256(data)
