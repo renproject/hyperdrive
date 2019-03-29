@@ -72,9 +72,6 @@ func (replica *replica) Transact(tx tx.Transaction) {
 }
 
 func (replica *replica) Transition(transition consensus.Transition) {
-	if !replica.isTransitionValid(transition) {
-		return
-	}
 	if replica.shouldDropTransition(transition) {
 		return
 	}
@@ -83,6 +80,10 @@ func (replica *replica) Transition(transition consensus.Transition) {
 		return
 	}
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.state.Height()) {
+		// TODO: is this where transitions should be validated?
+		if !replica.isTransitionValid(transition) {
+			return
+		}
 		nextState, action := replica.stateMachine.Transition(replica.state, transition)
 		replica.state = nextState
 		replica.transitionBuffer.Drop(replica.state.Height())
