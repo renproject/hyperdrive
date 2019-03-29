@@ -11,7 +11,7 @@ import (
 )
 
 type Dispatcher interface {
-	Dispatch(action consensus.Action)
+	Dispatch(shardHash sig.Hash, action consensus.Action)
 }
 
 type Replica interface {
@@ -121,7 +121,7 @@ func (replica *replica) dispatchAction(action consensus.Action) {
 	case consensus.Commit:
 		replica.handleCommit(action)
 	}
-	replica.dispatcher.Dispatch(action)
+	replica.dispatcher.Dispatch(replica.shard.Hash, action)
 }
 
 func (replica *replica) handlePreVote(preVote consensus.SignedPreVote) {
@@ -193,7 +193,7 @@ func (replica *replica) shouldProposeBlock() bool {
 
 func (replica *replica) generateSignedBlock() {
 	if replica.shouldProposeBlock() {
-		replica.dispatcher.Dispatch(consensus.Propose{
+		replica.dispatcher.Dispatch(replica.shard.Hash, consensus.Propose{
 			SignedBlock: replica.buildSignedBlock(),
 		})
 	}
