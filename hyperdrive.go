@@ -31,7 +31,7 @@ func NewDispatcher(shard shard.Shard) replica.Dispatcher {
 }
 
 // Dispatch `action` to the shard.
-func (d *Dispatcher) Dispatch(action consensus.Action) {
+func (d *Dispatcher) Dispatch(shardHash sig.Hash, action consensus.Action) {
 	// TODO:
 	// 1. Broadcast the action to the entire shard
 }
@@ -46,7 +46,8 @@ type Hyperdrive interface {
 }
 
 type hyperdrive struct {
-	signer sig.SignerVerifier
+	signer     sig.SignerVerifier
+	dispatcher replica.Dispatcher
 
 	shardReplicas map[sig.Hash]replica.Replica
 	shardHistory  []sig.Hash
@@ -55,9 +56,10 @@ type hyperdrive struct {
 }
 
 // New returns a Hyperdrive.
-func New(signer sig.SignerVerifier) Hyperdrive {
+func New(signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
 	return &hyperdrive{
-		signer: signer,
+		signer:     signer,
+		dispatcher: dispatcher,
 
 		shardReplicas: map[sig.Hash]replica.Replica{},
 		shardHistory:  []sig.Hash{},
@@ -106,7 +108,7 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Bl
 	}
 
 	r := replica.New(
-		NewDispatcher(shard),
+		hyperdrive.dispatcher,
 		hyperdrive.signer,
 		tx.FIFOPool(),
 		consensus.WaitForPropose(blockchain.Round(), blockchain.Height()),
