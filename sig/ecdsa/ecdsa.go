@@ -77,8 +77,7 @@ func (signerVerifier signerVerifier) Signatory() sig.Signatory {
 }
 
 // Verify implements the `sig.SignerVerifier` interface
-func (signerVerifier signerVerifier) Verify(hash sig.Hash,
-	signature sig.Signature) (sig.Signatory, error) {
+func (signerVerifier signerVerifier) Verify(hash sig.Hash, signature sig.Signature) (sig.Signatory, error) {
 	pubKey, err := crypto.SigToPub(hash[:], signature[:])
 	return PubKeyToSignatory(pubKey), err
 }

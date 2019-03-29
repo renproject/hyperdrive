@@ -7,6 +7,7 @@ import (
 
 	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/tx"
+	"golang.org/x/crypto/sha3"
 )
 
 // The Round in which a `Block` was proposed.
@@ -35,7 +36,8 @@ func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions)
 	}
 	// FIXME: At this point we should calculate the block header. It should be the SHA3 hash of the timestamp, round,
 	// height, parentHeader, and transactions.
-	block.Header = sig.Hash{}
+	hashSum256 := sha3.Sum256([]byte(block.String()))
+	copy(block.Header[:], hashSum256[:])
 	return block
 }
 
