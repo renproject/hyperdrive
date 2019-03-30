@@ -24,15 +24,15 @@ var _ = Describe("Hyperdrive", func() {
 
 	Context("when ", func() {
 		It("should ", func() {
-			ipChans := make([]chan Object, 5)
-			signatories := make(sig.Signatories, 5)
-			signers := make([]sig.SignerVerifier, 5)
-			// blockchains := make([]block.Blockchain, 5)
+			ipChans := make([]chan Object, 3)
+			signatories := make(sig.Signatories, 3)
+			signers := make([]sig.SignerVerifier, 3)
+			// blockchains := make([]block.Blockchain, 3)
 			pool := tx.FIFOPool()
 
 			var err error
 			var wg sync.WaitGroup
-			for i := 0; i < 5; i++ {
+			for i := 0; i < 3; i++ {
 				ipChans[i] = make(chan Object, 100)
 
 				signers[i], err = ecdsa.NewFromRandom()
@@ -45,7 +45,7 @@ var _ = Describe("Hyperdrive", func() {
 				BlockHeight: 1,
 				Signatories: signatories,
 			}
-			for i := 0; i < 5; i++ {
+			for i := 0; i < 3; i++ {
 				wg.Add(1)
 				// TODO: Done channel
 				go func(i int, signer sig.SignerVerifier) {
@@ -119,90 +119,39 @@ func (ShardObject) IsObject() {}
 
 func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVerifier, inputCh chan Object) {
 	h := New(signer, dispatcher)
-	shardsCh := make(chan ShardObject)
 
-	proposeCh := make(chan ActionObject)
-	preVoteCh := make(chan ActionObject)
-	preCommitCh := make(chan ActionObject)
-
-	acceptedShard := false
 	co.ParBegin(
-		func() {
-			for {
-				select {
-				case shard := <-shardsCh:
-					h.AcceptShard(shard.shard, shard.blockchain, shard.pool, shard.i)
-					acceptedShard = true
-				default:
-				}
-			}
-		},
-		func() {
-			for {
-				if acceptedShard {
-					select {
-					case propose := <-proposeCh:
-						deepCopy := propose.action.(consensus.Propose)
-						h.AcceptPropose(propose.shardHash, deepCopy.SignedBlock)
-					default:
-					}
-				}
-			}
-		},
-		func() {
-			for {
-				if acceptedShard {
-					select {
-					case preVote := <-preVoteCh:
-
-						temp := preVote.action.(consensus.SignedPreVote)
-
-						deepCopy := *temp.SignedPreVote.Block
-						copy := temp
-
-						copy.SignedPreVote.Block = &deepCopy
-
-						h.AcceptPreVote(preVote.shardHash, copy.SignedPreVote)
-					default:
-					}
-				}
-			}
-		},
-		func() {
-			for {
-				if acceptedShard {
-					select {
-					case preCommit := <-preCommitCh:
-						temp := preCommit.action.(consensus.SignedPreCommit)
-
-						deepCopy := *temp.SignedPreCommit.Polka.Block
-						copy := temp
-
-						copy.SignedPreCommit.Polka.Block = &deepCopy
-
-						h.AcceptPreCommit(preCommit.shardHash, copy.SignedPreCommit)
-					default:
-					}
-				}
-			}
-		},
 		func() {
 			for {
 				select {
 				case input := <-inputCh:
 					switch input := input.(type) {
 					case ShardObject:
-						select {
-						case shardsCh <- input:
-						}
+						h.AcceptShard(input.shard, input.blockchain, input.pool, input.i)
 					case ActionObject:
 						switch input.action.(type) {
 						case consensus.Propose:
-							proposeCh <- input
+							deepCopy := input.action.(consensus.Propose)
+							h.AcceptPropose(input.shardHash, deepCopy.SignedBlock)
 						case consensus.SignedPreVote:
-							preVoteCh <- input
+							temp := input.action.(consensus.SignedPreVote)
+
+							deepCopy := *temp.SignedPreVote.Block
+							copy := temp
+
+							copy.SignedPreVote.Block = &deepCopy
+
+							h.AcceptPreVote(input.shardHash, copy.SignedPreVote)
 						case consensus.SignedPreCommit:
-							preCommitCh <- input
+							temp := input.action.(consensus.SignedPreCommit)
+
+							deepCopy := *temp.SignedPreCommit.Polka.Block
+							copy := temp
+
+							copy.SignedPreCommit.Polka.Block = &deepCopy
+
+							h.AcceptPreCommit(input.shardHash, copy.SignedPreCommit)
+						default:
 						}
 					}
 				}
