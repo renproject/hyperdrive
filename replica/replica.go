@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -22,6 +23,7 @@ type Replica interface {
 }
 
 type replica struct {
+	i          int
 	dispatcher Dispatcher
 
 	signer           sig.Signer
@@ -30,21 +32,22 @@ type replica struct {
 	state            consensus.State
 	stateMachine     consensus.StateMachine
 	transitionBuffer consensus.TransitionBuffer
-	blockchain       block.Blockchain
+	blockchain       *block.Blockchain
 	shard            shard.Shard
 }
 
-func New(
+func New(index int,
 	dispatcher Dispatcher,
 	signer sig.SignerVerifier,
 	txPool tx.Pool,
 	state consensus.State,
 	stateMachine consensus.StateMachine,
 	transitionBuffer consensus.TransitionBuffer,
-	blockchain block.Blockchain,
+	blockchain *block.Blockchain,
 	shard shard.Shard,
 ) Replica {
 	replica := &replica{
+		i:          index,
 		dispatcher: dispatcher,
 
 		signer:           signer,
@@ -82,6 +85,7 @@ func (replica *replica) Transition(transition consensus.Transition) {
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.state.Height()) {
 		// TODO: is this where transitions should be validated?
 		if !replica.isTransitionValid(transition) {
+			fmt.Println("invalid")
 			return
 		}
 		nextState, action := replica.stateMachine.Transition(replica.state, transition)
@@ -97,6 +101,7 @@ func (replica *replica) dispatchAction(action consensus.Action) {
 	if action == nil {
 		return
 	}
+	var dispatchAction consensus.Action
 	switch action := action.(type) {
 	case consensus.PreVote:
 		signedPreVote, err := action.PreVote.Sign(replica.signer)
@@ -104,6 +109,9 @@ func (replica *replica) dispatchAction(action consensus.Action) {
 			// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
 			// least be some sane logging and recovery.
 			panic(err)
+		}
+		dispatchAction = consensus.SignedPreVote{
+			SignedPreVote: signedPreVote,
 		}
 		replica.handlePreVote(consensus.SignedPreVote{
 			SignedPreVote: signedPreVote,
@@ -115,13 +123,20 @@ func (replica *replica) dispatchAction(action consensus.Action) {
 			// least be some sane logging and recovery.
 			panic(err)
 		}
+		dispatchAction = consensus.SignedPreCommit{
+			SignedPreCommit: signedPreCommit,
+		}
 		replica.handlePreCommit(consensus.SignedPreCommit{
 			SignedPreCommit: signedPreCommit,
 		})
 	case consensus.Commit:
+		if replica.i == 0 {
+			fmt.Printf("got commit: %x Height: %d\n", action.Polka.Block.Header, action.Polka.Block.Height)
+		}
+		dispatchAction = action
 		replica.handleCommit(action)
 	}
-	replica.dispatcher.Dispatch(replica.shard.Hash, action)
+	replica.dispatcher.Dispatch(replica.shard.Hash, dispatchAction)
 }
 
 func (replica *replica) handlePreVote(preVote consensus.SignedPreVote) {

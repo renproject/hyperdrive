@@ -11,13 +11,15 @@ type StateMachine interface {
 }
 
 type stateMachine struct {
+	i                  int
 	polkaBuilder       block.PolkaBuilder
 	commitBuilder      block.CommitBuilder
 	consensusThreshold int
 }
 
-func NewStateMachine(polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, consensusThreshold int) StateMachine {
+func NewStateMachine(ind int, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, consensusThreshold int) StateMachine {
 	return &stateMachine{
+		i:                  ind,
 		polkaBuilder:       polkaBuilder,
 		commitBuilder:      commitBuilder,
 		consensusThreshold: consensusThreshold,
@@ -103,19 +105,19 @@ func (stateMachine *stateMachine) reducePreVoted(currentState State, preVoted Pr
 		return currentState, nil
 	}
 
-	stateMachine.polkaBuilder.Insert(preVoted.SignedPreVote)
-	if polka, ok := stateMachine.polkaBuilder.Polka(currentState.Height(), stateMachine.consensusThreshold); ok {
-		// Invariant check
-		if polka.Round < currentState.Round() {
-			panic(fmt.Errorf("expected polka round (%v) to be greater or equal to the current round (%v)", polka.Round, currentState.Round()))
-		}
-		return WaitForCommit(polka), PreCommit{
-			PreCommit: block.PreCommit{
-				Polka: polka,
-			},
+	if newPreVote := stateMachine.polkaBuilder.Insert(stateMachine.i, preVoted.SignedPreVote); newPreVote {
+		if polka, ok := stateMachine.polkaBuilder.Polka(currentState.Height(), stateMachine.consensusThreshold); ok {
+			// Invariant check
+			if polka.Round < currentState.Round() {
+				panic(fmt.Errorf("expected polka round (%v) to be greater or equal to the current round (%v)", polka.Round, currentState.Round()))
+			}
+			return WaitForCommit(polka), PreCommit{
+				PreCommit: block.PreCommit{
+					Polka: polka,
+				},
+			}
 		}
 	}
-
 	return WaitForPolka(currentState.Round(), currentState.Height()), PreVote{
 		PreVote: block.PreVote{
 			Block:  preVoted.Block,
@@ -133,17 +135,18 @@ func (stateMachine *stateMachine) reducePreCommitted(currentState State, preComm
 		return currentState, nil
 	}
 
-	stateMachine.commitBuilder.Insert(preCommitted.SignedPreCommit)
-	if commit, ok := stateMachine.commitBuilder.Commit(currentState.Height(), stateMachine.consensusThreshold); ok {
-		// Invariant check
-		if commit.Polka.Round < currentState.Round() {
-			panic(fmt.Errorf("expected commit round (%v) to be greater or equal to the current round (%v)", commit.Polka.Round, currentState.Round()))
-		}
-		if commit.Polka.Block == nil {
-			return WaitForPropose(commit.Polka.Round+1, currentState.Height()), nil
-		}
-		return WaitForPropose(commit.Polka.Round, currentState.Height()+1), Commit{
-			Commit: commit,
+	if newPreCommit := stateMachine.commitBuilder.Insert(preCommitted.SignedPreCommit); newPreCommit {
+		if commit, ok := stateMachine.commitBuilder.Commit(currentState.Height(), stateMachine.consensusThreshold); ok {
+			// Invariant check
+			if commit.Polka.Round < currentState.Round() {
+				panic(fmt.Errorf("expected commit round (%v) to be greater or equal to the current round (%v)", commit.Polka.Round, currentState.Round()))
+			}
+			if commit.Polka.Block == nil {
+				return WaitForPropose(commit.Polka.Round+1, currentState.Height()), nil
+			}
+			return WaitForPropose(commit.Polka.Round, currentState.Height()+1), Commit{
+				Commit: commit,
+			}
 		}
 	}
 

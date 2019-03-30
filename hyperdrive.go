@@ -1,6 +1,7 @@
 package hyperdrive
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -18,31 +19,13 @@ const NumHistoricalShards = 3
 // triggering a TimedOut  transition.
 const NumTicksToTriggerTimeOut = 2
 
-// Dispatcher is responsible for verifying and forwarding `Action`s to shards.
-type Dispatcher struct {
-	shard shard.Shard
-}
-
-// NewDispatcher returns a Dispatcher for the given `shard`.
-func NewDispatcher(shard shard.Shard) replica.Dispatcher {
-	return &Dispatcher{
-		shard: shard,
-	}
-}
-
-// Dispatch `action` to the shard.
-func (d *Dispatcher) Dispatch(shardHash sig.Hash, action consensus.Action) {
-	// TODO:
-	// 1. Broadcast the action to the entire shard
-}
-
 // Hyperdrive accepts blocks and ticks and sends relevant Transitions to the respective replica.
 type Hyperdrive interface {
 	AcceptTick(t time.Time)
 	AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock)
 	AcceptPreVote(shardHash sig.Hash, preVote block.SignedPreVote)
 	AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit)
-	AcceptShard(shard shard.Shard, blockchain block.Blockchain)
+	AcceptShard(shard shard.Shard, blockchain block.Blockchain, pool tx.Pool, i int)
 }
 
 type hyperdrive struct {
@@ -102,19 +85,20 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 	}
 }
 
-func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Blockchain) {
+func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Blockchain, txPool tx.Pool, index int) {
 	if _, ok := hyperdrive.shardReplicas[shard.Hash]; ok {
 		return
 	}
 
 	r := replica.New(
+		index,
 		hyperdrive.dispatcher,
 		hyperdrive.signer,
 		tx.FIFOPool(),
 		consensus.WaitForPropose(blockchain.Round(), blockchain.Height()),
-		consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), shard.ConsensusThreshold()),
+		consensus.NewStateMachine(index, block.NewPolkaBuilder(), block.NewCommitBuilder(), shard.ConsensusThreshold()),
 		consensus.NewTransitionBuffer(shard.Size()),
-		blockchain,
+		&blockchain,
 		shard,
 	)
 
@@ -125,5 +109,6 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Bl
 		hyperdrive.shardHistory = hyperdrive.shardHistory[1:]
 	}
 
+	fmt.Println("init replica", index)
 	r.Init()
 }

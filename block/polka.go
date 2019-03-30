@@ -107,7 +107,7 @@ func NewPolkaBuilder() PolkaBuilder {
 
 // Insert a SignedPreVote into the PolkaBuilder. This will include the SignedPreVote in all attempts to build a Polka
 // for the respective Height.
-func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
+func (builder PolkaBuilder) Insert(i int, preVote SignedPreVote) bool {
 	// Pre-condition check
 	if preVote.Block != nil {
 		if preVote.Block.Height != preVote.Height {
@@ -125,8 +125,16 @@ func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
 		builder[preVote.Height][preVote.Round] = map[sig.Signatory]SignedPreVote{}
 	}
 	if _, ok := builder[preVote.Height][preVote.Round][preVote.Signatory]; !ok {
+		if i == 0 {
+			fmt.Println(i, "inserting new sig")
+		}
 		builder[preVote.Height][preVote.Round][preVote.Signatory] = preVote
+		if i == 0 {
+			fmt.Println(i, preVote.Height, preVote.Round, len(builder[preVote.Height][preVote.Round]))
+		}
+		return true
 	}
+	return false
 }
 
 // Polka returns a Polka for the given Height in the latest Round.
@@ -152,7 +160,6 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 		if len(preVotes) < consensusThreshold {
 			continue
 		}
-
 		// Build a mapping of the pre-votes for each block
 		preVotesForBlock := map[sig.Hash]int{}
 		for _, preVote := range preVotes {
@@ -245,11 +252,13 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 			panic(fmt.Errorf("expected the polka height (%v) to equal %v", polka.Height, height))
 		}
 	}
+	// fmt.Println(polkaFound)
 	return polka, polkaFound
 }
 
 // Drop removes all SignedPreVotes below the given Height.
 func (builder PolkaBuilder) Drop(dropHeight Height) {
+	fmt.Println("dropping")
 	for height := range builder {
 		if height < dropHeight {
 			delete(builder, height)

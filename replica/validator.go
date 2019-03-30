@@ -1,11 +1,12 @@
 package replica
 
 import (
+	"time"
+
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
 	"golang.org/x/crypto/sha3"
-	"time"
 )
 
 // Validator is responsible for handling validation of blocks.
@@ -43,11 +44,11 @@ type Validator interface {
 type validator struct {
 	signer     sig.Verifier
 	shard      shard.Shard
-	blockchain block.Blockchain
+	blockchain *block.Blockchain
 }
 
 // NewValidator returns a Validator
-func NewValidator(signer sig.Verifier, shard shard.Shard, blockchain block.Blockchain) Validator {
+func NewValidator(signer sig.Verifier, shard shard.Shard, blockchain *block.Blockchain) Validator {
 	return &validator{signer, shard, blockchain}
 }
 

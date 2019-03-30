@@ -2,7 +2,6 @@ package replica_test
 
 import (
 	"fmt"
-	"github.com/renproject/hyperdrive/testutils"
 	"reflect"
 
 	"github.com/renproject/hyperdrive"
@@ -11,6 +10,7 @@ import (
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/sig/ecdsa"
+	"github.com/renproject/hyperdrive/testutils"
 	"github.com/renproject/hyperdrive/tx"
 
 	. "github.com/onsi/ginkgo"
@@ -63,22 +63,23 @@ var _ = Describe("Replica", func() {
 
 	Context("when new Transitions are sent", func() {
 
-		testCases := generateTestCases()
+		signer, _ := ecdsa.NewFromRandom()
+		participant1, _ := ecdsa.NewFromRandom()
+		participant2, _ := ecdsa.NewFromRandom()
+		testCases := generateTestCases(signer, participant1, participant2)
 		for _, t := range testCases {
 			t := t
 
-			Context(fmt.Sprintf("when replica starts with intial state - %s", reflect.TypeOf(t.startingState).Name()), func() {
+			FContext(fmt.Sprintf("when replica starts with intial state - %s", reflect.TypeOf(t.startingState).Name()), func() {
 				It(fmt.Sprintf("should arrive at %s", reflect.TypeOf(t.finalState).Name()), func() {
 
 					transitionBuffer := consensus.NewTransitionBuffer(128)
 					pool := tx.FIFOPool()
-					signer, err := ecdsa.NewFromRandom()
-					Expect(err).ShouldNot(HaveOccurred())
 					shard := shard.Shard{
 						Hash:        sig.Hash{},
 						BlockHeader: sig.Hash{},
 						BlockHeight: 0,
-						Signatories: sig.Signatories{signer.Signatory()},
+						Signatories: sig.Signatories{signer.Signatory(), participant1.Signatory(), participant2.Signatory()},
 					}
 					stateMachine := consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
 
@@ -102,9 +103,17 @@ type TestCase struct {
 	transitions []consensus.Transition
 }
 
-func generateTestCases() []TestCase {
-	futureBlockHeader := testutils.RandomHash()
-	blockHeader := testutils.RandomHash()
+func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
+	// futureBlockHeader := testutils.RandomHash()
+	// signedFutureBlock := signBlock(block.Block{
+	// 	Height: 2,
+	// 	Header: futureBlockHeader,
+	// }, signer)
+	// blockHeader := testutils.RandomHash()
+	// signedBlock := signBlock(block.Block{
+	// 	Height: 1,
+	// 	Header: blockHeader,
+	// }, signer)
 
 	return []TestCase{
 		{
@@ -189,7 +198,7 @@ func generateTestCases() []TestCase {
 			},
 		},
 
-		{
+		/*{
 			consensusThreshold: 2,
 
 			startingState: consensus.WaitForPropose(0, 1),
@@ -197,12 +206,7 @@ func generateTestCases() []TestCase {
 
 			transitions: []consensus.Transition{
 				consensus.Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{
-							Height: 2,
-							Header: futureBlockHeader,
-						},
-					},
+					SignedBlock: signedFutureBlock,
 				},
 				consensus.PreVoted{
 					SignedPreVote: block.SignedPreVote{
@@ -255,12 +259,7 @@ func generateTestCases() []TestCase {
 					SignedPreCommit: block.SignedPreCommit{
 						PreCommit: block.PreCommit{
 							Polka: block.Polka{
-								Block: &block.SignedBlock{
-									Block: block.Block{
-										Height: 2,
-										Header: futureBlockHeader,
-									},
-								},
+								Block:  &signedFutureBlock,
 								Height: 2,
 							},
 						},
@@ -269,22 +268,12 @@ func generateTestCases() []TestCase {
 					},
 				},
 				consensus.Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{
-							Height: 1,
-							Header: blockHeader,
-						},
-					},
+					SignedBlock: signedBlock,
 				},
 				consensus.PreVoted{
 					SignedPreVote: block.SignedPreVote{
 						PreVote: block.PreVote{
-							Block: &block.SignedBlock{
-								Block: block.Block{
-									Height: 1,
-									Header: blockHeader,
-								},
-							},
+							Block:  &signedBlock,
 							Height: 1,
 						},
 						Signatory: testutils.RandomSignatory(),
@@ -294,12 +283,7 @@ func generateTestCases() []TestCase {
 				consensus.PreVoted{
 					SignedPreVote: block.SignedPreVote{
 						PreVote: block.PreVote{
-							Block: &block.SignedBlock{
-								Block: block.Block{
-									Height: 1,
-									Header: blockHeader,
-								},
-							},
+							Block:  &signedBlock,
 							Height: 1,
 						},
 						Signatory: testutils.RandomSignatory(),
@@ -310,12 +294,7 @@ func generateTestCases() []TestCase {
 					SignedPreCommit: block.SignedPreCommit{
 						PreCommit: block.PreCommit{
 							Polka: block.Polka{
-								Block: &block.SignedBlock{
-									Block: block.Block{
-										Height: 1,
-										Header: blockHeader,
-									},
-								},
+								Block:  &signedBlock,
 								Height: 1,
 							},
 						},
@@ -327,12 +306,7 @@ func generateTestCases() []TestCase {
 					SignedPreCommit: block.SignedPreCommit{
 						PreCommit: block.PreCommit{
 							Polka: block.Polka{
-								Block: &block.SignedBlock{
-									Block: block.Block{
-										Height: 1,
-										Header: blockHeader,
-									},
-								},
+								Block:  &signedBlock,
 								Height: 1,
 							},
 						},
@@ -341,6 +315,16 @@ func generateTestCases() []TestCase {
 					},
 				},
 			},
-		},
+		},*/
 	}
 }
+
+func signBlock(blk block.Block, signer sig.SignerVerifier) block.SignedBlock {
+	signedBlock, _ := blk.Sign(signer)
+	return signedBlock
+}
+
+// func signPreVote(blk block.PreVote, signer sig.SignerVerifier) block.SignedBlock {
+// 	signedBlock, _ := blk.Sign(signer)
+// 	return signedBlock
+// }

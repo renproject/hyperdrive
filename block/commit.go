@@ -61,7 +61,7 @@ func NewCommitBuilder() CommitBuilder {
 
 // Insert a SignedPreCommit into the CommitBuilder. This will include the SignedPreCommit in all attempts to build a
 // Commit for the respective Height.
-func (builder CommitBuilder) Insert(preCommit SignedPreCommit) {
+func (builder CommitBuilder) Insert(preCommit SignedPreCommit) bool {
 	// Pre-condition check
 	if preCommit.Polka.Block != nil {
 		if preCommit.Polka.Block.Height != preCommit.Polka.Height {
@@ -80,7 +80,9 @@ func (builder CommitBuilder) Insert(preCommit SignedPreCommit) {
 	}
 	if _, ok := builder[preCommit.Polka.Height][preCommit.Polka.Round][preCommit.Signatory]; !ok {
 		builder[preCommit.Polka.Height][preCommit.Polka.Round][preCommit.Signatory] = preCommit
+		return true
 	}
+	return false
 }
 
 func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (Commit, bool) {
