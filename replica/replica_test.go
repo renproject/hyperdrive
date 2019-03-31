@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/renproject/hyperdrive"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/consensus"
 	"github.com/renproject/hyperdrive/shard"
@@ -33,8 +32,9 @@ var _ = Describe("Replica", func() {
 				Signatories: sig.Signatories{signer.Signatory()},
 			}
 			stateMachine := consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), 1)
+			blockchain := block.NewBlockchain()
 
-			replica := New(hyperdrive.NewDispatcher(shard), signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, block.NewBlockchain(), shard)
+			replica := New(testutils.NewMockDispatcher(), signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, &blockchain, shard)
 			Expect(func() { replica.Init() }).ToNot(Panic())
 		})
 	})
@@ -52,8 +52,9 @@ var _ = Describe("Replica", func() {
 				Signatories: sig.Signatories{signer.Signatory()},
 			}
 			stateMachine := consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), 1)
+			blockchain := block.NewBlockchain()
 
-			replica := New(hyperdrive.NewDispatcher(shard), signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, block.NewBlockchain(), shard)
+			replica := New(testutils.NewMockDispatcher(), signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, &blockchain, shard)
 			replica.Transact(tx.Transaction{})
 			transaction, ok := pool.Dequeue()
 			Expect(ok).To(BeTrue())
@@ -82,8 +83,9 @@ var _ = Describe("Replica", func() {
 						Signatories: sig.Signatories{signer.Signatory(), participant1.Signatory(), participant2.Signatory()},
 					}
 					stateMachine := consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
+					blockchain := block.NewBlockchain()
 
-					replica := New(hyperdrive.NewDispatcher(shard), signer, pool, t.startingState, stateMachine, transitionBuffer, block.NewBlockchain(), shard)
+					replica := New(testutils.NewMockDispatcher(), signer, pool, t.startingState, stateMachine, transitionBuffer, &blockchain, shard)
 					for _, transition := range t.transitions {
 						replica.Transition(transition)
 					}

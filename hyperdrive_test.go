@@ -31,6 +31,8 @@ var _ = Describe("Hyperdrive", func() {
 			// blockchains := make([]block.Blockchain, 5)
 			pool := tx.FIFOPool()
 
+			done := make(chan struct{})
+
 			var err error
 			var wg sync.WaitGroup
 			for i := 0; i < 5; i++ {
@@ -48,13 +50,12 @@ var _ = Describe("Hyperdrive", func() {
 			}
 			for i := 0; i < 5; i++ {
 				wg.Add(1)
-				// TODO: Done channel
 				go func(i int, signer sig.SignerVerifier) {
 					defer wg.Done()
 					// participants := append(ipChans[:i], ipChans[i+1:]...)
 					dispatcher := NewMockDispatcher(i, ipChans)
 
-					runHyperdrive(i, dispatcher, signer, ipChans[i])
+					runHyperdrive(i, dispatcher, signer, ipChans[i], done)
 				}(i, signers[i])
 
 			}
@@ -67,6 +68,11 @@ var _ = Describe("Hyperdrive", func() {
 				case ipChans[i] <- ShardObject{shard, blockchain, pool}:
 				}
 			}
+
+			go func() {
+				time.Sleep(10 * time.Second)
+				close(done)
+			}()
 
 			wg.Wait()
 		})
@@ -117,7 +123,7 @@ type ShardObject struct {
 
 func (ShardObject) IsObject() {}
 
-func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVerifier, inputCh chan Object) {
+func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVerifier, inputCh chan Object, done chan struct{}) {
 	h := New(signer, dispatcher)
 
 	currentHeight := block.Height(-1)
@@ -126,6 +132,8 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 		func() {
 			for {
 				select {
+				case <-done:
+					return
 				case input := <-inputCh:
 					switch input := input.(type) {
 					case ShardObject:
