@@ -85,7 +85,6 @@ func (replica *replica) Transition(transition consensus.Transition) {
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.state.Height()) {
 		// TODO: is this where transitions should be validated?
 		if !replica.isTransitionValid(transition) {
-			fmt.Println("invalid")
 			return
 		}
 		nextState, action := replica.stateMachine.Transition(replica.state, transition)
