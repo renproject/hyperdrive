@@ -1,7 +1,6 @@
 package replica
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -23,7 +22,6 @@ type Replica interface {
 }
 
 type replica struct {
-	i          int
 	dispatcher Dispatcher
 
 	signer           sig.Signer
@@ -36,8 +34,7 @@ type replica struct {
 	shard            shard.Shard
 }
 
-func New(index int,
-	dispatcher Dispatcher,
+func New(dispatcher Dispatcher,
 	signer sig.SignerVerifier,
 	txPool tx.Pool,
 	state consensus.State,
@@ -47,7 +44,6 @@ func New(index int,
 	shard shard.Shard,
 ) Replica {
 	replica := &replica{
-		i:          index,
 		dispatcher: dispatcher,
 
 		signer:           signer,
@@ -131,9 +127,6 @@ func (replica *replica) dispatchAction(action consensus.Action) {
 			SignedPreCommit: signedPreCommit,
 		})
 	case consensus.Commit:
-		if replica.i == 0 {
-			fmt.Printf("got commit: %x Height: %d\n", action.Polka.Block.Header, action.Polka.Block.Height)
-		}
 		dispatchAction = action
 		replica.handleCommit(action)
 	}

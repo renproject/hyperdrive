@@ -25,15 +25,15 @@ var _ = Describe("Hyperdrive", func() {
 
 	Context("when ", func() {
 		It("should ", func() {
-			ipChans := make([]chan Object, 5)
-			signatories := make(sig.Signatories, 5)
-			signers := make([]sig.SignerVerifier, 5)
-			// blockchains := make([]block.Blockchain, 5)
+			ipChans := make([]chan Object, 7)
+			signatories := make(sig.Signatories, 7)
+			signers := make([]sig.SignerVerifier, 7)
+			// blockchains := make([]block.Blockchain, 7)
 			pool := tx.FIFOPool()
 
 			var err error
 			var wg sync.WaitGroup
-			for i := 0; i < 5; i++ {
+			for i := 0; i < 7; i++ {
 				ipChans[i] = make(chan Object, 100)
 
 				signers[i], err = ecdsa.NewFromRandom()
@@ -46,7 +46,7 @@ var _ = Describe("Hyperdrive", func() {
 				BlockHeight: 1,
 				Signatories: signatories,
 			}
-			for i := 0; i < 5; i++ {
+			for i := 0; i < 7; i++ {
 				wg.Add(1)
 				// TODO: Done channel
 				go func(i int, signer sig.SignerVerifier) {
@@ -64,7 +64,7 @@ var _ = Describe("Hyperdrive", func() {
 
 				blockchain := block.NewBlockchain()
 				select {
-				case ipChans[i] <- ShardObject{shard, blockchain, pool, i}:
+				case ipChans[i] <- ShardObject{shard, blockchain, pool}:
 				}
 			}
 
@@ -113,7 +113,6 @@ type ShardObject struct {
 	shard      shard.Shard
 	blockchain block.Blockchain
 	pool       tx.Pool
-	i          int
 }
 
 func (ShardObject) IsObject() {}
@@ -130,7 +129,7 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 				case input := <-inputCh:
 					switch input := input.(type) {
 					case ShardObject:
-						h.AcceptShard(input.shard, input.blockchain, input.pool, input.i)
+						h.AcceptShard(input.shard, input.blockchain, input.pool)
 					case ActionObject:
 						switch input.action.(type) {
 						case consensus.Propose:

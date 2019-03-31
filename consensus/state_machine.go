@@ -11,15 +11,13 @@ type StateMachine interface {
 }
 
 type stateMachine struct {
-	i                  int
 	polkaBuilder       block.PolkaBuilder
 	commitBuilder      block.CommitBuilder
 	consensusThreshold int
 }
 
-func NewStateMachine(ind int, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, consensusThreshold int) StateMachine {
+func NewStateMachine(polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, consensusThreshold int) StateMachine {
 	return &stateMachine{
-		i:                  ind,
 		polkaBuilder:       polkaBuilder,
 		commitBuilder:      commitBuilder,
 		consensusThreshold: consensusThreshold,
@@ -105,7 +103,7 @@ func (stateMachine *stateMachine) reducePreVoted(currentState State, preVoted Pr
 		return currentState, nil
 	}
 
-	if newPreVote := stateMachine.polkaBuilder.Insert(stateMachine.i, preVoted.SignedPreVote); newPreVote {
+	if newPreVote := stateMachine.polkaBuilder.Insert(preVoted.SignedPreVote); newPreVote {
 		if polka, ok := stateMachine.polkaBuilder.Polka(currentState.Height(), stateMachine.consensusThreshold); ok {
 			// Invariant check
 			if polka.Round < currentState.Round() {
