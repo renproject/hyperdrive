@@ -154,6 +154,7 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 		if len(preVotes) < consensusThreshold {
 			continue
 		}
+
 		// Build a mapping of the pre-votes for each block
 		preVotesForBlock := map[sig.Hash]int{}
 		for _, preVote := range preVotes {
