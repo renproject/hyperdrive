@@ -117,14 +117,16 @@ func (stateMachine *stateMachine) reducePreVoted(currentState State, preVoted Pr
 				},
 			}
 		}
+		return WaitForPolka(currentState.Round(), currentState.Height()), PreVote{
+			PreVote: block.PreVote{
+				Block:  preVoted.Block,
+				Round:  preVoted.Round,
+				Height: preVoted.Height,
+			},
+		}
 	}
-	return WaitForPolka(currentState.Round(), currentState.Height()), PreVote{
-		PreVote: block.PreVote{
-			Block:  preVoted.Block,
-			Round:  preVoted.Round,
-			Height: preVoted.Height,
-		},
-	}
+	return currentState, nil
+
 }
 
 func (stateMachine *stateMachine) reducePreCommitted(currentState State, preCommitted PreCommitted) (State, Action) {
@@ -148,11 +150,11 @@ func (stateMachine *stateMachine) reducePreCommitted(currentState State, preComm
 				Commit: commit,
 			}
 		}
+		return WaitForCommit(preCommitted.Polka), PreCommit{
+			PreCommit: block.PreCommit{
+				Polka: preCommitted.Polka,
+			},
+		}
 	}
-
-	return WaitForCommit(preCommitted.Polka), PreCommit{
-		PreCommit: block.PreCommit{
-			Polka: preCommitted.Polka,
-		},
-	}
+	return currentState, nil
 }

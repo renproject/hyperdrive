@@ -88,11 +88,13 @@ func (replica *replica) Transition(transition consensus.Transition) {
 			return
 		}
 		nextState, action := replica.stateMachine.Transition(replica.state, transition)
-		replica.state = nextState
-		replica.transitionBuffer.Drop(replica.state.Height())
-		// It is important that the Action is dispatched after the State has been completely transitioned in the
-		// Replica. Otherwise, re-entrance into the Replica may cause issues.
-		replica.dispatchAction(action)
+		if action != nil {
+			replica.state = nextState
+			replica.transitionBuffer.Drop(replica.state.Height())
+			// It is important that the Action is dispatched after the State has been completely transitioned in the
+			// Replica. Otherwise, re-entrance into the Replica may cause issues.
+			replica.dispatchAction(action)
+		}
 	}
 }
 
