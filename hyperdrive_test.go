@@ -59,7 +59,6 @@ var _ = Describe("Hyperdrive", func() {
 				}(i, signers[i])
 
 			}
-			time.Sleep(5 * time.Second)
 
 			for i := range ipChans {
 
@@ -70,7 +69,7 @@ var _ = Describe("Hyperdrive", func() {
 			}
 
 			go func() {
-				time.Sleep(10 * time.Second)
+				time.Sleep(4 * time.Second)
 				close(done)
 			}()
 
