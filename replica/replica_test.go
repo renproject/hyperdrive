@@ -2,7 +2,6 @@ package replica_test
 
 import (
 	"fmt"
-	"github.com/renproject/hyperdrive/testutils"
 	"reflect"
 
 	"github.com/renproject/hyperdrive"
@@ -11,6 +10,7 @@ import (
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/sig/ecdsa"
+	"github.com/renproject/hyperdrive/testutils"
 	"github.com/renproject/hyperdrive/tx"
 
 	. "github.com/onsi/ginkgo"
@@ -63,7 +63,10 @@ var _ = Describe("Replica", func() {
 
 	Context("when new Transitions are sent", func() {
 
-		testCases := generateTestCases()
+		signer, _ := ecdsa.NewFromRandom()
+		p1, _ := ecdsa.NewFromRandom()
+		p2, _ := ecdsa.NewFromRandom()
+		testCases := generateTestCases(signer, p1, p2)
 		for _, t := range testCases {
 			t := t
 
@@ -72,13 +75,11 @@ var _ = Describe("Replica", func() {
 
 					transitionBuffer := consensus.NewTransitionBuffer(128)
 					pool := tx.FIFOPool()
-					signer, err := ecdsa.NewFromRandom()
-					Expect(err).ShouldNot(HaveOccurred())
 					shard := shard.Shard{
 						Hash:        sig.Hash{},
 						BlockHeader: sig.Hash{},
 						BlockHeight: 0,
-						Signatories: sig.Signatories{signer.Signatory()},
+						Signatories: sig.Signatories{signer.Signatory(), p1.Signatory(), p2.Signatory()},
 					}
 					stateMachine := consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
 
@@ -102,9 +103,15 @@ type TestCase struct {
 	transitions []consensus.Transition
 }
 
-func generateTestCases() []TestCase {
-	futureBlockHeader := testutils.RandomHash()
-	blockHeader := testutils.RandomHash()
+func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
+	signedFutureBlock := signBlock(block.Block{
+		Height: 2,
+		Header: testutils.RandomHash(),
+	}, signer)
+	signedBlock := signBlock(block.Block{
+		Height: 1,
+		Header: testutils.RandomHash(),
+	}, signer)
 
 	return []TestCase{
 		{
@@ -197,150 +204,70 @@ func generateTestCases() []TestCase {
 
 			transitions: []consensus.Transition{
 				consensus.Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{
-							Height: 2,
-							Header: futureBlockHeader,
-						},
-					},
+					SignedBlock: signedFutureBlock,
 				},
 				consensus.PreVoted{
-					SignedPreVote: block.SignedPreVote{
-						PreVote: block.PreVote{
-							Block: &block.SignedBlock{
-								Block: block.Block{
-									Height: 2,
-									Header: futureBlockHeader,
-								},
-							},
-							Height: 2,
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
+					SignedPreVote: generateSignedPreVote(signedFutureBlock, p1),
 				},
 				consensus.PreVoted{
-					SignedPreVote: block.SignedPreVote{
-						PreVote: block.PreVote{
-							Block: &block.SignedBlock{
-								Block: block.Block{
-									Height: 2,
-									Header: futureBlockHeader,
-								},
-							},
-							Height: 2,
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
+					SignedPreVote: generateSignedPreVote(signedFutureBlock, p2),
 				},
 				consensus.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Block: &block.SignedBlock{
-									Block: block.Block{
-										Height: 2,
-										Header: futureBlockHeader,
-									},
-								},
-								Height: 2,
-							},
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
+					SignedPreCommit: generateSignedPreCommit(signedFutureBlock, p1, p1, p2),
 				},
 				consensus.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Block: &block.SignedBlock{
-									Block: block.Block{
-										Height: 2,
-										Header: futureBlockHeader,
-									},
-								},
-								Height: 2,
-							},
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
+					SignedPreCommit: generateSignedPreCommit(signedFutureBlock, p2, p1, p2),
 				},
 				consensus.Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{
-							Height: 1,
-							Header: blockHeader,
-						},
-					},
+					SignedBlock: signedBlock,
 				},
 				consensus.PreVoted{
-					SignedPreVote: block.SignedPreVote{
-						PreVote: block.PreVote{
-							Block: &block.SignedBlock{
-								Block: block.Block{
-									Height: 1,
-									Header: blockHeader,
-								},
-							},
-							Height: 1,
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
+					SignedPreVote: generateSignedPreVote(signedBlock, p1),
 				},
 				consensus.PreVoted{
-					SignedPreVote: block.SignedPreVote{
-						PreVote: block.PreVote{
-							Block: &block.SignedBlock{
-								Block: block.Block{
-									Height: 1,
-									Header: blockHeader,
-								},
-							},
-							Height: 1,
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
+					SignedPreVote: generateSignedPreVote(signedBlock, p2),
 				},
 				consensus.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Block: &block.SignedBlock{
-									Block: block.Block{
-										Height: 1,
-										Header: blockHeader,
-									},
-								},
-								Height: 1,
-							},
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
+					SignedPreCommit: generateSignedPreCommit(signedBlock, p1, p1, p2),
 				},
 				consensus.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Block: &block.SignedBlock{
-									Block: block.Block{
-										Height: 1,
-										Header: blockHeader,
-									},
-								},
-								Height: 1,
-							},
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
+					SignedPreCommit: generateSignedPreCommit(signedBlock, p2, p1, p2),
 				},
 			},
 		},
 	}
+}
+
+func signBlock(blk block.Block, signer sig.SignerVerifier) block.SignedBlock {
+	signedBlock, _ := blk.Sign(signer)
+	return signedBlock
+}
+
+func generateSignedPreVote(signedBlock block.SignedBlock, signer sig.SignerVerifier) block.SignedPreVote {
+	preVote := block.PreVote{
+		Block:  &signedBlock,
+		Height: signedBlock.Height,
+	}
+	signedPreVote, _ := preVote.Sign(signer)
+	return signedPreVote
+}
+
+func generateSignedPreCommit(signedBlock block.SignedBlock, signer, p1, p2 sig.SignerVerifier) block.SignedPreCommit {
+	signedPreVote1 := generateSignedPreVote(signedBlock, p1)
+	signedPreVote2 := generateSignedPreVote(signedBlock, p2)
+
+	signatures := []sig.Signature{signedPreVote1.Signature, signedPreVote2.Signature}
+	signatories := []sig.Signatory{signedPreVote1.Signatory, signedPreVote2.Signatory}
+
+	preCommit := block.PreCommit{
+		Polka: block.Polka{
+			Block:       &signedBlock,
+			Height:      signedBlock.Height,
+			Signatures:  signatures,
+			Signatories: signatories,
+		},
+	}
+
+	signedPreCommit, _ := preCommit.Sign(signer)
+	return signedPreCommit
 }
