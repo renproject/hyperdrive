@@ -34,15 +34,7 @@ type replica struct {
 	shard            shard.Shard
 }
 
-func New(dispatcher Dispatcher,
-	signer sig.SignerVerifier,
-	txPool tx.Pool,
-	state consensus.State,
-	stateMachine consensus.StateMachine,
-	transitionBuffer consensus.TransitionBuffer,
-	blockchain *block.Blockchain,
-	shard shard.Shard,
-) Replica {
+func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state consensus.State, stateMachine consensus.StateMachine, transitionBuffer consensus.TransitionBuffer, blockchain *block.Blockchain, shard shard.Shard) Replica {
 	replica := &replica{
 		dispatcher: dispatcher,
 
