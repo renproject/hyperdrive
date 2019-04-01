@@ -103,7 +103,7 @@ var _ = Describe("CommitBuilder", func() {
 						}
 						signedPreCommit, err := precommit.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreCommit)
+						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
 					_, ok := builder.Commit(0, 11)
 					Expect(ok).To(BeFalse())
@@ -131,7 +131,7 @@ var _ = Describe("CommitBuilder", func() {
 						}
 						signedPreCommit, err := precommit.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreCommit)
+						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
 					_, ok := builder.Commit(0, 9)
 					Expect(ok).To(BeFalse())
@@ -159,10 +159,39 @@ var _ = Describe("CommitBuilder", func() {
 						}
 						signedPreCommit, err := precommit.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreCommit)
+						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
 					_, ok := builder.Commit(0, 9)
 					Expect(ok).To(BeFalse())
+				})
+			})
+
+			Context("when PreCommits with the same signature are added multiple times", func() {
+				It("should never return a Commit", func() {
+					builder := NewCommitBuilder()
+					height := Height(mathRand.Intn(100))
+					height = Height(mathRand.Intn(100))
+					round := Round(mathRand.Intn(100))
+					block := Block{
+						Height: height,
+						Round:  round,
+					}
+					signer, err := ecdsa.NewFromRandom()
+					Expect(err).ShouldNot(HaveOccurred())
+					signedBlock, err := block.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
+					precommit := PreCommit{
+						Polka: Polka{
+							Block:  &signedBlock,
+							Height: height,
+							Round:  round,
+						},
+					}
+					signedPreCommit, err := precommit.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
+					Expect(builder.Insert(signedPreCommit)).To(BeTrue())
+					Expect(builder.Insert(signedPreCommit)).To(BeFalse())
+
 				})
 			})
 
@@ -190,7 +219,7 @@ var _ = Describe("CommitBuilder", func() {
 						}
 						signedPreCommit, err := precommit.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreCommit)
+						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
 					_, ok := builder.Commit(height, 9)
 					Expect(ok).To(BeFalse())
@@ -227,7 +256,7 @@ var _ = Describe("CommitBuilder", func() {
 						Expect(err).ShouldNot(HaveOccurred())
 						signedPreCommit, err := precommit.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreCommit)
+						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
 					commit, ok := builder.Commit(height, 9)
 					Expect(ok).To(BeTrue())
@@ -260,7 +289,7 @@ var _ = Describe("CommitBuilder", func() {
 						}
 						signedPreCommit, err := precommit.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreCommit)
+						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
 					commit, ok := builder.Commit(height, 9)
 					Expect(ok).To(BeTrue())
@@ -291,7 +320,7 @@ var _ = Describe("CommitBuilder", func() {
 						}
 						signedPreCommit, err := precommit.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreCommit)
+						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
 				}
 
@@ -342,7 +371,7 @@ var _ = Describe("CommitBuilder", func() {
 					}
 					signedPreCommit, err := precommit.Sign(signer)
 					Expect(err).ShouldNot(HaveOccurred())
-					builder.Insert(signedPreCommit)
+					Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 				}
 			}
 
@@ -360,7 +389,7 @@ var _ = Describe("CommitBuilder", func() {
 			}
 			signedPreCommit, err := precommit.Sign(signer)
 			Expect(err).ShouldNot(HaveOccurred())
-			builder.Insert(signedPreCommit)
+			Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 
 			commit, ok := builder.Commit(1, 10)
 			Expect(ok).To(BeTrue())

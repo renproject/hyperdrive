@@ -75,7 +75,7 @@ var _ = Describe("PolkaBuilder", func() {
 						prevote := NewPreVote(&signedBlock, 0, 0)
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreVote)
+						Expect(builder.Insert(signedPreVote)).To(BeTrue())
 					}
 					_, ok := builder.Polka(0, 11)
 					Expect(ok).To(BeFalse())
@@ -94,7 +94,7 @@ var _ = Describe("PolkaBuilder", func() {
 						prevote := NewPreVote(&signedBlock, Round(i), 0)
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreVote)
+						Expect(builder.Insert(signedPreVote)).To(BeTrue())
 					}
 					_, ok := builder.Polka(0, 9)
 					Expect(ok).To(BeFalse())
@@ -113,7 +113,7 @@ var _ = Describe("PolkaBuilder", func() {
 						prevote := NewPreVote(&signedBlock, 0, Height(i))
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreVote)
+						Expect(builder.Insert(signedPreVote)).To(BeTrue())
 					}
 					_, ok := builder.Polka(0, 9)
 					Expect(ok).To(BeFalse())
@@ -135,10 +135,30 @@ var _ = Describe("PolkaBuilder", func() {
 						prevote := NewPreVote(&signedBlock, round, height)
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreVote)
+						Expect(builder.Insert(signedPreVote)).To(BeTrue())
 					}
 					_, ok := builder.Polka(height, 9)
 					Expect(ok).To(BeFalse())
+				})
+			})
+
+			Context("when PreVotes with the same signature are added multiple times", func() {
+				It("should never return a Polka", func() {
+					builder := NewPolkaBuilder()
+					height := Height(mathRand.Intn(100))
+					height = Height(mathRand.Intn(100))
+					round := Round(mathRand.Intn(100))
+					block := Block{Height: height, Round: round}
+					signer, err := ecdsa.NewFromRandom()
+					Expect(err).ShouldNot(HaveOccurred())
+					signedBlock, err := block.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
+					prevote := NewPreVote(&signedBlock, round, height)
+					signedPreVote, err := prevote.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
+
+					Expect(builder.Insert(signedPreVote)).To(BeTrue())
+					Expect(builder.Insert(signedPreVote)).To(BeFalse())
 				})
 			})
 		})
@@ -162,7 +182,7 @@ var _ = Describe("PolkaBuilder", func() {
 						prevote := NewPreVote(&signedBlock, round, height)
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreVote)
+						Expect(builder.Insert(signedPreVote)).To(BeTrue())
 					}
 					polka, ok := builder.Polka(height, 9)
 					Expect(ok).To(BeTrue())
@@ -189,7 +209,7 @@ var _ = Describe("PolkaBuilder", func() {
 						prevote := NewPreVote(&signedBlock, round, height)
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreVote)
+						Expect(builder.Insert(signedPreVote)).To(BeTrue())
 					}
 					polka, ok := builder.Polka(height, 9)
 					Expect(ok).To(BeTrue())
@@ -211,7 +231,7 @@ var _ = Describe("PolkaBuilder", func() {
 						prevote := NewPreVote(&signedBlock, Round(i), 1)
 						signedPreVote, err := prevote.Sign(signer)
 						Expect(err).ShouldNot(HaveOccurred())
-						builder.Insert(signedPreVote)
+						Expect(builder.Insert(signedPreVote)).To(BeTrue())
 					}
 				}
 
@@ -332,7 +352,7 @@ var _ = Describe("PolkaBuilder", func() {
 					prevote := NewPreVote(&signedBlock, Round(i), 1)
 					signedPreVote, err := prevote.Sign(signer)
 					Expect(err).ShouldNot(HaveOccurred())
-					builder.Insert(signedPreVote)
+					Expect(builder.Insert(signedPreVote)).To(BeTrue())
 				}
 			}
 
@@ -344,7 +364,7 @@ var _ = Describe("PolkaBuilder", func() {
 			prevote := NewPreVote(&signedBlock, Round(10), 2)
 			signedPreVote, err := prevote.Sign(signer)
 			Expect(err).ShouldNot(HaveOccurred())
-			builder.Insert(signedPreVote)
+			Expect(builder.Insert(signedPreVote)).To(BeTrue())
 
 			polka, ok := builder.Polka(1, 10)
 			Expect(ok).To(BeTrue())
