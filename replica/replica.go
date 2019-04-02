@@ -183,6 +183,9 @@ func (replica *replica) shouldBufferTransition(transition consensus.Transition) 
 		if transition.Polka.Height <= replica.state.Height() {
 			return false
 		}
+	case consensus.TimedOut:
+		// TimedOut transitions are never buffered
+		return false
 	}
 	return true
 }
