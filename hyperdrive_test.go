@@ -24,7 +24,7 @@ import (
 var _ = Describe("Hyperdrive", func() {
 
 	Context("when ", func() {
-		It("should ", func() {
+		XIt("should ", func() {
 			ipChans := make([]chan Object, 5)
 			signatories := make(sig.Signatories, 5)
 			signers := make([]sig.SignerVerifier, 5)
