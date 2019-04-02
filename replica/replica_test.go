@@ -106,15 +106,17 @@ type TestCase struct {
 }
 
 func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
-	signedBlock := signBlock(block.Block{
+	signedBlock := testutils.SignBlock(block.Block{
 		Height: 1,
 		Header: testutils.RandomHash(),
 	}, signer)
-	signedFutureBlock := signBlock(block.Block{
+	signedFutureBlock := testutils.SignBlock(block.Block{
 		Height:       2,
 		Header:       testutils.RandomHash(),
 		ParentHeader: signedBlock.Header,
 	}, signer)
+
+	participants := []sig.SignerVerifier{p1, p2}
 
 	return []TestCase{
 		{
@@ -210,67 +212,33 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 					SignedBlock: signedFutureBlock,
 				},
 				consensus.PreVoted{
-					SignedPreVote: generateSignedPreVote(signedFutureBlock, p1),
+					SignedPreVote: testutils.GenerateSignedPreVote(signedFutureBlock, p1),
 				},
 				consensus.PreVoted{
-					SignedPreVote: generateSignedPreVote(signedFutureBlock, p2),
+					SignedPreVote: testutils.GenerateSignedPreVote(signedFutureBlock, p2),
 				},
 				consensus.PreCommitted{
-					SignedPreCommit: generateSignedPreCommit(signedFutureBlock, p1, p1, p2),
+					SignedPreCommit: testutils.GenerateSignedPreCommit(signedFutureBlock, p1, participants),
 				},
 				consensus.PreCommitted{
-					SignedPreCommit: generateSignedPreCommit(signedFutureBlock, p2, p1, p2),
+					SignedPreCommit: testutils.GenerateSignedPreCommit(signedFutureBlock, p2, participants),
 				},
 				consensus.Proposed{
 					SignedBlock: signedBlock,
 				},
 				consensus.PreVoted{
-					SignedPreVote: generateSignedPreVote(signedBlock, p1),
+					SignedPreVote: testutils.GenerateSignedPreVote(signedBlock, p1),
 				},
 				consensus.PreVoted{
-					SignedPreVote: generateSignedPreVote(signedBlock, p2),
+					SignedPreVote: testutils.GenerateSignedPreVote(signedBlock, p2),
 				},
 				consensus.PreCommitted{
-					SignedPreCommit: generateSignedPreCommit(signedBlock, p1, p1, p2),
+					SignedPreCommit: testutils.GenerateSignedPreCommit(signedBlock, p1, participants),
 				},
 				consensus.PreCommitted{
-					SignedPreCommit: generateSignedPreCommit(signedBlock, p2, p1, p2),
+					SignedPreCommit: testutils.GenerateSignedPreCommit(signedBlock, p2, participants),
 				},
 			},
 		},
 	}
-}
-
-func signBlock(blk block.Block, signer sig.SignerVerifier) block.SignedBlock {
-	signedBlock, _ := blk.Sign(signer)
-	return signedBlock
-}
-
-func generateSignedPreVote(signedBlock block.SignedBlock, signer sig.SignerVerifier) block.SignedPreVote {
-	preVote := block.PreVote{
-		Block:  &signedBlock,
-		Height: signedBlock.Height,
-	}
-	signedPreVote, _ := preVote.Sign(signer)
-	return signedPreVote
-}
-
-func generateSignedPreCommit(signedBlock block.SignedBlock, signer, p1, p2 sig.SignerVerifier) block.SignedPreCommit {
-	signedPreVote1 := generateSignedPreVote(signedBlock, p1)
-	signedPreVote2 := generateSignedPreVote(signedBlock, p2)
-
-	signatures := []sig.Signature{signedPreVote1.Signature, signedPreVote2.Signature}
-	signatories := []sig.Signatory{signedPreVote1.Signatory, signedPreVote2.Signatory}
-
-	preCommit := block.PreCommit{
-		Polka: block.Polka{
-			Block:       &signedBlock,
-			Height:      signedBlock.Height,
-			Signatures:  signatures,
-			Signatories: signatories,
-		},
-	}
-
-	signedPreCommit, _ := preCommit.Sign(signer)
-	return signedPreCommit
 }
