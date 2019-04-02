@@ -3,6 +3,7 @@ package replica_test
 import (
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/renproject/hyperdrive"
 	"github.com/renproject/hyperdrive/block"
@@ -114,6 +115,51 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 	}, signer)
 
 	return []TestCase{
+
+		{
+			consensusThreshold: 1,
+
+			startingState: consensus.WaitForPropose(1, 1),
+			finalState:    consensus.WaitForPropose(1, 1),
+
+			transitions: []consensus.Transition{
+				consensus.Proposed{
+					SignedBlock: signedBlock,
+				},
+			},
+		},
+
+		{
+			consensusThreshold: 1,
+
+			startingState: consensus.WaitForPropose(0, 0),
+			finalState:    consensus.WaitForPropose(0, 0),
+
+			transitions: []consensus.Transition{testutils.InvalidTransition{}},
+		},
+
+		{
+			consensusThreshold: 1,
+
+			startingState: consensus.WaitForPropose(0, 0),
+			finalState:    consensus.WaitForPropose(0, 0),
+
+			transitions: []consensus.Transition{
+				consensus.TimedOut{time.Now().Add(10 * time.Minute)},
+			},
+		},
+
+		{
+			consensusThreshold: 1,
+
+			startingState: consensus.WaitForPropose(0, 0),
+			finalState:    consensus.WaitForPolka(0, 0),
+
+			transitions: []consensus.Transition{
+				consensus.TimedOut{time.Now()},
+			},
+		},
+
 		{
 			consensusThreshold: 1,
 
