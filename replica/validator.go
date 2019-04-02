@@ -36,8 +36,6 @@ type Validator interface {
 	// validatePolka assumes that `polka.Signatures` are ordered to match
 	// the order of `polka.Signatories`.
 	ValidatePolka(polka block.Polka) bool
-
-	ValidateCommit(commit block.Commit) bool
 }
 
 type validator struct {
@@ -63,14 +61,7 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock) bool {
 	}
 
 	// Verify the signatory of the signedBlock
-	signatory, err := validator.signer.Verify(signedBlock.Block.Header, signedBlock.Signature)
-	if err != nil {
-		return false
-	}
-	if !signatory.Equal(signedBlock.Signatory) {
-		return false
-	}
-	if !validator.isSignatoryInShard(signatory) {
+	if !validator.verifySignature(signedBlock.Block.Header, signedBlock.Signature, signedBlock.Signatory) {
 		return false
 	}
 
@@ -95,9 +86,6 @@ func (validator *validator) ValidatePreVote(preVote block.SignedPreVote) bool {
 		if preVote.PreVote.Height != preVote.PreVote.Block.Height {
 			return false
 		}
-	}
-	if preVote.PreVote.Round < 0 || preVote.PreVote.Height < 0 {
-		return false
 	}
 
 	// 2. Verify the signatory of the pre-vote
@@ -130,15 +118,6 @@ func (validator *validator) ValidatePolka(polka block.Polka) bool {
 		return false
 	}
 
-	preVote := block.PreVote{
-		Block:  polka.Block,
-		Height: polka.Height,
-		Round:  polka.Round,
-	}
-	data := []byte(preVote.String())
-
-	validator.verifySignatures(data, polka.Signatures, polka.Signatories)
-
 	if polka.Block != nil {
 		if polka.Round != polka.Block.Round {
 			return false
@@ -146,20 +125,30 @@ func (validator *validator) ValidatePolka(polka block.Polka) bool {
 		if polka.Height != polka.Block.Height {
 			return false
 		}
-		return validator.ValidateBlock(*polka.Block)
+		if !validator.ValidateBlock(*polka.Block) {
+			return false
+		}
 	}
 
-	return true
-}
-
-func (validator *validator) ValidateCommit(commit block.Commit) bool {
-	preCommit := block.PreCommit{
-		Polka: commit.Polka,
+	preVote := block.PreVote{
+		Block:  polka.Block,
+		Height: polka.Height,
+		Round:  polka.Round,
 	}
-	data := []byte(preCommit.String())
+	data := []byte(preVote.String())
 
-	return validator.ValidatePolka(commit.Polka) && validator.verifySignatures(data, commit.Signatures, commit.Signatories)
+	return validator.verifySignatures(data, polka.Signatures, polka.Signatories)
 }
+
+// TODO: Un-comment when needed
+// func (validator *validator) ValidateCommit(commit block.Commit) bool {
+// 	preCommit := block.PreCommit{
+// 		Polka: commit.Polka,
+// 	}
+// 	data := []byte(preCommit.String())
+
+// 	return validator.ValidatePolka(commit.Polka) && validator.verifySignatures(data, commit.Signatures, commit.Signatories)
+// }
 
 // isSignatoryInShard returns true if the given signatory belongs to the
 // provided shard.
