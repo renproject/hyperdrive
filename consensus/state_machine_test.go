@@ -5,6 +5,8 @@ import (
 	"reflect"
 
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"github.com/renproject/hyperdrive/testutils"
 
 	. "github.com/onsi/ginkgo"
@@ -63,9 +65,9 @@ type TestCase struct {
 
 func generateTestCases() []TestCase {
 	genesis := block.Genesis()
+	signer, _ := ecdsa.NewFromRandom()
 
 	return []TestCase{
-
 		// (WaitForProposed) -> Proposed -> PreVoted (sig 1) -> PreCommitted (sig 1) -> PreCommitted (sig 2)
 		{
 			consensusThreshold: 2,
@@ -448,6 +450,46 @@ func generateTestCases() []TestCase {
 						Signatory: testutils.RandomSignatory(),
 						Signature: testutils.RandomSignature(),
 					},
+				},
+			},
+		},
+
+		// (WaitForCommit, PreCommitted) PreCommits with same signatures
+		{
+			consensusThreshold: 2,
+
+			startingState: WaitForCommit(block.Polka{
+				Block:  nil,
+				Height: 0,
+				Round:  0,
+			}),
+			finalState:  WaitForCommit(testutils.GeneratePolkaWithSignatures(block.SignedBlock{}, []sig.SignerVerifier{signer, signer})),
+			finalAction: nil,
+
+			transitions: []Transition{
+				PreCommitted{
+					SignedPreCommit: testutils.GenerateSignedPreCommit(block.SignedBlock{}, signer, []sig.SignerVerifier{signer, signer}),
+				},
+				PreCommitted{
+					SignedPreCommit: testutils.GenerateSignedPreCommit(block.SignedBlock{}, signer, []sig.SignerVerifier{signer, signer}),
+				},
+			},
+		},
+
+		// (WaitForPolka, Prevoted) PreVotes with same signatures
+		{
+			consensusThreshold: 2,
+
+			startingState: WaitForPolka(0, 0),
+			finalState:    WaitForPolka(0, 0),
+			finalAction:   nil,
+
+			transitions: []Transition{
+				PreVoted{
+					SignedPreVote: testutils.GenerateSignedPreVote(block.SignedBlock{}, signer),
+				},
+				PreVoted{
+					SignedPreVote: testutils.GenerateSignedPreVote(block.SignedBlock{}, signer),
 				},
 			},
 		},
