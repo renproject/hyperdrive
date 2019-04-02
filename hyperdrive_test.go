@@ -69,7 +69,7 @@ var _ = Describe("Hyperdrive", func() {
 			}
 
 			go func() {
-				time.Sleep(4 * time.Second)
+				time.Sleep(2 * time.Second)
 				close(done)
 			}()
 
