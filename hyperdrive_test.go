@@ -24,7 +24,7 @@ import (
 var _ = Describe("Hyperdrive", func() {
 
 	Context("when ", func() {
-		XIt("should ", func() {
+		It("should ", func() {
 			ipChans := make([]chan Object, 5)
 			signatories := make(sig.Signatories, 5)
 			signers := make([]sig.SignerVerifier, 5)
@@ -53,7 +53,7 @@ var _ = Describe("Hyperdrive", func() {
 				go func(i int, signer sig.SignerVerifier) {
 					defer wg.Done()
 					// participants := append(ipChans[:i], ipChans[i+1:]...)
-					dispatcher := NewMockDispatcher(i, ipChans)
+					dispatcher := NewMockDispatcher(i, ipChans, done)
 
 					runHyperdrive(i, dispatcher, signer, ipChans[i], done)
 				}(i, signers[i])
@@ -79,16 +79,22 @@ var _ = Describe("Hyperdrive", func() {
 })
 
 type mockDispatcher struct {
-	index      int
+	index int
+
 	channelsMu *sync.Mutex
 	channels   []chan Object
+
+	done chan struct{}
 }
 
-func NewMockDispatcher(i int, channels []chan Object) *mockDispatcher {
+func NewMockDispatcher(i int, channels []chan Object, done chan struct{}) *mockDispatcher {
 	return &mockDispatcher{
-		index:      i,
+		index: i,
+
 		channelsMu: new(sync.Mutex),
 		channels:   channels,
+
+		done: done,
 	}
 }
 
@@ -98,6 +104,8 @@ func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action consen
 
 	for i := range mockDispatcher.channels {
 		select {
+		case <-mockDispatcher.done:
+			return
 		case mockDispatcher.channels[i] <- ActionObject{shardHash, action}:
 		}
 	}
@@ -136,12 +144,22 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 				case input := <-inputCh:
 					switch input := input.(type) {
 					case ShardObject:
-						h.AcceptShard(input.shard, input.blockchain, input.pool)
+						select {
+						case <-done:
+							return
+						default:
+							h.AcceptShard(input.shard, input.blockchain, input.pool)
+						}
 					case ActionObject:
 						switch input.action.(type) {
 						case consensus.Propose:
 							deepCopy := input.action.(consensus.Propose)
-							h.AcceptPropose(input.shardHash, deepCopy.SignedBlock)
+							select {
+							case <-done:
+								return
+							default:
+								h.AcceptPropose(input.shardHash, deepCopy.SignedBlock)
+							}
 						case consensus.SignedPreVote:
 							temp := input.action.(consensus.SignedPreVote)
 							if temp.Block.Height > currentHeight {
@@ -149,8 +167,12 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 								copy := temp
 
 								copy.SignedPreVote.Block = &deepCopy
-
-								h.AcceptPreVote(input.shardHash, copy.SignedPreVote)
+								select {
+								case <-done:
+									return
+								default:
+									h.AcceptPreVote(input.shardHash, copy.SignedPreVote)
+								}
 							}
 						case consensus.SignedPreCommit:
 							temp := input.action.(consensus.SignedPreCommit)
@@ -159,8 +181,12 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 								copy := temp
 
 								copy.SignedPreCommit.Polka.Block = &deepCopy
-
-								h.AcceptPreCommit(input.shardHash, copy.SignedPreCommit)
+								select {
+								case <-done:
+									return
+								default:
+									h.AcceptPreCommit(input.shardHash, copy.SignedPreCommit)
+								}
 							}
 						case consensus.Commit:
 							if input.action.(consensus.Commit).Polka.Block.Height > currentHeight {
