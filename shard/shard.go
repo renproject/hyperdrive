@@ -1,8 +1,8 @@
 package shard
 
 import (
-	"github.com/renproject/hyperdrive/v1/block"
-	"github.com/renproject/hyperdrive/v1/sig"
+	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/sig"
 )
 
 type Shard struct {

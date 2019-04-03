@@ -16,7 +16,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
-	"github.com/renproject/hyperdrive/v1/sig"
+	"github.com/renproject/hyperdrive/sig"
 )
 
 // PubKeyToSignatory returns a `Signatory` using the same conversion

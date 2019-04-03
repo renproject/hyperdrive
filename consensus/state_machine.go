@@ -3,7 +3,7 @@ package consensus
 import (
 	"fmt"
 
-	"github.com/renproject/hyperdrive/v1/block"
+	"github.com/renproject/hyperdrive/block"
 )
 
 type StateMachine interface {

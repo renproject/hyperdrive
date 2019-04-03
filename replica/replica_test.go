@@ -5,16 +5,16 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/renproject/hyperdrive/v1/block"
-	"github.com/renproject/hyperdrive/v1/consensus"
-	"github.com/renproject/hyperdrive/v1/shard"
-	"github.com/renproject/hyperdrive/v1/sig"
-	"github.com/renproject/hyperdrive/v1/sig/ecdsa"
-	"github.com/renproject/hyperdrive/v1/tx"
+	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/consensus"
+	"github.com/renproject/hyperdrive/shard"
+	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/sig/ecdsa"
+	"github.com/renproject/hyperdrive/tx"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/v1/replica"
+	. "github.com/renproject/hyperdrive/replica"
 )
 
 var _ = Describe("Replica", func() {

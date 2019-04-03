@@ -3,7 +3,7 @@ package block
 import (
 	"fmt"
 
-	"github.com/renproject/hyperdrive/v1/sig"
+	"github.com/renproject/hyperdrive/sig"
 	"golang.org/x/crypto/sha3"
 )
 

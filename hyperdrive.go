@@ -3,12 +3,12 @@ package hyperdrive
 import (
 	"time"
 
-	"github.com/renproject/hyperdrive/v1/block"
-	"github.com/renproject/hyperdrive/v1/consensus"
-	"github.com/renproject/hyperdrive/v1/replica"
-	"github.com/renproject/hyperdrive/v1/shard"
-	"github.com/renproject/hyperdrive/v1/sig"
-	"github.com/renproject/hyperdrive/v1/tx"
+	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/consensus"
+	"github.com/renproject/hyperdrive/replica"
+	"github.com/renproject/hyperdrive/shard"
+	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/tx"
 )
 
 const NumHistoricalShards = 3

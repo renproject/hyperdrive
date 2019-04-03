@@ -4,11 +4,10 @@ import (
 	"testing/quick"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/renproject/hyperdrive/v1/sig"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/v1/sig/ecdsa"
+	"github.com/renproject/hyperdrive/sig"
+	. "github.com/renproject/hyperdrive/sig/ecdsa"
 )
 
 var conf = quick.Config{

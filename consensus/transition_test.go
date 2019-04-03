@@ -5,11 +5,11 @@ import (
 	"testing/quick"
 	"time"
 
-	"github.com/renproject/hyperdrive/v1/block"
+	"github.com/renproject/hyperdrive/block"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/v1/consensus"
+	. "github.com/renproject/hyperdrive/consensus"
 )
 
 var conf = quick.Config{
