@@ -1,7 +1,7 @@
 package consensus
 
 import (
-	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/v1/block"
 )
 
 type State interface {

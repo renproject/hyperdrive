@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/renproject/hyperdrive/sig"
-	"github.com/renproject/hyperdrive/tx"
+	"github.com/renproject/hyperdrive/v1/sig"
+	"github.com/renproject/hyperdrive/v1/tx"
 )
 
 // The Round in which a `Block` was proposed.

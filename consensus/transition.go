@@ -19,7 +19,7 @@ package consensus
 import (
 	"time"
 
-	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/v1/block"
 )
 
 // A Transition is an event that transitions a `StateMachine` from one

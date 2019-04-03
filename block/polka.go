@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/v1/sig"
 	"golang.org/x/crypto/sha3"
 )
 

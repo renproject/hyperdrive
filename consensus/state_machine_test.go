@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/v1/block"
+	"github.com/renproject/hyperdrive/v1/sig"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/consensus"
+	. "github.com/renproject/hyperdrive/v1/consensus"
 )
 
 var _ = Describe("State Machine", func() {

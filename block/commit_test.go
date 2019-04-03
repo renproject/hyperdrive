@@ -4,12 +4,12 @@ import (
 	"crypto/rand"
 	mathRand "math/rand"
 
-	"github.com/renproject/hyperdrive/sig"
-	"github.com/renproject/hyperdrive/sig/ecdsa"
+	"github.com/renproject/hyperdrive/v1/sig"
+	"github.com/renproject/hyperdrive/v1/sig/ecdsa"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/block"
+	. "github.com/renproject/hyperdrive/v1/block"
 )
 
 var _ = Describe("CommitBuilder", func() {
