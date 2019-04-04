@@ -3,9 +3,9 @@ package replica_test
 import (
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
-	"github.com/renproject/hyperdrive"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/consensus"
 	"github.com/renproject/hyperdrive/shard"
@@ -36,7 +36,7 @@ var _ = Describe("Replica", func() {
 			stateMachine := consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), 1)
 			blockchain := block.NewBlockchain()
 
-			replica := New(hyperdrive.NewDispatcher(shard), signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, &blockchain, shard)
+			replica := New(newMockDispatcher(), signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, &blockchain, shard)
 			Expect(func() { replica.Init() }).ToNot(Panic())
 		})
 	})
@@ -56,7 +56,7 @@ var _ = Describe("Replica", func() {
 			stateMachine := consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), 1)
 			blockchain := block.NewBlockchain()
 
-			replica := New(hyperdrive.NewDispatcher(shard), signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, &blockchain, shard)
+			replica := New(nil, signer, pool, consensus.WaitForPropose(0, 0), stateMachine, transitionBuffer, &blockchain, shard)
 			replica.Transact(tx.Transaction{})
 			transaction, ok := pool.Dequeue()
 			Expect(ok).To(BeTrue())
@@ -689,4 +689,23 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 			},
 		},
 	}
+}
+
+type mockDispatcher struct {
+	actionsMu *sync.Mutex
+	actions   []consensus.Action
+}
+
+func newMockDispatcher() *mockDispatcher {
+	return &mockDispatcher{
+		new(sync.Mutex),
+		[]consensus.Action{},
+	}
+}
+
+func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action consensus.Action) {
+	mockDispatcher.actionsMu.Lock()
+	defer mockDispatcher.actionsMu.Unlock()
+
+	mockDispatcher.actions = append(mockDispatcher.actions, action)
 }
