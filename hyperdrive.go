@@ -84,7 +84,7 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 	}
 }
 
-func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Blockchain, txPool tx.Pool) {
+func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Blockchain, pool tx.Pool) {
 	if _, ok := hyperdrive.shardReplicas[shard.Hash]; ok {
 		return
 	}
@@ -92,7 +92,7 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Bl
 	r := replica.New(
 		hyperdrive.dispatcher,
 		hyperdrive.signer,
-		tx.FIFOPool(),
+		pool,
 		consensus.WaitForPropose(blockchain.Round(), blockchain.Height()),
 		consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), shard.ConsensusThreshold()),
 		consensus.NewTransitionBuffer(shard.Size()),
