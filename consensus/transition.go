@@ -85,14 +85,14 @@ type TransitionBuffer interface {
 }
 
 type transitionBuffer struct {
-	queues map[block.Height]*transitionQueue
+	queues map[block.Height][]Transition
 	cap    int
 }
 
 // NewTransitionBuffer creates an empty TransitionBuffer with a maximum queue capacity.
 func NewTransitionBuffer(cap int) TransitionBuffer {
 	return &transitionBuffer{
-		queues: make(map[block.Height]*transitionQueue),
+		queues: make(map[block.Height][]Transition),
 		cap:    cap,
 	}
 }
@@ -101,51 +101,45 @@ func (buffer *transitionBuffer) Enqueue(transition Transition) {
 	switch transition := transition.(type) {
 	case Proposed:
 		buffer.newQueue(transition.Height)
-		queue := buffer.queues[transition.Height]
-		if tran, ok := queue.peek(); ok {
-			switch tran.(type) {
+		if len(buffer.queues[transition.Height]) > 0 {
+			switch buffer.queues[transition.Height][0].(type) {
 			case PreVoted:
-				// Don't enqueue
 			case PreCommitted:
-				// Don't enqueue
 			default:
-				queue.enqueue(transition)
+				buffer.queues[transition.Height] = append(buffer.queues[transition.Height], transition)
 			}
 		} else {
-			queue.enqueue(transition)
+			buffer.queues[transition.Height] = append(buffer.queues[transition.Height], transition)
 		}
+
 	case PreVoted:
 		buffer.newQueue(transition.Height)
-		queue := buffer.queues[transition.Height]
-		if tran, ok := queue.peek(); ok {
-			switch tran.(type) {
+		if len(buffer.queues[transition.Height]) > 0 {
+			switch buffer.queues[transition.Height][0].(type) {
 			case Proposed:
-				queue.reset()
-				queue.enqueue(transition)
+				buffer.queues[transition.Height] = []Transition{transition}
 			case PreCommitted:
-				// Don't enqueue
 			default:
-				queue.enqueue(transition)
+				buffer.queues[transition.Height] = append(buffer.queues[transition.Height], transition)
 			}
 		} else {
-			queue.enqueue(transition)
+			buffer.queues[transition.Height] = append(buffer.queues[transition.Height], transition)
 		}
+
 	case PreCommitted:
 		buffer.newQueue(transition.Polka.Height)
-		queue := buffer.queues[transition.Polka.Height]
-		if tran, ok := queue.peek(); ok {
-			switch tran.(type) {
+		if len(buffer.queues[transition.Polka.Height]) > 0 {
+			switch buffer.queues[transition.Polka.Height][0].(type) {
 			case Proposed:
-				queue.reset()
+				buffer.queues[transition.Polka.Height] = []Transition{}
 			case PreVoted:
-				queue.reset()
-			case PreCommitted:
+				buffer.queues[transition.Polka.Height] = []Transition{}
 			default:
 			}
 		}
-		queue.enqueue(transition)
+		buffer.queues[transition.Polka.Height] = append(buffer.queues[transition.Polka.Height], transition)
+
 	default:
-		// Ignore the Transition and do not buffer it
 	}
 }
 
@@ -153,8 +147,10 @@ func (buffer *transitionBuffer) Enqueue(transition Transition) {
 // then takes the next Transition for the provided height. If there is
 // nothing at that height or the queue is empty it will return false.
 func (buffer *transitionBuffer) Dequeue(height block.Height) (Transition, bool) {
-	if queue, ok := buffer.queues[height]; ok {
-		return queue.dequeue()
+	if queue, ok := buffer.queues[height]; ok && len(queue) > 0 {
+		transition := queue[0]
+		buffer.queues[height] = queue[1:]
+		return transition, true
 	}
 	return nil, false
 }
@@ -173,42 +169,6 @@ func (buffer *transitionBuffer) Drop(height block.Height) {
 
 func (buffer *transitionBuffer) newQueue(height block.Height) {
 	if _, ok := buffer.queues[height]; !ok {
-		buffer.queues[height] = &transitionQueue{
-			queue: make([]Transition, buffer.cap),
-			end:   0,
-		}
+		buffer.queues[height] = make([]Transition, 0, buffer.cap)
 	}
-}
-
-type transitionQueue struct {
-	queue []Transition
-	end   int
-}
-
-func (tq *transitionQueue) enqueue(tran Transition) {
-	if len(tq.queue) == tq.end {
-		tq.queue = append(tq.queue, tran)
-	} else {
-		tq.queue[tq.end] = tran
-	}
-	tq.end++
-}
-
-func (tq *transitionQueue) dequeue() (Transition, bool) {
-	if tq.end == 0 {
-		return nil, false
-	}
-	tq.end--
-	return tq.queue[tq.end], true
-}
-
-func (tq *transitionQueue) reset() {
-	tq.end = 0
-}
-
-func (tq *transitionQueue) peek() (Transition, bool) {
-	if tq.end == 0 {
-		return nil, false
-	}
-	return tq.queue[tq.end-1], true
 }
