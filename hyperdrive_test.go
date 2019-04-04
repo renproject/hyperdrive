@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"log"
-	"math"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -27,11 +26,13 @@ var _ = Describe("Hyperdrive", func() {
 	table := []struct {
 		numHyperdrives int
 	}{
-		{8},
-		{16},
-		{32},
-		{64},
-		{128},
+		// {1},
+		{2},
+		// {8},
+		// {16},
+		// {32},
+		// {64},
+		// {128},
 		// CircleCI times out on the following configurations
 		// {256},
 		// {512},
@@ -72,12 +73,12 @@ var _ = Describe("Hyperdrive", func() {
 				By("running hyperdrives")
 				co.ParBegin(
 					func() {
-						defer close(done)
-						timeout := math.Ceil(float64(entry.numHyperdrives) * 0.1)
-						if timeout <= 1 {
-							timeout++
-						}
-						time.Sleep(time.Duration(timeout) * time.Second)
+						// defer close(done)
+						// timeout := math.Ceil(float64(entry.numHyperdrives) * 0.1)
+						// if timeout <= 1 {
+						// 	timeout++
+						// }
+						// time.Sleep(time.Duration(timeout) * time.Second)
 					},
 					func() {
 						co.ParForAll(entry.numHyperdrives, func(i int) {
@@ -134,8 +135,8 @@ func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action consen
 	default:
 		panic(fmt.Errorf("unexpected action type %T", action))
 	}
-	key := fmt.Sprintf("Key(Shard=%v,Height=%v,Round=%v,Action=%T)", shardHash, height, round, action)
 
+	key := fmt.Sprintf("Key(Shard=%v,Height=%v,Round=%v,Action=%T)", shardHash, height, round, action)
 	if dup := mockDispatcher.dups[key]; dup {
 		return
 	}
@@ -144,15 +145,18 @@ func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action consen
 	}
 	mockDispatcher.dups[key] = true
 
-	go func() {
-		for i := range mockDispatcher.channels {
+	for i := range mockDispatcher.channels {
+		if i == mockDispatcher.index {
+			continue
+		}
+		go func(i int) {
 			select {
 			case <-mockDispatcher.done:
 				return
 			case mockDispatcher.channels[i] <- ActionObject{shardHash, action}:
 			}
-		}
-	}()
+		}(i)
+	}
 }
 
 type Object interface {
