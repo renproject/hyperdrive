@@ -26,12 +26,13 @@ var _ = Describe("Hyperdrive", func() {
 	table := []struct {
 		numHyperdrives int
 	}{
-		// {8},
-		// {16},
-		// {32},
-		// {64},
+		{8},
+		{16},
+		{32},
+		{64},
 		{128},
-		// {256},
+		{256},
+		// CircleCI times out on the following configurations
 		// {512},
 		// {1024},
 	}
