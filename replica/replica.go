@@ -71,14 +71,11 @@ func (replica *replica) Transition(transition consensus.Transition) {
 		return
 	}
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.state.Height()) {
-		// TODO: is this where transitions should be validated?
 		if !replica.isTransitionValid(transition) {
 			continue
 		}
-		nextState, action := replica.stateMachine.Transition(replica.state, transition)
+		action := replica.transition(transition)
 		if action != nil {
-			replica.state = nextState
-			replica.transitionBuffer.Drop(replica.state.Height())
 			// It is important that the Action is dispatched after the State has been completely transitioned in the
 			// Replica. Otherwise, re-entrance into the Replica may cause issues.
 			replica.dispatchAction(action)
@@ -90,7 +87,7 @@ func (replica *replica) dispatchAction(action consensus.Action) {
 	if action == nil {
 		return
 	}
-	var dispatchAction consensus.Action
+
 	switch action := action.(type) {
 	case consensus.PreVote:
 		signedPreVote, err := action.PreVote.Sign(replica.signer)
@@ -99,9 +96,9 @@ func (replica *replica) dispatchAction(action consensus.Action) {
 			// least be some sane logging and recovery.
 			panic(err)
 		}
-		dispatchAction = consensus.SignedPreVote{
+		replica.dispatcher.Dispatch(replica.shard.Hash, consensus.SignedPreVote{
 			SignedPreVote: signedPreVote,
-		}
+		})
 		replica.handlePreVote(consensus.SignedPreVote{
 			SignedPreVote: signedPreVote,
 		})
@@ -112,17 +109,16 @@ func (replica *replica) dispatchAction(action consensus.Action) {
 			// least be some sane logging and recovery.
 			panic(err)
 		}
-		dispatchAction = consensus.SignedPreCommit{
+		replica.dispatcher.Dispatch(replica.shard.Hash, consensus.SignedPreCommit{
 			SignedPreCommit: signedPreCommit,
-		}
+		})
 		replica.handlePreCommit(consensus.SignedPreCommit{
 			SignedPreCommit: signedPreCommit,
 		})
 	case consensus.Commit:
-		dispatchAction = action
+		replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		replica.handleCommit(action)
 	}
-	replica.dispatcher.Dispatch(replica.shard.Hash, dispatchAction)
 }
 
 func (replica *replica) handlePreVote(preVote consensus.SignedPreVote) {
@@ -197,9 +193,18 @@ func (replica *replica) shouldProposeBlock() bool {
 
 func (replica *replica) generateSignedBlock() {
 	if replica.shouldProposeBlock() {
-		replica.dispatcher.Dispatch(replica.shard.Hash, consensus.Propose{
+		propose := consensus.Propose{
 			SignedBlock: replica.buildSignedBlock(),
+		}
+		action := replica.transition(consensus.Proposed{
+			SignedBlock: propose.SignedBlock,
 		})
+		replica.dispatcher.Dispatch(replica.shard.Hash, propose)
+		if action != nil {
+			// It is important that the Action is dispatched after the State has been completely transitioned in the
+			// Replica. Otherwise, re-entrance into the Replica may cause issues.
+			replica.dispatchAction(action)
+		}
 	}
 }
 
@@ -230,4 +235,11 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 		panic(err)
 	}
 	return signedBlock
+}
+
+func (replica *replica) transition(transition consensus.Transition) consensus.Action {
+	nextState, action := replica.stateMachine.Transition(replica.state, transition)
+	replica.state = nextState
+	replica.transitionBuffer.Drop(replica.state.Height())
+	return action
 }
