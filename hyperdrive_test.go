@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"log"
+	"math"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -72,7 +73,9 @@ var _ = Describe("Hyperdrive", func() {
 				co.ParBegin(
 					func() {
 						defer close(done)
-						time.Sleep(30 * time.Second)
+						timeout := math.Ceil(float64(entry.numHyperdrives)*0.1) + 1
+						log.Println(timeout)
+						time.Sleep(time.Duration(timeout) * time.Second)
 					},
 					func() {
 						co.ParForAll(entry.numHyperdrives, func(i int) {
@@ -226,11 +229,11 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 						}
 					}
 				case consensus.Commit:
-					if index == 0 {
-						if input.action.(consensus.Commit).Polka.Block.Height > currentHeight {
-							fmt.Printf("got commit %x\ncurrent height %d; new height %d\n", input.action.(consensus.Commit).Polka.Block.Header, currentHeight, input.action.(consensus.Commit).Polka.Block.Height)
-							currentHeight = input.action.(consensus.Commit).Polka.Block.Height
+					if input.action.(consensus.Commit).Polka.Block.Height > currentHeight {
+						if index == 0 {
+							log.Printf("got commit %x\ncurrent height %d; new height %d\n", input.action.(consensus.Commit).Polka.Block.Header, currentHeight, input.action.(consensus.Commit).Polka.Block.Height)
 						}
+						currentHeight = input.action.(consensus.Commit).Polka.Block.Height
 					}
 				default:
 				}
