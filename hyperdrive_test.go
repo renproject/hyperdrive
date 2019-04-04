@@ -26,11 +26,12 @@ var _ = Describe("Hyperdrive", func() {
 	table := []struct {
 		numHyperdrives int
 	}{
-		{8},
+		// {8},
 		// {16},
 		// {32},
 		// {64},
-		// {128},
+		{128},
+		// {256},
 		// {512},
 		// {1024},
 	}
@@ -48,7 +49,7 @@ var _ = Describe("Hyperdrive", func() {
 				By("building signatories")
 				for i := 0; i < entry.numHyperdrives; i++ {
 					var err error
-					ipChans[i] = make(chan Object, 64*entry.numHyperdrives)
+					ipChans[i] = make(chan Object, entry.numHyperdrives*entry.numHyperdrives)
 					signers[i], err = ecdsa.NewFromRandom()
 					signatories[i] = signers[i].Signatory()
 					Expect(err).ShouldNot(HaveOccurred())
@@ -70,10 +71,13 @@ var _ = Describe("Hyperdrive", func() {
 				co.ParBegin(
 					func() {
 						defer close(done)
-						time.Sleep(30 * time.Second)
+						time.Sleep(1 * time.Minute)
 					},
 					func() {
 						co.ParForAll(entry.numHyperdrives, func(i int) {
+							if i == 0 {
+								time.Sleep(time.Second)
+							}
 							log.Printf("running hyperdrive %v", i)
 							runHyperdrive(i, NewMockDispatcher(i, ipChans, done), signers[i], ipChans[i], done)
 						})
@@ -112,15 +116,17 @@ func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action consen
 	case consensus.Propose:
 		height = action.Height
 		round = action.Round
-	case consensus.PreVote:
+	case consensus.SignedPreVote:
 		height = action.Height
 		round = action.Round
-	case consensus.PreCommit:
+	case consensus.SignedPreCommit:
 		height = action.Polka.Height
 		round = action.Polka.Round
 	case consensus.Commit:
 		height = action.Polka.Height
 		round = action.Polka.Round
+	default:
+		panic(fmt.Errorf("unexpected action type %T", action))
 	}
 	key := fmt.Sprintf("Key(Shard=%v,Height=%v,Round=%v,Action=%T)", shardHash, height, round, action)
 
