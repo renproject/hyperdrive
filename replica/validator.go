@@ -1,7 +1,6 @@
 package replica
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -45,7 +44,7 @@ type validator struct {
 	shard      shard.Shard
 	blockchain *block.Blockchain
 
-	verifiedSignatureCache map[string]sig.Signatory
+	verifiedSignatureCache map[sig.Hash]map[sig.Signature]sig.Signatory
 }
 
 // NewValidator returns a Validator
@@ -55,7 +54,7 @@ func NewValidator(signer sig.Verifier, shard shard.Shard, blockchain *block.Bloc
 		shard:      shard,
 		blockchain: blockchain,
 
-		verifiedSignatureCache: map[string]sig.Signatory{},
+		verifiedSignatureCache: map[sig.Hash]map[sig.Signature]sig.Signatory{},
 	}
 }
 
@@ -196,10 +195,12 @@ func (validator *validator) ValidatePolka(polka block.Polka) bool {
 // the signature for the given hash. Also verifies that the signatory is a
 // part of the given shard.
 func (validator *validator) verifySignature(hash sig.Hash, signature sig.Signature, signatory sig.Signatory) bool {
-	cachedHashAndSignature := fmt.Sprintf("%v:%v", hash, signature)
-	if cachedSignatory, ok := validator.verifiedSignatureCache[cachedHashAndSignature]; ok {
-		if cachedSignatory.Equal(signatory) {
-			return true
+	// Short-circuit using the cache
+	if cachedSignatures, ok := validator.verifiedSignatureCache[hash]; ok {
+		if cachedSignatory, ok := cachedSignatures[signature]; ok {
+			if cachedSignatory.Equal(signatory) {
+				return true
+			}
 		}
 	}
 
@@ -213,7 +214,14 @@ func (validator *validator) verifySignature(hash sig.Hash, signature sig.Signatu
 		return false
 	}
 
-	validator.verifiedSignatureCache[cachedHashAndSignature] = verifiedSignatory
+	// Fill the cache
+	if cachedSignatures, ok := validator.verifiedSignatureCache[hash]; ok {
+		cachedSignatures[signature] = verifiedSignatory
+	} else {
+		validator.verifiedSignatureCache[hash] = map[sig.Signature]sig.Signatory{
+			signature: verifiedSignatory,
+		}
+	}
 	return true
 }
 
