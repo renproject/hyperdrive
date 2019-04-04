@@ -2,6 +2,7 @@ package sig
 
 import (
 	"bytes"
+	"encoding/base64"
 )
 
 // Hash is the result of Keccak256
@@ -10,6 +11,11 @@ type Hash [32]byte
 // Equal compares two `Hash`
 func (hash Hash) Equal(other Hash) bool {
 	return bytes.Equal(hash[:], other[:])
+}
+
+// String prints the Hash as a Base64 encoded string.
+func (hash Hash) String() string {
+	return base64.StdEncoding.EncodeToString(hash[:])
 }
 
 // Signature produced by `Sign`
@@ -56,6 +62,11 @@ type Signatory [20]byte
 // Equal compares two `Signatory`
 func (signatory Signatory) Equal(other Signatory) bool {
 	return bytes.Equal(signatory[:], other[:])
+}
+
+// String prints the Signatory in a Base64 encoding.
+func (signatory Signatory) String() string {
+	return base64.StdEncoding.EncodeToString(signatory[:])
 }
 
 // Signatories is an array of Signatory
