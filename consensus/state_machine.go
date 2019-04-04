@@ -2,8 +2,6 @@ package consensus
 
 import (
 	"fmt"
-	"log"
-	"time"
 
 	"github.com/renproject/hyperdrive/block"
 )
@@ -82,11 +80,9 @@ func (stateMachine *stateMachine) reduceTimedOut(currentState State, timedOut Ti
 
 func (stateMachine *stateMachine) reduceProposed(currentState State, proposed Proposed) (State, Action) {
 	if proposed.Block.Round != currentState.Round() {
-		log.Println("CURRENT STATE REDUCED")
 		return currentState, nil
 	}
 	if proposed.Block.Height != currentState.Height() {
-		log.Println("CURRENT STATE REDUCED")
 		return currentState, nil
 	}
 
@@ -101,65 +97,62 @@ func (stateMachine *stateMachine) reduceProposed(currentState State, proposed Pr
 
 func (stateMachine *stateMachine) reducePreVoted(currentState State, preVoted PreVoted) (State, Action) {
 	if preVoted.Round < currentState.Round() {
-		log.Println("CURRENT STATE REDUCED")
 		return currentState, nil
 	}
 	if preVoted.Height != currentState.Height() {
-		log.Println("CURRENT STATE REDUCED")
 		return currentState, nil
 	}
 
-	stateMachine.polkaBuilder.Insert(preVoted.SignedPreVote)
-	if polka, ok := stateMachine.polkaBuilder.Polka(currentState.Height(), stateMachine.consensusThreshold); ok {
-		// Invariant check
-		if polka.Round < currentState.Round() {
-			panic(fmt.Errorf("expected polka round (%v) to be greater or equal to the current round (%v)", polka.Round, currentState.Round()))
+	if new := stateMachine.polkaBuilder.Insert(preVoted.SignedPreVote); new {
+		if polka, ok := stateMachine.polkaBuilder.Polka(currentState.Height(), stateMachine.consensusThreshold); ok {
+			// Invariant check
+			if polka.Round < currentState.Round() {
+				panic(fmt.Errorf("expected polka round (%v) to be greater or equal to the current round (%v)", polka.Round, currentState.Round()))
+			}
+
+			return WaitForCommit(polka), PreCommit{
+				PreCommit: block.PreCommit{
+					Polka: polka,
+				},
+			}
 		}
-		return WaitForCommit(polka), PreCommit{
-			PreCommit: block.PreCommit{
-				Polka: polka,
+		return WaitForPolka(currentState.Round(), currentState.Height()), PreVote{
+			PreVote: block.PreVote{
+				Block:  preVoted.Block,
+				Round:  preVoted.Round,
+				Height: preVoted.Height,
 			},
 		}
 	}
-
-	log.Println("waiting for polka", time.Now().Unix())
-	return WaitForPolka(currentState.Round(), currentState.Height()), PreVote{
-		PreVote: block.PreVote{
-			Block:  preVoted.Block,
-			Round:  preVoted.Round,
-			Height: preVoted.Height,
-		},
-	}
+	return currentState, nil
 }
 
 func (stateMachine *stateMachine) reducePreCommitted(currentState State, preCommitted PreCommitted) (State, Action) {
 	if preCommitted.Polka.Round < currentState.Round() {
-		log.Println("CURRENT STATE REDUCED")
 		return currentState, nil
 	}
 	if preCommitted.Polka.Height != currentState.Height() {
-		log.Println("CURRENT STATE REDUCED")
 		return currentState, nil
 	}
 
-	stateMachine.commitBuilder.Insert(preCommitted.SignedPreCommit)
-	if commit, ok := stateMachine.commitBuilder.Commit(currentState.Height(), stateMachine.consensusThreshold); ok {
-		// Invariant check
-		if commit.Polka.Round < currentState.Round() {
-			panic(fmt.Errorf("expected commit round (%v) to be greater or equal to the current round (%v)", commit.Polka.Round, currentState.Round()))
+	if new := stateMachine.commitBuilder.Insert(preCommitted.SignedPreCommit); new {
+		if commit, ok := stateMachine.commitBuilder.Commit(currentState.Height(), stateMachine.consensusThreshold); ok {
+			// Invariant check
+			if commit.Polka.Round < currentState.Round() {
+				panic(fmt.Errorf("expected commit round (%v) to be greater or equal to the current round (%v)", commit.Polka.Round, currentState.Round()))
+			}
+			if commit.Polka.Block == nil {
+				return WaitForPropose(commit.Polka.Round+1, currentState.Height()), nil
+			}
+			return WaitForPropose(commit.Polka.Round, currentState.Height()+1), Commit{
+				Commit: commit,
+			}
 		}
-		if commit.Polka.Block == nil {
-			return WaitForPropose(commit.Polka.Round+1, currentState.Height()), nil
-		}
-		return WaitForPropose(commit.Polka.Round, currentState.Height()+1), Commit{
-			Commit: commit,
+		return WaitForCommit(preCommitted.Polka), PreCommit{
+			PreCommit: block.PreCommit{
+				Polka: preCommitted.Polka,
+			},
 		}
 	}
-
-	log.Println("waiting for commit", time.Now().Unix())
-	return WaitForCommit(preCommitted.Polka), PreCommit{
-		PreCommit: block.PreCommit{
-			Polka: preCommitted.Polka,
-		},
-	}
+	return currentState, nil
 }
