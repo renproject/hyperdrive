@@ -73,8 +73,10 @@ var _ = Describe("Hyperdrive", func() {
 				co.ParBegin(
 					func() {
 						defer close(done)
-						timeout := math.Ceil(float64(entry.numHyperdrives)*0.1) + 1
-						log.Println(timeout)
+						timeout := math.Ceil(float64(entry.numHyperdrives) * 0.1)
+						if timeout <= 1 {
+							timeout++
+						}
 						time.Sleep(time.Duration(timeout) * time.Second)
 					},
 					func() {
