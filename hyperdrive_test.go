@@ -3,7 +3,7 @@ package hyperdrive_test
 import (
 	"crypto/rand"
 	"fmt"
-	"sync"
+	"log"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -14,7 +14,7 @@ import (
 	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"github.com/renproject/hyperdrive/testutils"
 	"github.com/renproject/hyperdrive/tx"
-	"github.com/republicprotocol/co-go"
+	co "github.com/republicprotocol/co-go"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -23,92 +23,124 @@ import (
 
 var _ = Describe("Hyperdrive", func() {
 
-	Context("when ", func() {
-		It("should ", func() {
-			ipChans := make([]chan Object, 5)
-			signatories := make(sig.Signatories, 5)
-			signers := make([]sig.SignerVerifier, 5)
-			// blockchains := make([]block.Blockchain, 5)
-			pool := tx.FIFOPool()
+	table := []struct {
+		numHyperdrives int
+	}{
+		{8},
+		// {16},
+		// {32},
+		// {64},
+		// {128},
+		// {512},
+		// {1024},
+	}
 
-			done := make(chan struct{})
+	for _, entry := range table {
+		entry := entry
 
-			var err error
-			var wg sync.WaitGroup
-			for i := 0; i < 5; i++ {
-				ipChans[i] = make(chan Object, 100)
+		Context(fmt.Sprintf("when reaching consensus on a shard with %v replicas", entry.numHyperdrives), func() {
+			It("should commit blocks", func() {
+				done := make(chan struct{})
+				ipChans := make([]chan Object, entry.numHyperdrives)
+				signatories := make(sig.Signatories, entry.numHyperdrives)
+				signers := make([]sig.SignerVerifier, entry.numHyperdrives)
 
-				signers[i], err = ecdsa.NewFromRandom()
-				Expect(err).ShouldNot(HaveOccurred())
-				signatories[i] = signers[i].Signatory()
-			}
-			shard := shard.Shard{
-				Hash:        testutils.RandomHash(),
-				BlockHeader: sig.Hash{},
-				BlockHeight: 1,
-				Signatories: signatories,
-			}
-			for i := 0; i < 5; i++ {
-				wg.Add(1)
-				go func(i int, signer sig.SignerVerifier) {
-					defer wg.Done()
-					// participants := append(ipChans[:i], ipChans[i+1:]...)
-					dispatcher := NewMockDispatcher(i, ipChans, done)
-
-					runHyperdrive(i, dispatcher, signer, ipChans[i], done)
-				}(i, signers[i])
-
-			}
-
-			for i := range ipChans {
-
-				blockchain := block.NewBlockchain()
-				select {
-				case ipChans[i] <- ShardObject{shard, blockchain, pool}:
+				By("building signatories")
+				for i := 0; i < entry.numHyperdrives; i++ {
+					var err error
+					ipChans[i] = make(chan Object, 64*entry.numHyperdrives)
+					signers[i], err = ecdsa.NewFromRandom()
+					signatories[i] = signers[i].Signatory()
+					Expect(err).ShouldNot(HaveOccurred())
 				}
-			}
 
-			go func() {
-				time.Sleep(2 * time.Second)
-				close(done)
-			}()
+				By("initialising shard")
+				shardHash := testutils.RandomHash()
+				for i := 0; i < entry.numHyperdrives; i++ {
+					blockchain := block.NewBlockchain()
+					shard := shard.Shard{
+						Hash:        shardHash,
+						Signatories: make(sig.Signatories, entry.numHyperdrives),
+					}
+					copy(shard.Signatories[:], signatories[:])
+					ipChans[i] <- ShardObject{shard, blockchain, tx.FIFOPool()}
+				}
 
-			wg.Wait()
+				By("running hyperdrives")
+				co.ParBegin(
+					func() {
+						defer close(done)
+						time.Sleep(30 * time.Second)
+					},
+					func() {
+						co.ParForAll(entry.numHyperdrives, func(i int) {
+							log.Printf("running hyperdrive %v", i)
+							runHyperdrive(i, NewMockDispatcher(i, ipChans, done), signers[i], ipChans[i], done)
+						})
+					})
+			})
 		})
-	})
+
+	}
 })
 
 type mockDispatcher struct {
 	index int
 
-	channelsMu *sync.Mutex
-	channels   []chan Object
-
-	done chan struct{}
+	dups     map[string]bool
+	channels []chan Object
+	done     chan struct{}
 }
 
 func NewMockDispatcher(i int, channels []chan Object, done chan struct{}) *mockDispatcher {
 	return &mockDispatcher{
 		index: i,
 
-		channelsMu: new(sync.Mutex),
-		channels:   channels,
+		dups:     map[string]bool{},
+		channels: channels,
 
 		done: done,
 	}
 }
 
 func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action consensus.Action) {
-	mockDispatcher.channelsMu.Lock()
-	defer mockDispatcher.channelsMu.Unlock()
 
-	for i := range mockDispatcher.channels {
-		select {
-		case <-mockDispatcher.done:
-			return
-		case mockDispatcher.channels[i] <- ActionObject{shardHash, action}:
-		}
+	// De-duplicate
+	height := block.Height(0)
+	round := block.Round(0)
+	switch action := action.(type) {
+	case consensus.Propose:
+		height = action.Height
+		round = action.Round
+	case consensus.PreVote:
+		height = action.Height
+		round = action.Round
+	case consensus.PreCommit:
+		height = action.Polka.Height
+		round = action.Polka.Round
+	case consensus.Commit:
+		height = action.Polka.Height
+		round = action.Polka.Round
 	}
+	key := fmt.Sprintf("Key(Shard=%v,Height=%v,Round=%v,Action=%T)", shardHash, height, round, action)
+
+	if dup := mockDispatcher.dups[key]; dup {
+		return
+	}
+	if mockDispatcher.index == 0 {
+		log.Printf("dispatching %v", key)
+	}
+	mockDispatcher.dups[key] = true
+
+	go func() {
+		for i := range mockDispatcher.channels {
+			select {
+			case <-mockDispatcher.done:
+				return
+			case mockDispatcher.channels[i] <- ActionObject{shardHash, action}:
+			}
+		}
+	}()
 }
 
 type Object interface {
@@ -135,74 +167,69 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 
 	currentHeight := block.Height(-1)
 
-	co.ParBegin(
-		func() {
-			for {
+	for {
+		select {
+		case <-done:
+			return
+		case input := <-inputCh:
+			switch input := input.(type) {
+			case ShardObject:
 				select {
 				case <-done:
 					return
-				case input := <-inputCh:
-					switch input := input.(type) {
-					case ShardObject:
+				default:
+					h.AcceptShard(input.shard, input.blockchain, input.pool)
+				}
+			case ActionObject:
+				switch input.action.(type) {
+				case consensus.Propose:
+					deepCopy := input.action.(consensus.Propose)
+					select {
+					case <-done:
+						return
+					default:
+						h.AcceptPropose(input.shardHash, deepCopy.SignedBlock)
+					}
+				case consensus.SignedPreVote:
+					temp := input.action.(consensus.SignedPreVote)
+					if temp.Block.Height > currentHeight {
+						deepCopy := *temp.SignedPreVote.Block
+						copy := temp
+
+						copy.SignedPreVote.Block = &deepCopy
 						select {
 						case <-done:
 							return
 						default:
-							h.AcceptShard(input.shard, input.blockchain, input.pool)
-						}
-					case ActionObject:
-						switch input.action.(type) {
-						case consensus.Propose:
-							deepCopy := input.action.(consensus.Propose)
-							select {
-							case <-done:
-								return
-							default:
-								h.AcceptPropose(input.shardHash, deepCopy.SignedBlock)
-							}
-						case consensus.SignedPreVote:
-							temp := input.action.(consensus.SignedPreVote)
-							if temp.Block.Height > currentHeight {
-								deepCopy := *temp.SignedPreVote.Block
-								copy := temp
-
-								copy.SignedPreVote.Block = &deepCopy
-								select {
-								case <-done:
-									return
-								default:
-									h.AcceptPreVote(input.shardHash, copy.SignedPreVote)
-								}
-							}
-						case consensus.SignedPreCommit:
-							temp := input.action.(consensus.SignedPreCommit)
-							if temp.SignedPreCommit.Polka.Block.Height > currentHeight {
-								deepCopy := *temp.SignedPreCommit.Polka.Block
-								copy := temp
-
-								copy.SignedPreCommit.Polka.Block = &deepCopy
-								select {
-								case <-done:
-									return
-								default:
-									h.AcceptPreCommit(input.shardHash, copy.SignedPreCommit)
-								}
-							}
-						case consensus.Commit:
-							if input.action.(consensus.Commit).Polka.Block.Height > currentHeight {
-								if index == 0 {
-									fmt.Printf("got commit %x\ncurrent height %d; new height %d\n", input.action.(consensus.Commit).Polka.Block.Header, currentHeight, input.action.(consensus.Commit).Polka.Block.Height)
-								}
-								currentHeight = input.action.(consensus.Commit).Polka.Block.Height
-							}
-						default:
+							h.AcceptPreVote(input.shardHash, copy.SignedPreVote)
 						}
 					}
+				case consensus.SignedPreCommit:
+					temp := input.action.(consensus.SignedPreCommit)
+					if temp.SignedPreCommit.Polka.Block.Height > currentHeight {
+						deepCopy := *temp.SignedPreCommit.Polka.Block
+						copy := temp
+
+						copy.SignedPreCommit.Polka.Block = &deepCopy
+						select {
+						case <-done:
+							return
+						default:
+							h.AcceptPreCommit(input.shardHash, copy.SignedPreCommit)
+						}
+					}
+				case consensus.Commit:
+					if index == 0 {
+						if input.action.(consensus.Commit).Polka.Block.Height > currentHeight {
+							fmt.Printf("got commit %x\ncurrent height %d; new height %d\n", input.action.(consensus.Commit).Polka.Block.Header, currentHeight, input.action.(consensus.Commit).Polka.Block.Height)
+							currentHeight = input.action.(consensus.Commit).Polka.Block.Height
+						}
+					}
+				default:
 				}
 			}
-		},
-	)
-	return
+		}
+	}
 }
 
 func rand32Byte() [32]byte {

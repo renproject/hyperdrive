@@ -73,7 +73,7 @@ func (replica *replica) Transition(transition consensus.Transition) {
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.state.Height()) {
 		// TODO: is this where transitions should be validated?
 		if !replica.isTransitionValid(transition) {
-			return
+			continue
 		}
 		nextState, action := replica.stateMachine.Transition(replica.state, transition)
 		if action != nil {
@@ -147,7 +147,7 @@ func (replica *replica) isTransitionValid(transition consensus.Transition) bool 
 	case consensus.PreCommitted:
 		return replica.validator.ValidatePreCommit(transition.SignedPreCommit)
 	case consensus.TimedOut:
-		return !transition.Time.After(time.Now())
+		return transition.Time.Before(time.Now())
 	}
 	return false
 }
@@ -210,7 +210,8 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 
 	parent, ok := replica.blockchain.Head()
 	if !ok {
-		parent = block.Genesis()
+		// Check invariant
+		panic("invariant violated: blockchain has no head")
 	}
 
 	block := block.New(
