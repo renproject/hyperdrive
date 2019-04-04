@@ -71,7 +71,7 @@ var _ = Describe("Hyperdrive", func() {
 				co.ParBegin(
 					func() {
 						defer close(done)
-						time.Sleep(1 * time.Minute)
+						time.Sleep(30 * time.Second)
 					},
 					func() {
 						co.ParForAll(entry.numHyperdrives, func(i int) {
