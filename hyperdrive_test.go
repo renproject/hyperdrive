@@ -3,7 +3,6 @@ package hyperdrive_test
 import (
 	"crypto/rand"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -26,13 +25,15 @@ var _ = Describe("Hyperdrive", func() {
 	table := []struct {
 		numHyperdrives int
 	}{
-		// {1},
+		{1},
 		{2},
-		// {8},
-		// {16},
-		// {32},
-		// {64},
-		// {128},
+		{4},
+		{8},
+		{16},
+		{32},
+		{64},
+		{128},
+
 		// CircleCI times out on the following configurations
 		// {256},
 		// {512},
@@ -49,7 +50,6 @@ var _ = Describe("Hyperdrive", func() {
 				signatories := make(sig.Signatories, entry.numHyperdrives)
 				signers := make([]sig.SignerVerifier, entry.numHyperdrives)
 
-				By("building signatories")
 				for i := 0; i < entry.numHyperdrives; i++ {
 					var err error
 					ipChans[i] = make(chan Object, entry.numHyperdrives*entry.numHyperdrives)
@@ -58,7 +58,6 @@ var _ = Describe("Hyperdrive", func() {
 					Expect(err).ShouldNot(HaveOccurred())
 				}
 
-				By("initialising shard")
 				shardHash := testutils.RandomHash()
 				for i := 0; i < entry.numHyperdrives; i++ {
 					blockchain := block.NewBlockchain()
@@ -70,25 +69,12 @@ var _ = Describe("Hyperdrive", func() {
 					ipChans[i] <- ShardObject{shard, blockchain, tx.FIFOPool()}
 				}
 
-				By("running hyperdrives")
-				co.ParBegin(
-					func() {
-						// defer close(done)
-						// timeout := math.Ceil(float64(entry.numHyperdrives) * 0.1)
-						// if timeout <= 1 {
-						// 	timeout++
-						// }
-						// time.Sleep(time.Duration(timeout) * time.Second)
-					},
-					func() {
-						co.ParForAll(entry.numHyperdrives, func(i int) {
-							if i == 0 {
-								time.Sleep(time.Second)
-							}
-							log.Printf("running hyperdrive %v", i)
-							runHyperdrive(i, NewMockDispatcher(i, ipChans, done), signers[i], ipChans[i], done)
-						})
-					})
+				co.ParForAll(entry.numHyperdrives, func(i int) {
+					if i == 0 {
+						time.Sleep(time.Second)
+					}
+					runHyperdrive(i, NewMockDispatcher(i, ipChans, done), signers[i], ipChans[i], done)
+				})
 			})
 		})
 
@@ -140,23 +126,20 @@ func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action consen
 	if dup := mockDispatcher.dups[key]; dup {
 		return
 	}
-	if mockDispatcher.index == 0 {
-		log.Printf("dispatching %v", key)
-	}
 	mockDispatcher.dups[key] = true
 
-	for i := range mockDispatcher.channels {
-		if i == mockDispatcher.index {
-			continue
+	go func() {
+		if mockDispatcher.index > len(mockDispatcher.channels)-len(mockDispatcher.channels)/3 {
+			return
 		}
-		go func(i int) {
+		for i := range mockDispatcher.channels {
 			select {
 			case <-mockDispatcher.done:
 				return
 			case mockDispatcher.channels[i] <- ActionObject{shardHash, action}:
 			}
-		}(i)
-	}
+		}
+	}()
 }
 
 type Object interface {
@@ -181,7 +164,7 @@ func (ShardObject) IsObject() {}
 func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVerifier, inputCh chan Object, done chan struct{}) {
 	h := New(signer, dispatcher)
 
-	currentHeight := block.Height(-1)
+	var currentBlock *block.SignedBlock
 
 	for {
 		select {
@@ -190,56 +173,28 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 		case input := <-inputCh:
 			switch input := input.(type) {
 			case ShardObject:
-				select {
-				case <-done:
-					return
-				default:
-					h.AcceptShard(input.shard, input.blockchain, input.pool)
-				}
+				h.AcceptShard(input.shard, input.blockchain, input.pool)
 			case ActionObject:
-				switch input.action.(type) {
+				switch action := input.action.(type) {
 				case consensus.Propose:
-					deepCopy := input.action.(consensus.Propose)
-					select {
-					case <-done:
-						return
-					default:
-						h.AcceptPropose(input.shardHash, deepCopy.SignedBlock)
-					}
+					h.AcceptPropose(input.shardHash, action.SignedBlock)
 				case consensus.SignedPreVote:
-					temp := input.action.(consensus.SignedPreVote)
-					if temp.Block.Height > currentHeight {
-						deepCopy := *temp.SignedPreVote.Block
-						copy := temp
-
-						copy.SignedPreVote.Block = &deepCopy
-						select {
-						case <-done:
-							return
-						default:
-							h.AcceptPreVote(input.shardHash, copy.SignedPreVote)
-						}
-					}
+					h.AcceptPreVote(input.shardHash, action.SignedPreVote)
 				case consensus.SignedPreCommit:
-					temp := input.action.(consensus.SignedPreCommit)
-					if temp.SignedPreCommit.Polka.Block.Height > currentHeight {
-						deepCopy := *temp.SignedPreCommit.Polka.Block
-						copy := temp
-
-						copy.SignedPreCommit.Polka.Block = &deepCopy
-						select {
-						case <-done:
-							return
-						default:
-							h.AcceptPreCommit(input.shardHash, copy.SignedPreCommit)
-						}
-					}
+					h.AcceptPreCommit(input.shardHash, action.SignedPreCommit)
 				case consensus.Commit:
-					if input.action.(consensus.Commit).Polka.Block.Height > currentHeight {
-						if index == 0 {
-							log.Printf("got commit %x\ncurrent height %d; new height %d\n", input.action.(consensus.Commit).Polka.Block.Header, currentHeight, input.action.(consensus.Commit).Polka.Block.Height)
+					if currentBlock == nil || action.Polka.Block.Height > currentBlock.Height {
+						if currentBlock != nil {
+							Expect(currentBlock.Height).To(Equal(action.Polka.Block.Height - 1))
+							Expect(currentBlock.Header.Equal(action.Polka.Block.ParentHeader)).To(Equal(true))
 						}
-						currentHeight = input.action.(consensus.Commit).Polka.Block.Height
+						if index == 0 {
+							fmt.Printf("%v\n", *action.Polka.Block)
+						}
+						currentBlock = action.Polka.Block
+						if currentBlock.Height == 100 {
+							return
+						}
 					}
 				default:
 				}
