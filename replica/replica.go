@@ -99,9 +99,6 @@ func (replica *replica) dispatchAction(action consensus.Action) {
 		replica.dispatcher.Dispatch(replica.shard.Hash, consensus.SignedPreVote{
 			SignedPreVote: signedPreVote,
 		})
-		replica.handlePreVote(consensus.SignedPreVote{
-			SignedPreVote: signedPreVote,
-		})
 	case consensus.PreCommit:
 		signedPreCommit, err := action.PreCommit.Sign(replica.signer)
 		if err != nil {
@@ -112,26 +109,11 @@ func (replica *replica) dispatchAction(action consensus.Action) {
 		replica.dispatcher.Dispatch(replica.shard.Hash, consensus.SignedPreCommit{
 			SignedPreCommit: signedPreCommit,
 		})
-		replica.handlePreCommit(consensus.SignedPreCommit{
-			SignedPreCommit: signedPreCommit,
-		})
 	case consensus.Commit:
 		replica.dispatcher.Dispatch(replica.shard.Hash, action)
-		replica.handleCommit(action)
+		replica.blockchain.Extend(action.Commit)
+		replica.generateSignedBlock()
 	}
-}
-
-func (replica *replica) handlePreVote(preVote consensus.SignedPreVote) {
-	// Passthrough
-}
-
-func (replica *replica) handlePreCommit(preCommit consensus.SignedPreCommit) {
-	// Passthrough
-}
-
-func (replica *replica) handleCommit(commit consensus.Commit) {
-	replica.blockchain.Extend(commit.Commit)
-	replica.generateSignedBlock()
 }
 
 func (replica *replica) isTransitionValid(transition consensus.Transition) bool {
@@ -196,15 +178,13 @@ func (replica *replica) generateSignedBlock() {
 		propose := consensus.Propose{
 			SignedBlock: replica.buildSignedBlock(),
 		}
-		action := replica.transition(consensus.Proposed{
-			SignedBlock: propose.SignedBlock,
-		})
 		replica.dispatcher.Dispatch(replica.shard.Hash, propose)
-		if action != nil {
-			// It is important that the Action is dispatched after the State has been completely transitioned in the
-			// Replica. Otherwise, re-entrance into the Replica may cause issues.
-			replica.dispatchAction(action)
-		}
+
+		// It is important that the Action is dispatched after the State has been completely transitioned in the
+		// Replica. Otherwise, re-entrance into the Replica may cause issues.
+		replica.dispatchAction(replica.transition(consensus.Proposed{
+			SignedBlock: propose.SignedBlock,
+		}))
 	}
 }
 
