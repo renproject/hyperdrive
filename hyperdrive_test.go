@@ -32,8 +32,8 @@ var _ = Describe("Hyperdrive", func() {
 		{32},
 		{64},
 		{128},
-		{256},
 		// CircleCI times out on the following configurations
+		// {256},
 		// {512},
 		// {1024},
 	}
