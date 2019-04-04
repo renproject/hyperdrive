@@ -24,18 +24,19 @@ var _ = Describe("Hyperdrive", func() {
 
 	table := []struct {
 		numHyperdrives int
+		maxHeight      block.Height
 	}{
-		{1},
-		{2},
-		{4},
-		{8},
-		{16},
-		{32},
-		{64},
-		{128},
+		{1, 100},
+		{2, 100},
+		{4, 100},
+		{8, 50},
+		{16, 50},
+		{32, 30},
+		{64, 15},
+		{128, 7},
+		{256, 2},
 
 		// CircleCI times out on the following configurations
-		// {256},
 		// {512},
 		// {1024},
 	}
@@ -73,7 +74,7 @@ var _ = Describe("Hyperdrive", func() {
 					if i == 0 {
 						time.Sleep(time.Second)
 					}
-					runHyperdrive(i, NewMockDispatcher(i, ipChans, done), signers[i], ipChans[i], done)
+					runHyperdrive(i, NewMockDispatcher(i, ipChans, done), signers[i], ipChans[i], done, entry.maxHeight)
 				})
 			})
 		})
@@ -161,7 +162,7 @@ type ShardObject struct {
 
 func (ShardObject) IsObject() {}
 
-func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVerifier, inputCh chan Object, done chan struct{}) {
+func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVerifier, inputCh chan Object, done chan struct{}, maxHeight block.Height) {
 	h := New(signer, dispatcher)
 
 	var currentBlock *block.SignedBlock
@@ -192,7 +193,7 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 							fmt.Printf("%v\n", *action.Polka.Block)
 						}
 						currentBlock = action.Polka.Block
-						if currentBlock.Height == 100 {
+						if currentBlock.Height == maxHeight {
 							return
 						}
 					}
