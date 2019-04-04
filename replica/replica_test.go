@@ -640,7 +640,7 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 			consensusThreshold: 3,
 
 			startingState: consensus.WaitForPropose(0, 1),
-			finalState:    consensus.WaitForPropose(0, 3),
+			finalState:    consensus.WaitForPolka(0, 3),
 
 			transitions: []consensus.Transition{
 				consensus.Proposed{
