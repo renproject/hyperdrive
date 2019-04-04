@@ -3,7 +3,6 @@ package replica_test
 import (
 	"fmt"
 	"reflect"
-	"sync"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -691,21 +690,10 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 	}
 }
 
-type mockDispatcher struct {
-	actionsMu *sync.Mutex
-	actions   []consensus.Action
-}
+type mockDispatcher struct{}
 
 func newMockDispatcher() *mockDispatcher {
-	return &mockDispatcher{
-		new(sync.Mutex),
-		[]consensus.Action{},
-	}
+	return &mockDispatcher{}
 }
 
-func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action consensus.Action) {
-	mockDispatcher.actionsMu.Lock()
-	defer mockDispatcher.actionsMu.Unlock()
-
-	mockDispatcher.actions = append(mockDispatcher.actions, action)
-}
+func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action consensus.Action) {}
