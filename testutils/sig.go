@@ -67,9 +67,9 @@ func RandomSignatures(n int) []sig.Signature {
 	return signatures
 }
 
-func SignBlock(blk block.Block, signer sig.SignerVerifier) block.SignedBlock {
+func SignBlock(blk block.Block, signer sig.SignerVerifier) *block.SignedBlock {
 	signedBlock, _ := blk.Sign(signer)
-	return signedBlock
+	return &signedBlock
 }
 
 func GenerateSignedPreVote(signedBlock block.SignedBlock, signer sig.SignerVerifier) block.SignedPreVote {
