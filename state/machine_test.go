@@ -1,4 +1,4 @@
-package consensus_test
+package state_test
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/consensus"
+	. "github.com/renproject/hyperdrive/state"
 )
 
 var _ = Describe("State Machine", func() {
@@ -29,7 +29,7 @@ var _ = Describe("State Machine", func() {
 
 			Context(fmt.Sprintf("when state machine begins with state - %s", reflect.TypeOf(t.startingState).Name()), func() {
 				It(fmt.Sprintf("should eventually arrive at state %s", stateStr), func() {
-					stateMachine := NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
+					stateMachine := NewMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
 					state := t.startingState
 					var action Action
 					for _, transition := range t.transitions {

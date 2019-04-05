@@ -1,4 +1,4 @@
-package consensus_test
+package state_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestConsensus(t *testing.T) {
+func TestState(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Consensus Suite")
+	RunSpecs(t, "State Suite")
 }

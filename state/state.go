@@ -1,4 +1,4 @@
-package consensus
+package state
 
 import (
 	"github.com/renproject/hyperdrive/block"

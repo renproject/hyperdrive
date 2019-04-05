@@ -1,4 +1,4 @@
-package consensus_test
+package state_test
 
 import (
 	"math/rand"
@@ -9,7 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/consensus"
+	. "github.com/renproject/hyperdrive/state"
 )
 
 var conf = quick.Config{

@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/consensus"
 	"github.com/renproject/hyperdrive/replica"
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/sig/ecdsa"
+	"github.com/renproject/hyperdrive/state"
 	"github.com/renproject/hyperdrive/testutils"
 	"github.com/renproject/hyperdrive/tx"
 	co "github.com/republicprotocol/co-go"
@@ -101,22 +101,22 @@ func NewMockDispatcher(i int, channels []chan Object, done chan struct{}) *mockD
 	}
 }
 
-func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action consensus.Action) {
+func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action state.Action) {
 
 	// De-duplicate
 	height := block.Height(0)
 	round := block.Round(0)
 	switch action := action.(type) {
-	case consensus.Propose:
+	case state.Propose:
 		height = action.Height
 		round = action.Round
-	case consensus.SignedPreVote:
+	case state.SignedPreVote:
 		height = action.Height
 		round = action.Round
-	case consensus.SignedPreCommit:
+	case state.SignedPreCommit:
 		height = action.Polka.Height
 		round = action.Polka.Round
-	case consensus.Commit:
+	case state.Commit:
 		height = action.Polka.Height
 		round = action.Polka.Round
 	default:
@@ -149,7 +149,7 @@ type Object interface {
 
 type ActionObject struct {
 	shardHash sig.Hash
-	action    consensus.Action
+	action    state.Action
 }
 
 func (ActionObject) IsObject() {}
@@ -177,13 +177,13 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 				h.AcceptShard(input.shard, input.blockchain, input.pool)
 			case ActionObject:
 				switch action := input.action.(type) {
-				case consensus.Propose:
+				case state.Propose:
 					h.AcceptPropose(input.shardHash, action.SignedBlock)
-				case consensus.SignedPreVote:
+				case state.SignedPreVote:
 					h.AcceptPreVote(input.shardHash, action.SignedPreVote)
-				case consensus.SignedPreCommit:
+				case state.SignedPreCommit:
 					h.AcceptPreCommit(input.shardHash, action.SignedPreCommit)
-				case consensus.Commit:
+				case state.Commit:
 					if currentBlock == nil || action.Polka.Block.Height > currentBlock.Height {
 						if currentBlock != nil {
 							Expect(currentBlock.Height).To(Equal(action.Polka.Block.Height - 1))

@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/consensus"
+	"github.com/renproject/hyperdrive/state"
 	"github.com/renproject/hyperdrive/replica"
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
@@ -60,7 +60,7 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 		if ticks > NumTicksToTriggerTimeOut {
 			// 2. Send a TimedOut transition to the shard
 			if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-				replica.Transition(consensus.TimedOut{Time: t})
+				replica.Transition(state.TimedOut{Time: t})
 			}
 		}
 	}
@@ -68,19 +68,19 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 
 func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock) {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		replica.Transition(consensus.Proposed{SignedBlock: proposed})
+		replica.Transition(state.Proposed{SignedBlock: proposed})
 	}
 }
 
 func (hyperdrive *hyperdrive) AcceptPreVote(shardHash sig.Hash, preVote block.SignedPreVote) {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		replica.Transition(consensus.PreVoted{SignedPreVote: preVote})
+		replica.Transition(state.PreVoted{SignedPreVote: preVote})
 	}
 }
 
 func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit) {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		replica.Transition(consensus.PreCommitted{SignedPreCommit: preCommit})
+		replica.Transition(state.PreCommitted{SignedPreCommit: preCommit})
 	}
 }
 
@@ -93,9 +93,9 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Bl
 		hyperdrive.dispatcher,
 		hyperdrive.signer,
 		pool,
-		consensus.WaitForPropose(blockchain.Round(), blockchain.Height()),
-		consensus.NewStateMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), shard.ConsensusThreshold()),
-		consensus.NewTransitionBuffer(shard.Size()),
+		state.WaitForPropose(blockchain.Round(), blockchain.Height()),
+		state.NewMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), shard.ConsensusThreshold()),
+		state.NewTransitionBuffer(shard.Size()),
 		&blockchain,
 		shard,
 	)

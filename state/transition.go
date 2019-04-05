@@ -1,4 +1,4 @@
-// Package consensus contains the interface TransitionBuffer and its
+// package state contains the interface TransitionBuffer and its
 // implementation
 //
 // Note: TransitionBuffer is not thread safe
@@ -14,7 +14,7 @@
 // For example: if you `Enqueue` a `TimedOut` twice then the next two
 // `Dequeue` will return a `TimedOut`. The "immediate" `Transition`s are
 // stored in a FIFO queue.
-package consensus
+package state
 
 import (
 	"time"
@@ -22,8 +22,8 @@ import (
 	"github.com/renproject/hyperdrive/block"
 )
 
-// A Transition is an event that transitions a `StateMachine` from one
-// State to another. It is generated externally to the `StateMachine`.
+// A Transition is an event that transitions a `Machine` from one
+// State to another. It is generated externally to the `Machine`.
 type Transition interface {
 	IsTransition()
 }

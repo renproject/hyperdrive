@@ -1,4 +1,4 @@
-package consensus
+package state
 
 import (
 	"fmt"
@@ -6,69 +6,69 @@ import (
 	"github.com/renproject/hyperdrive/block"
 )
 
-type StateMachine interface {
+type Machine interface {
 	Transition(state State, transition Transition) (State, Action)
 }
 
-type stateMachine struct {
+type machine struct {
 	polkaBuilder       block.PolkaBuilder
 	commitBuilder      block.CommitBuilder
 	consensusThreshold int
 }
 
-func NewStateMachine(polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, consensusThreshold int) StateMachine {
-	return &stateMachine{
+func NewMachine(polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, consensusThreshold int) Machine {
+	return &machine{
 		polkaBuilder:       polkaBuilder,
 		commitBuilder:      commitBuilder,
 		consensusThreshold: consensusThreshold,
 	}
 }
 
-func (stateMachine *stateMachine) Transition(state State, transition Transition) (State, Action) {
+func (machine *machine) Transition(state State, transition Transition) (State, Action) {
 	switch state := state.(type) {
 	case WaitingForPropose:
-		return stateMachine.waitForPropose(state, transition)
+		return machine.waitForPropose(state, transition)
 	case WaitingForPolka:
-		return stateMachine.waitForPolka(state, transition)
+		return machine.waitForPolka(state, transition)
 	case WaitingForCommit:
-		return stateMachine.waitForCommit(state, transition)
+		return machine.waitForCommit(state, transition)
 	}
 	return nil, nil
 }
 
-func (stateMachine *stateMachine) waitForPropose(state WaitingForPropose, transition Transition) (State, Action) {
+func (machine *machine) waitForPropose(state WaitingForPropose, transition Transition) (State, Action) {
 	switch transition := transition.(type) {
 	case TimedOut:
-		return stateMachine.reduceTimedOut(state, transition)
+		return machine.reduceTimedOut(state, transition)
 	case Proposed:
-		return stateMachine.reduceProposed(state, transition)
+		return machine.reduceProposed(state, transition)
 	case PreVoted:
-		return stateMachine.reducePreVoted(state, transition)
+		return machine.reducePreVoted(state, transition)
 	case PreCommitted:
-		return stateMachine.reducePreCommitted(state, transition)
+		return machine.reducePreCommitted(state, transition)
 	}
 	return state, nil
 }
 
-func (stateMachine *stateMachine) waitForPolka(state WaitingForPolka, transition Transition) (State, Action) {
+func (machine *machine) waitForPolka(state WaitingForPolka, transition Transition) (State, Action) {
 	switch transition := transition.(type) {
 	case PreVoted:
-		return stateMachine.reducePreVoted(state, transition)
+		return machine.reducePreVoted(state, transition)
 	case PreCommitted:
-		return stateMachine.reducePreCommitted(state, transition)
+		return machine.reducePreCommitted(state, transition)
 	}
 	return state, nil
 }
 
-func (stateMachine *stateMachine) waitForCommit(state WaitingForCommit, transition Transition) (State, Action) {
+func (machine *machine) waitForCommit(state WaitingForCommit, transition Transition) (State, Action) {
 	switch transition := transition.(type) {
 	case PreCommitted:
-		return stateMachine.reducePreCommitted(state, transition)
+		return machine.reducePreCommitted(state, transition)
 	}
 	return state, nil
 }
 
-func (stateMachine *stateMachine) reduceTimedOut(currentState State, timedOut TimedOut) (State, Action) {
+func (machine *machine) reduceTimedOut(currentState State, timedOut TimedOut) (State, Action) {
 	return WaitForPolka(currentState.Round(), currentState.Height()), PreVote{
 		PreVote: block.PreVote{
 			Block:  nil,
@@ -78,7 +78,7 @@ func (stateMachine *stateMachine) reduceTimedOut(currentState State, timedOut Ti
 	}
 }
 
-func (stateMachine *stateMachine) reduceProposed(currentState State, proposed Proposed) (State, Action) {
+func (machine *machine) reduceProposed(currentState State, proposed Proposed) (State, Action) {
 	if proposed.Block.Round != currentState.Round() {
 		return currentState, nil
 	}
@@ -95,7 +95,7 @@ func (stateMachine *stateMachine) reduceProposed(currentState State, proposed Pr
 	}
 }
 
-func (stateMachine *stateMachine) reducePreVoted(currentState State, preVoted PreVoted) (State, Action) {
+func (machine *machine) reducePreVoted(currentState State, preVoted PreVoted) (State, Action) {
 	if preVoted.Round < currentState.Round() {
 		return currentState, nil
 	}
@@ -103,8 +103,8 @@ func (stateMachine *stateMachine) reducePreVoted(currentState State, preVoted Pr
 		return currentState, nil
 	}
 
-	if new := stateMachine.polkaBuilder.Insert(preVoted.SignedPreVote); new {
-		if polka, ok := stateMachine.polkaBuilder.Polka(currentState.Height(), stateMachine.consensusThreshold); ok {
+	if new := machine.polkaBuilder.Insert(preVoted.SignedPreVote); new {
+		if polka, ok := machine.polkaBuilder.Polka(currentState.Height(), machine.consensusThreshold); ok {
 			// Invariant check
 			if polka.Round < currentState.Round() {
 				panic(fmt.Errorf("expected polka round (%v) to be greater or equal to the current round (%v)", polka.Round, currentState.Round()))
@@ -127,7 +127,7 @@ func (stateMachine *stateMachine) reducePreVoted(currentState State, preVoted Pr
 	return currentState, nil
 }
 
-func (stateMachine *stateMachine) reducePreCommitted(currentState State, preCommitted PreCommitted) (State, Action) {
+func (machine *machine) reducePreCommitted(currentState State, preCommitted PreCommitted) (State, Action) {
 	if preCommitted.Polka.Round < currentState.Round() {
 		return currentState, nil
 	}
@@ -135,8 +135,8 @@ func (stateMachine *stateMachine) reducePreCommitted(currentState State, preComm
 		return currentState, nil
 	}
 
-	if new := stateMachine.commitBuilder.Insert(preCommitted.SignedPreCommit); new {
-		if commit, ok := stateMachine.commitBuilder.Commit(currentState.Height(), stateMachine.consensusThreshold); ok {
+	if new := machine.commitBuilder.Insert(preCommitted.SignedPreCommit); new {
+		if commit, ok := machine.commitBuilder.Commit(currentState.Height(), machine.consensusThreshold); ok {
 			// Invariant check
 			if commit.Polka.Round < currentState.Round() {
 				panic(fmt.Errorf("expected commit round (%v) to be greater or equal to the current round (%v)", commit.Polka.Round, currentState.Round()))
