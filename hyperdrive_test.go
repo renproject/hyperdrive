@@ -26,19 +26,19 @@ var _ = Describe("Hyperdrive", func() {
 		numHyperdrives int
 		maxHeight      block.Height
 	}{
-		{1, 100},
-		{2, 100},
-		{4, 100},
-		{8, 50},
-		{16, 50},
-		{32, 30},
-		{64, 15},
-		{128, 7},
-		{256, 2},
+		{1, 640},
+		{2, 320},
+		{4, 160},
+		{8, 80},
+		{16, 40},
+		{32, 20},
+		{64, 10},
 
-		// CircleCI times out on the following configurations
-		// {512},
-		// {1024},
+		// Disabled so that the CI does not take too long.
+		// {128, 5},
+		// {256, 5},
+		// {512, 5},
+		// {1024, 5},
 	}
 
 	for _, entry := range table {
