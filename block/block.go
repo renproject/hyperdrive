@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/tx"
+	"golang.org/x/crypto/sha3"
 )
 
 // The Round in which a `Block` was proposed.
@@ -21,8 +23,22 @@ type Block struct {
 	Height       Height
 	Header       sig.Hash
 	ParentHeader sig.Hash
-	Signature    sig.Signature
-	Signatory    sig.Signatory
+	Txs          tx.Transactions
+}
+
+func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions) Block {
+	block := Block{
+		Time:         time.Now(),
+		Round:        round,
+		Height:       height,
+		ParentHeader: parentHeader,
+		Txs:          txs,
+	}
+	// FIXME: At this point we should calculate the block header. It should be the SHA3 hash of the timestamp, round,
+	// height, parentHeader, and transactions.
+	hashSum256 := sha3.Sum256([]byte(block.String()))
+	copy(block.Header[:], hashSum256[:])
+	return block
 }
 
 // Equal excludes time from equality check
@@ -30,25 +46,52 @@ func (block Block) Equal(other Block) bool {
 	return block.Round == other.Round &&
 		block.Height == other.Height &&
 		block.Header.Equal(other.Header) &&
-		block.ParentHeader.Equal(other.ParentHeader) &&
-		block.Signature.Equal(other.Signature) &&
-		block.Signatory.Equal(other.Signatory)
+		block.ParentHeader.Equal(other.ParentHeader)
 }
 
-func Genesis() Block {
-	return Block{
-		Time:         time.Unix(0, 0),
-		Round:        0,
-		Height:       0,
-		Header:       sig.Hash{},
-		ParentHeader: sig.Hash{},
-		Signature:    sig.Signature{},
-		Signatory:    sig.Signatory{},
+func (block Block) Sign(signer sig.Signer) (SignedBlock, error) {
+	signedBlock := SignedBlock{
+		Block: block,
 	}
+
+	signature, err := signer.Sign(signedBlock.Header)
+	if err != nil {
+		return SignedBlock{}, err
+	}
+	signedBlock.Signature = signature
+	signedBlock.Signatory = signer.Signatory()
+
+	return signedBlock, nil
 }
 
 func (block Block) String() string {
 	return fmt.Sprintf("Block(Header=%s,Round=%d,Height=%d)", base64.StdEncoding.EncodeToString(block.Header[:]), block.Round, block.Height)
+}
+
+type SignedBlock struct {
+	Block
+
+	Signature sig.Signature
+	Signatory sig.Signatory
+}
+
+func Genesis() SignedBlock {
+	return SignedBlock{
+		Block: Block{
+			Time:         time.Unix(0, 0),
+			Round:        0,
+			Height:       0,
+			Header:       sig.Hash{},
+			ParentHeader: sig.Hash{},
+			Txs:          tx.Transactions{},
+		},
+		Signature: sig.Signature{},
+		Signatory: sig.Signatory{},
+	}
+}
+
+func (signedBlock SignedBlock) String() string {
+	return fmt.Sprintf("Block(Header=%s,Round=%d,Height=%d)", base64.StdEncoding.EncodeToString(signedBlock.Header[:]), signedBlock.Round, signedBlock.Height)
 }
 
 type Blockchain struct {
@@ -83,15 +126,14 @@ func (blockchain *Blockchain) Round() Round {
 	return blockchain.head.Polka.Block.Round
 }
 
-func (blockchain *Blockchain) Head() (Block, bool) {
+func (blockchain *Blockchain) Head() (SignedBlock, bool) {
 	if blockchain.head.Polka.Block == nil {
 		return Genesis(), false
 	}
 	return *blockchain.head.Polka.Block, true
 }
 
-// Block finds the block for the given header
-func (blockchain *Blockchain) Block(header sig.Hash) (Block, bool) {
+func (blockchain *Blockchain) Block(header sig.Hash) (SignedBlock, bool) {
 	commit, ok := blockchain.blocks[header]
 	if !ok || commit.Polka.Block == nil {
 		return Genesis(), false

@@ -21,16 +21,19 @@ jobs:
             go get -u github.com/onsi/ginkgo/ginkgo
             go get -u github.com/loongy/covermerge
             go get -u github.com/mattn/goveralls
-            go test ./...
-            CI=true /go/bin/ginkgo -v --race \
-            --cover --coverprofile coverprofile.out ./...
-            /go/bin/covermerge block/coverprofile.out \
-              cmd/node/coverprofile.out \
-              replica/coverprofile.out \
-              sig/coverprofile.out \
-              sig/ecdsa/coverprofile.out \
-              supervisor/coverprofile.out > coverprofile.out
+            go test -v ./...
+            CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out ./...
+            /go/bin/covermerge                \
+              block/coverprofile.out          \
+              cmd/hyperdrive/coverprofile.out \
+              consensus/coverprofile.out      \
+              replica/coverprofile.out        \
+              shard/coverprofile.out          \
+              sig/ecdsa/coverprofile.out      \
+              sig/coverprofile.out            \
+              tx/coverprofile.out > coverprofile.out
             goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
+          no_output_timeout: 40m
       - save_cache:
           key: go-mod-v3-{{ checksum "go.sum" }}
           paths:

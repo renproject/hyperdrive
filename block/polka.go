@@ -12,13 +12,13 @@ import (
 // during this round at this height. It is a PreVoteNil when the block
 // is nil.
 type PreVote struct {
-	Block  *Block
+	Block  *SignedBlock
 	Round  Round
 	Height Height
 }
 
 // NewPreVote creates a PreVote
-func NewPreVote(block *Block, round Round, height Height) PreVote {
+func NewPreVote(block *SignedBlock, round Round, height Height) PreVote {
 	return PreVote{
 		Block:  block,
 		Round:  round,
@@ -53,10 +53,7 @@ func (preVote PreVote) String() string {
 	if preVote.Block != nil {
 		block = preVote.Block.String()
 	}
-	return fmt.Sprintf("PreVote(%s,Round=%d,Height=%d)",
-		block,
-		preVote.Round,
-		preVote.Height)
+	return fmt.Sprintf("PreVote(%s,Round=%d,Height=%d)", block, preVote.Round, preVote.Height)
 }
 
 // SignedPreVote is the signed version of a PreVote
@@ -66,17 +63,14 @@ type SignedPreVote struct {
 	Signatory sig.Signatory
 }
 
-func (sPreVote SignedPreVote) String() string {
-	return fmt.Sprintf("SignedPreVote(%s,Signature=%v,Signatory=%v)",
-		sPreVote.PreVote.String(),
-		sPreVote.Signature,
-		sPreVote.Signatory)
+func (signedPreVote SignedPreVote) String() string {
+	return fmt.Sprintf("SignedPreVote(%s,Signature=%v,Signatory=%v)", signedPreVote.PreVote.String(), signedPreVote.Signature, signedPreVote.Signatory)
 }
 
-// Polka is created when 2/3 of the nodes in the network have all
-// PreVoted for a given block.
+// Polka is created when 2/3 of the nodes have all PreVoted for a given block.
+// The Signatures are expected to be ordered to match the order of the Signatories.
 type Polka struct {
-	Block       *Block
+	Block       *SignedBlock
 	Round       Round
 	Height      Height
 	Signatures  sig.Signatures
@@ -88,7 +82,7 @@ func (polka Polka) Equal(other Polka) bool {
 	if other.Block == nil || polka.Block == nil {
 		return polka.Block == other.Block
 	}
-	return polka.Block.Equal(*other.Block) &&
+	return polka.Block.Equal(other.Block.Block) &&
 		polka.Round == other.Round &&
 		polka.Height == other.Height &&
 		polka.Signatures.Equal(other.Signatures) &&
@@ -100,19 +94,20 @@ func (polka Polka) String() string {
 	if polka.Block != nil {
 		blockHeader = base64.StdEncoding.EncodeToString(polka.Block.Header[:])
 	}
-	return fmt.Sprintf("Polka(Block=%s,Round=%d,Height=%d)",
-		blockHeader,
-		polka.Round,
-		polka.Height)
+	return fmt.Sprintf("Polka(Block=%s,Round=%d,Height=%d)", blockHeader, polka.Round, polka.Height)
 }
 
 // PolkaBuilder is used to build up collections of SignedPreVotes at different Heights and Rounds and then build Polkas
 // wherever there are enough SignedPreVotes to do so.
 type PolkaBuilder map[Height]map[Round]map[sig.Signatory]SignedPreVote
 
+func NewPolkaBuilder() PolkaBuilder {
+	return PolkaBuilder{}
+}
+
 // Insert a SignedPreVote into the PolkaBuilder. This will include the SignedPreVote in all attempts to build a Polka
 // for the respective Height.
-func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
+func (builder PolkaBuilder) Insert(preVote SignedPreVote) bool {
 	// Pre-condition check
 	if preVote.Block != nil {
 		if preVote.Block.Height != preVote.Height {
@@ -131,7 +126,9 @@ func (builder PolkaBuilder) Insert(preVote SignedPreVote) {
 	}
 	if _, ok := builder[preVote.Height][preVote.Round][preVote.Signatory]; !ok {
 		builder[preVote.Height][preVote.Round][preVote.Signatory] = preVote
+		return true
 	}
+	return false
 }
 
 // Polka returns a Polka for the given Height in the latest Round.

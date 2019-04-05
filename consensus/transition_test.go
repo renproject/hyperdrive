@@ -1,4 +1,4 @@
-package replica_test
+package consensus_test
 
 import (
 	"math/rand"
@@ -9,7 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/replica"
+	. "github.com/renproject/hyperdrive/consensus"
 )
 
 var conf = quick.Config{
@@ -30,7 +30,7 @@ var _ = Describe("TransitionBuffer", func() {
 					incrementHeight++
 				}
 
-				genesis := Proposed{Block: block.Genesis()}
+				genesis := Proposed{SignedBlock: block.Genesis()}
 				var height block.Height
 				height = 0
 				scratch := make(map[block.Height]uint8)
@@ -193,7 +193,7 @@ func (m *mockInput) nextTransition() Transition {
 
 	switch nextTran {
 	case mockProposed:
-		gen := Proposed{Block: block.Genesis()}
+		gen := Proposed{SignedBlock: block.Genesis()}
 		gen.Height = m.height
 		rndTransition = gen
 		// The only time I would ever Dequeue a Propose is if either

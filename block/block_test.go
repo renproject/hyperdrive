@@ -1,11 +1,13 @@
 package block_test
 
 import (
-	"fmt"
 	"math/rand"
 	"time"
 
 	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/sig/ecdsa"
+	"github.com/renproject/hyperdrive/testutils"
+	"github.com/renproject/hyperdrive/tx"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -32,15 +34,21 @@ var _ = Describe("Blockchain", func() {
 			It("should return latest block", func() {
 				blockchain := NewBlockchain()
 				block := Block{}
+				signedBlock := SignedBlock{}
 				for i := 0; i < 10; i++ {
-					block = Block{Height: Height(i), Round: Round(i), Header: randomHash()}
+					block = Block{Height: Height(i), Round: Round(i), Header: testutils.RandomHash()}
+					signer, err := ecdsa.NewFromRandom()
+					Expect(err).ShouldNot(HaveOccurred())
+					signedBlock, err = block.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
+
 					commit := Commit{
 						Polka: Polka{
-							Block:       &block,
+							Block:       &signedBlock,
 							Round:       Round(i),
 							Height:      Height(i),
-							Signatures:  randomSignatures(10),
-							Signatories: randomSignatories(10),
+							Signatures:  testutils.RandomSignatures(10),
+							Signatories: testutils.RandomSignatories(10),
 						},
 					}
 					blockchain.Extend(commit)
@@ -50,7 +58,7 @@ var _ = Describe("Blockchain", func() {
 				Expect(blockchain.Round()).To(Equal(Round(9)))
 				head, ok := blockchain.Head()
 				Expect(ok).To(BeTrue())
-				Expect(head).To(Equal(block))
+				Expect(head).To(Equal(signedBlock))
 			})
 
 			It("should return block for a specific header", func() {
@@ -58,18 +66,21 @@ var _ = Describe("Blockchain", func() {
 				queryIndex := rand.Intn(10)
 				queryBlock := Genesis()
 				for i := 0; i < 10; i++ {
-					block := Block{Height: Height(i), Round: Round(i), Header: randomHash()}
+					block := Block{Height: Height(i), Round: Round(i), Header: testutils.RandomHash()}
+					signer, err := ecdsa.NewFromRandom()
+					Expect(err).ShouldNot(HaveOccurred())
+					signedBlock, err := block.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
 					if i == queryIndex {
-						fmt.Println(i)
-						queryBlock = block
+						queryBlock = signedBlock
 					}
 					commit := Commit{
 						Polka: Polka{
-							Block:       &block,
+							Block:       &signedBlock,
 							Round:       Round(i),
 							Height:      Height(i),
-							Signatures:  randomSignatures(10),
-							Signatories: randomSignatories(10),
+							Signatures:  testutils.RandomSignatures(10),
+							Signatories: testutils.RandomSignatories(10),
 						},
 					}
 					blockchain.Extend(commit)
@@ -88,8 +99,8 @@ var _ = Describe("Blockchain", func() {
 							Block:       nil,
 							Round:       0,
 							Height:      0,
-							Signatures:  randomSignatures(10),
-							Signatories: randomSignatories(10),
+							Signatures:  testutils.RandomSignatures(10),
+							Signatories: testutils.RandomSignatories(10),
 						},
 					}
 
@@ -109,14 +120,17 @@ var _ = Describe("Blockchain", func() {
 	Context("when genesis block is generated", func() {
 		It("should create the correct genesis block", func() {
 			genesis := Genesis()
-			expectedGenesis := Block{
-				Time:         time.Unix(0, 0),
-				Round:        0,
-				Height:       0,
-				Header:       sig.Hash{},
-				ParentHeader: sig.Hash{},
-				Signature:    sig.Signature{},
-				Signatory:    sig.Signatory{},
+			expectedGenesis := SignedBlock{
+				Block: Block{
+					Time:         time.Unix(0, 0),
+					Round:        0,
+					Height:       0,
+					Header:       sig.Hash{},
+					ParentHeader: sig.Hash{},
+					Txs:          tx.Transactions{},
+				},
+				Signature: sig.Signature{},
+				Signatory: sig.Signatory{},
 			}
 			Expect(genesis).To(Equal(expectedGenesis))
 		})

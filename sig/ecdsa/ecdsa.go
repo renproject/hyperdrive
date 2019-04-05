@@ -58,17 +58,21 @@ func NewFromPrivKey(privKey *ecdsa.PrivateKey) sig.SignerVerifier {
 // NewFromRandom generates a new random Private Key
 func NewFromRandom() (sig.SignerVerifier, error) {
 	privKey, err := crypto.GenerateKey()
-	return signerVerifier{
-		privKey: privKey,
-	}, err
+	if err != nil {
+		return nil, err
+	}
+	return signerVerifier{privKey: privKey}, nil
 }
 
 // Sign implements the `sig.SignerVerifier` interface
 func (signerVerifier signerVerifier) Sign(hash sig.Hash) (sig.Signature, error) {
 	signed, err := crypto.Sign(hash[:], signerVerifier.privKey)
+	if err != nil {
+		return sig.Signature{}, err
+	}
 	sig := sig.Signature{}
 	copy(sig[:], signed)
-	return sig, err
+	return sig, nil
 }
 
 // Signatory implements the `sig.SignerVerifier` interface
@@ -77,8 +81,10 @@ func (signerVerifier signerVerifier) Signatory() sig.Signatory {
 }
 
 // Verify implements the `sig.SignerVerifier` interface
-func (signerVerifier signerVerifier) Verify(hash sig.Hash,
-	signature sig.Signature) (sig.Signatory, error) {
+func (signerVerifier signerVerifier) Verify(hash sig.Hash, signature sig.Signature) (sig.Signatory, error) {
 	pubKey, err := crypto.SigToPub(hash[:], signature[:])
-	return PubKeyToSignatory(pubKey), err
+	if err != nil {
+		return sig.Signatory{}, err
+	}
+	return PubKeyToSignatory(pubKey), nil
 }
