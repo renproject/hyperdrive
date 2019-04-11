@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/state"
 	"github.com/renproject/hyperdrive/replica"
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/state"
 	"github.com/renproject/hyperdrive/tx"
 )
 
@@ -24,7 +24,7 @@ type Hyperdrive interface {
 	AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock)
 	AcceptPreVote(shardHash sig.Hash, preVote block.SignedPreVote)
 	AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit)
-	AcceptShard(shard shard.Shard, blockchain block.Blockchain, pool tx.Pool)
+	AcceptShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool)
 }
 
 type hyperdrive struct {
@@ -84,7 +84,7 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 	}
 }
 
-func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Blockchain, pool tx.Pool) {
+func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool) {
 	if _, ok := hyperdrive.shardReplicas[shard.Hash]; ok {
 		return
 	}
@@ -93,11 +93,11 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, blockchain block.Bl
 		hyperdrive.dispatcher,
 		hyperdrive.signer,
 		pool,
-		state.WaitForPropose(blockchain.Round(), blockchain.Height()),
+		state.WaitForPropose(head.Round, head.Height),
 		state.NewMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), shard.ConsensusThreshold()),
 		state.NewTransitionBuffer(shard.Size()),
-		&blockchain,
 		shard,
+		head,
 	)
 
 	hyperdrive.shardReplicas[shard.Hash] = r

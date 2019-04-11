@@ -4,9 +4,9 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/state"
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/state"
 	"github.com/renproject/hyperdrive/tx"
 )
 
@@ -30,22 +30,22 @@ type replica struct {
 	state            state.State
 	stateMachine     state.Machine
 	transitionBuffer state.TransitionBuffer
-	blockchain       *block.Blockchain
 	shard            shard.Shard
+	lastBlock        block.SignedBlock
 }
 
-func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state state.State, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, blockchain *block.Blockchain, shard shard.Shard) Replica {
+func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state state.State, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard shard.Shard, lastBlock block.SignedBlock) Replica {
 	replica := &replica{
 		dispatcher: dispatcher,
 
 		signer:           signer,
-		validator:        NewValidator(signer, shard, blockchain),
+		validator:        NewValidator(signer, shard),
 		txPool:           txPool,
 		state:            state,
 		stateMachine:     stateMachine,
 		transitionBuffer: transitionBuffer,
-		blockchain:       blockchain,
 		shard:            shard,
+		lastBlock:        lastBlock,
 	}
 	return replica
 }
@@ -111,7 +111,9 @@ func (replica *replica) dispatchAction(action state.Action) {
 		})
 	case state.Commit:
 		replica.dispatcher.Dispatch(replica.shard.Hash, action)
-		replica.blockchain.Extend(action.Commit)
+		if action.Commit.Polka.Block != nil {
+			replica.lastBlock = *action.Commit.Polka.Block
+		}
 		replica.generateSignedBlock()
 	}
 }
@@ -119,11 +121,11 @@ func (replica *replica) dispatchAction(action state.Action) {
 func (replica *replica) isTransitionValid(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
-		return replica.validator.ValidateBlock(transition.SignedBlock)
+		return replica.validator.ValidateBlock(transition.SignedBlock, replica.lastBlock)
 	case state.PreVoted:
-		return replica.validator.ValidatePreVote(transition.SignedPreVote)
+		return replica.validator.ValidatePreVote(transition.SignedPreVote, replica.lastBlock)
 	case state.PreCommitted:
-		return replica.validator.ValidatePreCommit(transition.SignedPreCommit)
+		return replica.validator.ValidatePreCommit(transition.SignedPreCommit, replica.lastBlock)
 	case state.TimedOut:
 		return transition.Time.Before(time.Now())
 	}
@@ -196,16 +198,10 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 		transactions = append(transactions, transaction)
 	}
 
-	parent, ok := replica.blockchain.Head()
-	if !ok {
-		// Check invariant
-		panic("invariant violated: blockchain has no head")
-	}
-
 	block := block.New(
 		replica.state.Round(),
 		replica.state.Height(),
-		parent.Header,
+		replica.lastBlock.Header,
 		transactions,
 	)
 	signedBlock, err := block.Sign(replica.signer)

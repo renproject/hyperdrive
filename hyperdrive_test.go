@@ -61,16 +61,17 @@ var _ = Describe("Hyperdrive", func() {
 
 				shardHash := testutils.RandomHash()
 				for i := 0; i < entry.numHyperdrives; i++ {
-					blockchain := block.NewBlockchain()
 					shard := shard.Shard{
 						Hash:        shardHash,
 						Signatories: make(sig.Signatories, entry.numHyperdrives),
 					}
 					copy(shard.Signatories[:], signatories[:])
-					ipChans[i] <- ShardObject{shard, blockchain, tx.FIFOPool()}
+					ipChans[i] <- ShardObject{shard, tx.FIFOPool()}
 				}
 
 				co.ParForAll(entry.numHyperdrives, func(i int) {
+					defer GinkgoRecover()
+
 					if i == 0 {
 						time.Sleep(time.Second)
 					}
@@ -155,9 +156,8 @@ type ActionObject struct {
 func (ActionObject) IsObject() {}
 
 type ShardObject struct {
-	shard      shard.Shard
-	blockchain block.Blockchain
-	pool       tx.Pool
+	shard shard.Shard
+	pool  tx.Pool
 }
 
 func (ShardObject) IsObject() {}
@@ -174,7 +174,7 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 		case input := <-inputCh:
 			switch input := input.(type) {
 			case ShardObject:
-				h.AcceptShard(input.shard, input.blockchain, input.pool)
+				h.AcceptShard(input.shard, block.Genesis(), input.pool)
 			case ActionObject:
 				switch action := input.action.(type) {
 				case state.Propose:
