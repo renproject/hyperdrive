@@ -34,9 +34,7 @@ func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions)
 		ParentHeader: parentHeader,
 		Txs:          txs,
 	}
-	// FIXME: At this point we should calculate the block header. It should be the SHA3 hash of the timestamp, round,
-	// height, parentHeader, and transactions.
-	hashSum256 := sha3.Sum256([]byte(block.String()))
+	hashSum256 := calculateHeader(block)
 	copy(block.Header[:], hashSum256[:])
 	return block
 }
@@ -147,4 +145,31 @@ func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
 	}
 	blockchain.blocks[commitToNextBlock.Polka.Block.Header] = commitToNextBlock
 	blockchain.head = commitToNextBlock
+}
+
+// calculateHeader will return the SHA3 hash of the parentHeader, timestamp, round,
+// height, and transactions.
+// TODO: (Review) Should block header include timestamp as well, given that `Equal`
+// ignores Time when checking for equality between 2 blocks. (See comment in `Equal`)
+func calculateHeader(block Block) [32]byte {
+	headerString := fmt.Sprintf("Block(ParentHeader=%s,Timestamp=%s,Round=%d,Height=%d,Transactions=[", base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.String(), block.Round, block.Height)
+
+	isFirstTx := true
+	for _, tx := range block.Txs {
+		data, err := tx.Marshal()
+		if err != nil {
+			// FIXME: handle this error
+			fmt.Printf("[calculateHeader] error marshalling transaction: %v\n", err)
+			continue
+		}
+		if isFirstTx {
+			headerString = fmt.Sprintf("%s%s", headerString, base64.StdEncoding.EncodeToString(data))
+			isFirstTx = false
+			continue
+		}
+		headerString = fmt.Sprintf("%s,%s", headerString, base64.StdEncoding.EncodeToString(data))
+	}
+
+	headerString = fmt.Sprintf("%s])", headerString)
+	return sha3.Sum256([]byte(headerString))
 }
