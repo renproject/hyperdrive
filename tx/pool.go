@@ -1,32 +1,44 @@
 package tx
 
 import (
+	"errors"
 	"sync"
 )
 
+var ErrPoolCapacityExceeded = errors.New("pool capacity exceeded")
+
 type Pool interface {
-	Enqueue(Transaction)
+	Enqueue(Transaction) error
 	Dequeue() (Transaction, bool)
 }
 
 type fifoPool struct {
+	cap int
+
 	txsMu *sync.Mutex
 	txs   Transactions
 }
 
 // FIFOPool is a First-In, First-Out transaction pool that is thread safe.
-func FIFOPool() Pool {
+func FIFOPool(cap int) Pool {
 	return &fifoPool{
+		cap: cap,
+
 		txsMu: new(sync.Mutex),
 		txs:   Transactions{},
 	}
 }
 
-func (pool *fifoPool) Enqueue(tx Transaction) {
+func (pool *fifoPool) Enqueue(tx Transaction) error {
 	pool.txsMu.Lock()
 	defer pool.txsMu.Unlock()
 
+	if len(pool.txs) >= pool.cap {
+		return ErrPoolCapacityExceeded
+	}
+
 	pool.txs = append(pool.txs, tx)
+	return nil
 }
 
 func (pool *fifoPool) Dequeue() (Transaction, bool) {
