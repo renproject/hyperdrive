@@ -194,8 +194,9 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 	// TODO: We should put more than one transaction into a block.
 	transactions := tx.Transactions{}
 	transaction, ok := replica.txPool.Dequeue()
-	if ok {
+	for ok && len(transactions) < 10 { // TODO: Make this limit configurable
 		transactions = append(transactions, transaction)
+		transaction, ok = replica.txPool.Dequeue()
 	}
 
 	block := block.New(
