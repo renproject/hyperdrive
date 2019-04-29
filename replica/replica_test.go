@@ -54,10 +54,10 @@ var _ = Describe("Replica", func() {
 			stateMachine := state.NewMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), 1)
 
 			replica := New(nil, signer, pool, state.WaitForPropose(0, 0), stateMachine, transitionBuffer, shard, block.Genesis())
-			replica.Transact(tx.Transaction{})
+			replica.Transact(nil)
 			transaction, ok := pool.Dequeue()
 			Expect(ok).To(BeTrue())
-			Expect(transaction).Should(Equal(tx.Transaction{}))
+			Expect(transaction).Should(BeNil())
 		})
 	})
 

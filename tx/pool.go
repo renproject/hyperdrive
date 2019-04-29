@@ -42,5 +42,5 @@ func (pool *fifoPool) Dequeue() (Transaction, bool) {
 		pool.txs = Transactions{}
 		return tx, true
 	}
-	return Transaction{}, false
+	return nil, false
 }
