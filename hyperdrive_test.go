@@ -3,6 +3,7 @@ package hyperdrive_test
 import (
 	"crypto/rand"
 	"fmt"
+	mrand "math/rand"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -59,6 +60,10 @@ var _ = Describe("Hyperdrive", func() {
 					Expect(err).ShouldNot(HaveOccurred())
 				}
 
+				txPool := tx.FIFOPool(100)
+
+				go populateTxPool(txPool)
+
 				shardHash := testutils.RandomHash()
 				for i := 0; i < entry.numHyperdrives; i++ {
 					shard := shard.Shard{
@@ -66,7 +71,7 @@ var _ = Describe("Hyperdrive", func() {
 						Signatories: make(sig.Signatories, entry.numHyperdrives),
 					}
 					copy(shard.Signatories[:], signatories[:])
-					ipChans[i] <- ShardObject{shard, tx.FIFOPool()}
+					ipChans[i] <- ShardObject{shard, txPool}
 				}
 
 				co.ParForAll(entry.numHyperdrives, func(i int) {
@@ -211,4 +216,15 @@ func rand32Byte() [32]byte {
 	b := [32]byte{}
 	copy(b[:], key[:])
 	return b
+}
+
+func populateTxPool(txPool tx.Pool) {
+	for {
+		token := [32]byte{}
+		rand.Read(token[:])
+		tx := tx.NewTransaction(token)
+		if err := txPool.Enqueue(tx); err != nil {
+			time.Sleep(time.Duration(mrand.Intn(5)) * time.Millisecond)
+		}
+	}
 }
