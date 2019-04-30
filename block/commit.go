@@ -88,7 +88,7 @@ func (builder CommitBuilder) Insert(preCommit SignedPreCommit) bool {
 func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (Commit, bool) {
 	// Pre-condition check
 	if consensusThreshold < 1 {
-		panic(fmt.Errorf("expected consensus threshold (%v) to be greater than 1", consensusThreshold))
+		panic(fmt.Errorf("expected consensus threshold (%v) to be greater than 0", consensusThreshold))
 	}
 
 	// Short-circuit when too few pre-commits have been received
