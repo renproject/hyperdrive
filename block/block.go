@@ -10,6 +10,9 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+// MaxTransactions defines the maximum number of transactions allowed in a block.
+const MaxTransactions = 8
+
 // The Round in which a `Block` was proposed.
 type Round int64
 
