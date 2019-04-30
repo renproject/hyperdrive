@@ -1,6 +1,8 @@
 package block_test
 
 import (
+	"encoding/base64"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -8,13 +10,14 @@ import (
 	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"github.com/renproject/hyperdrive/testutils"
 	"github.com/renproject/hyperdrive/tx"
+	"golang.org/x/crypto/sha3"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/hyperdrive/block"
 )
 
-var _ = Describe("Blockchain", func() {
+var _ = Describe("Block", func() {
 	Context("when blockchain is empty", func() {
 		It("should return Genesis values", func() {
 			genesis := Genesis()
@@ -117,6 +120,17 @@ var _ = Describe("Blockchain", func() {
 		})
 	})
 
+	Context("when a new block is generated", func() {
+		It("should populate the correct block header", func() {
+			block := New(1, 1, Genesis().Header, []tx.Transaction{testutils.RandomTransaction(), testutils.RandomTransaction()})
+			Expect(block.Header).NotTo(BeNil())
+
+			expectedHeader, err := expectedBlockHeader(block)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(block.Header).To(Equal(expectedHeader))
+		})
+	})
+
 	Context("when genesis block is generated", func() {
 		It("should create the correct genesis block", func() {
 			genesis := Genesis()
@@ -136,3 +150,24 @@ var _ = Describe("Blockchain", func() {
 		})
 	})
 })
+
+func expectedBlockHeader(block Block) (sig.Hash, error) {
+	headerString := fmt.Sprintf("Block(ParentHeader=%s,Timestamp=%s,Round=%d,Height=%d,Transactions=[", base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.String(), block.Round, block.Height)
+
+	isFirstTx := true
+	for _, tx := range block.Txs {
+		data, err := tx.Marshal()
+		if err != nil {
+			return [32]byte{}, err
+		}
+		if isFirstTx {
+			headerString = fmt.Sprintf("%s%s", headerString, base64.StdEncoding.EncodeToString(data))
+			isFirstTx = false
+			continue
+		}
+		headerString = fmt.Sprintf("%s,%s", headerString, base64.StdEncoding.EncodeToString(data))
+	}
+
+	headerString = fmt.Sprintf("%s])", headerString)
+	return sha3.Sum256([]byte(headerString)), nil
+}
