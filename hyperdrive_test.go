@@ -188,6 +188,7 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 				case state.SignedPreCommit:
 					h.AcceptPreCommit(input.shardHash, action.SignedPreCommit)
 				case state.Commit:
+					Expect(len(action.Commit.Polka.Block.Txs)).To(Equal(block.MaxTransactions))
 					if currentBlock == nil || action.Polka.Block.Height > currentBlock.Height {
 						if currentBlock != nil {
 							Expect(currentBlock.Height).To(Equal(action.Polka.Block.Height - 1))
