@@ -161,6 +161,6 @@ func calculateHeader(block Block) [32]byte {
 		copy(txHeaders[32*i:], txHeader[:])
 	}
 	txHeaderB64 := base64.StdEncoding.EncodeToString(txHeaders)
-	headerString := fmt.Sprintf("Block(ParentHeader=%s,Timestamp=%s,Round=%d,Height=%d,TxHeader=%s)", base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.String(), block.Round, block.Height, txHeaderB64)
+	headerString := fmt.Sprintf("Block(ParentHeader=%s,Timestamp=%d,Round=%d,Height=%d,TxHeader=%s)", base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.Unix(), block.Round, block.Height, txHeaderB64)
 	return sha3.Sum256([]byte(headerString))
 }
