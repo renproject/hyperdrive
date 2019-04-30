@@ -135,9 +135,6 @@ func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action state.
 	mockDispatcher.dups[key] = true
 
 	go func() {
-		if mockDispatcher.index > len(mockDispatcher.channels)-len(mockDispatcher.channels)/3 {
-			return
-		}
 		for i := range mockDispatcher.channels {
 			select {
 			case <-mockDispatcher.done:
