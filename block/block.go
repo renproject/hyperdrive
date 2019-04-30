@@ -37,7 +37,7 @@ func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions)
 		ParentHeader: parentHeader,
 		Txs:          txs,
 	}
-	hashSum256 := calculateHeader(block)
+	hashSum256 := sha3.Sum256([]byte(block.String()))
 	copy(block.Header[:], hashSum256[:])
 	return block
 }
@@ -66,7 +66,14 @@ func (block Block) Sign(signer sig.Signer) (SignedBlock, error) {
 }
 
 func (block Block) String() string {
-	return fmt.Sprintf("Block(Header=%s,Round=%d,Height=%d)", base64.StdEncoding.EncodeToString(block.Header[:]), block.Round, block.Height)
+	txHeaders := make([]byte, 32*len(block.Txs))
+	for i, tx := range block.Txs {
+		txHeader := tx.Header()
+		copy(txHeaders[32*i:], txHeader[:])
+	}
+	txHeaderSHA3 := sha3.Sum256(txHeaders)
+	txHeaderB64 := base64.StdEncoding.EncodeToString(txHeaderSHA3[:])
+	return fmt.Sprintf("Block(Header=%s,ParentHeader=%s,Timestamp=%d,Round=%d,Height=%d,TxHeader=%s)", base64.StdEncoding.EncodeToString(block.Header[:]), base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.Unix(), block.Round, block.Height, txHeaderB64)
 }
 
 type SignedBlock struct {
@@ -148,19 +155,4 @@ func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
 	}
 	blockchain.blocks[commitToNextBlock.Polka.Block.Header] = commitToNextBlock
 	blockchain.head = commitToNextBlock
-}
-
-// calculateHeader will return the SHA3 hash of the parentHeader, timestamp, round,
-// height, and transactions.
-// TODO: (Review) Should block header include timestamp, given that `Equal`
-// ignores Time when checking for equality between 2 blocks. (See comment in `Equal`)
-func calculateHeader(block Block) [32]byte {
-	txHeaders := make([]byte, 32*len(block.Txs))
-	for i, tx := range block.Txs {
-		txHeader := tx.Header()
-		copy(txHeaders[32*i:], txHeader[:])
-	}
-	txHeaderB64 := base64.StdEncoding.EncodeToString(txHeaders)
-	headerString := fmt.Sprintf("Block(ParentHeader=%s,Timestamp=%d,Round=%d,Height=%d,TxHeader=%s)", base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.Unix(), block.Round, block.Height, txHeaderB64)
-	return sha3.Sum256([]byte(headerString))
 }

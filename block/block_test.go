@@ -151,12 +151,14 @@ var _ = Describe("Block", func() {
 })
 
 func expectedBlockHeader(block Block) sig.Hash {
+	nilHeader := sig.Hash{}
 	txHeaders := make([]byte, 32*len(block.Txs))
 	for i, tx := range block.Txs {
 		txHeader := tx.Header()
 		copy(txHeaders[32*i:], txHeader[:])
 	}
-	txHeaderB64 := base64.StdEncoding.EncodeToString(txHeaders)
-	headerString := fmt.Sprintf("Block(ParentHeader=%s,Timestamp=%d,Round=%d,Height=%d,TxHeader=%s)", base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.Unix(), block.Round, block.Height, txHeaderB64)
+	txHeaderSHA3 := sha3.Sum256(txHeaders)
+	txHeaderB64 := base64.StdEncoding.EncodeToString(txHeaderSHA3[:])
+	headerString := fmt.Sprintf("Block(Header=%s,ParentHeader=%s,Timestamp=%d,Round=%d,Height=%d,TxHeader=%s)", base64.StdEncoding.EncodeToString(nilHeader[:]), base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.Unix(), block.Round, block.Height, txHeaderB64)
 	return sha3.Sum256([]byte(headerString))
 }
