@@ -53,7 +53,7 @@ func (preVote PreVote) String() string {
 	if preVote.Block != nil {
 		block = preVote.Block.String()
 	}
-	return fmt.Sprintf("PreVote(%s,Round=%d,Height=%d)", block, preVote.Round, preVote.Height)
+	return fmt.Sprintf("PreVote(Height=%d,Round=%d,%s)", preVote.Height, preVote.Round, block)
 }
 
 // SignedPreVote is the signed version of a PreVote
@@ -94,7 +94,7 @@ func (polka Polka) String() string {
 	if polka.Block != nil {
 		blockHeader = base64.StdEncoding.EncodeToString(polka.Block.Header[:])
 	}
-	return fmt.Sprintf("Polka(Block=%s,Round=%d,Height=%d)", blockHeader, polka.Round, polka.Height)
+	return fmt.Sprintf("Polka(Height=%d,Round=%d,BlockHeader=%s)", polka.Height, polka.Round, blockHeader)
 }
 
 // PolkaBuilder is used to build up collections of SignedPreVotes at different Heights and Rounds and then build Polkas

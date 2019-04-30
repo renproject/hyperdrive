@@ -1,7 +1,6 @@
 package block
 
 import (
-	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -27,6 +26,7 @@ type Block struct {
 	Header       sig.Hash
 	ParentHeader sig.Hash
 	Txs          tx.Transactions
+	TxHeader     sig.Hash
 }
 
 func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions) Block {
@@ -37,8 +37,13 @@ func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions)
 		ParentHeader: parentHeader,
 		Txs:          txs,
 	}
-	hashSum256 := sha3.Sum256([]byte(block.String()))
-	copy(block.Header[:], hashSum256[:])
+	txHeaders := make([]byte, 32*len(block.Txs))
+	for i, tx := range block.Txs {
+		txHeader := tx.Header()
+		copy(txHeaders[32*i:], txHeader[:])
+	}
+	block.TxHeader = sha3.Sum256(txHeaders)
+	block.Header = sha3.Sum256([]byte(block.String()))
 	return block
 }
 
@@ -66,14 +71,7 @@ func (block Block) Sign(signer sig.Signer) (SignedBlock, error) {
 }
 
 func (block Block) String() string {
-	txHeaders := make([]byte, 32*len(block.Txs))
-	for i, tx := range block.Txs {
-		txHeader := tx.Header()
-		copy(txHeaders[32*i:], txHeader[:])
-	}
-	txHeaderSHA3 := sha3.Sum256(txHeaders)
-	txHeaderB64 := base64.StdEncoding.EncodeToString(txHeaderSHA3[:])
-	return fmt.Sprintf("Block(Header=%s,ParentHeader=%s,Timestamp=%d,Round=%d,Height=%d,TxHeader=%s)", base64.StdEncoding.EncodeToString(block.Header[:]), base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.Unix(), block.Round, block.Height, txHeaderB64)
+	return fmt.Sprintf("Block(Height=%d,Round=%d,Timestamp=%d,TxHeader=%s,ParentHeader=%s)", block.Height, block.Round, block.Time.Unix(), block.TxHeader, block.ParentHeader)
 }
 
 type SignedBlock struct {
@@ -99,7 +97,7 @@ func Genesis() SignedBlock {
 }
 
 func (signedBlock SignedBlock) String() string {
-	return fmt.Sprintf("Block(Header=%s,Round=%d,Height=%d)", base64.StdEncoding.EncodeToString(signedBlock.Header[:]), signedBlock.Round, signedBlock.Height)
+	return fmt.Sprintf("Block(Height=%d,Round=%d,Timestamp=%d,TxHeader=%s,ParentHeader=%s,Header=%s)", signedBlock.Height, signedBlock.Round, signedBlock.Time.Unix(), signedBlock.TxHeader, signedBlock.ParentHeader, signedBlock.Header)
 }
 
 type Blockchain struct {

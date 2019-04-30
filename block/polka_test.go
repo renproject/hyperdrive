@@ -2,6 +2,7 @@ package block_test
 
 import (
 	mathRand "math/rand"
+	"time"
 
 	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"github.com/renproject/hyperdrive/testutils"
@@ -244,7 +245,7 @@ var _ = Describe("PolkaBuilder", func() {
 
 	Context("when SignedPreVote is converted to string format", func() {
 		It("should return the correct string representation", func() {
-			block := Block{Height: 1, Round: 1}
+			block := Block{Height: 1, Round: 1, Time: time.Unix(0, 0)}
 			signer, err := ecdsa.NewFromRandom()
 			Expect(err).ShouldNot(HaveOccurred())
 			signedBlock, err := block.Sign(signer)
@@ -252,7 +253,7 @@ var _ = Describe("PolkaBuilder", func() {
 			prevote := NewPreVote(&signedBlock, 1, 1)
 			signedPreVote, err := prevote.Sign(signer)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(signedPreVote.String()).Should(ContainSubstring("SignedPreVote(PreVote(Block(Header=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,Round=1,Height=1),Round=1,Height=1),Signature=["))
+			Expect(signedPreVote.String()).Should(ContainSubstring("SignedPreVote(PreVote(Height=1,Round=1,Block(Height=1,Round=1,Timestamp=0,TxHeader=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,ParentHeader=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,Header=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=)),Signature="))
 		})
 	})
 
@@ -270,7 +271,7 @@ var _ = Describe("PolkaBuilder", func() {
 				Signatures:  testutils.RandomSignatures(10),
 				Signatories: testutils.RandomSignatories(10),
 			}
-			Expect(polka.String()).Should(Equal("Polka(Block=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,Round=0,Height=0)"))
+			Expect(polka.String()).Should(Equal("Polka(Height=0,Round=0,BlockHeader=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=)"))
 		})
 	})
 

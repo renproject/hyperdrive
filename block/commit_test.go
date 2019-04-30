@@ -348,7 +348,7 @@ var _ = Describe("CommitBuilder", func() {
 					Signatories: testutils.RandomSignatories(10),
 				},
 			}
-			Expect(commit.String()).Should(Equal("Commit(Polka(Block=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,Round=0,Height=0))"))
+			Expect(commit.String()).Should(Equal("Commit(Polka(Height=0,Round=0,BlockHeader=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=))"))
 		})
 	})
 
