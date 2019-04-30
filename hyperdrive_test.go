@@ -84,7 +84,6 @@ var _ = Describe("Hyperdrive", func() {
 				})
 			})
 		})
-
 	}
 })
 
@@ -220,9 +219,7 @@ func rand32Byte() [32]byte {
 
 func populateTxPool(txPool tx.Pool) {
 	for {
-		token := [32]byte{}
-		rand.Read(token[:])
-		tx := tx.NewTransaction(token)
+		tx := testutils.RandomTransaction()
 		if err := txPool.Enqueue(tx); err != nil {
 			time.Sleep(time.Duration(mrand.Intn(5)) * time.Millisecond)
 		}

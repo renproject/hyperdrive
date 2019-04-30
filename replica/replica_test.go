@@ -83,7 +83,7 @@ var _ = Describe("Replica", func() {
 					}
 					stateMachine := state.NewMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
 
-					replica := New(testutils.NewMockDispatcher(), signer, pool, t.startingState, stateMachine, transitionBuffer, shard, block.Genesis())
+					replica := New(NewMockDispatcher(), signer, pool, t.startingState, stateMachine, transitionBuffer, shard, block.Genesis())
 					for _, transition := range t.transitions {
 						replica.Transition(transition)
 					}
@@ -694,3 +694,12 @@ func newMockDispatcher() *mockDispatcher {
 }
 
 func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action state.Action) {}
+
+type MockDispatcher struct {
+}
+
+func NewMockDispatcher() Dispatcher {
+	return &MockDispatcher{}
+}
+
+func (dispatcher *MockDispatcher) Dispatch(shardHash sig.Hash, action state.Action) {}

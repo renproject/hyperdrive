@@ -127,7 +127,7 @@ func generateTestCases() []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: testutils.InvalidState{},
+			startingState: InvalidState{},
 			finalState:    nil,
 			finalAction:   nil,
 
@@ -494,4 +494,14 @@ func generateTestCases() []TestCase {
 			},
 		},
 	}
+}
+
+type InvalidState struct{}
+
+func (state InvalidState) Round() block.Round {
+	return 0
+}
+
+func (state InvalidState) Height() block.Height {
+	return 0
 }
