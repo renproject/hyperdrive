@@ -134,15 +134,16 @@ func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action state.
 	}
 	mockDispatcher.dups[key] = true
 
-	go func() {
-		for i := range mockDispatcher.channels {
+	for i := range mockDispatcher.channels {
+		i := i
+		go func() {
 			select {
 			case <-mockDispatcher.done:
 				return
 			case mockDispatcher.channels[i] <- ActionObject{shardHash, action}:
 			}
-		}
-	}()
+		}()
+	}
 }
 
 type Object interface {
@@ -188,7 +189,7 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 					Expect(len(action.Commit.Polka.Block.Txs)).To(Equal(block.MaxTransactions))
 					if currentBlock == nil || action.Polka.Block.Height > currentBlock.Height {
 						if currentBlock != nil {
-							Expect(currentBlock.Height).To(Equal(action.Polka.Block.Height - 1))
+							Expect(action.Polka.Block.Height).To(Equal(currentBlock.Height + 1))
 							Expect(currentBlock.Header.Equal(action.Polka.Block.ParentHeader)).To(Equal(true))
 						}
 						if index == 0 {
