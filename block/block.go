@@ -152,27 +152,15 @@ func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
 
 // calculateHeader will return the SHA3 hash of the parentHeader, timestamp, round,
 // height, and transactions.
-// TODO: (Review) Should block header include timestamp as well, given that `Equal`
+// TODO: (Review) Should block header include timestamp, given that `Equal`
 // ignores Time when checking for equality between 2 blocks. (See comment in `Equal`)
 func calculateHeader(block Block) [32]byte {
-	headerString := fmt.Sprintf("Block(ParentHeader=%s,Timestamp=%s,Round=%d,Height=%d,Transactions=[", base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.String(), block.Round, block.Height)
-
-	isFirstTx := true
-	for _, tx := range block.Txs {
-		data, err := tx.Marshal()
-		if err != nil {
-			// FIXME: handle this error
-			fmt.Printf("[calculateHeader] error marshalling transaction: %v\n", err)
-			continue
-		}
-		if isFirstTx {
-			headerString = fmt.Sprintf("%s%s", headerString, base64.StdEncoding.EncodeToString(data))
-			isFirstTx = false
-			continue
-		}
-		headerString = fmt.Sprintf("%s,%s", headerString, base64.StdEncoding.EncodeToString(data))
+	txHeaders := make([]byte, 32*len(block.Txs))
+	for i, tx := range block.Txs {
+		txHeader := tx.Header()
+		copy(txHeaders[32*i:], txHeader[:])
 	}
-
-	headerString = fmt.Sprintf("%s])", headerString)
+	txHeaderB64 := base64.StdEncoding.EncodeToString(txHeaders)
+	headerString := fmt.Sprintf("Block(ParentHeader=%s,Timestamp=%s,Round=%d,Height=%d,TxHeader=%s)", base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.String(), block.Round, block.Height, txHeaderB64)
 	return sha3.Sum256([]byte(headerString))
 }

@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"crypto/rand"
+	"fmt"
 
 	"github.com/renproject/hyperdrive/sig"
 )
@@ -11,7 +12,7 @@ func RandomHash() sig.Hash {
 	key := make([]byte, 32)
 	_, err := rand.Read(key)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("error generating random bytes: %v", err))
 	}
 
 	hash := sig.Hash{}
@@ -25,7 +26,7 @@ func RandomSignatory() sig.Signatory {
 	key := make([]byte, 20)
 	_, err := rand.Read(key)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("error generating random bytes: %v", err))
 	}
 
 	signatory := sig.Signatory{}
@@ -48,7 +49,7 @@ func RandomSignature() sig.Signature {
 	key := make([]byte, 65)
 	_, err := rand.Read(key)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("error generating random bytes: %v", err))
 	}
 
 	signature := sig.Signature{}

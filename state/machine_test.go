@@ -65,7 +65,10 @@ type TestCase struct {
 
 func generateTestCases() []TestCase {
 	genesis := block.Genesis()
-	signer, _ := ecdsa.NewFromRandom()
+	signer, err := ecdsa.NewFromRandom()
+	if err != nil {
+		panic(fmt.Sprintf("error generating random SignerVerifier: %v", err))
+	}
 
 	return []TestCase{
 		// (WaitForProposed) -> Proposed -> PreVoted (sig 1) -> PreCommitted (sig 1) -> PreCommitted (sig 2)

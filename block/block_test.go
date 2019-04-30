@@ -125,8 +125,7 @@ var _ = Describe("Block", func() {
 			block := New(1, 1, Genesis().Header, []tx.Transaction{testutils.RandomTransaction(), testutils.RandomTransaction()})
 			Expect(block.Header).NotTo(BeNil())
 
-			expectedHeader, err := expectedBlockHeader(block)
-			Expect(err).ShouldNot(HaveOccurred())
+			expectedHeader := expectedBlockHeader(block)
 			Expect(block.Header).To(Equal(expectedHeader))
 		})
 	})
@@ -151,23 +150,13 @@ var _ = Describe("Block", func() {
 	})
 })
 
-func expectedBlockHeader(block Block) (sig.Hash, error) {
-	headerString := fmt.Sprintf("Block(ParentHeader=%s,Timestamp=%s,Round=%d,Height=%d,Transactions=[", base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.String(), block.Round, block.Height)
-
-	isFirstTx := true
-	for _, tx := range block.Txs {
-		data, err := tx.Marshal()
-		if err != nil {
-			return [32]byte{}, err
-		}
-		if isFirstTx {
-			headerString = fmt.Sprintf("%s%s", headerString, base64.StdEncoding.EncodeToString(data))
-			isFirstTx = false
-			continue
-		}
-		headerString = fmt.Sprintf("%s,%s", headerString, base64.StdEncoding.EncodeToString(data))
+func expectedBlockHeader(block Block) sig.Hash {
+	txHeaders := make([]byte, 32*len(block.Txs))
+	for i, tx := range block.Txs {
+		txHeader := tx.Header()
+		copy(txHeaders[32*i:], txHeader[:])
 	}
-
-	headerString = fmt.Sprintf("%s])", headerString)
-	return sha3.Sum256([]byte(headerString)), nil
+	txHeaderB64 := base64.StdEncoding.EncodeToString(txHeaders)
+	headerString := fmt.Sprintf("Block(ParentHeader=%s,Timestamp=%s,Round=%d,Height=%d,TxHeader=%s)", base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.String(), block.Round, block.Height, txHeaderB64)
+	return sha3.Sum256([]byte(headerString))
 }
