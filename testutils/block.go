@@ -1,12 +1,17 @@
 package testutils
 
 import (
+	"fmt"
+
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/sig"
 )
 
 func SignBlock(blk block.Block, signer sig.SignerVerifier) *block.SignedBlock {
-	signedBlock, _ := blk.Sign(signer)
+	signedBlock, err := blk.Sign(signer)
+	if err != nil {
+		panic(fmt.Sprintf("error signing block: %v", err))
+	}
 	return &signedBlock
 }
 
@@ -15,7 +20,10 @@ func GenerateSignedPreVote(signedBlock block.SignedBlock, signer sig.SignerVerif
 		Block:  &signedBlock,
 		Height: signedBlock.Height,
 	}
-	signedPreVote, _ := preVote.Sign(signer)
+	signedPreVote, err := preVote.Sign(signer)
+	if err != nil {
+		panic(fmt.Sprintf("error signing preVote: %v", err))
+	}
 	return signedPreVote
 }
 
@@ -41,6 +49,9 @@ func GenerateSignedPreCommit(signedBlock block.SignedBlock, signer sig.SignerVer
 		Polka: GeneratePolkaWithSignatures(signedBlock, participants),
 	}
 
-	signedPreCommit, _ := preCommit.Sign(signer)
+	signedPreCommit, err := preCommit.Sign(signer)
+	if err != nil {
+		panic(fmt.Sprintf("error signing preCommit: %v", err))
+	}
 	return signedPreCommit
 }

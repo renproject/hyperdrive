@@ -41,9 +41,18 @@ var _ = Describe("Replica", func() {
 
 	Context("when new Transitions are sent", func() {
 
-		signer, _ := ecdsa.NewFromRandom()
-		participant1, _ := ecdsa.NewFromRandom()
-		participant2, _ := ecdsa.NewFromRandom()
+		signer, err := ecdsa.NewFromRandom()
+		if err != nil {
+			panic(fmt.Sprintf("error generating random SignerVerifier: %v", err))
+		}
+		participant1, err := ecdsa.NewFromRandom()
+		if err != nil {
+			panic(fmt.Sprintf("error generating random SignerVerifier: %v", err))
+		}
+		participant2, err := ecdsa.NewFromRandom()
+		if err != nil {
+			panic(fmt.Sprintf("error generating random SignerVerifier: %v", err))
+		}
 		testCases := generateTestCases(signer, participant1, participant2)
 		for _, t := range testCases {
 			t := t
@@ -98,7 +107,10 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		ParentHeader: signedBlock.Header,
 	}, signer)
 
-	maliciousSigner, _ := ecdsa.NewFromRandom()
+	maliciousSigner, err := ecdsa.NewFromRandom()
+	if err != nil {
+		panic(fmt.Sprintf("error generating random SignerVerifier: %v", err))
+	}
 
 	return []TestCase{
 		{
