@@ -17,7 +17,6 @@ type Dispatcher interface {
 type Replica interface {
 	Init()
 	State() state.State
-	Transact(transaction tx.Transaction)
 	Transition(transition state.Transition)
 }
 
@@ -56,10 +55,6 @@ func (replica *replica) Init() {
 
 func (replica *replica) State() state.State {
 	return replica.state
-}
-
-func (replica *replica) Transact(tx tx.Transaction) {
-	replica.txPool.Enqueue(tx)
 }
 
 func (replica *replica) Transition(transition state.Transition) {

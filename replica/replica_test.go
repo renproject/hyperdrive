@@ -39,28 +39,6 @@ var _ = Describe("Replica", func() {
 		})
 	})
 
-	Context("when a new Transaction is sent using Transact", func() {
-		It("should update the TxPool", func() {
-			transitionBuffer := state.NewTransitionBuffer(128)
-			pool := tx.FIFOPool(100)
-			signer, err := ecdsa.NewFromRandom()
-			Expect(err).ShouldNot(HaveOccurred())
-			shard := shard.Shard{
-				Hash:        sig.Hash{},
-				BlockHeader: sig.Hash{},
-				BlockHeight: 0,
-				Signatories: sig.Signatories{signer.Signatory()},
-			}
-			stateMachine := state.NewMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), 1)
-
-			replica := New(nil, signer, pool, state.WaitForPropose(0, 0), stateMachine, transitionBuffer, shard, block.Genesis())
-			replica.Transact(nil)
-			transaction, ok := pool.Dequeue()
-			Expect(ok).To(BeTrue())
-			Expect(transaction).Should(BeNil())
-		})
-	})
-
 	Context("when new Transitions are sent", func() {
 
 		signer, _ := ecdsa.NewFromRandom()
@@ -75,6 +53,12 @@ var _ = Describe("Replica", func() {
 
 					transitionBuffer := state.NewTransitionBuffer(128)
 					pool := tx.FIFOPool(100)
+
+					for i := 0; i < 100; i++ {
+						tx := testutils.RandomTransaction()
+						pool.Enqueue(tx)
+					}
+
 					shard := shard.Shard{
 						Hash:        sig.Hash{},
 						BlockHeader: sig.Hash{},
