@@ -23,7 +23,7 @@ var _ = Describe("Replica", func() {
 	Context("when Init is called", func() {
 		It("should generate a new block", func() {
 			transitionBuffer := state.NewTransitionBuffer(128)
-			pool := tx.FIFOPool()
+			pool := tx.FIFOPool(100)
 			signer, err := ecdsa.NewFromRandom()
 			Expect(err).ShouldNot(HaveOccurred())
 			shard := shard.Shard{
@@ -42,7 +42,7 @@ var _ = Describe("Replica", func() {
 	Context("when a new Transaction is sent using Transact", func() {
 		It("should update the TxPool", func() {
 			transitionBuffer := state.NewTransitionBuffer(128)
-			pool := tx.FIFOPool()
+			pool := tx.FIFOPool(100)
 			signer, err := ecdsa.NewFromRandom()
 			Expect(err).ShouldNot(HaveOccurred())
 			shard := shard.Shard{
@@ -74,7 +74,7 @@ var _ = Describe("Replica", func() {
 				It(fmt.Sprintf("should arrive at %s", reflect.TypeOf(t.finalState).Name()), func() {
 
 					transitionBuffer := state.NewTransitionBuffer(128)
-					pool := tx.FIFOPool()
+					pool := tx.FIFOPool(100)
 					shard := shard.Shard{
 						Hash:        sig.Hash{},
 						BlockHeader: sig.Hash{},
