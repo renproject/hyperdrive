@@ -135,7 +135,7 @@ func (builder PolkaBuilder) Insert(preVote SignedPreVote) bool {
 func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka, bool) {
 	// Pre-condition check
 	if consensusThreshold < 1 {
-		panic(fmt.Errorf("expected consensus threshold (%v) to be greater than 0", consensusThreshold))
+		panic(fmt.Errorf("expected consensus threshold (%v) to be greater than 1", consensusThreshold))
 	}
 
 	// Short-circuit when too few pre-votes have been received
