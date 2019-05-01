@@ -51,6 +51,11 @@ var _ = Describe("Hyperdrive", func() {
 				ipChans := make([]chan Object, entry.numHyperdrives)
 				signatories := make(sig.Signatories, entry.numHyperdrives)
 				signers := make([]sig.SignerVerifier, entry.numHyperdrives)
+				cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
+				shardHash := testutils.RandomHash()
+
+				txPool := tx.FIFOPool(100)
+				go populateTxPool(txPool)
 
 				for i := 0; i < entry.numHyperdrives; i++ {
 					var err error
@@ -60,11 +65,6 @@ var _ = Describe("Hyperdrive", func() {
 					Expect(err).ShouldNot(HaveOccurred())
 				}
 
-				txPool := tx.FIFOPool(100)
-
-				go populateTxPool(txPool)
-
-				shardHash := testutils.RandomHash()
 				for i := 0; i < entry.numHyperdrives; i++ {
 					shard := shard.Shard{
 						Hash:        shardHash,
@@ -80,7 +80,7 @@ var _ = Describe("Hyperdrive", func() {
 					if i == 0 {
 						time.Sleep(time.Second)
 					}
-					runHyperdrive(i, NewMockDispatcher(i, ipChans, done), signers[i], ipChans[i], done, entry.maxHeight)
+					runHyperdrive(i, NewMockDispatcher(i, ipChans, done, cap), signers[i], ipChans[i], done, entry.maxHeight)
 				})
 			})
 		})
@@ -97,7 +97,7 @@ type mockDispatcher struct {
 	done chan struct{}
 }
 
-func NewMockDispatcher(i int, channels []chan Object, done chan struct{}) *mockDispatcher {
+func NewMockDispatcher(i int, channels []chan Object, done chan struct{}, cap int) *mockDispatcher {
 	dispatcher := &mockDispatcher{
 		index: i,
 
@@ -114,15 +114,13 @@ func NewMockDispatcher(i int, channels []chan Object, done chan struct{}) *mockD
 			case <-dispatcher.done:
 				return
 			case actionObject := <-dispatcher.reqCh:
-				go func() {
-					for i := range dispatcher.channels {
-						select {
-						case <-dispatcher.done:
-							return
-						case dispatcher.channels[i] <- actionObject:
-						}
+				for i := range dispatcher.channels {
+					select {
+					case <-dispatcher.done:
+						return
+					case dispatcher.channels[i] <- actionObject:
 					}
-				}()
+				}
 			default:
 			}
 		}
