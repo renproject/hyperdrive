@@ -92,18 +92,42 @@ type mockDispatcher struct {
 
 	dups     map[string]bool
 	channels []chan Object
-	done     chan struct{}
+	reqCh    chan ActionObject
+
+	done chan struct{}
 }
 
 func NewMockDispatcher(i int, channels []chan Object, done chan struct{}) *mockDispatcher {
-	return &mockDispatcher{
+	dispatcher := &mockDispatcher{
 		index: i,
 
 		dups:     map[string]bool{},
 		channels: channels,
+		reqCh:    make(chan ActionObject),
 
 		done: done,
 	}
+
+	go func() {
+		for {
+			select {
+			case <-dispatcher.done:
+				return
+			case actionObject := <-dispatcher.reqCh:
+				go func() {
+					for i := range dispatcher.channels {
+						select {
+						case <-dispatcher.done:
+							return
+						case dispatcher.channels[i] <- actionObject:
+						}
+					}
+				}()
+			default:
+			}
+		}
+	}()
+	return dispatcher
 }
 
 func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action state.Action) {
@@ -134,16 +158,13 @@ func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action state.
 	}
 	mockDispatcher.dups[key] = true
 
-	for i := range mockDispatcher.channels {
-		i := i
-		go func() {
-			select {
-			case <-mockDispatcher.done:
-				return
-			case mockDispatcher.channels[i] <- ActionObject{shardHash, action}:
-			}
-		}()
-	}
+	go func() {
+		select {
+		case <-mockDispatcher.done:
+			return
+		case mockDispatcher.reqCh <- ActionObject{shardHash, action}:
+		}
+	}()
 }
 
 type Object interface {
