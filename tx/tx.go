@@ -10,7 +10,7 @@ type Transaction interface {
 	IsTransaction()
 	json.Marshaler
 	json.Unmarshaler
-	Header() sig.Hash
+	Header() (sig.Hash, error)
 }
 
 type Transactions []Transaction
@@ -34,6 +34,6 @@ func (transaction *transaction) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (transaction *transaction) Header() sig.Hash {
-	return transaction.Data
+func (transaction *transaction) Header() (sig.Hash, error) {
+	return transaction.Data, nil
 }
