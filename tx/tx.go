@@ -1,13 +1,15 @@
 package tx
 
 import (
+	"encoding/json"
+
 	"github.com/renproject/hyperdrive/sig"
 )
 
 type Transaction interface {
 	IsTransaction()
-	Marshal() ([]byte, error)
-	Unmarshal(data []byte) error
+	json.Marshaler
+	json.Unmarshaler
 	Header() sig.Hash
 }
 
@@ -23,11 +25,11 @@ func NewTransaction(data [32]byte) Transaction {
 
 func (transaction) IsTransaction() {}
 
-func (transaction *transaction) Marshal() ([]byte, error) {
+func (transaction *transaction) MarshalJSON() ([]byte, error) {
 	return transaction.Data[:], nil
 }
 
-func (transaction *transaction) Unmarshal(data []byte) error {
+func (transaction *transaction) UnmarshalJSON(data []byte) error {
 	copy(transaction.Data[:], data)
 	return nil
 }
