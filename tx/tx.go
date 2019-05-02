@@ -13,7 +13,7 @@ type Transaction interface {
 	Header() (sig.Hash, error)
 }
 
-type Transactions []Transaction
+// type Transactions []Transaction
 
 type transaction struct {
 	Data [32]byte

@@ -25,11 +25,11 @@ type Block struct {
 	Height       Height
 	Header       sig.Hash
 	ParentHeader sig.Hash
-	Txs          tx.Transactions
+	Txs          []tx.Transaction
 	TxHeader     sig.Hash
 }
 
-func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions) (Block, error) {
+func New(round Round, height Height, parentHeader sig.Hash, txs []tx.Transaction) (Block, error) {
 	block := Block{
 		Time:         time.Now(),
 		Round:        round,
@@ -92,7 +92,7 @@ func Genesis() SignedBlock {
 			Height:       0,
 			Header:       sig.Hash{},
 			ParentHeader: sig.Hash{},
-			Txs:          tx.Transactions{},
+			Txs:          []tx.Transaction{},
 		},
 		Signature: sig.Signature{},
 		Signatory: sig.Signatory{},

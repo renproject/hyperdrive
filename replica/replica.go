@@ -188,7 +188,7 @@ func (replica *replica) generateSignedBlock() {
 
 func (replica *replica) buildSignedBlock() block.SignedBlock {
 	// TODO: We should put more than one transaction into a block.
-	transactions := make(tx.Transactions, 0, block.MaxTransactions)
+	transactions := make([]tx.Transaction, 0, block.MaxTransactions)
 	transaction, ok := replica.txPool.Dequeue()
 	for ok && len(transactions) < block.MaxTransactions {
 		transactions = append(transactions, transaction)
