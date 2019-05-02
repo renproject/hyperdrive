@@ -51,6 +51,11 @@ var _ = Describe("Hyperdrive", func() {
 				ipChans := make([]chan Object, entry.numHyperdrives)
 				signatories := make(sig.Signatories, entry.numHyperdrives)
 				signers := make([]sig.SignerVerifier, entry.numHyperdrives)
+				cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
+				shardHash := testutils.RandomHash()
+
+				txPool := tx.FIFOPool(100)
+				go populateTxPool(txPool)
 
 				for i := 0; i < entry.numHyperdrives; i++ {
 					var err error
@@ -60,11 +65,6 @@ var _ = Describe("Hyperdrive", func() {
 					Expect(err).ShouldNot(HaveOccurred())
 				}
 
-				txPool := tx.FIFOPool(100)
-
-				go populateTxPool(txPool)
-
-				shardHash := testutils.RandomHash()
 				for i := 0; i < entry.numHyperdrives; i++ {
 					shard := shard.Shard{
 						Hash:        shardHash,
@@ -80,7 +80,7 @@ var _ = Describe("Hyperdrive", func() {
 					if i == 0 {
 						time.Sleep(time.Second)
 					}
-					runHyperdrive(i, NewMockDispatcher(i, ipChans, done), signers[i], ipChans[i], done, entry.maxHeight)
+					runHyperdrive(i, NewMockDispatcher(i, ipChans, done, cap), signers[i], ipChans[i], done, entry.maxHeight)
 				})
 			})
 		})
@@ -92,18 +92,40 @@ type mockDispatcher struct {
 
 	dups     map[string]bool
 	channels []chan Object
-	done     chan struct{}
+	reqCh    chan ActionObject
+
+	done chan struct{}
 }
 
-func NewMockDispatcher(i int, channels []chan Object, done chan struct{}) *mockDispatcher {
-	return &mockDispatcher{
+func NewMockDispatcher(i int, channels []chan Object, done chan struct{}, cap int) *mockDispatcher {
+	dispatcher := &mockDispatcher{
 		index: i,
 
 		dups:     map[string]bool{},
 		channels: channels,
+		reqCh:    make(chan ActionObject, cap),
 
 		done: done,
 	}
+
+	go func() {
+		for {
+			select {
+			case <-dispatcher.done:
+				return
+			case actionObject := <-dispatcher.reqCh:
+				for i := range dispatcher.channels {
+					select {
+					case <-dispatcher.done:
+						return
+					case dispatcher.channels[i] <- actionObject:
+					}
+				}
+			default:
+			}
+		}
+	}()
+	return dispatcher
 }
 
 func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action state.Action) {
@@ -135,15 +157,10 @@ func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action state.
 	mockDispatcher.dups[key] = true
 
 	go func() {
-		if mockDispatcher.index > len(mockDispatcher.channels)-len(mockDispatcher.channels)/3 {
+		select {
+		case <-mockDispatcher.done:
 			return
-		}
-		for i := range mockDispatcher.channels {
-			select {
-			case <-mockDispatcher.done:
-				return
-			case mockDispatcher.channels[i] <- ActionObject{shardHash, action}:
-			}
+		case mockDispatcher.reqCh <- ActionObject{shardHash, action}:
 		}
 	}()
 }
@@ -191,7 +208,7 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 					Expect(len(action.Commit.Polka.Block.Txs)).To(Equal(block.MaxTransactions))
 					if currentBlock == nil || action.Polka.Block.Height > currentBlock.Height {
 						if currentBlock != nil {
-							Expect(currentBlock.Height).To(Equal(action.Polka.Block.Height - 1))
+							Expect(action.Polka.Block.Height).To(Equal(currentBlock.Height + 1))
 							Expect(currentBlock.Header.Equal(action.Polka.Block.ParentHeader)).To(Equal(true))
 						}
 						if index == 0 {
