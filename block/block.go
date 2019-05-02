@@ -29,7 +29,7 @@ type Block struct {
 	TxHeader     sig.Hash
 }
 
-func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions) Block {
+func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions) (Block, error) {
 	block := Block{
 		Time:         time.Now(),
 		Round:        round,
@@ -39,12 +39,15 @@ func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions)
 	}
 	txHeaders := make([]byte, 32*len(block.Txs))
 	for i, tx := range block.Txs {
-		txHeader := tx.Header()
+		txHeader, err := tx.Header()
+		if err != nil {
+			return Block{}, err
+		}
 		copy(txHeaders[32*i:], txHeader[:])
 	}
 	block.TxHeader = sha3.Sum256(txHeaders)
 	block.Header = sha3.Sum256([]byte(block.String()))
-	return block
+	return block, nil
 }
 
 // Equal excludes time from equality check

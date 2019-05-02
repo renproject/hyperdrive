@@ -194,12 +194,17 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 		transaction, ok = replica.txPool.Dequeue()
 	}
 
-	block := block.New(
+	block, err := block.New(
 		replica.state.Round(),
 		replica.state.Height(),
 		replica.lastBlock.Header,
 		transactions,
 	)
+	if err != nil {
+		// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
+		// least be some sane logging and recovery.
+		panic(err)
+	}
 	signedBlock, err := block.Sign(replica.signer)
 	if err != nil {
 		// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
