@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -192,6 +193,10 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 	for ok && len(transactions) < block.MaxTransactions {
 		transactions = append(transactions, transaction)
 		transaction, ok = replica.txPool.Dequeue()
+	}
+
+	if len(transactions) > 0 {
+		fmt.Println("replica got new txs", transactions)
 	}
 
 	block, err := block.New(
