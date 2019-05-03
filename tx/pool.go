@@ -2,7 +2,6 @@ package tx
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 )
 
@@ -38,7 +37,6 @@ func (pool *fifoPool) Enqueue(tx Transaction) error {
 		return ErrPoolCapacityExceeded
 	}
 
-	fmt.Println("adding new tx", tx)
 	pool.txs = append(pool.txs, tx)
 	return nil
 }
@@ -49,8 +47,6 @@ func (pool *fifoPool) Dequeue() (Transaction, bool) {
 
 	if len(pool.txs) > 0 {
 		tx := pool.txs[0]
-
-		fmt.Println("got new tx", tx)
 
 		if len(pool.txs) > 1 {
 			pool.txs = pool.txs[1:]

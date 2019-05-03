@@ -195,10 +195,6 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 		transaction, ok = replica.txPool.Dequeue()
 	}
 
-	if len(transactions) > 0 {
-		fmt.Println("replica got new txs", transactions)
-	}
-
 	block, err := block.New(
 		replica.state.Round(),
 		replica.state.Height(),
