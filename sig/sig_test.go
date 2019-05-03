@@ -90,6 +90,22 @@ var _ = Describe("Sig", func() {
 
 				Expect(shuffled.Equal(signatures)).Should(BeTrue())
 			})
+
+			It("should not equal a differently ordered smaller subset of signatures", func() {
+				shuffled := testutils.RandomSignatures(entry.cap)
+
+				signatures := Signatures{}
+				for _, sig := range shuffled {
+					signatures = append(signatures, sig)
+				}
+
+				rand.Shuffle(len(shuffled), func(i, j int) {
+					shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+				})
+				shuffled = shuffled[:len(shuffled)-1]
+
+				Expect(shuffled.Equal(signatures)).Should(BeFalse())
+			})
 		})
 
 		Context(fmt.Sprintf("when %d signatories are created", entry.cap), func() {
@@ -108,6 +124,21 @@ var _ = Describe("Sig", func() {
 				Expect(shuffled.Equal(signatories)).Should(BeTrue())
 			})
 
+			It("should not equal a differently ordered smaller subset of signatories", func() {
+				shuffled := testutils.RandomSignatories(entry.cap)
+
+				signatories := Signatories{}
+				for _, sig := range shuffled {
+					signatories = append(signatories, sig)
+				}
+
+				rand.Shuffle(len(shuffled), func(i, j int) {
+					shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+				})
+				shuffled = shuffled[:len(shuffled)-1]
+
+				Expect(shuffled.Equal(signatories)).Should(BeFalse())
+			})
 		})
 	}
 })
