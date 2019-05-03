@@ -22,15 +22,16 @@ var _ = Describe("Shard", func() {
 
 	for _, entry := range table {
 		entry := entry
+
 		signatories := testutils.RandomSignatories(entry.cap)
+		expectedConsensusThreshold := entry.cap - entry.cap/3
+
 		shard := Shard{
 			Hash:        testutils.RandomHash(),
 			BlockHeader: testutils.RandomHash(),
 			BlockHeight: block.Height(entry.cap),
 			Signatories: signatories,
 		}
-
-		expectedConsensusThreshold := entry.cap - entry.cap/3
 
 		Context(fmt.Sprintf("when a new Shard is created with %d signatories", entry.cap), func() {
 			It(fmt.Sprintf("should return size of shard = %d", entry.cap), func() {
