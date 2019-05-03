@@ -1,7 +1,6 @@
 package block
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -26,11 +25,11 @@ type Block struct {
 	Height       Height
 	Header       sig.Hash
 	ParentHeader sig.Hash
-	Txs          []tx.Transaction
+	Txs          tx.Transactions
 	TxHeader     sig.Hash
 }
 
-func New(round Round, height Height, parentHeader sig.Hash, txs []tx.Transaction) (Block, error) {
+func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions) Block {
 	block := Block{
 		Time:         time.Now(),
 		Round:        round,
@@ -40,15 +39,11 @@ func New(round Round, height Height, parentHeader sig.Hash, txs []tx.Transaction
 	}
 	txHeaders := make([]byte, 32*len(block.Txs))
 	for i, tx := range block.Txs {
-		txHeader, err := json.Marshal(tx)
-		if err != nil {
-			return Block{}, err
-		}
-		copy(txHeaders[32*i:], txHeader[:])
+		copy(txHeaders[32*i:], tx[:])
 	}
 	block.TxHeader = sha3.Sum256(txHeaders)
 	block.Header = sha3.Sum256([]byte(block.String()))
-	return block, nil
+	return block
 }
 
 // Equal excludes time from equality check
@@ -93,7 +88,7 @@ func Genesis() SignedBlock {
 			Height:       0,
 			Header:       sig.Hash{},
 			ParentHeader: sig.Hash{},
-			Txs:          []tx.Transaction{},
+			Txs:          tx.Transactions{},
 		},
 		Signature: sig.Signature{},
 		Signatory: sig.Signatory{},

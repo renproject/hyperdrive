@@ -20,7 +20,7 @@ type fifoPool struct {
 	cap int
 
 	txsMu *sync.Mutex
-	txs   []Transaction
+	txs   Transactions
 }
 
 // FIFOPool is a First-In, First-Out transaction pool that is thread safe.
@@ -29,7 +29,7 @@ func FIFOPool(cap int) Pool {
 		cap: cap,
 
 		txsMu: new(sync.Mutex),
-		txs:   []Transaction{},
+		txs:   Transactions{},
 	}
 }
 
@@ -56,7 +56,7 @@ func (pool *fifoPool) Dequeue() (Transaction, bool) {
 			pool.txs = pool.txs[1:]
 			return tx, true
 		}
-		pool.txs = []Transaction{}
+		pool.txs = Transactions{}
 		return tx, true
 	}
 	return nil, false

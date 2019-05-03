@@ -187,24 +187,20 @@ func (replica *replica) generateSignedBlock() {
 
 func (replica *replica) buildSignedBlock() block.SignedBlock {
 	// TODO: We should put more than one transaction into a block.
-	transactions := make([]tx.Transaction, 0, block.MaxTransactions)
+	transactions := make(tx.Transactions, 0, block.MaxTransactions)
 	transaction, ok := replica.txPool.Dequeue()
 	for ok && len(transactions) < block.MaxTransactions {
 		transactions = append(transactions, transaction)
 		transaction, ok = replica.txPool.Dequeue()
 	}
 
-	block, err := block.New(
+	block := block.New(
 		replica.state.Round(),
 		replica.state.Height(),
 		replica.lastBlock.Header,
 		transactions,
 	)
-	if err != nil {
-		// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
-		// least be some sane logging and recovery.
-		panic(err)
-	}
+
 	signedBlock, err := block.Sign(replica.signer)
 	if err != nil {
 		// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
