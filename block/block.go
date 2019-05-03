@@ -1,6 +1,7 @@
 package block
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -39,7 +40,7 @@ func New(round Round, height Height, parentHeader sig.Hash, txs []tx.Transaction
 	}
 	txHeaders := make([]byte, 32*len(block.Txs))
 	for i, tx := range block.Txs {
-		txHeader, err := tx.Header()
+		txHeader, err := json.Marshal(tx)
 		if err != nil {
 			return Block{}, err
 		}

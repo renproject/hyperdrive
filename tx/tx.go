@@ -2,38 +2,39 @@ package tx
 
 import (
 	"encoding/json"
-
-	"github.com/renproject/hyperdrive/sig"
+	// "github.com/renproject/hyperdrive/sig"
 )
 
-type Transaction interface {
-	IsTransaction()
-	json.Marshaler
-	json.Unmarshaler
-	Header() (sig.Hash, error)
-}
+// type Transaction interface {
+// 	IsTransaction()
+// 	json.Marshaler
+// 	json.Unmarshaler
+// 	Header() (sig.Hash, error)
+// }
 
-// type Transactions []Transaction
+type Transaction json.RawMessage
 
-type transaction struct {
-	Data [32]byte
-}
+type Transactions []Transaction
 
-func NewTransaction(data [32]byte) Transaction {
-	return &transaction{data}
-}
+// type transaction struct {
+// 	Data [32]byte
+// }
 
-func (transaction) IsTransaction() {}
+// func NewTransaction(data [32]byte) Transaction {
+// 	return &transaction{data}
+// }
 
-func (transaction *transaction) MarshalJSON() ([]byte, error) {
-	return transaction.Data[:], nil
-}
+// func (transaction) IsTransaction() {}
 
-func (transaction *transaction) UnmarshalJSON(data []byte) error {
-	copy(transaction.Data[:], data)
-	return nil
-}
+// func (transaction *transaction) MarshalJSON() ([]byte, error) {
+// 	return transaction.Data[:], nil
+// }
 
-func (transaction *transaction) Header() (sig.Hash, error) {
-	return transaction.Data, nil
-}
+// func (transaction *transaction) UnmarshalJSON(data []byte) error {
+// 	copy(transaction.Data[:], data)
+// 	return nil
+// }
+
+// func (transaction *transaction) Header() (sig.Hash, error) {
+// 	return transaction.Data, nil
+// }
