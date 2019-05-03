@@ -51,7 +51,6 @@ func (pool *fifoPool) Dequeue() (Transaction, bool) {
 
 	if len(pool.txs) > 0 {
 		tx := pool.txs[0]
-
 		if len(pool.txs) > 1 {
 			pool.txs = pool.txs[1:]
 			return tx, true

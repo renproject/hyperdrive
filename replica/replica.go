@@ -200,7 +200,6 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 		replica.lastBlock.Header,
 		transactions,
 	)
-
 	signedBlock, err := block.Sign(replica.signer)
 	if err != nil {
 		// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
