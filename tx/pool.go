@@ -5,6 +5,10 @@ import (
 	"sync"
 )
 
+type Transaction []byte
+
+type Transactions []Transaction
+
 var ErrPoolCapacityExceeded = errors.New("pool capacity exceeded")
 
 type Pool interface {
