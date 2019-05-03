@@ -142,12 +142,3 @@ var _ = Describe("Sig", func() {
 		})
 	}
 })
-
-// func shuffleLists(list []interface{}) []interface {
-// 	// shuffled := list
-// 	for i := range list {
-// 		j := rand.Intn(i + 1)
-// 		shuffled[i], shuffled[j] = shuffled[j], list[i]
-// 	}
-// 	return shuffled
-// }
