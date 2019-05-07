@@ -24,7 +24,7 @@ import (
 
 var _ = Describe("Hyperdrive", func() {
 
-	initReplicas := func(n int) ([]chan Object, []sig.SignerVerifier, *time.Ticker, chan struct{}) {
+	initReplicas := func(n int, isLeaderFaulty bool) ([]chan Object, []sig.SignerVerifier, *time.Ticker, chan struct{}) {
 		done := make(chan struct{})
 		ipChans := make([]chan Object, n)
 		signatories := make(sig.Signatories, n)
@@ -51,10 +51,17 @@ var _ = Describe("Hyperdrive", func() {
 			ipChans[i] <- ShardObject{shard, txPool}
 		}
 
-		ticker := time.NewTicker(time.Duration(n*500) * time.Millisecond)
+		tickerInterval := time.Duration(n * n * 2)
+		if n <= 16 {
+			tickerInterval = time.Duration(500)
+		}
+		ticker := time.NewTicker(tickerInterval * time.Millisecond)
 		go func() {
 			for t := range ticker.C {
 				for i := 0; i < n; i++ {
+					if isLeaderFaulty && i == 0 {
+						continue
+					}
 					// fmt.Println("new tick")
 					select {
 					case <-done:
@@ -94,7 +101,7 @@ var _ = Describe("Hyperdrive", func() {
 		Context(fmt.Sprintf("when reaching consensus on a shard with %v replicas", entry.numHyperdrives), func() {
 			It("should commit blocks", func() {
 				cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
-				ipChans, signers, ticker, done := initReplicas(entry.numHyperdrives)
+				ipChans, signers, ticker, done := initReplicas(entry.numHyperdrives, false)
 				defer ticker.Stop()
 
 				co.ParForAll(entry.numHyperdrives, func(i int) {
@@ -103,9 +110,28 @@ var _ = Describe("Hyperdrive", func() {
 					if i == 0 {
 						time.Sleep(time.Second)
 					}
-					Expect(runHyperdrive(i, NewMockDispatcher(i, ipChans, done, cap), signers[i], ipChans[i], done, entry.maxHeight, entry.numHyperdrives)).ShouldNot((HaveOccurred()))
+					Expect(runHyperdrive(i, NewMockDispatcher(i, ipChans, done, cap, false), signers[i], ipChans[i], done, entry.maxHeight, block.Round(0))).ShouldNot((HaveOccurred()))
 				})
 			})
+
+			if entry.numHyperdrives > 2 && entry.numHyperdrives <= 32 {
+				Context("when leader at index = 0 is inactive", func() {
+					It("should commit blocks with new leader", func() {
+						cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
+						ipChans, signers, ticker, done := initReplicas(entry.numHyperdrives, true)
+						defer ticker.Stop()
+
+						co.ParForAll(entry.numHyperdrives, func(i int) {
+							defer GinkgoRecover()
+
+							if i == 0 {
+								return
+							}
+							Expect(runHyperdrive(i, NewMockDispatcher(i, ipChans, done, cap, true), signers[i], ipChans[i], done, entry.maxHeight, block.Round(1))).ShouldNot(HaveOccurred())
+						})
+					})
+				})
+			}
 		})
 	}
 })
@@ -120,7 +146,7 @@ type mockDispatcher struct {
 	done chan struct{}
 }
 
-func NewMockDispatcher(i int, channels []chan Object, done chan struct{}, cap int) *mockDispatcher {
+func NewMockDispatcher(i int, channels []chan Object, done chan struct{}, cap int, isLeaderFaulty bool) *mockDispatcher {
 	dispatcher := &mockDispatcher{
 		index: i,
 
@@ -138,6 +164,9 @@ func NewMockDispatcher(i int, channels []chan Object, done chan struct{}, cap in
 				return
 			case actionObject := <-dispatcher.reqCh:
 				for i := range dispatcher.channels {
+					if isLeaderFaulty && i == 0 {
+						continue
+					}
 					select {
 					case <-dispatcher.done:
 						return
@@ -212,9 +241,9 @@ type TickObject struct {
 
 func (TickObject) IsObject() {}
 
-func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVerifier, inputCh chan Object, done chan struct{}, maxHeight block.Height, maxTicks int) error {
+func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVerifier, inputCh chan Object, done chan struct{}, maxHeight block.Height, expectedRound block.Round) error {
 	h := New(signer, dispatcher)
-	numTicks := 0
+	numTicksSinceLastPropose := 0
 
 	var currentBlock *block.SignedBlock
 
@@ -225,19 +254,17 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 		case input := <-inputCh:
 			switch input := input.(type) {
 			case TickObject:
-				numTicks++
-				if numTicks > maxTicks {
-					fmt.Println(numTicks)
+				numTicksSinceLastPropose++
+				if numTicksSinceLastPropose > NumTicksToTriggerTimeOut+1 {
 					return errors.New("timedout")
 				}
-
 				h.AcceptTick(input.Time)
 			case ShardObject:
 				h.AcceptShard(input.shard, block.Genesis(), input.pool)
 			case ActionObject:
 				switch action := input.action.(type) {
 				case state.Propose:
-					numTicks = 0
+					numTicksSinceLastPropose = 0
 					h.AcceptPropose(input.shardHash, action.SignedBlock)
 				case state.SignedPreVote:
 					h.AcceptPreVote(input.shardHash, action.SignedPreVote)
@@ -245,6 +272,7 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 					h.AcceptPreCommit(input.shardHash, action.SignedPreCommit)
 				case state.Commit:
 					Expect(len(action.Commit.Polka.Block.Txs)).To(BeNumerically("<=", block.MaxTransactions))
+					Expect(action.Commit.Polka.Block.Round).To(Equal(expectedRound))
 					if currentBlock == nil || action.Polka.Block.Height > currentBlock.Height {
 						if currentBlock != nil {
 							Expect(action.Polka.Block.Height).To(Equal(currentBlock.Height + 1))
