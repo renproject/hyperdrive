@@ -53,7 +53,7 @@ var _ = Describe("Hyperdrive", func() {
 
 		tickerInterval := time.Duration(n * n * 2)
 		if n <= 16 {
-			tickerInterval = time.Duration(500)
+			tickerInterval = time.Duration(1000)
 		}
 		ticker := time.NewTicker(tickerInterval * time.Millisecond)
 		go func() {
