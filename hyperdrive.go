@@ -16,7 +16,7 @@ const NumHistoricalShards = 3
 
 // NumTicksToTriggerTimeOut specifies the maximum number of Ticks to wait before
 // triggering a TimedOut  transition.
-const NumTicksToTriggerTimeOut = 2
+const NumTicksToTriggerTimeOut = 4
 
 // Hyperdrive accepts blocks and ticks and sends relevant Transitions to the respective replica.
 type Hyperdrive interface {
@@ -61,6 +61,7 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 			// 2. Send a TimedOut transition to the shard
 			if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
 				replica.Transition(state.TimedOut{Time: t})
+				hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
 			}
 		}
 	}
@@ -102,6 +103,7 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, head block.SignedBl
 
 	hyperdrive.shardReplicas[shard.Hash] = r
 	hyperdrive.shardHistory = append(hyperdrive.shardHistory, shard.Hash)
+	hyperdrive.ticksPerShard[shard.Hash] = 0
 	if len(hyperdrive.shardHistory) > NumHistoricalShards {
 		delete(hyperdrive.shardReplicas, hyperdrive.shardHistory[0])
 		hyperdrive.shardHistory = hyperdrive.shardHistory[1:]

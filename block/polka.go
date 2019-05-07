@@ -78,9 +78,15 @@ type Polka struct {
 }
 
 // Equal checks that two Polka are functionally equivalent
-func (polka Polka) Equal(other Polka) bool {
-	if other.Block == nil || polka.Block == nil {
-		return polka.Block == other.Block
+func (polka Polka) Equal(other *Polka) bool {
+	if polka.Block == nil && other.Block == nil {
+		return polka.Round == other.Round &&
+			polka.Height == other.Height &&
+			polka.Signatures.Equal(other.Signatures) &&
+			polka.Signatories.Equal(other.Signatories)
+	}
+	if polka.Block == nil || other.Block == nil {
+		return false
 	}
 	return polka.Block.Equal(other.Block.Block) &&
 		polka.Round == other.Round &&
@@ -147,6 +153,10 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 	polkaFound := false
 	polka := Polka{}
 
+	numNilPreVotes := 0
+	nilPreVoteSigs := []sig.Signature{}
+	nilPreVoteSignatories := []sig.Signatory{}
+
 	for round, preVotes := range preVotesByRound {
 		if polkaFound && round <= polka.Round {
 			continue
@@ -166,6 +176,9 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 				panic(fmt.Errorf("expected pre-vote round (%v) to equal %v", preVote.Round, round))
 			}
 			if preVote.Block == nil {
+				numNilPreVotes++
+				nilPreVoteSigs = append(nilPreVoteSigs, preVote.Signature)
+				nilPreVoteSignatories = append(nilPreVoteSignatories, preVote.Signatory)
 				continue
 			}
 
@@ -222,14 +235,16 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 			continue
 		}
 
-		// Return a nil-Polka
-		polkaFound = true
-		polka = Polka{
-			Block:       nil,
-			Height:      height,
-			Round:       round,
-			Signatures:  make(sig.Signatures, 0),
-			Signatories: make(sig.Signatories, 0),
+		if numNilPreVotes >= consensusThreshold {
+			// Return a nil-Polka
+			polkaFound = true
+			polka = Polka{
+				Block:       nil,
+				Height:      height,
+				Round:       round,
+				Signatures:  nilPreVoteSigs,
+				Signatories: nilPreVoteSignatories,
+			}
 		}
 	}
 

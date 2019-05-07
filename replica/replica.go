@@ -105,9 +105,9 @@ func (replica *replica) dispatchAction(action state.Action) {
 			SignedPreCommit: signedPreCommit,
 		})
 	case state.Commit:
-		replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		if action.Commit.Polka.Block != nil {
 			replica.lastBlock = *action.Commit.Polka.Block
+			replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		}
 		replica.generateSignedBlock()
 	}
@@ -211,6 +211,10 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 
 func (replica *replica) transition(transition state.Transition) state.Action {
 	nextState, action := replica.stateMachine.Transition(replica.state, transition)
+	if nextState.Round() > replica.state.Round() {
+		// If round has progressed, drop all prevotes and precommits in the state-machine
+		replica.stateMachine.Drop(replica.state.Height() + 1)
+	}
 	replica.state = nextState
 	replica.transitionBuffer.Drop(replica.state.Height())
 	return action

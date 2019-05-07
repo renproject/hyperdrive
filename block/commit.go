@@ -100,6 +100,10 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (Comm
 	commitFound := false
 	commit := Commit{}
 
+	numNilPreCommits := 0
+	nilPreCommitSigs := []sig.Signature{}
+	nilPreCommitSignatories := []sig.Signatory{}
+
 	for round, preCommits := range preCommitsByRound {
 		if commitFound && round <= commit.Polka.Round {
 			continue
@@ -119,6 +123,9 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (Comm
 				panic(fmt.Errorf("expected pre-commit round (%v) to equal %v", preCommit.Polka.Round, round))
 			}
 			if preCommit.Polka.Block == nil {
+				numNilPreCommits++
+				nilPreCommitSigs = append(nilPreCommitSigs, preCommit.Signature)
+				nilPreCommitSignatories = append(nilPreCommitSignatories, preCommit.Signatory)
 				continue
 			}
 
@@ -173,16 +180,18 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (Comm
 			continue
 		}
 
-		// Return a nil-Commit
-		commitFound = true
-		commit = Commit{
-			Polka: Polka{
-				Block:  nil,
-				Height: height,
-				Round:  round,
-			},
-			Signatures:  make(sig.Signatures, 0),
-			Signatories: make(sig.Signatories, 0),
+		if numNilPreCommits >= consensusThreshold {
+			// Return a nil-Commit
+			commitFound = true
+			commit = Commit{
+				Polka: Polka{
+					Block:  nil,
+					Height: height,
+					Round:  round,
+				},
+				Signatures:  nilPreCommitSigs,
+				Signatories: nilPreCommitSignatories,
+			}
 		}
 	}
 

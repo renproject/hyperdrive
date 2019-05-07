@@ -8,6 +8,7 @@ import (
 
 type Machine interface {
 	Transition(state State, transition Transition) (State, Action)
+	Drop(height block.Height)
 }
 
 type machine struct {
@@ -142,7 +143,9 @@ func (machine *machine) reducePreCommitted(currentState State, preCommitted PreC
 				panic(fmt.Errorf("expected commit round (%v) to be greater or equal to the current round (%v)", commit.Polka.Round, currentState.Round()))
 			}
 			if commit.Polka.Block == nil {
-				return WaitForPropose(commit.Polka.Round+1, currentState.Height()), nil
+				return WaitForPropose(commit.Polka.Round+1, currentState.Height()), Commit{
+					Commit: commit,
+				}
 			}
 			return WaitForPropose(commit.Polka.Round, currentState.Height()+1), Commit{
 				Commit: commit,
@@ -155,4 +158,9 @@ func (machine *machine) reducePreCommitted(currentState State, preCommitted PreC
 		}
 	}
 	return currentState, nil
+}
+
+func (machine *machine) Drop(height block.Height) {
+	machine.polkaBuilder.Drop(height)
+	machine.commitBuilder.Drop(height)
 }
