@@ -290,7 +290,7 @@ var _ = Describe("PolkaBuilder", func() {
 				Signatories: testutils.RandomSignatories(10),
 			}
 			newPolka := polka
-			Expect(polka.Equal(newPolka)).Should(BeTrue())
+			Expect(polka.Equal(&newPolka)).Should(BeTrue())
 		})
 
 		It("should return false if both Polkas are equal, but signatories are different", func() {
@@ -313,7 +313,7 @@ var _ = Describe("PolkaBuilder", func() {
 				Signatures:  testutils.RandomSignatures(10),
 				Signatories: testutils.RandomSignatories(10),
 			}
-			Expect(polka.Equal(newPolka)).Should(BeFalse())
+			Expect(polka.Equal(&newPolka)).Should(BeFalse())
 		})
 
 		It("should return false if both Polkas are equal, but one of the blocks is nil", func() {
@@ -336,7 +336,7 @@ var _ = Describe("PolkaBuilder", func() {
 				Signatures:  polka.Signatures,
 				Signatories: polka.Signatories,
 			}
-			Expect(polka.Equal(newPolka)).Should(BeFalse())
+			Expect(polka.Equal(&newPolka)).Should(BeFalse())
 		})
 	})
 
