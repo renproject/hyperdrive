@@ -213,7 +213,7 @@ var _ = Describe("PolkaBuilder", func() {
 						Expect(builder.Insert(signedPreVote)).To(BeTrue())
 					}
 					polka, ok := builder.Polka(height, 9)
-					Expect(ok).To(BeTrue())
+					Expect(ok).To(BeFalse())
 					Expect(polka.Block).To(BeNil())
 				})
 			})

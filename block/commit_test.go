@@ -292,7 +292,7 @@ var _ = Describe("CommitBuilder", func() {
 						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
 					commit, ok := builder.Commit(height, 9)
-					Expect(ok).To(BeTrue())
+					Expect(ok).To(BeFalse())
 					Expect(commit.Polka.Block).To(BeNil())
 				})
 			})
