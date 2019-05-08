@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/replica"
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/sig/ecdsa"
@@ -24,7 +23,7 @@ import (
 
 var _ = Describe("Hyperdrive", func() {
 
-	initReplicas := func(n int, isLeaderFaulty bool) ([]chan Object, []sig.SignerVerifier, *time.Ticker, chan struct{}) {
+	initReplicas := func(n int) ([]chan Object, []sig.SignerVerifier, *time.Ticker, chan struct{}, int) {
 		done := make(chan struct{})
 		ipChans := make([]chan Object, n)
 		signatories := make(sig.Signatories, n)
@@ -42,12 +41,13 @@ var _ = Describe("Hyperdrive", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 		}
 
+		shard := shard.Shard{
+			Hash:        shardHash,
+			Signatories: make(sig.Signatories, n),
+		}
+		copy(shard.Signatories[:], signatories[:])
+
 		for i := 0; i < n; i++ {
-			shard := shard.Shard{
-				Hash:        shardHash,
-				Signatories: make(sig.Signatories, n),
-			}
-			copy(shard.Signatories[:], signatories[:])
 			ipChans[i] <- ShardObject{shard, txPool}
 		}
 
@@ -59,9 +59,6 @@ var _ = Describe("Hyperdrive", func() {
 		go func() {
 			for t := range ticker.C {
 				for i := 0; i < n; i++ {
-					if isLeaderFaulty && i == 0 {
-						continue
-					}
 					select {
 					case <-done:
 						return
@@ -72,7 +69,7 @@ var _ = Describe("Hyperdrive", func() {
 			}
 		}()
 
-		return ipChans, signers, ticker, done
+		return ipChans, signers, ticker, done, shard.ConsensusThreshold()
 	}
 
 	table := []struct {
@@ -100,16 +97,14 @@ var _ = Describe("Hyperdrive", func() {
 		Context(fmt.Sprintf("when reaching consensus on a shard with %v replicas", entry.numHyperdrives), func() {
 			It("should commit blocks", func() {
 				cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
-				ipChans, signers, ticker, done := initReplicas(entry.numHyperdrives, false)
+				ipChans, signers, ticker, done, _ := initReplicas(entry.numHyperdrives)
 				defer ticker.Stop()
 
 				co.ParForAll(entry.numHyperdrives, func(i int) {
 					defer GinkgoRecover()
 
-					if i == 0 {
-						time.Sleep(time.Second)
-					}
-					Expect(runHyperdrive(i, NewMockDispatcher(i, ipChans, done, cap, false), signers[i], ipChans[i], done, entry.maxHeight, block.Round(0))).ShouldNot((HaveOccurred()))
+					h := New(signers[i], NewMockDispatcher(i, ipChans, done, cap))
+					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight, block.Round(0))).ShouldNot((HaveOccurred()))
 				})
 			})
 
@@ -117,16 +112,18 @@ var _ = Describe("Hyperdrive", func() {
 				Context("when leader at index = 0 is inactive", func() {
 					It("should commit blocks with new leader", func() {
 						cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
-						ipChans, signers, ticker, done := initReplicas(entry.numHyperdrives, true)
+						ipChans, signers, ticker, done, consensusThreshold := initReplicas(entry.numHyperdrives)
 						defer ticker.Stop()
 
 						co.ParForAll(entry.numHyperdrives, func(i int) {
 							defer GinkgoRecover()
 
+							h := New(signers[i], NewMockDispatcher(i, ipChans, done, cap))
 							if i == 0 {
-								return
+								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(i, ipChans, done, cap), consensusThreshold)
 							}
-							Expect(runHyperdrive(i, NewMockDispatcher(i, ipChans, done, cap, true), signers[i], ipChans[i], done, entry.maxHeight, block.Round(1))).ShouldNot(HaveOccurred())
+
+							Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight, block.Round(1))).ShouldNot(HaveOccurred())
 						})
 					})
 				})
@@ -145,7 +142,7 @@ type mockDispatcher struct {
 	done chan struct{}
 }
 
-func NewMockDispatcher(i int, channels []chan Object, done chan struct{}, cap int, isLeaderFaulty bool) *mockDispatcher {
+func NewMockDispatcher(i int, channels []chan Object, done chan struct{}, cap int) *mockDispatcher {
 	dispatcher := &mockDispatcher{
 		index: i,
 
@@ -163,9 +160,6 @@ func NewMockDispatcher(i int, channels []chan Object, done chan struct{}, cap in
 				return
 			case actionObject := <-dispatcher.reqCh:
 				for i := range dispatcher.channels {
-					if isLeaderFaulty && i == 0 {
-						continue
-					}
 					select {
 					case <-dispatcher.done:
 						return
@@ -240,8 +234,7 @@ type TickObject struct {
 
 func (TickObject) IsObject() {}
 
-func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVerifier, inputCh chan Object, done chan struct{}, maxHeight block.Height, expectedRound block.Round) error {
-	h := New(signer, dispatcher)
+func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struct{}, maxHeight block.Height, expectedRound block.Round) error {
 	numTicksSinceLastPropose := 0
 
 	var currentBlock *block.SignedBlock
