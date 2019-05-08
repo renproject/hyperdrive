@@ -62,7 +62,6 @@ var _ = Describe("Hyperdrive", func() {
 					if isLeaderFaulty && i == 0 {
 						continue
 					}
-					// fmt.Println("new tick")
 					select {
 					case <-done:
 						return
