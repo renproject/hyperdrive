@@ -32,6 +32,7 @@ type replica struct {
 	transitionBuffer state.TransitionBuffer
 	shard            shard.Shard
 	lastBlock        block.SignedBlock
+	pastBlocks       []block.Commit
 }
 
 func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state state.State, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard shard.Shard, lastBlock block.SignedBlock) Replica {
@@ -113,6 +114,10 @@ func (replica *replica) dispatchAction(action state.Action) {
 		})
 	case state.Commit:
 		if action.Commit.Polka.Block != nil {
+			if len(replica.pastBlocks) > 4 {
+				replica.pastBlocks = append(replica.pastBlocks[:0], replica.pastBlocks[1:]...)
+			}
+			replica.pastBlocks = append(replica.pastBlocks, action.Commit)
 			replica.SyncCommit(action.Commit)
 			replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		}

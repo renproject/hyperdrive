@@ -76,6 +76,8 @@ func (block Block) String() string {
 type SignedBlock struct {
 	Block
 
+	PastBlocks []Commit
+
 	Signature sig.Signature
 	Signatory sig.Signatory
 }

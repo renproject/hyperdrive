@@ -70,9 +70,17 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 	// TODO: Verify the Block header equals the expected header.
 
 	// Verify the parent block
-	// if !lastSignedBlock.Header.Equal(signedBlock.ParentHeader) {
-	// 	return false
-	// }
+	if !lastSignedBlock.Header.Equal(signedBlock.ParentHeader) {
+		isValid := false
+		for _, commit := range signedBlock.PastBlocks {
+			if lastSignedBlock.Header.Equal(commit.Polka.Block.ParentHeader) {
+				isValid = true
+			}
+		}
+		if !isValid {
+			return false
+		}
+	}
 
 	// TODO: Check cache
 
