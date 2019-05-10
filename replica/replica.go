@@ -120,7 +120,7 @@ func (replica *replica) dispatchAction(action state.Action) {
 				replica.pastBlocks = replica.pastBlocks[1:]
 			}
 			replica.pastBlocks = append(replica.pastBlocks, action.Commit)
-			fmt.Println("pastBlocks", len(replica.pastBlocks))
+			// fmt.Println("pastBlocks", len(replica.pastBlocks))
 			replica.SyncCommit(action.Commit)
 			replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		}
@@ -223,7 +223,7 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 		panic(err)
 	}
 
-	fmt.Println("adding pastBlocks", len(replica.pastBlocks), block.Header)
+	// fmt.Println("adding pastBlocks", len(replica.pastBlocks), block.Header)
 	return signedBlock
 }
 
