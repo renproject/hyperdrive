@@ -209,8 +209,6 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 		transaction, ok = replica.txPool.Dequeue()
 	}
 
-	fmt.Println("adding pastBlocks", len(replica.pastBlocks))
-
 	block := block.New(
 		replica.state.Round(),
 		replica.state.Height(),
@@ -224,6 +222,8 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 		// least be some sane logging and recovery.
 		panic(err)
 	}
+
+	fmt.Println("adding pastBlocks", len(replica.pastBlocks), block.Header)
 	return signedBlock
 }
 
