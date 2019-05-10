@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -75,6 +76,7 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 		for _, commit := range signedBlock.PastBlocks {
 			if lastSignedBlock.Header.Equal(commit.Polka.Block.ParentHeader) {
 				isValid = true
+				break
 			}
 		}
 		if !isValid {
@@ -86,6 +88,7 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 
 	// Verify the signature
 	if !validator.verifySignature(signedBlock.Block.Header, signedBlock.Signature, signedBlock.Signatory) {
+		fmt.Println("invalid signature")
 		return false
 	}
 
