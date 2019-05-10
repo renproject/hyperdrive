@@ -1,7 +1,6 @@
 package replica
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
