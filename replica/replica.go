@@ -18,6 +18,7 @@ type Replica interface {
 	Init()
 	State() state.State
 	Transition(transition state.Transition)
+	SyncCommit(commit block.Commit)
 }
 
 type replica struct {
@@ -55,6 +56,12 @@ func (replica *replica) Init() {
 
 func (replica *replica) State() state.State {
 	return replica.state
+}
+
+func (replica *replica) SyncCommit(commit block.Commit) {
+	if replica.lastBlock.Height < (*commit.Polka.Block).Height {
+		replica.lastBlock = *commit.Polka.Block
+	}
 }
 
 func (replica *replica) Transition(transition state.Transition) {

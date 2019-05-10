@@ -117,6 +117,10 @@ func (faultyLeader *faultyLeader) AcceptPreCommit(shardHash sig.Hash, preCommit 
 
 }
 
+func (faultyLeader *faultyLeader) AcceptCommit(shardHash sig.Hash, commit block.Commit) {
+	panic("unimplemented")
+}
+
 func (faultyLeader *faultyLeader) AcceptShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool) {
 	return
 }
