@@ -117,6 +117,6 @@ func (faultyLeader *faultyLeader) AcceptPreCommit(shardHash sig.Hash, preCommit 
 
 }
 
-func (faultyLeader *faultyLeader) AcceptShard(shard shard.Shard, head block.SignedBlock, blockchain *block.Blockchain, pool tx.Pool) {
+func (faultyLeader *faultyLeader) AcceptShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool) {
 	return
 }

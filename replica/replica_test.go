@@ -34,9 +34,7 @@ var _ = Describe("Replica", func() {
 			}
 			stateMachine := state.NewMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), 1)
 
-			blockchain := block.NewBlockchain()
-
-			replica := New(newMockDispatcher(), signer, pool, state.WaitForPropose(0, 0), stateMachine, transitionBuffer, shard, &blockchain)
+			replica := New(newMockDispatcher(), signer, pool, state.WaitForPropose(0, 0), stateMachine, transitionBuffer, shard, block.Genesis())
 			Expect(func() { replica.Init() }).ToNot(Panic())
 		})
 	})
@@ -77,9 +75,8 @@ var _ = Describe("Replica", func() {
 						Signatories: sig.Signatories{signer.Signatory(), participant1.Signatory(), participant2.Signatory()},
 					}
 					stateMachine := state.NewMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
-					blockchain := block.NewBlockchain()
 
-					replica := New(NewMockDispatcher(), signer, pool, t.startingState, stateMachine, transitionBuffer, shard, &blockchain)
+					replica := New(NewMockDispatcher(), signer, pool, t.startingState, stateMachine, transitionBuffer, shard, block.Genesis())
 					for _, transition := range t.transitions {
 						replica.Transition(transition)
 					}

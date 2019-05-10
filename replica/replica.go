@@ -30,11 +30,10 @@ type replica struct {
 	stateMachine     state.Machine
 	transitionBuffer state.TransitionBuffer
 	shard            shard.Shard
-	blockchain       *block.Blockchain
-	// lastBlock        block.SignedBlock
+	lastBlock        block.SignedBlock
 }
 
-func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state state.State, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard shard.Shard, blockchain *block.Blockchain) Replica {
+func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state state.State, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard shard.Shard, lastBlock block.SignedBlock) Replica {
 	replica := &replica{
 		dispatcher: dispatcher,
 
@@ -45,7 +44,7 @@ func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state
 		stateMachine:     stateMachine,
 		transitionBuffer: transitionBuffer,
 		shard:            shard,
-		blockchain:       blockchain,
+		lastBlock:        lastBlock,
 	}
 	return replica
 }
@@ -107,7 +106,7 @@ func (replica *replica) dispatchAction(action state.Action) {
 		})
 	case state.Commit:
 		if action.Commit.Polka.Block != nil {
-			// replica.lastBlock = *action.Commit.Polka.Block
+			replica.lastBlock = *action.Commit.Polka.Block
 			replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		}
 		replica.generateSignedBlock()
@@ -115,17 +114,13 @@ func (replica *replica) dispatchAction(action state.Action) {
 }
 
 func (replica *replica) isTransitionValid(transition state.Transition) bool {
-	lastBlock, ok := replica.blockchain.Head()
-	if !ok {
-		lastBlock = block.Genesis()
-	}
 	switch transition := transition.(type) {
 	case state.Proposed:
-		return replica.validator.ValidateBlock(transition.SignedBlock, lastBlock)
+		return replica.validator.ValidateBlock(transition.SignedBlock, replica.lastBlock)
 	case state.PreVoted:
-		return replica.validator.ValidatePreVote(transition.SignedPreVote, lastBlock)
+		return replica.validator.ValidatePreVote(transition.SignedPreVote, replica.lastBlock)
 	case state.PreCommitted:
-		return replica.validator.ValidatePreCommit(transition.SignedPreCommit, lastBlock)
+		return replica.validator.ValidatePreCommit(transition.SignedPreCommit, replica.lastBlock)
 	case state.TimedOut:
 		return transition.Time.Before(time.Now())
 	}
@@ -199,15 +194,10 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 		transaction, ok = replica.txPool.Dequeue()
 	}
 
-	lastBlock, ok := replica.blockchain.Head()
-	if !ok {
-		lastBlock = block.Genesis()
-	}
-
 	block := block.New(
 		replica.state.Round(),
 		replica.state.Height(),
-		lastBlock.Header,
+		replica.lastBlock.Header,
 		transactions,
 	)
 	signedBlock, err := block.Sign(replica.signer)
