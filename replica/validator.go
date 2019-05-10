@@ -74,7 +74,7 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 	if !lastSignedBlock.Header.Equal(signedBlock.ParentHeader) {
 		isValid := false
 		for _, commit := range signedBlock.PastBlocks {
-			if lastSignedBlock.Header.Equal(commit.Polka.Block.ParentHeader) {
+			if lastSignedBlock.Header.Equal(commit.Polka.Block.ParentHeader) || lastSignedBlock.Header.Equal(commit.Polka.Block.Header) {
 				isValid = true
 				break
 			}
