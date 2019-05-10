@@ -113,7 +113,7 @@ func (replica *replica) dispatchAction(action state.Action) {
 		})
 	case state.Commit:
 		if action.Commit.Polka.Block != nil {
-			replica.lastBlock = *action.Commit.Polka.Block
+			replica.SyncCommit(action.Commit)
 			replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		}
 		replica.generateSignedBlock()

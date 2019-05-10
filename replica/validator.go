@@ -70,9 +70,9 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 	// TODO: Verify the Block header equals the expected header.
 
 	// Verify the parent block
-	if !lastSignedBlock.Header.Equal(signedBlock.ParentHeader) {
-		return false
-	}
+	// if !lastSignedBlock.Header.Equal(signedBlock.ParentHeader) {
+	// 	return false
+	// }
 
 	// TODO: Check cache
 
