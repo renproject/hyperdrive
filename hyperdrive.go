@@ -24,7 +24,7 @@ type Hyperdrive interface {
 	AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock)
 	AcceptPreVote(shardHash sig.Hash, preVote block.SignedPreVote)
 	AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit)
-	AcceptShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool)
+	AcceptShard(shard shard.Shard, head block.SignedBlock, blockchain *block.Blockchain, pool tx.Pool)
 }
 
 type hyperdrive struct {
@@ -86,7 +86,7 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 	}
 }
 
-func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool) {
+func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, head block.SignedBlock, blockchain *block.Blockchain, pool tx.Pool) {
 	if _, ok := hyperdrive.shardReplicas[shard.Hash]; ok {
 		return
 	}
@@ -99,7 +99,7 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, head block.SignedBl
 		state.NewMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), shard.ConsensusThreshold()),
 		state.NewTransitionBuffer(shard.Size()),
 		shard,
-		head,
+		blockchain,
 	)
 
 	hyperdrive.shardReplicas[shard.Hash] = r

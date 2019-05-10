@@ -23,11 +23,12 @@ import (
 
 var _ = Describe("Hyperdrive", func() {
 
-	initReplicas := func(n int) ([]chan Object, []sig.SignerVerifier, *time.Ticker, chan struct{}, int) {
+	initReplicas := func(n int) ([]chan Object, []sig.SignerVerifier, *time.Ticker, []*block.Blockchain, chan struct{}, int) {
 		done := make(chan struct{})
 		ipChans := make([]chan Object, n)
 		signatories := make(sig.Signatories, n)
 		signers := make([]sig.SignerVerifier, n)
+		blockchains := make([]*block.Blockchain, n)
 		shardHash := testutils.RandomHash()
 
 		txPool := tx.FIFOPool(100)
@@ -49,6 +50,8 @@ var _ = Describe("Hyperdrive", func() {
 
 		for i := 0; i < n; i++ {
 			ipChans[i] <- ShardObject{shard, txPool}
+			blockchain := block.NewBlockchain()
+			blockchains[i] = &blockchain
 		}
 
 		tickerInterval := time.Duration(n * n * 2)
@@ -69,7 +72,7 @@ var _ = Describe("Hyperdrive", func() {
 			}
 		}()
 
-		return ipChans, signers, ticker, done, shard.ConsensusThreshold()
+		return ipChans, signers, ticker, blockchains, done, shard.ConsensusThreshold()
 	}
 
 	table := []struct {
@@ -97,14 +100,14 @@ var _ = Describe("Hyperdrive", func() {
 		Context(fmt.Sprintf("when reaching consensus on a shard with %v replicas", entry.numHyperdrives), func() {
 			It("should commit blocks", func() {
 				cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
-				ipChans, signers, ticker, done, _ := initReplicas(entry.numHyperdrives)
+				ipChans, signers, ticker, blockchains, done, _ := initReplicas(entry.numHyperdrives)
 				defer ticker.Stop()
 
 				co.ParForAll(entry.numHyperdrives, func(i int) {
 					defer GinkgoRecover()
 
 					h := New(signers[i], NewMockDispatcher(i, ipChans, done, cap))
-					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight, block.Round(0))).ShouldNot((HaveOccurred()))
+					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight, block.Round(0), blockchains[i])).ShouldNot((HaveOccurred()))
 				})
 			})
 
@@ -112,7 +115,7 @@ var _ = Describe("Hyperdrive", func() {
 				Context("when leader at index = 0 is inactive", func() {
 					It("should commit blocks with new leader", func() {
 						cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
-						ipChans, signers, ticker, done, consensusThreshold := initReplicas(entry.numHyperdrives)
+						ipChans, signers, ticker, blockchains, done, consensusThreshold := initReplicas(entry.numHyperdrives)
 						defer ticker.Stop()
 
 						co.ParForAll(entry.numHyperdrives, func(i int) {
@@ -123,7 +126,7 @@ var _ = Describe("Hyperdrive", func() {
 								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(i, ipChans, done, cap), consensusThreshold)
 							}
 
-							Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight, block.Round(1))).ShouldNot(HaveOccurred())
+							Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight, block.Round(1), blockchains[i])).ShouldNot(HaveOccurred())
 						})
 					})
 				})
@@ -234,7 +237,7 @@ type TickObject struct {
 
 func (TickObject) IsObject() {}
 
-func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struct{}, maxHeight block.Height, expectedRound block.Round) error {
+func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struct{}, maxHeight block.Height, expectedRound block.Round, blockchain *block.Blockchain) error {
 	numTicksSinceLastPropose := 0
 
 	var currentBlock *block.SignedBlock
@@ -252,7 +255,7 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 				}
 				h.AcceptTick(input.Time)
 			case ShardObject:
-				h.AcceptShard(input.shard, block.Genesis(), input.pool)
+				h.AcceptShard(input.shard, block.Genesis(), blockchain, input.pool)
 			case ActionObject:
 				switch action := input.action.(type) {
 				case state.Propose:
