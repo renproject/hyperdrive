@@ -80,7 +80,7 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 			}
 		}
 		if !isValid {
-			fmt.Println("invalid header")
+			fmt.Println("invalid header", lastSignedBlock.Header)
 			return false
 		}
 	}
