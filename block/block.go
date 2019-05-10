@@ -149,7 +149,7 @@ func (blockchain *Blockchain) Block(height Height) (SignedBlock, bool) {
 }
 
 func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
-	if commitToNextBlock.Polka.Block == nil {
+	if commitToNextBlock.Polka.Block == nil || blockchain.Height() > commitToNextBlock.Polka.Block.Block.Height {
 		return
 	}
 	blockchain.blocks[commitToNextBlock.Polka.Block.Height] = commitToNextBlock
