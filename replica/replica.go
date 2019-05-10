@@ -211,6 +211,7 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 		replica.state.Height(),
 		replica.lastBlock.Header,
 		transactions,
+		replica.pastBlocks,
 	)
 	signedBlock, err := block.Sign(replica.signer)
 	if err != nil {

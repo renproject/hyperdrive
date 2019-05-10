@@ -27,15 +27,18 @@ type Block struct {
 	ParentHeader sig.Hash
 	Txs          tx.Transactions
 	TxHeader     sig.Hash
+
+	PastBlocks []Commit
 }
 
-func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions) Block {
+func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions, pastBlocks []Commit) Block {
 	block := Block{
 		Time:         time.Now(),
 		Round:        round,
 		Height:       height,
 		ParentHeader: parentHeader,
 		Txs:          txs,
+		PastBlocks:   pastBlocks,
 	}
 	txHeaders := make([]byte, 32*len(block.Txs))
 	for i, tx := range block.Txs {
@@ -75,8 +78,6 @@ func (block Block) String() string {
 
 type SignedBlock struct {
 	Block
-
-	PastBlocks []Commit
 
 	Signature sig.Signature
 	Signatory sig.Signatory
