@@ -119,7 +119,7 @@ var _ = Describe("Block", func() {
 
 	Context("when a new block is generated", func() {
 		It("should populate the block header", func() {
-			block := New(1, 1, Genesis().Header, tx.Transactions{testutils.RandomTransaction(), testutils.RandomTransaction()}, []Commit{})
+			block := New(1, 1, Genesis().Header, tx.Transactions{testutils.RandomTransaction(), testutils.RandomTransaction()})
 			Expect(block.Header).NotTo(BeNil())
 			Expect(block.Header).NotTo(Equal(sig.Hash{}))
 		})

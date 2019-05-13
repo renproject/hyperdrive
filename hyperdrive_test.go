@@ -110,7 +110,7 @@ var _ = Describe("Hyperdrive", func() {
 
 			if entry.numHyperdrives > 2 && entry.numHyperdrives <= 32 {
 				Context("when leader at index = 0 is inactive", func() {
-					It("should commit blocks with new leader", func() {
+					FIt("should commit blocks with new leader", func() {
 						cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
 						ipChans, signers, ticker, done, consensusThreshold := initReplicas(entry.numHyperdrives)
 						defer ticker.Stop()

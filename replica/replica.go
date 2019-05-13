@@ -32,7 +32,6 @@ type replica struct {
 	transitionBuffer state.TransitionBuffer
 	shard            shard.Shard
 	lastBlock        block.SignedBlock
-	pastBlocks       []block.Commit
 }
 
 func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state state.State, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard shard.Shard, lastBlock block.SignedBlock) Replica {
@@ -47,7 +46,6 @@ func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state
 		transitionBuffer: transitionBuffer,
 		shard:            shard,
 		lastBlock:        lastBlock,
-		pastBlocks:       []block.Commit{},
 	}
 	return replica
 }
@@ -115,11 +113,6 @@ func (replica *replica) dispatchAction(action state.Action) {
 		})
 	case state.Commit:
 		if action.Commit.Polka.Block != nil {
-			if len(replica.pastBlocks) > 4 {
-				replica.pastBlocks = replica.pastBlocks[1:]
-			}
-			replica.pastBlocks = append(replica.pastBlocks, action.Commit)
-			// fmt.Println("pastBlocks", len(replica.pastBlocks))
 			replica.SyncCommit(action.Commit)
 			replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		}
@@ -132,9 +125,9 @@ func (replica *replica) isTransitionValid(transition state.Transition) bool {
 	case state.Proposed:
 		return replica.validator.ValidateBlock(transition.SignedBlock, replica.lastBlock)
 	case state.PreVoted:
-		return replica.validator.ValidatePreVote(transition.SignedPreVote, replica.lastBlock)
+		return replica.validator.ValidatePreVote(transition.SignedPreVote)
 	case state.PreCommitted:
-		return replica.validator.ValidatePreCommit(transition.SignedPreCommit, replica.lastBlock)
+		return replica.validator.ValidatePreCommit(transition.SignedPreCommit)
 	case state.TimedOut:
 		return transition.Time.Before(time.Now())
 	}
@@ -213,7 +206,6 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 		replica.state.Height(),
 		replica.lastBlock.Header,
 		transactions,
-		replica.pastBlocks,
 	)
 	signedBlock, err := block.Sign(replica.signer)
 	if err != nil {

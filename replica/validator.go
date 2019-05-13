@@ -21,7 +21,7 @@ type Validator interface {
 	// 5. parent header is the block at head of the shard's blockchain
 	ValidateBlock(signedBlock block.SignedBlock, lastSignedBlock block.SignedBlock) bool
 
-	ValidatePreVote(preVote block.SignedPreVote, lastSignedBlock block.SignedBlock) bool
+	ValidatePreVote(preVote block.SignedPreVote) bool
 
 	// ValidatePolka validates a polka and its signatures and returns true if
 	// the polka is valid.
@@ -34,9 +34,11 @@ type Validator interface {
 	//
 	// validatePolka assumes that `polka.Signatures` are ordered to match
 	// the order of `polka.Signatories`.
-	ValidatePolka(polka block.Polka, lastSignedBlock block.SignedBlock) bool
+	ValidatePolka(polka block.Polka) bool
 
-	ValidatePreCommit(preCommit block.SignedPreCommit, lastSignedBlock block.SignedBlock) bool
+	ValidatePreCommit(preCommit block.SignedPreCommit) bool
+
+	ValidateCommit(commit block.Commit) bool
 }
 
 type validator struct {
@@ -70,16 +72,8 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 	// TODO: Verify the Block header equals the expected header.
 
 	// Verify the parent block
-	if !lastSignedBlock.Header.Equal(signedBlock.ParentHeader) {
-		isValid := false
-		for _, commit := range signedBlock.Block.PastBlocks {
-			if lastSignedBlock.Header.Equal(commit.Polka.Block.ParentHeader) || lastSignedBlock.Header.Equal(commit.Polka.Block.Header) {
-				isValid = true
-				break
-			}
-		}
-		if !isValid {
-			// fmt.Println("invalid header", lastSignedBlock.Header, signedBlock.Header, signedBlock.PastBlocks)
+	if !lastSignedBlock.Equal(block.Block{}) {
+		if !lastSignedBlock.Header.Equal(signedBlock.ParentHeader) {
 			return false
 		}
 	}
@@ -96,10 +90,10 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 	return true
 }
 
-func (validator *validator) ValidatePreVote(preVote block.SignedPreVote, lastSignedBlock block.SignedBlock) bool {
+func (validator *validator) ValidatePreVote(preVote block.SignedPreVote) bool {
 	// Verify the pre-vote is well-formed
 	if preVote.PreVote.Block != nil {
-		if !validator.ValidateBlock(*preVote.PreVote.Block, lastSignedBlock) {
+		if !validator.ValidateBlock(*preVote.PreVote.Block, block.SignedBlock{}) {
 			return false
 		}
 		if preVote.PreVote.Round != preVote.PreVote.Block.Round {
@@ -129,7 +123,7 @@ func (validator *validator) ValidatePreVote(preVote block.SignedPreVote, lastSig
 	return true
 }
 
-func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock block.SignedBlock) bool {
+func (validator *validator) ValidatePolka(polka block.Polka) bool {
 	if polka.Equal(&block.Polka{}) {
 		return false
 	}
@@ -144,7 +138,7 @@ func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock blo
 		if polka.Height != polka.Block.Height {
 			return false
 		}
-		if !validator.ValidateBlock(*polka.Block, lastSignedBlock) {
+		if !validator.ValidateBlock(*polka.Block, block.SignedBlock{}) {
 			return false
 		}
 	}
@@ -167,9 +161,9 @@ func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock blo
 	return true
 }
 
-func (validator *validator) ValidatePreCommit(preCommit block.SignedPreCommit, lastSignedBlock block.SignedBlock) bool {
+func (validator *validator) ValidatePreCommit(preCommit block.SignedPreCommit) bool {
 	// Verify the underlying Polka is well-formed
-	if !validator.ValidatePolka(preCommit.PreCommit.Polka, lastSignedBlock) {
+	if !validator.ValidatePolka(preCommit.PreCommit.Polka) {
 		return false
 	}
 
@@ -189,15 +183,14 @@ func (validator *validator) ValidatePreCommit(preCommit block.SignedPreCommit, l
 	return true
 }
 
-// TODO: Un-comment when needed
-// func (validator *validator) ValidateCommit(commit block.Commit) bool {
-// 	preCommit := block.PreCommit{
-// 		Polka: commit.Polka,
-// 	}
-// 	data := []byte(preCommit.String())
+func (validator *validator) ValidateCommit(commit block.Commit) bool {
+	preCommit := block.PreCommit{
+		Polka: commit.Polka,
+	}
+	data := []byte(preCommit.String())
 
-// 	return validator.ValidatePolka(commit.Polka) && validator.verifySignatures(data, commit.Signatures, commit.Signatories)
-// }
+	return validator.ValidatePolka(commit.Polka) && validator.verifySignatures(data, commit.Signatures, commit.Signatories)
+}
 
 // verifySignature verifies that the signatory provided was used to generate
 // the signature for the given hash. Also verifies that the signatory is a
