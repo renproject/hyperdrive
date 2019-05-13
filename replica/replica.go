@@ -59,9 +59,9 @@ func (replica *replica) State() state.State {
 }
 
 func (replica *replica) SyncCommit(commit block.Commit) {
-	if replica.lastBlock.Height < (*commit.Polka.Block).Height {
-		replica.lastBlock = *commit.Polka.Block
-	}
+	// if replica.lastBlock.Height < (*commit.Polka.Block).Height {
+	replica.lastBlock = *commit.Polka.Block
+	// }
 }
 
 func (replica *replica) Transition(transition state.Transition) {

@@ -100,7 +100,8 @@ func (signedBlock SignedBlock) String() string {
 }
 
 type Blockchain struct {
-	head   Commit
+	head Commit
+	// TODO: change to []Commit
 	blocks map[Height]Commit
 }
 
