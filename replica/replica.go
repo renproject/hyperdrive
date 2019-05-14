@@ -71,10 +71,10 @@ func (replica *replica) Transition(transition state.Transition) {
 	if replica.shouldDropTransition(transition) {
 		return
 	}
-	// if replica.shouldBufferTransition(transition) {
-	// 	replica.transitionBuffer.Enqueue(transition)
-	// 	return
-	// }
+	if replica.shouldBufferTransition(transition) {
+		replica.transitionBuffer.Enqueue(transition)
+		// return
+	}
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.state.Height()) {
 		if !replica.isTransitionValid(transition) {
 			if replica.index == 7 {
