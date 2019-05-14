@@ -1,6 +1,7 @@
 package hyperdrive
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -29,6 +30,7 @@ type Hyperdrive interface {
 }
 
 type hyperdrive struct {
+	index      uint64
 	signer     sig.SignerVerifier
 	dispatcher replica.Dispatcher
 
@@ -39,8 +41,9 @@ type hyperdrive struct {
 }
 
 // New returns a Hyperdrive.
-func New(signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
+func New(index uint64, signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
 	return &hyperdrive{
+		index:      index,
 		signer:     signer,
 		dispatcher: dispatcher,
 
@@ -71,6 +74,7 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock) {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
 		hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
+		fmt.Printf("%d got propose for height %d\n", hyperdrive.index, proposed.Height)
 		replica.Transition(state.Proposed{SignedBlock: proposed})
 	}
 }
@@ -99,6 +103,7 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, head block.SignedBl
 	}
 
 	r := replica.New(
+		hyperdrive.index,
 		hyperdrive.dispatcher,
 		hyperdrive.signer,
 		pool,

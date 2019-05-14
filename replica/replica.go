@@ -23,6 +23,7 @@ type Replica interface {
 }
 
 type replica struct {
+	index      uint64
 	dispatcher Dispatcher
 
 	signer           sig.Signer
@@ -35,8 +36,9 @@ type replica struct {
 	lastBlock        block.SignedBlock
 }
 
-func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state state.State, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard shard.Shard, lastBlock block.SignedBlock) Replica {
+func New(index uint64, dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state state.State, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard shard.Shard, lastBlock block.SignedBlock) Replica {
 	replica := &replica{
+		index:      index,
 		dispatcher: dispatcher,
 
 		signer:           signer,
@@ -75,7 +77,9 @@ func (replica *replica) Transition(transition state.Transition) {
 	}
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.state.Height()) {
 		if !replica.isTransitionValid(transition) {
-			fmt.Println("transition invalid")
+			if replica.index == 7 {
+				fmt.Println("!!!!!!!!!!!!!transition invalid!!!!!!!!!!!!!!")
+			}
 			continue
 		}
 		action := replica.transition(transition)
@@ -94,6 +98,9 @@ func (replica *replica) dispatchAction(action state.Action) {
 
 	switch action := action.(type) {
 	case state.PreVote:
+		if replica.index == 7 {
+			fmt.Printf("!!!!!!!!!!!!!dispatching prevote: %d [%v]!!!!!!!!!!!!!!\n", action.PreVote.Height, action.Block)
+		}
 		signedPreVote, err := action.PreVote.Sign(replica.signer)
 		if err != nil {
 			// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
@@ -104,6 +111,9 @@ func (replica *replica) dispatchAction(action state.Action) {
 			SignedPreVote: signedPreVote,
 		})
 	case state.PreCommit:
+		if replica.index == 7 {
+			fmt.Printf("!!!!!!!!!!!!!dispatching precommit: %d [%v]!!!!!!!!!!!!!!\n", action.PreCommit.Polka.Height, action.Polka.Block)
+		}
 		signedPreCommit, err := action.PreCommit.Sign(replica.signer)
 		if err != nil {
 			// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
@@ -114,6 +124,9 @@ func (replica *replica) dispatchAction(action state.Action) {
 			SignedPreCommit: signedPreCommit,
 		})
 	case state.Commit:
+		if replica.index == 7 {
+			fmt.Printf("!!!!!!!!!!!!!dispatching commit: %d [%v]!!!!!!!!!!!!!!\n", action.Polka.Height, action.Polka.Block)
+		}
 		if action.Commit.Polka.Block != nil {
 			// replica.SyncCommit(action.Commit)
 			replica.lastBlock = *action.Commit.Polka.Block
