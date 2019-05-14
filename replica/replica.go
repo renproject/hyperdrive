@@ -16,35 +16,31 @@ type Dispatcher interface {
 
 type Replica interface {
 	Init()
-	State() state.State
 	Transition(transition state.Transition)
 }
 
 type replica struct {
 	dispatcher Dispatcher
 
-	signer           sig.Signer
-	validator        Validator
-	txPool           tx.Pool
-	state            state.State
-	stateMachine     state.Machine
-	transitionBuffer state.TransitionBuffer
-	shard            shard.Shard
-	lastBlock        block.SignedBlock
+	signer       sig.Signer
+	validator    Validator
+	txPool       tx.Pool
+	stateMachine state.Machine
+	// transitionBuffer state.TransitionBuffer
+	shard     shard.Shard
+	lastBlock block.SignedBlock
 }
 
-func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state state.State, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard shard.Shard, lastBlock block.SignedBlock) Replica {
+func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, shard shard.Shard, lastBlock block.SignedBlock) Replica {
 	replica := &replica{
 		dispatcher: dispatcher,
 
-		signer:           signer,
-		validator:        NewValidator(signer, shard),
-		txPool:           txPool,
-		state:            state,
-		stateMachine:     stateMachine,
-		transitionBuffer: transitionBuffer,
-		shard:            shard,
-		lastBlock:        lastBlock,
+		signer:       signer,
+		validator:    NewValidator(signer, shard),
+		txPool:       txPool,
+		stateMachine: stateMachine,
+		shard:        shard,
+		lastBlock:    lastBlock,
 	}
 	return replica
 }
@@ -53,28 +49,19 @@ func (replica *replica) Init() {
 	replica.generateSignedBlock()
 }
 
-func (replica *replica) State() state.State {
-	return replica.state
-}
-
 func (replica *replica) Transition(transition state.Transition) {
 	if replica.shouldDropTransition(transition) {
 		return
 	}
-	if replica.shouldBufferTransition(transition) {
-		replica.transitionBuffer.Enqueue(transition)
+
+	if !replica.isTransitionValid(transition) {
 		return
 	}
-	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.state.Height()) {
-		if !replica.isTransitionValid(transition) {
-			continue
-		}
-		action := replica.transition(transition)
-		if action != nil {
-			// It is important that the Action is dispatched after the State has been completely transitioned in the
-			// Replica. Otherwise, re-entrance into the Replica may cause issues.
-			replica.dispatchAction(action)
-		}
+	action := replica.transition(transition)
+	if action != nil {
+		// It is important that the Action is dispatched after the State has been completely transitioned in the
+		// Replica. Otherwise, re-entrance into the Replica may cause issues.
+		replica.dispatchAction(action)
 	}
 }
 
@@ -130,44 +117,23 @@ func (replica *replica) isTransitionValid(transition state.Transition) bool {
 func (replica *replica) shouldDropTransition(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
-		if transition.Height < replica.state.Height() {
+		if transition.Height < replica.stateMachine.Height() {
 			return true
 		}
 	case state.PreVoted:
-		if transition.Height < replica.state.Height() {
+		if transition.Height < replica.stateMachine.Height() {
 			return true
 		}
 	case state.PreCommitted:
-		if transition.Polka.Height < replica.state.Height() {
+		if transition.Polka.Height < replica.stateMachine.Height() {
 			return true
 		}
 	}
 	return false
 }
 
-func (replica *replica) shouldBufferTransition(transition state.Transition) bool {
-	switch transition := transition.(type) {
-	case state.Proposed:
-		if transition.Height <= replica.state.Height() {
-			return false
-		}
-	case state.PreVoted:
-		if transition.Height <= replica.state.Height() {
-			return false
-		}
-	case state.PreCommitted:
-		if transition.Polka.Height <= replica.state.Height() {
-			return false
-		}
-	case state.TimedOut:
-		// TimedOut transitions are never buffered
-		return false
-	}
-	return true
-}
-
 func (replica *replica) shouldProposeBlock() bool {
-	return replica.signer.Signatory().Equal(replica.shard.Leader(replica.state.Round()))
+	return replica.signer.Signatory().Equal(replica.shard.Leader(replica.stateMachine.Round()))
 }
 
 func (replica *replica) generateSignedBlock() {
@@ -195,8 +161,8 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 	}
 
 	block := block.New(
-		replica.state.Round(),
-		replica.state.Height(),
+		replica.stateMachine.Round(),
+		replica.stateMachine.Height(),
 		replica.lastBlock.Header,
 		transactions,
 	)
@@ -210,8 +176,5 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 }
 
 func (replica *replica) transition(transition state.Transition) state.Action {
-	nextState, action := replica.stateMachine.Transition(replica.state, transition)
-	replica.state = nextState
-	replica.transitionBuffer.Drop(replica.state.Height())
-	return action
+	return replica.stateMachine.Transition(transition)
 }

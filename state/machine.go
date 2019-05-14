@@ -7,6 +7,8 @@ import (
 )
 
 type Machine interface {
+	Height() block.Height
+	Round() block.Round
 	Transition(transition Transition) Action
 }
 
@@ -23,12 +25,21 @@ type machine struct {
 	consensusThreshold int
 }
 
-func NewMachine(polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, consensusThreshold int) Machine {
+func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, consensusThreshold int) Machine {
 	return &machine{
+		state:              state,
 		polkaBuilder:       polkaBuilder,
 		commitBuilder:      commitBuilder,
 		consensusThreshold: consensusThreshold,
 	}
+}
+
+func (machine *machine) Height() block.Height {
+	return machine.height
+}
+
+func (machine *machine) Round() block.Round {
+	return machine.round
 }
 
 func (machine *machine) Transition(transition Transition) Action {
