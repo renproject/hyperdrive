@@ -131,8 +131,12 @@ func (builder PolkaBuilder) Insert(preVote SignedPreVote) bool {
 	return false
 }
 
-// Polka returns a Polka for the given Height in the latest Round.
-func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka, bool) {
+// Polka returns a SignedBlock and a Polka for the latest Round for which there
+// are 2/3rd+ pre-votes. The SignedBlock will be nil unless there is at least
+// one pre-vote for a non-nil SignedBlock. The Polka will be nil unless there is
+// 2/3rds+ pre-vote for one SignedBlock. False is returned if 2/3rds+ pre-votes
+// cannot be found in any Round.
+func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (*SignedBlock, *Polka, bool) {
 	// Pre-condition check
 	if consensusThreshold < 1 {
 		panic(fmt.Errorf("expected consensus threshold (%v) to be greater than 0", consensusThreshold))
@@ -141,19 +145,21 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 	// Short-circuit when too few pre-votes have been received
 	preVotesByRound, ok := builder[height]
 	if !ok {
-		return Polka{}, false
+		return nil, nil, false
 	}
 
-	polkaFound := false
-	polka := Polka{}
+	var block *SignedBlock
+	var polka *Polka
+	var seenConsensusThreshold bool
 
 	for round, preVotes := range preVotesByRound {
-		if polkaFound && round <= polka.Round {
+		if polka != nil && round <= polka.Round {
 			continue
 		}
 		if len(preVotes) < consensusThreshold {
 			continue
 		}
+		seenConsensusThreshold = true
 
 		// Build a mapping of the pre-votes for each block
 		preVotesForBlock := map[sig.Hash]int{}
@@ -168,6 +174,7 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 			if preVote.Block == nil {
 				continue
 			}
+			block = preVote.Block
 
 			// Invariant check
 			if preVote.Block.Height != height {
@@ -184,8 +191,7 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 		// Search for a polka of pre-votes for non-nil block
 		for blockHeader, numPreVotes := range preVotesForBlock {
 			if numPreVotes >= consensusThreshold {
-				polkaFound = true
-				polka = Polka{
+				polka = &Polka{
 					Signatures:  make(sig.Signatures, 0, consensusThreshold),
 					Signatories: make(sig.Signatories, 0, consensusThreshold),
 				}
@@ -218,22 +224,12 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 				break
 			}
 		}
-		if polkaFound {
-			continue
-		}
 
-		// Return a nil-Polka
-		polkaFound = true
-		polka = Polka{
-			Block:       nil,
-			Height:      height,
-			Round:       round,
-			Signatures:  make(sig.Signatures, 0),
-			Signatories: make(sig.Signatories, 0),
-		}
+		// Always break after seeing the consensus threshold
+		break
 	}
 
-	if polkaFound {
+	if polka != nil {
 		// Post-condition check
 		if polka.Block != nil {
 			if len(polka.Signatures) != len(polka.Signatories) {
@@ -246,8 +242,10 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (Polka,
 		if polka.Height != height {
 			panic(fmt.Errorf("expected the polka height (%v) to equal %v", polka.Height, height))
 		}
+		block = polka.Block
 	}
-	return polka, polkaFound
+
+	return block, polka, seenConsensusThreshold
 }
 
 // Drop removes all SignedPreVotes below the given Height.
