@@ -7,10 +7,18 @@ import (
 )
 
 type Machine interface {
-	Transition(state State, transition Transition) (State, Action)
+	Transition(transition Transition) Action
 }
 
 type machine struct {
+	state  State
+	height block.Height
+	round  block.Round
+
+	polka       *block.Polka
+	lockedRound *block.Round
+	lockedBlock *block.SignedBlock
+
 	polkaBuilder       block.PolkaBuilder
 	commitBuilder      block.CommitBuilder
 	consensusThreshold int
@@ -24,135 +32,317 @@ func NewMachine(polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuild
 	}
 }
 
-func (machine *machine) Transition(state State, transition Transition) (State, Action) {
-	switch state := state.(type) {
+func (machine *machine) Transition(transition Transition) Action {
+	// Check pre-conditions
+	if machine.lockedRound == nil {
+		if machine.lockedBlock != nil {
+			panic("expected locked block to be nil")
+		}
+	}
+	if machine.lockedRound != nil {
+		if machine.lockedBlock == nil {
+			panic("expected locked round to be nil")
+		}
+	}
+
+	switch machine.state.(type) {
 	case WaitingForPropose:
-		return machine.waitForPropose(state, transition)
+		return machine.waitForPropose(transition)
 	case WaitingForPolka:
-		return machine.waitForPolka(state, transition)
+		return machine.waitForPolka(transition)
 	case WaitingForCommit:
-		return machine.waitForCommit(state, transition)
+		return machine.waitForCommit(transition)
+	default:
+		panic(fmt.Errorf("unexpected state type %T", machine.state))
 	}
-	return nil, nil
 }
 
-func (machine *machine) waitForPropose(state WaitingForPropose, transition Transition) (State, Action) {
+func (machine *machine) waitForPropose(transition Transition) Action {
 	switch transition := transition.(type) {
-	case TimedOut:
-		return machine.reduceTimedOut(state, transition)
+
 	case Proposed:
-		return machine.reduceProposed(state, transition)
+		// FIXME: Proposals can (optionally) include a Polka to encourage
+		// unlocking faster than would otherwise be possible.
+		machine.state = WaitingForPolka{}
+		return machine.preVote(&transition.SignedBlock)
+
 	case PreVoted:
-		return machine.reducePreVoted(state, transition)
+		if !machine.polkaBuilder.Insert(transition.SignedPreVote) {
+			return nil
+		}
+
+		polka, preVotingRound := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
+		if preVotingRound == nil {
+			return nil
+		}
+		if polka != nil && (machine.polka == nil || polka.Round > machine.polka.Round) {
+			machine.polka = polka
+		}
+		// After any +2/3 prevotes received at (H,R+x). --> goto Prevote(H,R+x)
+		machine.round = *preVotingRound
+		return machine.preVote(nil)
+
 	case PreCommitted:
-		return machine.reducePreCommitted(state, transition)
+		if !machine.commitBuilder.Insert(transition.SignedPreCommit) {
+			return nil
+		}
+
+		commit, preCommittingRound := machine.commitBuilder.Commit(machine.height, machine.consensusThreshold)
+		if preCommittingRound == nil {
+			return nil
+		}
+		if commit != nil && (machine.polka == nil || commit.Polka.Round > machine.polka.Round) {
+			machine.polka = &commit.Polka
+		}
+		if commit != nil && commit.Polka.Block != nil {
+			// After +2/3 precommits for a particular block. --> goto Commit(H)
+			machine.state = WaitingForCommit{}
+			machine.height = commit.Polka.Height + 1
+			machine.round = 0
+			return Commit{Commit: *commit}
+		}
+		if *preCommittingRound > machine.round {
+			// After any +2/3 precommits received at (H,R+x). --> goto Precommit(H,R+x)
+			machine.state = WaitingForCommit{}
+			machine.round = *preCommittingRound
+			return machine.preCommit()
+		}
+		return nil
+
+	case TimedOut:
+		machine.state = WaitingForPolka{}
+		return machine.preVote(nil)
+
+	default:
+		panic(fmt.Errorf("unexpected transition type %T", transition))
 	}
-	return state, nil
 }
 
-func (machine *machine) waitForPolka(state WaitingForPolka, transition Transition) (State, Action) {
+func (machine *machine) waitForPolka(transition Transition) Action {
 	switch transition := transition.(type) {
+
+	case Proposed:
+		// Ignore
+		return nil
+
 	case PreVoted:
-		return machine.reducePreVoted(state, transition)
+		if !machine.polkaBuilder.Insert(transition.SignedPreVote) {
+			return nil
+		}
+
+		polka, preVotingRound := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
+		if preVotingRound == nil {
+			return nil
+		}
+		if polka != nil && (machine.polka == nil || polka.Round > machine.polka.Round) {
+			machine.polka = polka
+		}
+		if polka != nil && polka.Round == machine.round {
+			machine.state = WaitingForCommit{}
+			return machine.preCommit()
+		}
+
+		// After any +2/3 prevotes received at (H,R+x). --> goto Prevote(H,R+x)
+		machine.round = *preVotingRound
+		return machine.preVote(nil)
+
 	case PreCommitted:
-		return machine.reducePreCommitted(state, transition)
+		if !machine.commitBuilder.Insert(transition.SignedPreCommit) {
+			return nil
+		}
+
+		commit, preCommittingRound := machine.commitBuilder.Commit(machine.height, machine.consensusThreshold)
+		if preCommittingRound == nil {
+			return nil
+		}
+		if commit != nil && (machine.polka == nil || commit.Polka.Round > machine.polka.Round) {
+			machine.polka = &commit.Polka
+		}
+		if commit != nil && commit.Polka.Block != nil {
+			// After +2/3 precommits for a particular block. --> goto Commit(H)
+			machine.state = WaitingForCommit{}
+			machine.height = commit.Polka.Height + 1
+			machine.round = 0
+			return Commit{Commit: *commit}
+		}
+		if *preCommittingRound > machine.round {
+			// After any +2/3 precommits received at (H,R+x). --> goto Precommit(H,R+x)
+			machine.state = WaitingForCommit{}
+			machine.round = *preCommittingRound
+			return machine.preCommit()
+		}
+		return nil
+
+	case TimedOut:
+		_, preVotingRound := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
+		if preVotingRound == nil {
+			return nil
+		}
+
+		machine.state = WaitingForCommit{}
+		return machine.preCommit()
+
+	default:
+		panic(fmt.Errorf("unexpected transition type %T", transition))
 	}
-	return state, nil
 }
 
-func (machine *machine) waitForCommit(state WaitingForCommit, transition Transition) (State, Action) {
+func (machine *machine) waitForCommit(transition Transition) Action {
 	switch transition := transition.(type) {
+	case Proposed:
+		// Ignore
+		return nil
+
+	case PreVoted:
+		if !machine.polkaBuilder.Insert(transition.SignedPreVote) {
+			return nil
+		}
+
+		polka, preVotingRound := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
+		if preVotingRound == nil {
+			return nil
+		}
+		if polka != nil && (machine.polka == nil || polka.Round > machine.polka.Round) {
+			machine.polka = polka
+		}
+		// After any +2/3 prevotes received at (H,R+x). --> goto Prevote(H,R+x)
+		machine.round = *preVotingRound
+		return machine.preVote(nil)
+
 	case PreCommitted:
-		return machine.reducePreCommitted(state, transition)
-	}
-	return state, nil
-}
+		if !machine.commitBuilder.Insert(transition.SignedPreCommit) {
+			return nil
+		}
 
-func (machine *machine) reduceTimedOut(currentState State, timedOut TimedOut) (State, Action) {
-	return WaitForPolka(currentState.Round(), currentState.Height()), PreVote{
-		PreVote: block.PreVote{
-			Block:  nil,
-			Round:  currentState.Round(),
-			Height: currentState.Height(),
-		},
-	}
-}
-
-func (machine *machine) reduceProposed(currentState State, proposed Proposed) (State, Action) {
-	if proposed.Block.Round != currentState.Round() {
-		return currentState, nil
-	}
-	if proposed.Block.Height != currentState.Height() {
-		return currentState, nil
-	}
-
-	return WaitForPolka(currentState.Round(), currentState.Height()), PreVote{
-		PreVote: block.PreVote{
-			Block:  &proposed.SignedBlock,
-			Round:  proposed.SignedBlock.Round,
-			Height: proposed.SignedBlock.Height,
-		},
-	}
-}
-
-func (machine *machine) reducePreVoted(currentState State, preVoted PreVoted) (State, Action) {
-	if preVoted.Round < currentState.Round() {
-		return currentState, nil
-	}
-	if preVoted.Height != currentState.Height() {
-		return currentState, nil
-	}
-
-	if new := machine.polkaBuilder.Insert(preVoted.SignedPreVote); new {
-		if polka, ok := machine.polkaBuilder.Polka(currentState.Height(), machine.consensusThreshold); ok {
-			// Invariant check
-			if polka.Round < currentState.Round() {
-				panic(fmt.Errorf("expected polka round (%v) to be greater or equal to the current round (%v)", polka.Round, currentState.Round()))
-			}
-
-			return WaitForCommit(polka), PreCommit{
-				PreCommit: block.PreCommit{
-					Polka: polka,
+		commit, preCommittingRound := machine.commitBuilder.Commit(machine.height, machine.consensusThreshold)
+		if preCommittingRound == nil {
+			return nil
+		}
+		if commit != nil && (machine.polka == nil || commit.Polka.Round > machine.polka.Round) {
+			machine.polka = &commit.Polka
+		}
+		if commit != nil && commit.Polka.Block != nil {
+			// After +2/3 precommits for a particular block. --> goto Commit(H)
+			machine.state = WaitingForCommit{}
+			machine.height = commit.Polka.Height + 1
+			machine.round = 0
+			return Commit{Commit: *commit}
+		}
+		if commit != nil && commit.Polka.Block == nil && commit.Polka.Round == machine.round {
+			machine.state = WaitingForPropose{}
+			machine.round++
+			return Commit{
+				Commit: block.Commit{
+					Polka: block.Polka{
+						Height: machine.height,
+						Round:  machine.round,
+					},
 				},
 			}
 		}
-		return WaitForPolka(currentState.Round(), currentState.Height()), PreVote{
-			PreVote: block.PreVote{
-				Block:  preVoted.Block,
-				Round:  preVoted.Round,
-				Height: preVoted.Height,
+		if *preCommittingRound > machine.round {
+			// After any +2/3 precommits received at (H,R+x). --> goto Precommit(H,R+x)
+			machine.state = WaitingForCommit{}
+			machine.round = *preCommittingRound
+			return machine.preCommit()
+		}
+		return nil
+
+	case TimedOut:
+		_, preCommittingRound := machine.commitBuilder.Commit(machine.height, machine.consensusThreshold)
+		if preCommittingRound == nil {
+			return nil
+		}
+
+		machine.state = WaitingForPropose{}
+		machine.round++
+		return Commit{
+			Commit: block.Commit{
+				Polka: block.Polka{
+					Height: machine.height,
+					Round:  machine.round,
+				},
 			},
 		}
+
+	default:
+		panic(fmt.Errorf("unexpected transition type %T", transition))
 	}
-	return currentState, nil
 }
 
-func (machine *machine) reducePreCommitted(currentState State, preCommitted PreCommitted) (State, Action) {
-	if preCommitted.Polka.Round < currentState.Round() {
-		return currentState, nil
-	}
-	if preCommitted.Polka.Height != currentState.Height() {
-		return currentState, nil
+func (machine *machine) preVote(proposedBlock *block.SignedBlock) Action {
+	if machine.lockedRound != nil && machine.polka != nil {
+		// If the validator is locked on a block since LastLockRound but now has
+		// a PoLC for something else at round PoLC-Round where LastLockRound <
+		// PoLC-Round < R, then it unlocks.
+		if *machine.lockedRound < machine.polka.Round {
+			machine.lockedRound = nil
+			machine.lockedBlock = nil
+		}
 	}
 
-	if new := machine.commitBuilder.Insert(preCommitted.SignedPreCommit); new {
-		if commit, ok := machine.commitBuilder.Commit(currentState.Height(), machine.consensusThreshold); ok {
-			// Invariant check
-			if commit.Polka.Round < currentState.Round() {
-				panic(fmt.Errorf("expected commit round (%v) to be greater or equal to the current round (%v)", commit.Polka.Round, currentState.Round()))
-			}
-			if commit.Polka.Block == nil {
-				return WaitForPropose(commit.Polka.Round+1, currentState.Height()), nil
-			}
-			return WaitForPropose(commit.Polka.Round, currentState.Height()+1), Commit{
-				Commit: commit,
-			}
-		}
-		return WaitForCommit(preCommitted.Polka), PreCommit{
-			PreCommit: block.PreCommit{
-				Polka: preCommitted.Polka,
+	if machine.lockedRound != nil {
+		// If the validator is still locked on a block, it prevotes that.
+		return PreVote{
+			PreVote: block.PreVote{
+				Block:  machine.lockedBlock,
+				Height: machine.height,
+				Round:  machine.round,
 			},
 		}
 	}
-	return currentState, nil
+
+	if proposedBlock != nil && proposedBlock.Height == machine.height {
+		// Else, if the proposed block from Propose(H,R) is good, it prevotes that.
+		return PreVote{
+			PreVote: block.PreVote{
+				Block:  proposedBlock,
+				Height: machine.height,
+				Round:  machine.round,
+			},
+		}
+	}
+
+	// Else, if the proposal is invalid or wasn't received on time, it prevotes <nil>.
+	return PreVote{
+		PreVote: block.PreVote{
+			Block:  nil,
+			Height: machine.height,
+			Round:  machine.round,
+		},
+	}
+}
+
+func (machine *machine) preCommit() Action {
+	if machine.polka != nil {
+		if machine.polka.Block != nil {
+			// If the validator has a PoLC at (H,R) for a particular block B, it
+			// (re)locks (or changes lock to) and precommits B and sets LastLockRound =
+			// R.
+			machine.lockedRound = &machine.polka.Round
+			machine.lockedBlock = machine.polka.Block
+			return PreCommit{
+				PreCommit: block.PreCommit{
+					Polka: *machine.polka,
+				},
+			}
+		}
+
+		// Else, if the validator has a PoLC at (H,R) for <nil>, it unlocks and
+		// precommits <nil>.
+		machine.lockedRound = nil
+		machine.lockedBlock = nil
+		return PreCommit{
+			PreCommit: block.PreCommit{
+				Polka: *machine.polka,
+			},
+		}
+	}
+
+	// Else, it keeps the lock unchanged and precommits <nil>.
+	return PreCommit{
+		PreCommit: block.PreCommit{
+			Polka: *machine.polka,
+		},
+	}
 }
