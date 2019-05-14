@@ -263,12 +263,6 @@ func (machine *machine) checkCommonExitConditions() Action {
 		machine.round = 0
 		return Commit{Commit: *commit}
 	}
-	if preCommittingRound != nil && *preCommittingRound > machine.round {
-		// After any +2/3 precommits received at (H,R+x). --> goto Precommit(H,R+x)
-		machine.state = WaitingForCommit{}
-		machine.round = *preCommittingRound
-		return machine.preCommit()
-	}
 
 	// Get the Polka for the current Height and the latest Round
 	_, preVotingRound := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
@@ -276,6 +270,13 @@ func (machine *machine) checkCommonExitConditions() Action {
 		// After any +2/3 prevotes received at (H,R+x). --> goto Prevote(H,R+x)
 		machine.round = *preVotingRound
 		return machine.preVote(nil)
+	}
+
+	if preCommittingRound != nil && *preCommittingRound > machine.round {
+		// After any +2/3 precommits received at (H,R+x). --> goto Precommit(H,R+x)
+		machine.state = WaitingForCommit{}
+		machine.round = *preCommittingRound
+		return machine.preCommit()
 	}
 
 	return nil
