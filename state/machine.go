@@ -58,7 +58,6 @@ func (machine *machine) Transition(transition Transition) Action {
 
 func (machine *machine) waitForPropose(transition Transition) Action {
 	switch transition := transition.(type) {
-
 	case Proposed:
 		// FIXME: Proposals can (optionally) include a Polka to encourage
 		// unlocking faster than would otherwise be possible.
@@ -66,14 +65,10 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 		return machine.preVote(&transition.SignedBlock)
 
 	case PreVoted:
-		if !machine.polkaBuilder.Insert(transition.SignedPreVote) {
-			return nil
-		}
+		_ = machine.polkaBuilder.Insert(transition.SignedPreVote)
 
 	case PreCommitted:
-		if !machine.commitBuilder.Insert(transition.SignedPreCommit) {
-			return nil
-		}
+		_ = machine.commitBuilder.Insert(transition.SignedPreCommit)
 
 	case TimedOut:
 		machine.state = WaitingForPolka{}
@@ -88,20 +83,15 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 
 func (machine *machine) waitForPolka(transition Transition) Action {
 	switch transition := transition.(type) {
-
 	case Proposed:
 		// Ignore
-		return nil
 
 	case PreVoted:
 		if !machine.polkaBuilder.Insert(transition.SignedPreVote) {
 			return nil
 		}
 
-		polka, preVotingRound := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
-		if preVotingRound == nil {
-			return nil
-		}
+		polka, _ := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
 		if polka != nil && polka.Round == machine.round {
 			machine.state = WaitingForCommit{}
 			return machine.preCommit()
@@ -132,22 +122,16 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 	switch transition := transition.(type) {
 	case Proposed:
 		// Ignore
-		return nil
 
 	case PreVoted:
-		if !machine.polkaBuilder.Insert(transition.SignedPreVote) {
-			return nil
-		}
+		_ = machine.polkaBuilder.Insert(transition.SignedPreVote)
 
 	case PreCommitted:
 		if !machine.commitBuilder.Insert(transition.SignedPreCommit) {
 			return nil
 		}
 
-		commit, preCommittingRound := machine.commitBuilder.Commit(machine.height, machine.consensusThreshold)
-		if preCommittingRound == nil {
-			return nil
-		}
+		commit, _ := machine.commitBuilder.Commit(machine.height, machine.consensusThreshold)
 		if commit != nil && commit.Polka.Block == nil && commit.Polka.Round == machine.round {
 			machine.state = WaitingForPropose{}
 			machine.round++
