@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -74,6 +75,7 @@ func (replica *replica) Transition(transition state.Transition) {
 	}
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.state.Height()) {
 		if !replica.isTransitionValid(transition) {
+			fmt.Println("transition invalid")
 			continue
 		}
 		action := replica.transition(transition)
