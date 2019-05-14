@@ -132,22 +132,22 @@ func (machine *machine) reducePreCommitted(currentState State, preCommitted PreC
 	if preCommitted.Polka.Round < currentState.Round() {
 		return currentState, nil
 	}
-	if preCommitted.Polka.Height != currentState.Height() {
+	if preCommitted.Polka.Height < currentState.Height() {
 		return currentState, nil
 	}
 
 	if new := machine.commitBuilder.Insert(preCommitted.SignedPreCommit); new {
-		if commit, ok := machine.commitBuilder.Commit(currentState.Height(), machine.consensusThreshold); ok {
+		if commit, ok := machine.commitBuilder.Commit(preCommitted.Polka.Height, machine.consensusThreshold); ok {
 			// Invariant check
 			if commit.Polka.Round < currentState.Round() {
 				panic(fmt.Errorf("expected commit round (%v) to be greater or equal to the current round (%v)", commit.Polka.Round, currentState.Round()))
 			}
 			if commit.Polka.Block == nil {
-				return WaitForPropose(commit.Polka.Round+1, currentState.Height()), Commit{
+				return WaitForPropose(commit.Polka.Round+1, preCommitted.Polka.Height), Commit{
 					Commit: commit,
 				}
 			}
-			return WaitForPropose(commit.Polka.Round, currentState.Height()+1), Commit{
+			return WaitForPropose(commit.Polka.Round, preCommitted.Polka.Height+1), Commit{
 				Commit: commit,
 			}
 		}
