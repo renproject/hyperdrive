@@ -74,7 +74,9 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock) {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
 		hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
-		fmt.Printf("%d got propose for height %d\n", hyperdrive.index, proposed.Height)
+		if hyperdrive.index == 7 {
+			fmt.Printf("%d got propose for height %d\n", hyperdrive.index, proposed.Height)
+		}
 		replica.Transition(state.Proposed{SignedBlock: proposed})
 	}
 }
