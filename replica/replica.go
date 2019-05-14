@@ -62,8 +62,9 @@ func (replica *replica) State() state.State {
 }
 
 func (replica *replica) SyncCommit(commit block.Commit) {
+	replica.state = state.WaitForPropose(commit.Polka.Round, commit.Polka.Height)
 	// if replica.lastBlock.Height < (*commit.Polka.Block).Height {
-	replica.lastBlock = *commit.Polka.Block
+	// replica.lastBlock = *commit.Polka.Block
 	// }
 }
 
@@ -73,7 +74,7 @@ func (replica *replica) Transition(transition state.Transition) {
 	}
 	if replica.shouldBufferTransition(transition) {
 		replica.transitionBuffer.Enqueue(transition)
-		// return
+		return
 	}
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.state.Height()) {
 		if !replica.isTransitionValid(transition) {
