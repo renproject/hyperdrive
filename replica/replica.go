@@ -62,7 +62,7 @@ func (replica *replica) State() state.State {
 }
 
 func (replica *replica) SyncCommit(commit block.Commit) {
-	replica.state = state.WaitForPropose(commit.Polka.Round, commit.Polka.Height)
+	// replica.state = state.WaitForPropose(commit.Polka.Round, commit.Polka.Height)
 	// if replica.lastBlock.Height < (*commit.Polka.Block).Height {
 	// replica.lastBlock = *commit.Polka.Block
 	// }
@@ -74,7 +74,7 @@ func (replica *replica) Transition(transition state.Transition) {
 	}
 	if replica.shouldBufferTransition(transition) {
 		replica.transitionBuffer.Enqueue(transition)
-		return
+		// return
 	}
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.state.Height()) {
 		if !replica.isTransitionValid(transition) {
@@ -144,6 +144,9 @@ func (replica *replica) isTransitionValid(transition state.Transition) bool {
 	case state.PreVoted:
 		return replica.validator.ValidatePreVote(transition.SignedPreVote)
 	case state.PreCommitted:
+		if replica.index == 7 {
+			fmt.Printf("%d validating precommit for height %d\n", replica.index, transition.Polka.Height)
+		}
 		return replica.validator.ValidatePreCommit(transition.SignedPreCommit)
 	case state.TimedOut:
 		return transition.Time.Before(time.Now())

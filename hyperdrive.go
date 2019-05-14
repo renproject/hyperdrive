@@ -89,6 +89,9 @@ func (hyperdrive *hyperdrive) AcceptPreVote(shardHash sig.Hash, preVote block.Si
 
 func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit) {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
+		if hyperdrive.index == 7 {
+			fmt.Printf("%d got precommit for height %d\n", hyperdrive.index, preCommit.Polka.Height)
+		}
 		replica.Transition(state.PreCommitted{SignedPreCommit: preCommit})
 	}
 }
