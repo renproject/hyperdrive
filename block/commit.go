@@ -85,7 +85,12 @@ func (builder CommitBuilder) Insert(preCommit SignedPreCommit) bool {
 	return false
 }
 
-func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (Commit, bool) {
+// Commit returns a Commit and the latest Round for which there are 2/3rd+
+// pre-commits. The Commit will be nil unless there is 2/3rds+ pre-commits for
+// nil or a specific SignedBlock. The Round will be nil unless there are 2/3rds+
+// pre-commits for a specific Round. If a Commit is returned, the Round will
+// match the Commit.
+func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (*Commit, *Round) {
 	// Pre-condition check
 	if consensusThreshold < 1 {
 		panic(fmt.Errorf("expected consensus threshold (%v) to be greater than 0", consensusThreshold))
@@ -94,19 +99,20 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (Comm
 	// Short-circuit when too few pre-commits have been received
 	preCommitsByRound, ok := builder[height]
 	if !ok {
-		return Commit{}, false
+		return nil, nil
 	}
 
-	commitFound := false
-	commit := Commit{}
+	var commit *Commit
+	var preCommitsRound *Round
 
 	for round, preCommits := range preCommitsByRound {
-		if commitFound && round <= commit.Polka.Round {
+		if commit != nil && round <= commit.Polka.Round {
 			continue
 		}
 		if len(preCommits) < consensusThreshold {
 			continue
 		}
+		preCommitsRound = &round
 
 		// Build a mapping of the pre-commits for each block
 		preCommitsForBlock := map[sig.Hash]int{}
@@ -137,8 +143,7 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (Comm
 		// Search for a commit of pre-commits for non-nil block
 		for blockHeader, numPreVotes := range preCommitsForBlock {
 			if numPreVotes >= consensusThreshold {
-				commitFound = true
-				commit = Commit{
+				commit = &Commit{
 					Signatures:  make(sig.Signatures, 0, consensusThreshold),
 					Signatories: make(sig.Signatories, 0, consensusThreshold),
 				}
@@ -169,24 +174,12 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (Comm
 				break
 			}
 		}
-		if commitFound {
-			continue
-		}
 
-		// Return a nil-Commit
-		commitFound = true
-		commit = Commit{
-			Polka: Polka{
-				Block:  nil,
-				Height: height,
-				Round:  round,
-			},
-			Signatures:  make(sig.Signatures, 0),
-			Signatories: make(sig.Signatories, 0),
-		}
+		// Always break after seeing the consensus threshold
+		break
 	}
 
-	if commitFound {
+	if commit != nil {
 		// Post-condition check
 		if commit.Polka.Block != nil {
 			if len(commit.Signatures) != len(commit.Signatories) {
@@ -199,8 +192,9 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (Comm
 		if commit.Polka.Height != height {
 			panic(fmt.Errorf("expected the commit height (%v) to equal %v", commit.Polka.Height, height))
 		}
+		return commit, &commit.Polka.Round
 	}
-	return commit, commitFound
+	return nil, preCommitsRound
 }
 
 func (builder CommitBuilder) Drop(fromHeight Height) {
