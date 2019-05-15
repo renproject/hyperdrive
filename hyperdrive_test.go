@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/replica"
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/sig/ecdsa"
@@ -22,6 +21,55 @@ import (
 )
 
 var _ = Describe("Hyperdrive", func() {
+
+	initReplicas := func(n int) ([]chan Object, []sig.SignerVerifier, *time.Ticker, chan struct{}, int) {
+		done := make(chan struct{})
+		ipChans := make([]chan Object, n)
+		signatories := make(sig.Signatories, n)
+		signers := make([]sig.SignerVerifier, n)
+		shardHash := testutils.RandomHash()
+
+		txPool := tx.FIFOPool(100)
+		go populateTxPool(txPool)
+
+		for i := 0; i < n; i++ {
+			var err error
+			ipChans[i] = make(chan Object, n*n)
+			signers[i], err = ecdsa.NewFromRandom()
+			signatories[i] = signers[i].Signatory()
+			Expect(err).ShouldNot(HaveOccurred())
+		}
+
+		shard := shard.Shard{
+			Hash:        shardHash,
+			Signatories: make(sig.Signatories, n),
+		}
+		copy(shard.Signatories[:], signatories[:])
+
+		for i := 0; i < n; i++ {
+			ipChans[i] <- ShardObject{shard, txPool}
+		}
+
+		tickerInterval := time.Duration(n * n * 2)
+		if n <= 16 {
+			tickerInterval = time.Duration(1000)
+		}
+		ticker := time.NewTicker(tickerInterval * time.Millisecond)
+		go func() {
+			for t := range ticker.C {
+				for i := 0; i < n; i++ {
+					select {
+					case <-done:
+						return
+					case ipChans[i] <- TickObject{t}:
+					default:
+					}
+				}
+			}
+		}()
+
+		return ipChans, signers, ticker, done, shard.ConsensusThreshold()
+	}
 
 	table := []struct {
 		numHyperdrives int
@@ -47,40 +95,15 @@ var _ = Describe("Hyperdrive", func() {
 
 		Context(fmt.Sprintf("when reaching consensus on a shard with %v replicas", entry.numHyperdrives), func() {
 			It("should commit blocks", func() {
-				done := make(chan struct{})
-				ipChans := make([]chan Object, entry.numHyperdrives)
-				signatories := make(sig.Signatories, entry.numHyperdrives)
-				signers := make([]sig.SignerVerifier, entry.numHyperdrives)
 				cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
-				shardHash := testutils.RandomHash()
-
-				txPool := tx.FIFOPool(100)
-				go populateTxPool(txPool)
-
-				for i := 0; i < entry.numHyperdrives; i++ {
-					var err error
-					ipChans[i] = make(chan Object, entry.numHyperdrives*entry.numHyperdrives)
-					signers[i], err = ecdsa.NewFromRandom()
-					signatories[i] = signers[i].Signatory()
-					Expect(err).ShouldNot(HaveOccurred())
-				}
-
-				for i := 0; i < entry.numHyperdrives; i++ {
-					shard := shard.Shard{
-						Hash:        shardHash,
-						Signatories: make(sig.Signatories, entry.numHyperdrives),
-					}
-					copy(shard.Signatories[:], signatories[:])
-					ipChans[i] <- ShardObject{shard, txPool}
-				}
+				ipChans, signers, ticker, done, _ := initReplicas(entry.numHyperdrives)
+				defer ticker.Stop()
 
 				co.ParForAll(entry.numHyperdrives, func(i int) {
 					defer GinkgoRecover()
 
-					if i == 0 {
-						time.Sleep(time.Second)
-					}
-					runHyperdrive(i, NewMockDispatcher(i, ipChans, done, cap), signers[i], ipChans[i], done, entry.maxHeight)
+					h := New(signers[i], NewMockDispatcher(i, ipChans, done, cap))
+					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight, block.Round(0))).ShouldNot((HaveOccurred()))
 				})
 			})
 		})
@@ -103,7 +126,7 @@ func NewMockDispatcher(i int, channels []chan Object, done chan struct{}, cap in
 
 		dups:     map[string]bool{},
 		channels: channels,
-		reqCh:    make(chan ActionObject),
+		reqCh:    make(chan ActionObject, cap),
 
 		done: done,
 	}
@@ -183,17 +206,23 @@ type ShardObject struct {
 
 func (ShardObject) IsObject() {}
 
-func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVerifier, inputCh chan Object, done chan struct{}, maxHeight block.Height) {
-	h := New(signer, dispatcher)
+type TickObject struct {
+	Time time.Time
+}
 
+func (TickObject) IsObject() {}
+
+func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struct{}, maxHeight block.Height, expectedRound block.Round) error {
 	var currentBlock *block.SignedBlock
 
 	for {
 		select {
 		case <-done:
-			return
+			return nil
 		case input := <-inputCh:
 			switch input := input.(type) {
+			case TickObject:
+				h.AcceptTick(input.Time)
 			case ShardObject:
 				h.AcceptShard(input.shard, block.Genesis(), input.pool)
 			case ActionObject:
@@ -205,7 +234,8 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 				case state.SignedPreCommit:
 					h.AcceptPreCommit(input.shardHash, action.SignedPreCommit)
 				case state.Commit:
-					Expect(len(action.Commit.Polka.Block.Txs)).To(Equal(block.MaxTransactions))
+					Expect(len(action.Commit.Polka.Block.Txs)).To(BeNumerically("<=", block.MaxTransactions))
+					Expect(action.Commit.Polka.Block.Round).To(Equal(expectedRound))
 					if currentBlock == nil || action.Polka.Block.Height > currentBlock.Height {
 						if currentBlock != nil {
 							Expect(action.Polka.Block.Height).To(Equal(currentBlock.Height + 1))
@@ -216,7 +246,7 @@ func runHyperdrive(index int, dispatcher replica.Dispatcher, signer sig.SignerVe
 						}
 						currentBlock = action.Polka.Block
 						if currentBlock.Height == maxHeight {
-							return
+							return nil
 						}
 					}
 				default:
