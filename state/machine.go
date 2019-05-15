@@ -9,6 +9,7 @@ import (
 type Machine interface {
 	Height() block.Height
 	Round() block.Round
+	State() State
 	Transition(transition Transition) Action
 }
 
@@ -40,6 +41,10 @@ func (machine *machine) Height() block.Height {
 
 func (machine *machine) Round() block.Round {
 	return machine.round
+}
+
+func (machine *machine) State() State {
+	return machine.state
 }
 
 func (machine *machine) Transition(transition Transition) Action {
