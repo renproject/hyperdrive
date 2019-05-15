@@ -5,6 +5,8 @@ import (
 	"reflect"
 
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"github.com/renproject/hyperdrive/testutils"
 
 	. "github.com/onsi/ginkgo"
@@ -20,24 +22,22 @@ var _ = Describe("State Machine", func() {
 		for _, t := range testCases {
 			t := t
 
-			stateStr := "<nil>"
-			// if t.finalState != nil {
-			// 	stateStr = reflect.TypeOf(t.finalState).Name()
-			// }
+			action := "<nil>"
+			if t.finalAction != nil {
+				action = reflect.TypeOf(t.finalAction).Name()
+			}
 
 			Context(fmt.Sprintf("when state machine begins with state - %s", reflect.TypeOf(t.startingState).Name()), func() {
-				It(fmt.Sprintf("should eventually arrive at state %s", stateStr), func() {
+				It(fmt.Sprintf("should eventually return action - %s", action), func() {
 					stateMachine := NewMachine(t.startingState, block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
-					// state := t.startingState
 					var action Action
 					for _, transition := range t.transitions {
+						if t.shouldPanic {
+							Expect(func() { stateMachine.Transition(transition) }).To(Panic())
+							return
+						}
 						action = stateMachine.Transition(transition)
 					}
-					// if t.finalState == nil {
-					// 	Expect(state).To(BeNil())
-					// } else {
-					// 	Expect(state).To(Equal(t.finalState))
-					// }
 					if t.finalAction == nil {
 						Expect(action).To(BeNil())
 					} else {
@@ -55,18 +55,19 @@ type TestCase struct {
 	consensusThreshold int
 
 	startingState State
-	// finalState    State
-	finalAction Action
+	finalAction   Action
+
+	shouldPanic bool
 
 	transitions []Transition
 }
 
 func generateTestCases() []TestCase {
 	genesis := block.Genesis()
-	// signer, err := ecdsa.NewFromRandom()
-	// if err != nil {
-	// 	panic(fmt.Sprintf("error generating random SignerVerifier: %v", err))
-	// }
+	signer, err := ecdsa.NewFromRandom()
+	if err != nil {
+		panic(fmt.Sprintf("error generating random SignerVerifier: %v", err))
+	}
 
 	return []TestCase{
 		// (WaitForProposed) -> Proposed -> PreVoted (sig 1) -> PreCommitted (sig 1) -> PreCommitted (sig 2)
@@ -74,8 +75,7 @@ func generateTestCases() []TestCase {
 			consensusThreshold: 2,
 
 			startingState: WaitingForPropose{},
-			// finalState:    WaitingForPropose{},
-			finalAction: Commit{},
+			finalAction:   Commit{},
 
 			transitions: []Transition{
 				Proposed{
@@ -129,8 +129,9 @@ func generateTestCases() []TestCase {
 			consensusThreshold: 1,
 
 			startingState: InvalidState{},
-			// finalState:    nil,
-			finalAction: nil,
+			finalAction:   nil,
+
+			shouldPanic: true,
 
 			transitions: []Transition{
 				PreVoted{
@@ -153,8 +154,7 @@ func generateTestCases() []TestCase {
 			consensusThreshold: 2,
 
 			startingState: WaitingForPolka{},
-			// finalState:    WaitingForPropose{},
-			finalAction: Commit{},
+			finalAction:   Commit{},
 
 			transitions: []Transition{
 				Proposed{
@@ -211,20 +211,12 @@ func generateTestCases() []TestCase {
 			},
 		},
 
-		/*// (WaitForCommit) -> Proposed -> PreVoted (sig 1) -> PreCommitted (sig 1) -> PreCommitted (sig 2)
+		// (WaitForCommit) -> Proposed -> PreVoted (sig 1) -> PreCommitted (sig 1) -> PreCommitted (sig 2)
 		{
 			consensusThreshold: 2,
 
-			startingState: WaitForCommit(block.Polka{
-				Block: &block.SignedBlock{
-					Block: block.Block{
-						Height: 0,
-						Round:  0,
-					},
-				},
-			}),
-			// finalState:  WaitingForPropose{},
-			finalAction: Commit{},
+			startingState: WaitingForCommit{},
+			finalAction:   Commit{},
 
 			transitions: []Transition{
 				Proposed{
@@ -282,15 +274,16 @@ func generateTestCases() []TestCase {
 					},
 				},
 			},
-		},*/
+		},
 
 		// Invalid transition
 		{
 			consensusThreshold: 1,
 
 			startingState: WaitingForPropose{},
-			// finalState:    WaitingForPropose{},
-			finalAction: nil,
+			finalAction:   nil,
+
+			shouldPanic: true,
 
 			transitions: []Transition{testutils.InvalidTransition{}},
 		},
@@ -300,7 +293,6 @@ func generateTestCases() []TestCase {
 			consensusThreshold: 1,
 
 			startingState: WaitingForPropose{},
-			// finalState:    WaitingForPolka{},
 			finalAction: PreVote{
 				PreVote: block.PreVote{},
 			},
@@ -313,8 +305,7 @@ func generateTestCases() []TestCase {
 			consensusThreshold: 1,
 
 			startingState: WaitingForPropose{},
-			// finalState:    WaitingForPropose{},
-			finalAction: nil,
+			finalAction:   PreVote{},
 
 			transitions: []Transition{
 				Proposed{
@@ -330,8 +321,7 @@ func generateTestCases() []TestCase {
 			consensusThreshold: 1,
 
 			startingState: WaitingForPropose{},
-			// finalState:    WaitingForPropose{},
-			finalAction: nil,
+			finalAction:   PreVote{},
 
 			transitions: []Transition{
 				Proposed{
@@ -347,8 +337,7 @@ func generateTestCases() []TestCase {
 			consensusThreshold: 1,
 
 			startingState: WaitingForPropose{},
-			// finalState:    WaitingForPropose{},
-			finalAction: nil,
+			finalAction:   nil,
 
 			transitions: []Transition{
 				PreVoted{
@@ -373,8 +362,7 @@ func generateTestCases() []TestCase {
 			consensusThreshold: 1,
 
 			startingState: WaitingForPropose{},
-			// finalState:    WaitingForPropose{},
-			finalAction: nil,
+			finalAction:   nil,
 
 			transitions: []Transition{
 				PreVoted{
@@ -399,8 +387,7 @@ func generateTestCases() []TestCase {
 			consensusThreshold: 1,
 
 			startingState: WaitingForPropose{},
-			// finalState:    WaitingForPropose{},
-			finalAction: nil,
+			finalAction:   Commit{},
 
 			transitions: []Transition{
 				PreCommitted{
@@ -422,78 +409,63 @@ func generateTestCases() []TestCase {
 			},
 		},
 
-		/*	// (WaitForCommit, PreCommitted) state.Round > polka.Round
-				{
-					consensusThreshold: 1,
+		// (WaitForCommit, PreCommitted) state.Round > polka.Round
+		{
+			consensusThreshold: 1,
 
-					startingState: WaitForCommit(block.Polka{
-						Block:  nil,
-						Height: 1,
-						Round:  1,
-					}),
-					// finalState: WaitForCommit(block.Polka{
-						Block:  nil,
-						Height: 1,
-						Round:  1,
-					}),
-					finalAction: nil,
+			startingState: WaitingForCommit{},
+			finalAction:   nil,
 
-					transitions: []Transition{
-						PreCommitted{
-							block.SignedPreCommit{
-								PreCommit: block.PreCommit{
-									Polka: block.Polka{
-										Block:  nil,
-										Height: 1,
-										Round:  0,
-									},
-								},
-								Signatory: testutils.RandomSignatory(),
-								Signature: testutils.RandomSignature(),
+			transitions: []Transition{
+				PreCommitted{
+					block.SignedPreCommit{
+						PreCommit: block.PreCommit{
+							Polka: block.Polka{
+								Block:  nil,
+								Height: 1,
+								Round:  0,
 							},
 						},
-					},
-				},
-
-			// (WaitForCommit, PreCommitted) PreCommits with same signatures
-			{
-				consensusThreshold: 2,
-
-				startingState: WaitForCommit(block.Polka{
-					Block:  nil,
-					Height: 0,
-					Round:  0,
-				}),
-				// finalState:  WaitForCommit(testutils.GeneratePolkaWithSignatures(block.SignedBlock{}, []sig.SignerVerifier{signer, signer})),
-				finalAction: nil,
-
-				transitions: []Transition{
-					PreCommitted{
-						SignedPreCommit: testutils.GenerateSignedPreCommit(block.SignedBlock{}, signer, []sig.SignerVerifier{signer, signer}),
-					},
-					PreCommitted{
-						SignedPreCommit: testutils.GenerateSignedPreCommit(block.SignedBlock{}, signer, []sig.SignerVerifier{signer, signer}),
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 			},
+		},
 
-			// (WaitForPolka, Prevoted) PreVotes with same signatures
-			{
-				consensusThreshold: 2,
+		// (WaitForCommit, PreCommitted) PreCommits with same signatures
+		{
+			consensusThreshold: 2,
 
-				startingState: WaitingForPolka{},
-				// finalState:    WaitingForPolka{},
-				finalAction:   nil,
+			startingState: WaitingForCommit{},
+			finalAction:   nil,
 
-				transitions: []Transition{
-					PreVoted{
-						SignedPreVote: testutils.GenerateSignedPreVote(block.SignedBlock{}, signer),
-					},
-					PreVoted{
-						SignedPreVote: testutils.GenerateSignedPreVote(block.SignedBlock{}, signer),
-					},
+			transitions: []Transition{
+				PreCommitted{
+					SignedPreCommit: testutils.GenerateSignedPreCommit(block.SignedBlock{}, signer, []sig.SignerVerifier{signer, signer}),
 				},
-			},*/
+				PreCommitted{
+					SignedPreCommit: testutils.GenerateSignedPreCommit(block.SignedBlock{}, signer, []sig.SignerVerifier{signer, signer}),
+				},
+			},
+		},
+
+		// (WaitForPolka, Prevoted) PreVotes with same signatures
+		{
+			consensusThreshold: 2,
+
+			startingState: WaitingForPolka{},
+			finalAction:   nil,
+
+			transitions: []Transition{
+				PreVoted{
+					SignedPreVote: testutils.GenerateSignedPreVote(block.SignedBlock{}, signer),
+				},
+				PreVoted{
+					SignedPreVote: testutils.GenerateSignedPreVote(block.SignedBlock{}, signer),
+				},
+			},
+		},
 	}
 }
 
