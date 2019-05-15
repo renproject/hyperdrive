@@ -187,9 +187,7 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (*Polka
 			if preVote.Block.Round != round {
 				panic(fmt.Errorf("expected pre-vote block round (%v) to equal %v", preVote.Block.Round, round))
 			}
-			numPreVotes := preVotesForBlock[preVote.Block.Header]
-			numPreVotes++
-			preVotesForBlock[preVote.Block.Header] = numPreVotes
+			preVotesForBlock[preVote.Block.Header]++
 		}
 
 		// Search for a polka of pre-votes for non-nil block

@@ -135,9 +135,7 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (*Com
 			if preCommit.Polka.Block.Round != round {
 				panic(fmt.Errorf("expected pre-commit block round (%v) to equal %v", preCommit.Polka.Block.Round, round))
 			}
-			numPreCommits := preCommitsForBlock[preCommit.Polka.Block.Header]
-			numPreCommits++
-			preCommitsForBlock[preCommit.Polka.Block.Header] = numPreCommits
+			preCommitsForBlock[preCommit.Polka.Block.Header]++
 		}
 
 		// Search for a commit of pre-commits for non-nil block
