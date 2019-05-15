@@ -119,7 +119,7 @@ func (validator *validator) ValidatePreVote(preVote block.SignedPreVote, lastSig
 }
 
 func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock block.SignedBlock) bool {
-	if polka.Equal(block.Polka{}) {
+	if polka.Equal(&block.Polka{}) {
 		return false
 	}
 	if polka.Round < 0 || polka.Height < 0 {
