@@ -176,7 +176,7 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (*Com
 		}
 
 		// Always break after seeing the consensus threshold
-		break
+		// break  // TODO: (Review) This will cause the first commit with 2/3+ precommits to be returned even if it is for a lower round without checking for commits in higher rounds
 	}
 
 	if commit != nil {

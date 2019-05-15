@@ -78,9 +78,15 @@ type Polka struct {
 }
 
 // Equal checks that two Polka are functionally equivalent
-func (polka Polka) Equal(other Polka) bool {
-	if other.Block == nil || polka.Block == nil {
-		return polka.Block == other.Block
+func (polka Polka) Equal(other *Polka) bool {
+	if polka.Block == nil && other.Block == nil {
+		return polka.Round == other.Round &&
+			polka.Height == other.Height &&
+			polka.Signatures.Equal(other.Signatures) &&
+			polka.Signatories.Equal(other.Signatories)
+	}
+	if polka.Block == nil || other.Block == nil {
+		return false
 	}
 	return polka.Block.Equal(other.Block.Block) &&
 		polka.Round == other.Round &&
@@ -224,7 +230,7 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (*Polka
 		}
 
 		// Always break after seeing the consensus threshold
-		break
+		// break // TODO: (Review) This will cause the first polka with 2/3+ prevotes to be returned even if it is for a lower round without checking for polkas in higher rounds
 	}
 
 	if polka != nil {
