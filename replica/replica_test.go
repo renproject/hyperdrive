@@ -22,7 +22,6 @@ var _ = Describe("Replica", func() {
 
 	Context("when Init is called", func() {
 		It("should generate a new block", func() {
-			// transitionBuffer := state.NewTransitionBuffer(128)
 			pool := tx.FIFOPool(100)
 			signer, err := ecdsa.NewFromRandom()
 			Expect(err).ShouldNot(HaveOccurred())
@@ -60,7 +59,6 @@ var _ = Describe("Replica", func() {
 			Context(fmt.Sprintf("when replica starts with intial state - %s", reflect.TypeOf(t.startingState).Name()), func() {
 				It(fmt.Sprintf("should arrive at %s", reflect.TypeOf(t.finalState).Name()), func() {
 
-					// transitionBuffer := state.NewTransitionBuffer(128)
 					pool := tx.FIFOPool(100)
 
 					for i := 0; i < 100; i++ {
@@ -507,7 +505,7 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 			consensusThreshold: 1,
 
 			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
+			finalState:    state.WaitingForPolka{},
 
 			transitions: []state.Transition{
 				state.Proposed{
