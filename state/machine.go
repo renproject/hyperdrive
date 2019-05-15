@@ -269,9 +269,11 @@ func (machine *machine) checkCommonExitConditions() Action {
 	commit, preCommittingRound := machine.commitBuilder.Commit(machine.height, machine.consensusThreshold)
 	if commit != nil && commit.Polka.Block != nil {
 		// After +2/3 precommits for a particular block. --> goto Commit(H)
-		machine.state = WaitingForCommit{}
+		machine.state = WaitingForPropose{}
 		machine.height = commit.Polka.Height + 1
 		machine.round = 0
+		machine.lockedBlock = nil
+		machine.lockedRound = nil
 		return Commit{Commit: *commit}
 	}
 
