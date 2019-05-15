@@ -382,7 +382,7 @@ var _ = Describe("PolkaBuilder", func() {
 			Expect(polkaRound).To(BeNil())
 			Expect(polka).To(BeNil())
 
-			polka, blockpolkaRound = builder.Polka(2, 1)
+			polka, polkaRound = builder.Polka(2, 1)
 			Expect(polka.Round).To(Equal(*polkaRound))
 			Expect(polka.Round).To(Equal(Round(10)))
 		})
