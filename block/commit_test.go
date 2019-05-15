@@ -73,10 +73,11 @@ var _ = Describe("CommitBuilder", func() {
 			})
 
 			Context("when too few pre-votes have been received", func() {
-				It("should panic", func() {
+				It("should return nil", func() {
 					builder := NewCommitBuilder()
-					_, ok := builder.Commit(0, 11)
-					Expect(ok).To(BeFalse())
+					commit, commitRound := builder.Commit(0, 11)
+					Expect(commit).To(BeNil())
+					Expect(commitRound).To(BeNil())
 				})
 			})
 		})
@@ -105,8 +106,9 @@ var _ = Describe("CommitBuilder", func() {
 						Expect(err).ShouldNot(HaveOccurred())
 						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
-					_, ok := builder.Commit(0, 11)
-					Expect(ok).To(BeFalse())
+					commit, commitRound := builder.Commit(0, 11)
+					Expect(commit).To(BeNil())
+					Expect(commitRound).To(BeNil())
 				})
 			})
 
@@ -133,8 +135,9 @@ var _ = Describe("CommitBuilder", func() {
 						Expect(err).ShouldNot(HaveOccurred())
 						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
-					_, ok := builder.Commit(0, 9)
-					Expect(ok).To(BeFalse())
+					commit, commitRound := builder.Commit(0, 9)
+					Expect(commit).To(BeNil())
+					Expect(commitRound).To(BeNil())
 				})
 			})
 
@@ -161,8 +164,9 @@ var _ = Describe("CommitBuilder", func() {
 						Expect(err).ShouldNot(HaveOccurred())
 						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
-					_, ok := builder.Commit(0, 9)
-					Expect(ok).To(BeFalse())
+					commit, commitRound := builder.Commit(0, 9)
+					Expect(commit).To(BeNil())
+					Expect(commitRound).To(BeNil())
 				})
 			})
 
@@ -221,8 +225,9 @@ var _ = Describe("CommitBuilder", func() {
 						Expect(err).ShouldNot(HaveOccurred())
 						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
-					_, ok := builder.Commit(height, 9)
-					Expect(ok).To(BeFalse())
+					commit, commitRound := builder.Commit(height, 9)
+					Expect(commit).To(BeNil())
+					Expect(commitRound).To(BeNil())
 				})
 			})
 		})
@@ -258,8 +263,8 @@ var _ = Describe("CommitBuilder", func() {
 						Expect(err).ShouldNot(HaveOccurred())
 						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
-					commit, ok := builder.Commit(height, 9)
-					Expect(ok).To(BeTrue())
+					commit, commitRound := builder.Commit(height, 9)
+					Expect(commit.Polka.Round).To(Equal(*commitRound))
 					Expect(commit.Polka.Block).To(Equal(&signedBlock))
 				})
 			})
@@ -291,9 +296,9 @@ var _ = Describe("CommitBuilder", func() {
 						Expect(err).ShouldNot(HaveOccurred())
 						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 					}
-					commit, ok := builder.Commit(height, 9)
-					Expect(ok).To(BeTrue())
-					Expect(commit.Polka.Block).To(BeNil())
+					commit, commitRound := builder.Commit(height, 9)
+					Expect(commitRound).To(Equal(&round))
+					Expect(commit).To(BeNil())
 				})
 			})
 		})
@@ -324,8 +329,8 @@ var _ = Describe("CommitBuilder", func() {
 					}
 				}
 
-				commit, ok := builder.Commit(1, 10)
-				Expect(ok).To(BeTrue())
+				commit, commitRound := builder.Commit(1, 10)
+				Expect(commit.Polka.Round).To(Equal(*commitRound))
 				Expect(commit.Polka.Round).To(Equal(Round(9)))
 			})
 		})
@@ -391,17 +396,18 @@ var _ = Describe("CommitBuilder", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(builder.Insert(signedPreCommit)).To(BeTrue())
 
-			commit, ok := builder.Commit(1, 10)
-			Expect(ok).To(BeTrue())
+			commit, commitRound := builder.Commit(1, 10)
+			Expect(commit.Polka.Round).To(Equal(*commitRound))
 			Expect(commit.Polka.Round).To(Equal(Round(9)))
 
 			builder.Drop(2)
 
-			commit, ok = builder.Commit(1, 1)
-			Expect(ok).To(BeFalse())
+			commit, commitRound = builder.Commit(1, 1)
+			Expect(commit).To(BeNil())
+			Expect(commitRound).To(BeNil())
 
-			commit, ok = builder.Commit(2, 1)
-			Expect(ok).To(BeTrue())
+			commit, commitRound = builder.Commit(2, 1)
+			Expect(commit.Polka.Round).To(Equal(*commitRound))
 			Expect(commit.Polka.Round).To(Equal(Round(10)))
 		})
 	})
