@@ -22,7 +22,7 @@ var _ = Describe("Replica", func() {
 
 	Context("when Init is called", func() {
 		It("should generate a new block", func() {
-			transitionBuffer := state.NewTransitionBuffer(128)
+			// transitionBuffer := state.NewTransitionBuffer(128)
 			pool := tx.FIFOPool(100)
 			signer, err := ecdsa.NewFromRandom()
 			Expect(err).ShouldNot(HaveOccurred())
@@ -32,9 +32,9 @@ var _ = Describe("Replica", func() {
 				BlockHeight: 0,
 				Signatories: sig.Signatories{signer.Signatory()},
 			}
-			stateMachine := state.NewMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), 1)
+			stateMachine := state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), 1)
 
-			replica := New(newMockDispatcher(), signer, pool, state.WaitForPropose(0, 0), stateMachine, transitionBuffer, shard, block.Genesis())
+			replica := New(newMockDispatcher(), signer, pool, stateMachine, shard, block.Genesis())
 			Expect(func() { replica.Init() }).ToNot(Panic())
 		})
 	})
@@ -60,7 +60,7 @@ var _ = Describe("Replica", func() {
 			Context(fmt.Sprintf("when replica starts with intial state - %s", reflect.TypeOf(t.startingState).Name()), func() {
 				It(fmt.Sprintf("should arrive at %s", reflect.TypeOf(t.finalState).Name()), func() {
 
-					transitionBuffer := state.NewTransitionBuffer(128)
+					// transitionBuffer := state.NewTransitionBuffer(128)
 					pool := tx.FIFOPool(100)
 
 					for i := 0; i < 100; i++ {
@@ -74,13 +74,13 @@ var _ = Describe("Replica", func() {
 						BlockHeight: 0,
 						Signatories: sig.Signatories{signer.Signatory(), participant1.Signatory(), participant2.Signatory()},
 					}
-					stateMachine := state.NewMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
+					stateMachine := state.NewMachine(t.startingState, block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
 
-					replica := New(NewMockDispatcher(), signer, pool, t.startingState, stateMachine, transitionBuffer, shard, block.Genesis())
+					replica := New(NewMockDispatcher(), signer, pool, stateMachine, shard, block.Genesis())
 					for _, transition := range t.transitions {
 						replica.Transition(transition)
 					}
-					Expect(replica.State()).To(Equal(t.finalState))
+					Expect(stateMachine.State()).To(Equal(t.finalState))
 				})
 			})
 		}
@@ -116,8 +116,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 2,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPropose(0, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.PreCommitted{
@@ -142,8 +142,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 2,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPropose(0, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.PreCommitted{
@@ -168,8 +168,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 2,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPropose(0, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.PreCommitted{
@@ -194,8 +194,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 2,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPropose(0, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.PreCommitted{
@@ -216,8 +216,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 2,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPropose(0, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.PreCommitted{
@@ -238,8 +238,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPropose(0, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.PreCommitted{
@@ -260,8 +260,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, -1),
-			finalState:    state.WaitForPropose(0, -1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.PreCommitted{
@@ -281,8 +281,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPropose(0, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.PreCommitted{
@@ -302,8 +302,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 0),
-			finalState:    state.WaitForPropose(0, 0),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.PreCommitted{
@@ -319,8 +319,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPropose(0, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.PreVoted{SignedPreVote: testutils.GenerateSignedPreVote(*signedBlock, maliciousSigner)},
@@ -330,8 +330,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 2),
-			finalState:    state.WaitForPropose(0, 2),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.PreVoted{
@@ -349,8 +349,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPropose(0, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.PreVoted{
@@ -368,8 +368,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPropose(0, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.PreVoted{
@@ -390,8 +390,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPropose(0, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.Proposed{
@@ -407,8 +407,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPropose(0, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.Proposed{
@@ -420,8 +420,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 0),
-			finalState:    state.WaitForPropose(0, 0),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.Proposed{
@@ -437,8 +437,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 0),
-			finalState:    state.WaitForPropose(0, 0),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.Proposed{
@@ -454,8 +454,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPropose(0, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.Proposed{
@@ -472,8 +472,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 0),
-			finalState:    state.WaitForPropose(0, 0),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.Proposed{
@@ -491,8 +491,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 0),
-			finalState:    state.WaitForPropose(0, 0),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.Proposed{
@@ -506,8 +506,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(1, 1),
-			finalState:    state.WaitForPropose(1, 1),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.Proposed{
@@ -519,8 +519,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 0),
-			finalState:    state.WaitForPropose(0, 0),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{testutils.InvalidTransition{}},
 		},
@@ -528,8 +528,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 0),
-			finalState:    state.WaitForPropose(0, 0),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.TimedOut{Time: time.Now().Add(10 * time.Minute)},
@@ -539,8 +539,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(0, 0),
-			finalState:    state.WaitForPolka(0, 0),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPolka{},
 
 			transitions: []state.Transition{
 				state.TimedOut{Time: time.Now()},
@@ -550,8 +550,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 1,
 
-			startingState: state.WaitForPropose(1, 0),
-			finalState:    state.WaitForPropose(1, 0),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.Proposed{
@@ -565,8 +565,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 2,
 
-			startingState: state.WaitForPropose(0, 0),
-			finalState:    state.WaitForPropose(0, 0),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.Proposed{
@@ -632,8 +632,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 		{
 			consensusThreshold: 3,
 
-			startingState: state.WaitForPropose(0, 1),
-			finalState:    state.WaitForPolka(0, 3),
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPolka{},
 
 			transitions: []state.Transition{
 				state.Proposed{
