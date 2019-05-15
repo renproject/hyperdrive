@@ -53,14 +53,13 @@ func New(signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
 func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 	// 1. Increment number of ticks seen by each shard
 	for shardHash := range hyperdrive.shardReplicas {
-		ticks := hyperdrive.ticksPerShard[shardHash]
-		ticks++
-		hyperdrive.ticksPerShard[shardHash] = ticks
+		hyperdrive.ticksPerShard[shardHash]++
 
-		if ticks > NumTicksToTriggerTimeOut {
+		if hyperdrive.ticksPerShard[shardHash] > NumTicksToTriggerTimeOut {
 			// 2. Send a TimedOut transition to the shard
 			if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
 				replica.Transition(state.TimedOut{Time: t})
+				hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
 			}
 		}
 	}
@@ -68,6 +67,7 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 
 func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock) {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
+		hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
 		replica.Transition(state.Proposed{SignedBlock: proposed})
 	}
 }
@@ -100,6 +100,7 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, head block.SignedBl
 
 	hyperdrive.shardReplicas[shard.Hash] = r
 	hyperdrive.shardHistory = append(hyperdrive.shardHistory, shard.Hash)
+	hyperdrive.ticksPerShard[shard.Hash] = 0
 	if len(hyperdrive.shardHistory) > NumHistoricalShards {
 		delete(hyperdrive.shardReplicas, hyperdrive.shardHistory[0])
 		hyperdrive.shardHistory = hyperdrive.shardHistory[1:]
