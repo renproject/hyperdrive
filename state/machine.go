@@ -11,6 +11,7 @@ type Machine interface {
 	Round() block.Round
 	State() State
 	Transition(transition Transition) Action
+	Drop()
 }
 
 type machine struct {
@@ -298,4 +299,9 @@ func (machine *machine) checkCommonExitConditions() Action {
 	}
 
 	return nil
+}
+
+func (machine *machine) Drop() {
+	machine.polkaBuilder.Drop(machine.height)
+	machine.commitBuilder.Drop(machine.height)
 }
