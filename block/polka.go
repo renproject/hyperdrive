@@ -158,6 +158,11 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (*Polka
 	var preVotesRound *Round
 
 	for round, preVotes := range preVotesByRound {
+
+		numNilPreVotes := 0
+		nilPreVoteSignatures := []sig.Signature{}
+		nilPreVoteSignatories := []sig.Signatory{}
+
 		if polka != nil && round <= polka.Round {
 			continue
 		}
@@ -177,6 +182,9 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (*Polka
 				panic(fmt.Errorf("expected pre-vote round (%v) to equal %v", preVote.Round, round))
 			}
 			if preVote.Block == nil {
+				numNilPreVotes++
+				nilPreVoteSignatures = append(nilPreVoteSignatures, preVote.Signature)
+				nilPreVoteSignatories = append(nilPreVoteSignatories, preVote.Signatory)
 				continue
 			}
 
@@ -227,8 +235,16 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (*Polka
 			}
 		}
 
-		// Always break after seeing the consensus threshold
-		// break // TODO: (Review) This will cause the first polka with 2/3+ prevotes to be returned even if it is for a lower round without checking for polkas in higher rounds
+		if numNilPreVotes >= consensusThreshold {
+			// Return a nil-Polka
+			polka = &Polka{
+				Block:       nil,
+				Height:      height,
+				Round:       round,
+				Signatures:  nilPreVoteSignatures,
+				Signatories: nilPreVoteSignatories,
+			}
+		}
 	}
 
 	if polka != nil {

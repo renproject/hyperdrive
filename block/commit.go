@@ -106,6 +106,11 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (*Com
 	var preCommitsRound *Round
 
 	for round, preCommits := range preCommitsByRound {
+
+		numNilPreCommits := 0
+		nilPreCommitSignatures := []sig.Signature{}
+		nilPreCommitSignatories := []sig.Signatory{}
+
 		if commit != nil && round <= commit.Polka.Round {
 			continue
 		}
@@ -125,6 +130,9 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (*Com
 				panic(fmt.Errorf("expected pre-commit round (%v) to equal %v", preCommit.Polka.Round, round))
 			}
 			if preCommit.Polka.Block == nil {
+				numNilPreCommits++
+				nilPreCommitSignatures = append(nilPreCommitSignatures, preCommit.Signature)
+				nilPreCommitSignatories = append(nilPreCommitSignatories, preCommit.Signatory)
 				continue
 			}
 
@@ -173,8 +181,18 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (*Com
 			}
 		}
 
-		// Always break after seeing the consensus threshold
-		// break  // TODO: (Review) This will cause the first commit with 2/3+ precommits to be returned even if it is for a lower round without checking for commits in higher rounds
+		if numNilPreCommits >= consensusThreshold {
+			// Return a nil-Commit
+			commit = &Commit{
+				Polka: Polka{
+					Block:  nil,
+					Height: height,
+					Round:  round,
+				},
+				Signatures:  nilPreCommitSignatures,
+				Signatories: nilPreCommitSignatories,
+			}
+		}
 	}
 
 	if commit != nil {
