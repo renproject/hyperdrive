@@ -100,7 +100,7 @@ func NewTransitionBuffer(cap int) TransitionBuffer {
 func (buffer *transitionBuffer) Enqueue(transition Transition) {
 	switch transition := transition.(type) {
 	case Proposed:
-		buffer.newQueue(transition.Block.Height)
+		buffer.newQueue(transition.Height)
 		if len(buffer.queues[transition.Height]) > 0 {
 			switch buffer.queues[transition.Height][0].(type) {
 			case PreVoted:

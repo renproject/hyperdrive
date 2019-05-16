@@ -76,7 +76,7 @@ func (validator *validator) ValidatePropose(propose block.SignedPropose, lastSig
 		return false
 	}
 
-	return validator.ValidateBlock(*propose.SignedBlock, lastSignedBlock)
+	return validator.ValidateBlock(propose.SignedBlock, lastSignedBlock)
 }
 
 func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSignedBlock block.SignedBlock) bool {

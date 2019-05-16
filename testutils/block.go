@@ -17,7 +17,7 @@ func SignBlock(blk block.Block, signer sig.SignerVerifier) *block.SignedBlock {
 
 func GenerateSignedPropose(signedBlock block.SignedBlock, round block.Round, signer sig.SignerVerifier) block.SignedPropose {
 	propose := block.Propose{
-		SignedBlock: &signedBlock,
+		SignedBlock: signedBlock,
 		Round:       round,
 	}
 	signedPropose, err := propose.Sign(signer)
