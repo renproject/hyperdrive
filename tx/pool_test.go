@@ -2,6 +2,7 @@ package tx_test
 
 import (
 	"fmt"
+	"math/rand"
 
 	"github.com/renproject/hyperdrive/testutils"
 
@@ -22,11 +23,17 @@ var _ = Describe("txPool", func() {
 	for _, entry := range table {
 		entry := entry
 		txPool := FIFOPool(entry.cap)
+		removeIndex := rand.Intn(entry.cap)
+		removeTx := Transaction{}
 
 		Context(fmt.Sprintf("when a new FIFOPool is created with cap = %d", entry.cap), func() {
 			It(fmt.Sprintf("should enqueue %d transactions without errors", entry.cap), func() {
 				for i := 0; i < entry.cap; i++ {
-					Expect(txPool.Enqueue(testutils.RandomTransaction())).ShouldNot(HaveOccurred())
+					tx := testutils.RandomTransaction()
+					if i == removeIndex {
+						removeTx = tx
+					}
+					Expect(txPool.Enqueue(tx)).ShouldNot(HaveOccurred())
 				}
 			})
 
@@ -34,6 +41,15 @@ var _ = Describe("txPool", func() {
 				It("should error on enqueuing a new transaction", func() {
 					Expect(txPool.Enqueue(testutils.RandomTransaction())).Should(HaveOccurred())
 				})
+			})
+
+			It("should be able to remove existing transactions without errors", func() {
+				Expect(txPool.Remove(removeTx)).To(BeTrue())
+				Expect(txPool.Remove(testutils.RandomTransaction())).To(BeFalse())
+			})
+
+			It("should not error on enqueuing a new transaction", func() {
+				Expect(txPool.Enqueue(testutils.RandomTransaction())).ShouldNot(HaveOccurred())
 			})
 
 			It(fmt.Sprintf("should be able to dequeue %d transactions without errors", entry.cap), func() {
