@@ -133,7 +133,7 @@ type SignedPropose struct {
 
 type Blockchain struct {
 	head   Commit
-	blocks map[sig.Hash]Commit
+	blocks map[Height]Commit
 }
 
 func NewBlockchain() Blockchain {
@@ -145,7 +145,7 @@ func NewBlockchain() Blockchain {
 	}
 	return Blockchain{
 		head:   genesisCommit,
-		blocks: map[sig.Hash]Commit{genesis.Header: genesisCommit},
+		blocks: map[Height]Commit{genesis.Height: genesisCommit},
 	}
 }
 
@@ -170,8 +170,8 @@ func (blockchain *Blockchain) Head() (SignedBlock, bool) {
 	return *blockchain.head.Polka.Block, true
 }
 
-func (blockchain *Blockchain) Block(header sig.Hash) (SignedBlock, bool) {
-	commit, ok := blockchain.blocks[header]
+func (blockchain *Blockchain) Block(height Height) (SignedBlock, bool) {
+	commit, ok := blockchain.blocks[height]
 	if !ok || commit.Polka.Block == nil {
 		return Genesis(), false
 	}
@@ -182,6 +182,22 @@ func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
 	if commitToNextBlock.Polka.Block == nil {
 		return
 	}
-	blockchain.blocks[commitToNextBlock.Polka.Block.Header] = commitToNextBlock
-	blockchain.head = commitToNextBlock
+	blockchain.blocks[commitToNextBlock.Polka.Block.Height] = commitToNextBlock
+	if blockchain.Height() < commitToNextBlock.Polka.Block.Height {
+		blockchain.head = commitToNextBlock
+	}
+}
+
+func (blockchain *Blockchain) Blocks(blockNumber Height, n int64) []Commit {
+	var block Commit
+	var ok bool
+
+	blocks := []Commit{}
+	for i := blockNumber; i < blockNumber+Height(n); i++ {
+		if block, ok = blockchain.blocks[i]; !ok {
+			return blocks
+		}
+		blocks = append(blocks, block)
+	}
+	return blocks
 }
