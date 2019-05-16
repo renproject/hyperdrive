@@ -1,216 +1,144 @@
 package sig_test
 
 import (
-	"crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"math/rand"
+
+	"github.com/renproject/hyperdrive/testutils"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/hyperdrive/sig"
+	. "github.com/renproject/hyperdrive/sig"
 )
 
-var _ = Describe("Signatures", func() {
-
-	Context("when testing equality of hashes", func() {
-		It("should return true for empty hashes", func() {
-			lhs := sig.Hash{}
-			rhs := sig.Hash{}
-			Expect(lhs.Equal(rhs)).To(BeTrue())
-			Expect(lhs.String()).To(Equal(rhs.String()))
+var _ = Describe("Sig", func() {
+	Context("when a random Hash is generated", func() {
+		It("should equal itself", func() {
+			hash := testutils.RandomHash()
+			Expect(hash.Equal(hash)).Should(BeTrue())
 		})
 
-		It("should return true for the same hashes", func() {
-			lhs := sig.Hash{}
-			n, err := rand.Read(lhs[:])
-			Expect(n).To(Equal(32))
-			Expect(err).ToNot(HaveOccurred())
-
-			rhs := sig.Hash{}
-			copy(rhs[:], lhs[:])
-
-			Expect(lhs.Equal(rhs)).To(BeTrue())
-			Expect(lhs.String()).To(Equal(rhs.String()))
+		It("should not equal another hash", func() {
+			hash := testutils.RandomHash()
+			otherHash := testutils.RandomHash()
+			Expect(hash.Equal(otherHash)).Should(BeFalse())
 		})
 
-		It("should return false for two random hashes", func() {
-			lhs := sig.Hash{}
-			n, err := rand.Read(lhs[:])
-			Expect(n).To(Equal(32))
-			Expect(err).ToNot(HaveOccurred())
-
-			rhs := sig.Hash{}
-			n, err = rand.Read(rhs[:])
-			Expect(n).To(Equal(32))
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(lhs.Equal(rhs)).To(BeFalse())
-			Expect(lhs.String()).ToNot(Equal(rhs.String()))
+		It("should generate base64 string representation of itself", func() {
+			hash := testutils.RandomHash()
+			expectedHashStr := base64.StdEncoding.EncodeToString(hash[:])
+			Expect(hash.String()).Should(Equal(expectedHashStr))
 		})
 	})
 
-	Context("when testing equality of signatures", func() {
-		It("should return true for empty signatures", func() {
-			lhs := sig.Signature{}
-			rhs := sig.Signature{}
-			Expect(lhs.Equal(rhs)).To(BeTrue())
+	Context("when a random Signature is generated", func() {
+		It("should equal itself", func() {
+			signature := testutils.RandomSignature()
+			Expect(signature.Equal(signature)).Should(BeTrue())
 		})
 
-		It("should return true for the same signatures", func() {
-			lhs := sig.Signature{}
-			n, err := rand.Read(lhs[:])
-			Expect(n).To(Equal(65))
-			Expect(err).ToNot(HaveOccurred())
-
-			rhs := sig.Signature{}
-			copy(rhs[:], lhs[:])
-
-			Expect(lhs.Equal(rhs)).To(BeTrue())
-		})
-
-		It("should return false for two random signatures", func() {
-			lhs := sig.Signature{}
-			n, err := rand.Read(lhs[:])
-			Expect(n).To(Equal(65))
-			Expect(err).ToNot(HaveOccurred())
-
-			rhs := sig.Signature{}
-			n, err = rand.Read(rhs[:])
-			Expect(n).To(Equal(65))
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(lhs.Equal(rhs)).To(BeFalse())
-		})
-
-		It("should return false for signature slices with different lengths", func() {
-			lhs := sig.Signatures{sig.Signature{}}
-			rhs := sig.Signatures{}
-			Expect(lhs.Equal(rhs)).To(BeFalse())
-		})
-
-		It("should return false for random signature slices", func() {
-			lhs := sig.Signatures{}
-			for i := 0; i < 4; i++ {
-				s := sig.Signature{}
-				n, err := rand.Read(s[:])
-				Expect(n).To(Equal(65))
-				Expect(err).ToNot(HaveOccurred())
-				lhs = append(lhs, s)
-			}
-
-			rhs := sig.Signatures{}
-			for i := 0; i < 4; i++ {
-				s := sig.Signature{}
-				n, err := rand.Read(s[:])
-				Expect(n).To(Equal(65))
-				Expect(err).ToNot(HaveOccurred())
-				rhs = append(rhs, s)
-			}
-
-			Expect(lhs.Equal(rhs)).To(BeFalse())
-		})
-
-		It("should return true for the same signature slices", func() {
-			lhs := sig.Signatures{}
-			for i := 0; i < 4; i++ {
-				s := sig.Signature{}
-				n, err := rand.Read(s[:])
-				Expect(n).To(Equal(65))
-				Expect(err).ToNot(HaveOccurred())
-				lhs = append(lhs, s)
-			}
-
-			rhs := sig.Signatures{}
-			for i := 0; i < 4; i++ {
-				s := sig.Signature{}
-				copy(s[:], lhs[i][:])
-				rhs = append(rhs, s)
-			}
-
-			Expect(lhs.Equal(rhs)).To(BeTrue())
+		It("should not equal another signature", func() {
+			signature := testutils.RandomSignature()
+			otherSignature := testutils.RandomSignature()
+			Expect(signature.Equal(otherSignature)).Should(BeFalse())
 		})
 	})
 
-	Context("when testing equality of signatories", func() {
-		It("should return true for empty signatories", func() {
-			lhs := sig.Signatory{}
-			rhs := sig.Signatory{}
-			Expect(lhs.Equal(rhs)).To(BeTrue())
-			Expect(lhs.String()).To(Equal(rhs.String()))
+	Context("when a random Signatory is generated", func() {
+		It("should equal itself", func() {
+			signatory := testutils.RandomSignatory()
+			Expect(signatory.Equal(signatory)).Should(BeTrue())
 		})
 
-		It("should return true for the same signatories", func() {
-			lhs := sig.Signatory{}
-			n, err := rand.Read(lhs[:])
-			Expect(n).To(Equal(20))
-			Expect(err).ToNot(HaveOccurred())
-
-			rhs := sig.Signatory{}
-			copy(rhs[:], lhs[:])
-
-			Expect(lhs.Equal(rhs)).To(BeTrue())
-			Expect(lhs.String()).To(Equal(rhs.String()))
+		It("should not equal another signatory", func() {
+			signatory := testutils.RandomSignatory()
+			otherSignatory := testutils.RandomSignatory()
+			Expect(signatory.Equal(otherSignatory)).Should(BeFalse())
 		})
 
-		It("should return false for two random signatories", func() {
-			lhs := sig.Signatory{}
-			n, err := rand.Read(lhs[:])
-			Expect(n).To(Equal(20))
-			Expect(err).ToNot(HaveOccurred())
-
-			rhs := sig.Signatory{}
-			n, err = rand.Read(rhs[:])
-			Expect(n).To(Equal(20))
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(lhs.Equal(rhs)).To(BeFalse())
-			Expect(lhs.String()).ToNot(Equal(rhs.String()))
-		})
-
-		It("should return false for signatory slices of different lengths", func() {
-			lhs := sig.Signatories{sig.Signatory{}}
-			rhs := sig.Signatories{}
-			Expect(lhs.Equal(rhs)).To(BeFalse())
-		})
-
-		It("should return false for random signatory slices", func() {
-			lhs := sig.Signatories{}
-			for i := 0; i < 4; i++ {
-				s := sig.Signatory{}
-				n, err := rand.Read(s[:])
-				Expect(n).To(Equal(20))
-				Expect(err).ToNot(HaveOccurred())
-				lhs = append(lhs, s)
-			}
-
-			rhs := sig.Signatories{}
-			for i := 0; i < 4; i++ {
-				s := sig.Signatory{}
-				n, err := rand.Read(s[:])
-				Expect(n).To(Equal(20))
-				Expect(err).ToNot(HaveOccurred())
-				rhs = append(rhs, s)
-			}
-
-			Expect(lhs.Equal(rhs)).To(BeFalse())
-		})
-
-		It("should return true for the same signatory slices", func() {
-			lhs := sig.Signatories{}
-			for i := 0; i < 4; i++ {
-				s := sig.Signatory{}
-				n, err := rand.Read(s[:])
-				Expect(n).To(Equal(20))
-				Expect(err).ToNot(HaveOccurred())
-				lhs = append(lhs, s)
-			}
-
-			rhs := sig.Signatories{}
-			for i := 0; i < 4; i++ {
-				s := sig.Signatory{}
-				copy(s[:], lhs[i][:])
-				rhs = append(rhs, s)
-			}
-
-			Expect(lhs.Equal(rhs)).To(BeTrue())
+		It("should generate base64 string representation of itself", func() {
+			signatory := testutils.RandomSignatory()
+			expectedSigStr := base64.StdEncoding.EncodeToString(signatory[:])
+			Expect(signatory.String()).Should(Equal(expectedSigStr))
 		})
 	})
+
+	table := []struct {
+		cap int
+	}{
+		{1},
+		{100},
+		{5000},
+	}
+
+	for _, entry := range table {
+		entry := entry
+
+		Context(fmt.Sprintf("when %d signatures are created", entry.cap), func() {
+			It("should equal a differently ordered similar set of signatures", func() {
+				shuffled := testutils.RandomSignatures(entry.cap)
+
+				signatures := Signatures{}
+				for _, sig := range shuffled {
+					signatures = append(signatures, sig)
+				}
+
+				rand.Shuffle(len(shuffled), func(i, j int) {
+					shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+				})
+
+				Expect(shuffled.Equal(signatures)).Should(BeTrue())
+			})
+
+			It("should not equal a differently ordered smaller subset of signatures", func() {
+				shuffled := testutils.RandomSignatures(entry.cap)
+
+				signatures := Signatures{}
+				for _, sig := range shuffled {
+					signatures = append(signatures, sig)
+				}
+
+				rand.Shuffle(len(shuffled), func(i, j int) {
+					shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+				})
+				shuffled = shuffled[:len(shuffled)-1]
+
+				Expect(shuffled.Equal(signatures)).Should(BeFalse())
+			})
+		})
+
+		Context(fmt.Sprintf("when %d signatories are created", entry.cap), func() {
+			It("should equal a differently ordered similar set of signatories", func() {
+				shuffled := testutils.RandomSignatories(entry.cap)
+
+				signatories := Signatories{}
+				for _, sig := range shuffled {
+					signatories = append(signatories, sig)
+				}
+
+				rand.Shuffle(len(shuffled), func(i, j int) {
+					shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+				})
+
+				Expect(shuffled.Equal(signatories)).Should(BeTrue())
+			})
+
+			It("should not equal a differently ordered smaller subset of signatories", func() {
+				shuffled := testutils.RandomSignatories(entry.cap)
+
+				signatories := Signatories{}
+				for _, sig := range shuffled {
+					signatories = append(signatories, sig)
+				}
+
+				rand.Shuffle(len(shuffled), func(i, j int) {
+					shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+				})
+				shuffled = shuffled[:len(shuffled)-1]
+
+				Expect(shuffled.Equal(signatories)).Should(BeFalse())
+			})
+		})
+	}
 })
