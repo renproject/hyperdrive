@@ -22,25 +22,26 @@ type Replica interface {
 type replica struct {
 	dispatcher Dispatcher
 
-	signer       sig.Signer
-	validator    Validator
-	txPool       tx.Pool
-	stateMachine state.Machine
-	// transitionBuffer state.TransitionBuffer
-	shard     shard.Shard
-	lastBlock block.SignedBlock
+	signer           sig.Signer
+	validator        Validator
+	txPool           tx.Pool
+	stateMachine     state.Machine
+	transitionBuffer state.TransitionBuffer
+	shard            shard.Shard
+	lastBlock        block.SignedBlock
 }
 
-func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, shard shard.Shard, lastBlock block.SignedBlock) Replica {
+func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard shard.Shard, lastBlock block.SignedBlock) Replica {
 	replica := &replica{
 		dispatcher: dispatcher,
 
-		signer:       signer,
-		validator:    NewValidator(signer, shard),
-		txPool:       txPool,
-		stateMachine: stateMachine,
-		shard:        shard,
-		lastBlock:    lastBlock,
+		signer:           signer,
+		validator:        NewValidator(signer, shard),
+		txPool:           txPool,
+		stateMachine:     stateMachine,
+		transitionBuffer: transitionBuffer,
+		shard:            shard,
+		lastBlock:        lastBlock,
 	}
 	return replica
 }
@@ -53,15 +54,20 @@ func (replica *replica) Transition(transition state.Transition) {
 	if replica.shouldDropTransition(transition) {
 		return
 	}
-
-	if !replica.isTransitionValid(transition) {
+	if replica.shouldBufferTransition(transition) {
+		replica.transitionBuffer.Enqueue(transition)
 		return
 	}
-	action := replica.transition(transition)
-	if action != nil {
-		// It is important that the Action is dispatched after the State has been completely transitioned in the
-		// Replica. Otherwise, re-entrance into the Replica may cause issues.
-		replica.dispatchAction(action)
+	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
+		if !replica.isTransitionValid(transition) {
+			return
+		}
+		action := replica.transition(transition)
+		if action != nil {
+			// It is important that the Action is dispatched after the State has been completely transitioned in the
+			// Replica. Otherwise, re-entrance into the Replica may cause issues.
+			replica.dispatchAction(action)
+		}
 	}
 }
 
@@ -92,9 +98,9 @@ func (replica *replica) dispatchAction(action state.Action) {
 			SignedPreCommit: signedPreCommit,
 		})
 	case state.Commit:
-		replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		if action.Commit.Polka.Block != nil {
 			replica.lastBlock = *action.Commit.Polka.Block
+			replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		}
 		replica.generateSignedBlock()
 	}
@@ -130,6 +136,18 @@ func (replica *replica) shouldDropTransition(transition state.Transition) bool {
 		}
 	}
 	return false
+}
+
+func (replica *replica) shouldBufferTransition(transition state.Transition) bool {
+	switch transition := transition.(type) {
+	case state.Proposed:
+		if transition.Height <= replica.stateMachine.Height() {
+			return false
+		}
+		return true
+	default:
+		return false
+	}
 }
 
 func (replica *replica) shouldProposeBlock() bool {
@@ -176,5 +194,11 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 }
 
 func (replica *replica) transition(transition state.Transition) state.Action {
-	return replica.stateMachine.Transition(transition)
+	action := replica.stateMachine.Transition(transition)
+	replica.transitionBuffer.Drop(replica.stateMachine.Height())
+	if commit, ok := action.(state.Commit); ok && commit.Polka.Block != nil {
+		// If round has progressed, drop all prevotes and precommits in the state-machine
+		replica.stateMachine.Drop()
+	}
+	return action
 }
