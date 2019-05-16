@@ -1,8 +1,6 @@
 package block_test
 
 import (
-	"encoding/base64"
-	"fmt"
 	"math/rand"
 	"time"
 
@@ -10,7 +8,6 @@ import (
 	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"github.com/renproject/hyperdrive/testutils"
 	"github.com/renproject/hyperdrive/tx"
-	"golang.org/x/crypto/sha3"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -145,16 +142,3 @@ var _ = Describe("Block", func() {
 		})
 	})
 })
-
-func expectedBlockHeader(block Block) sig.Hash {
-	nilHeader := sig.Hash{}
-	txHeaders := make([]byte, 32*len(block.Txs))
-	for i, tx := range block.Txs {
-		txHeader := tx.Header()
-		copy(txHeaders[32*i:], txHeader[:])
-	}
-	txHeaderSHA3 := sha3.Sum256(txHeaders)
-	txHeaderB64 := base64.StdEncoding.EncodeToString(txHeaderSHA3[:])
-	headerString := fmt.Sprintf("Block(Header=%s,ParentHeader=%s,Timestamp=%d,Height=%d,TxHeader=%s)", base64.StdEncoding.EncodeToString(nilHeader[:]), base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.Unix(), block.Height, txHeaderB64)
-	return sha3.Sum256([]byte(headerString))
-}

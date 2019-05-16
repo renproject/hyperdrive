@@ -36,8 +36,7 @@ func New(height Height, parentHeader sig.Hash, txs tx.Transactions) Block {
 	}
 	txHeaders := make([]byte, 32*len(block.Txs))
 	for i, tx := range block.Txs {
-		txHeader := tx.Header()
-		copy(txHeaders[32*i:], txHeader[:])
+		copy(txHeaders[32*i:], tx[:])
 	}
 	block.TxHeader = sha3.Sum256(txHeaders)
 	block.Header = sha3.Sum256([]byte(block.String()))
