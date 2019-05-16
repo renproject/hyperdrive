@@ -160,21 +160,20 @@ func (replica *replica) generateSignedBlock() {
 			SignedBlock: replica.buildSignedBlock(),
 			Round:       replica.stateMachine.Round(),
 		}
+
 		signedPropose, err := propose.Sign(replica.signer)
 		if err != nil {
 			panic(err)
 		}
-
-		proposed := state.Propose{
+		replica.dispatcher.Dispatch(replica.shard.Hash, state.Propose{
 			SignedPropose: signedPropose,
-		}
-		replica.dispatcher.Dispatch(replica.shard.Hash, proposed)
+		})
 
 		// It is important that the Action is dispatched after the State has been completely transitioned in the
 		// Replica. Otherwise, re-entrance into the Replica may cause issues.
-		// replica.dispatchAction(replica.transition(state.Proposed{
-		// 	SignedPropose: signedPropose,
-		// }))
+		replica.dispatchAction(replica.transition(state.Proposed{
+			SignedPropose: signedPropose,
+		}))
 	}
 }
 
