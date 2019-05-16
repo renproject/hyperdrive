@@ -19,37 +19,12 @@ var _ = Describe("CommitBuilder", func() {
 					builder := NewCommitBuilder()
 					block := Block{
 						Height: 1,
-						Round:  0,
 					}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
 					signedBlock, err := block.Sign(signer)
 					Expect(err).ShouldNot(HaveOccurred())
 
-					precommit := PreCommit{
-						Polka: Polka{
-							Block:  &signedBlock,
-							Height: 0,
-							Round:  0,
-						},
-					}
-					signedPreCommit, err := precommit.Sign(signer)
-					Expect(err).ShouldNot(HaveOccurred())
-					Expect(func() { builder.Insert(signedPreCommit) }).Should(Panic())
-				})
-			})
-
-			Context("when the round is different from the block's round", func() {
-				It("should panic", func() {
-					builder := NewCommitBuilder()
-					block := Block{
-						Height: 0,
-						Round:  1,
-					}
-					signer, err := ecdsa.NewFromRandom()
-					Expect(err).ShouldNot(HaveOccurred())
-					signedBlock, err := block.Sign(signer)
-					Expect(err).ShouldNot(HaveOccurred())
 					precommit := PreCommit{
 						Polka: Polka{
 							Block:  &signedBlock,
@@ -89,7 +64,6 @@ var _ = Describe("CommitBuilder", func() {
 					for i := 0; i < 10; i++ {
 						block := Block{
 							Height: 0,
-							Round:  0,
 						}
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
@@ -118,7 +92,6 @@ var _ = Describe("CommitBuilder", func() {
 					for i := 0; i < 10; i++ {
 						block := Block{
 							Height: 0,
-							Round:  Round(i),
 						}
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
@@ -147,7 +120,6 @@ var _ = Describe("CommitBuilder", func() {
 					for i := 0; i < 10; i++ {
 						block := Block{
 							Height: Height(i),
-							Round:  0,
 						}
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
@@ -178,7 +150,6 @@ var _ = Describe("CommitBuilder", func() {
 					round := Round(mathRand.Intn(100))
 					block := Block{
 						Height: height,
-						Round:  round,
 					}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
@@ -208,7 +179,6 @@ var _ = Describe("CommitBuilder", func() {
 						round := Round(mathRand.Intn(100))
 						block := Block{
 							Height: height,
-							Round:  round,
 						}
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
@@ -241,7 +211,6 @@ var _ = Describe("CommitBuilder", func() {
 
 					block := Block{
 						Height: height,
-						Round:  round,
 						Header: testutils.RandomHash(),
 					}
 					signer, err := ecdsa.NewFromRandom()
@@ -278,7 +247,6 @@ var _ = Describe("CommitBuilder", func() {
 					for i := 0; i < 10; i++ {
 						block := Block{
 							Height: height,
-							Round:  round,
 							Header: testutils.RandomHash(),
 						}
 						signer, err := ecdsa.NewFromRandom()
@@ -310,7 +278,6 @@ var _ = Describe("CommitBuilder", func() {
 					for i := 0; i < 10; i++ {
 						block := Block{
 							Height: 1,
-							Round:  Round(i),
 						}
 						signer, err := ecdsa.NewFromRandom()
 						Expect(err).ShouldNot(HaveOccurred())
@@ -339,7 +306,7 @@ var _ = Describe("CommitBuilder", func() {
 
 	Context("when Commit is converted to string format", func() {
 		It("should return the correct string representation", func() {
-			block := Block{Height: 1, Round: 1}
+			block := Block{Height: 1}
 			signer, err := ecdsa.NewFromRandom()
 			Expect(err).ShouldNot(HaveOccurred())
 			signedBlock, err := block.Sign(signer)
@@ -362,7 +329,7 @@ var _ = Describe("CommitBuilder", func() {
 			builder := NewCommitBuilder()
 			for j := 0; j < 10; j++ {
 				for i := 0; i < 10; i++ {
-					block := Block{Height: 1, Round: Round(i)}
+					block := Block{Height: 1}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
 					signedBlock, err := block.Sign(signer)
@@ -380,7 +347,7 @@ var _ = Describe("CommitBuilder", func() {
 				}
 			}
 
-			block := Block{Height: 2, Round: Round(10)}
+			block := Block{Height: 2}
 			signer, err := ecdsa.NewFromRandom()
 			Expect(err).ShouldNot(HaveOccurred())
 			signedBlock, err := block.Sign(signer)

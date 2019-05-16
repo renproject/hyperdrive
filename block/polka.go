@@ -119,9 +119,6 @@ func (builder PolkaBuilder) Insert(preVote SignedPreVote) bool {
 		if preVote.Block.Height != preVote.Height {
 			panic(fmt.Errorf("expected pre-vote height (%v) to equal pre-vote block height (%v)", preVote.Height, preVote.Block.Height))
 		}
-		if preVote.Block.Round != preVote.Round {
-			panic(fmt.Errorf("expected pre-vote round (%v) to equal pre-vote block round (%v)", preVote.Round, preVote.Block.Round))
-		}
 	}
 
 	if _, ok := builder[preVote.Height]; !ok {
@@ -192,8 +189,8 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (*Polka
 			if preVote.Block.Height != height {
 				panic(fmt.Errorf("expected pre-vote block height (%v) to equal %v", preVote.Block.Height, height))
 			}
-			if preVote.Block.Round != round {
-				panic(fmt.Errorf("expected pre-vote block round (%v) to equal %v", preVote.Block.Round, round))
+			if preVote.Round != round {
+				panic(fmt.Errorf("expected pre-vote round (%v) to equal %v", preVote.Round, round))
 			}
 			preVotesForBlock[preVote.Block.Header]++
 		}

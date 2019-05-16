@@ -11,7 +11,7 @@ import (
 
 // Validator is responsible for handling validation of blocks.
 type Validator interface {
-	// ValidateBlock validates a block.SignedBlock and returns true if
+	// ValidatePropose validates a state.Propose and returns true if
 	// the block is valid.
 	// For a SignedBlock to be valid:
 	// 1. must not be nil
@@ -19,7 +19,7 @@ type Validator interface {
 	// 3. have a valid signature
 	// 4. signatory belongs to the same shard
 	// 5. parent header is the block at head of the shard's blockchain
-	ValidateBlock(signedBlock block.SignedBlock, lastSignedBlock block.SignedBlock) bool
+	ValidatePropose(propose block.SignedPropose, lastSignedBlock block.SignedBlock) bool
 
 	ValidatePreVote(preVote block.SignedPreVote, lastSignedBlock block.SignedBlock) bool
 
@@ -56,6 +56,26 @@ func NewValidator(signer sig.Verifier, shard shard.Shard) Validator {
 	}
 }
 
+func (validator *validator) ValidatePropose(propose block.SignedPropose, lastSignedBlock block.SignedBlock) bool {
+	if propose.Propose.Round < 0 {
+		return false
+	}
+
+	// Compute the PreVote hash
+	hashSum256 := sha3.Sum256([]byte(propose.String()))
+	hash := sig.Hash{}
+	copy(hash[:], hashSum256[:])
+
+	// TODO: Check cache
+
+	// Verify the signature
+	if !validator.verifySignature(hash, propose.Signature, propose.Signatory) {
+		return false
+	}
+
+	return validator.ValidateBlock(*propose.SignedBlock, lastSignedBlock)
+}
+
 func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSignedBlock block.SignedBlock) bool {
 	if signedBlock.Block.Equal(block.Block{}) {
 		return false
@@ -63,7 +83,7 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 	if signedBlock.Time.After(time.Now()) {
 		return false
 	}
-	if signedBlock.Round < 0 || signedBlock.Height < 0 {
+	if signedBlock.Height < 0 {
 		return false
 	}
 
@@ -89,9 +109,6 @@ func (validator *validator) ValidatePreVote(preVote block.SignedPreVote, lastSig
 	// Verify the pre-vote is well-formed
 	if preVote.PreVote.Block != nil {
 		if !validator.ValidateBlock(*preVote.PreVote.Block, lastSignedBlock) {
-			return false
-		}
-		if preVote.PreVote.Round != preVote.PreVote.Block.Round {
 			return false
 		}
 		if preVote.PreVote.Height != preVote.PreVote.Block.Height {
@@ -127,9 +144,6 @@ func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock blo
 	}
 
 	if polka.Block != nil {
-		if polka.Round != polka.Block.Round {
-			return false
-		}
 		if polka.Height != polka.Block.Height {
 			return false
 		}

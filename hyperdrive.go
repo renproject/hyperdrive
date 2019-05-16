@@ -21,7 +21,7 @@ const NumTicksToTriggerTimeOut = 2
 // Hyperdrive accepts blocks and ticks and sends relevant Transitions to the respective replica.
 type Hyperdrive interface {
 	AcceptTick(t time.Time)
-	AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock)
+	AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose)
 	AcceptPreVote(shardHash sig.Hash, preVote block.SignedPreVote)
 	AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit)
 	AcceptShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool)
@@ -65,10 +65,10 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 	}
 }
 
-func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedBlock) {
+func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose) {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
 		hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
-		replica.Transition(state.Proposed{SignedBlock: proposed})
+		replica.Transition(state.Proposed{SignedPropose: proposed})
 	}
 }
 

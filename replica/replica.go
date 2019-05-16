@@ -109,7 +109,7 @@ func (replica *replica) dispatchAction(action state.Action) {
 func (replica *replica) isTransitionValid(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
-		return replica.validator.ValidateBlock(transition.SignedBlock, replica.lastBlock)
+		return replica.validator.ValidatePropose(transition.SignedPropose, replica.lastBlock)
 	case state.PreVoted:
 		return replica.validator.ValidatePreVote(transition.SignedPreVote, replica.lastBlock)
 	case state.PreCommitted:
@@ -156,20 +156,29 @@ func (replica *replica) shouldProposeBlock() bool {
 
 func (replica *replica) generateSignedBlock() {
 	if replica.shouldProposeBlock() {
-		propose := state.Propose{
+		propose := block.Propose{
 			SignedBlock: replica.buildSignedBlock(),
+			Round:       replica.stateMachine.Round(),
 		}
-		replica.dispatcher.Dispatch(replica.shard.Hash, propose)
+		signedPropose, err := propose.Sign(replica.signer)
+		if err != nil {
+			panic(err)
+		}
+
+		proposed := state.Propose{
+			SignedPropose: signedPropose,
+		}
+		replica.dispatcher.Dispatch(replica.shard.Hash, proposed)
 
 		// It is important that the Action is dispatched after the State has been completely transitioned in the
 		// Replica. Otherwise, re-entrance into the Replica may cause issues.
-		replica.dispatchAction(replica.transition(state.Proposed{
-			SignedBlock: propose.SignedBlock,
-		}))
+		// replica.dispatchAction(replica.transition(state.Proposed{
+		// 	SignedPropose: signedPropose,
+		// }))
 	}
 }
 
-func (replica *replica) buildSignedBlock() block.SignedBlock {
+func (replica *replica) buildSignedBlock() *block.SignedBlock {
 	// TODO: We should put more than one transaction into a block.
 	transactions := make(tx.Transactions, 0, block.MaxTransactions)
 	transaction, ok := replica.txPool.Dequeue()
@@ -179,7 +188,6 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 	}
 
 	block := block.New(
-		replica.stateMachine.Round(),
 		replica.stateMachine.Height(),
 		replica.lastBlock.Header,
 		transactions,
@@ -190,7 +198,7 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 		// least be some sane logging and recovery.
 		panic(err)
 	}
-	return signedBlock
+	return &signedBlock
 }
 
 func (replica *replica) transition(transition state.Transition) state.Action {

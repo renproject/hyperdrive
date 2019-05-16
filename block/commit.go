@@ -67,9 +67,6 @@ func (builder CommitBuilder) Insert(preCommit SignedPreCommit) bool {
 		if preCommit.Polka.Block.Height != preCommit.Polka.Height {
 			panic(fmt.Errorf("expected pre-commit height (%v) to equal pre-commit block height (%v)", preCommit.Polka.Height, preCommit.Polka.Block.Height))
 		}
-		if preCommit.Polka.Block.Round != preCommit.Polka.Round {
-			panic(fmt.Errorf("expected pre-commit round (%v) to equal pre-commit block round (%v)", preCommit.Polka.Round, preCommit.Polka.Block.Round))
-		}
 	}
 
 	if _, ok := builder[preCommit.Polka.Height]; !ok {
@@ -140,8 +137,8 @@ func (builder CommitBuilder) Commit(height Height, consensusThreshold int) (*Com
 			if preCommit.Polka.Block.Height != height {
 				panic(fmt.Errorf("expected pre-commit block height (%v) to equal %v", preCommit.Polka.Block.Height, height))
 			}
-			if preCommit.Polka.Block.Round != round {
-				panic(fmt.Errorf("expected pre-commit block round (%v) to equal %v", preCommit.Polka.Block.Round, round))
+			if preCommit.Polka.Round != round {
+				panic(fmt.Errorf("expected pre-commit round (%v) to equal %v", preCommit.Polka.Round, round))
 			}
 			preCommitsForBlock[preCommit.Polka.Block.Header]++
 		}
