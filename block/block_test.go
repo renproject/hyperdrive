@@ -1,8 +1,6 @@
 package block_test
 
 import (
-	"encoding/base64"
-	"fmt"
 	"math/rand"
 	"time"
 
@@ -10,7 +8,6 @@ import (
 	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"github.com/renproject/hyperdrive/testutils"
 	"github.com/renproject/hyperdrive/tx"
-	"golang.org/x/crypto/sha3"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -24,6 +21,7 @@ var _ = Describe("Block", func() {
 
 			blockchain := Blockchain{}
 			Expect(blockchain.Height()).To(Equal(genesis.Height))
+			Expect(blockchain.Round()).To(BeNil())
 			head, ok := blockchain.Head()
 			Expect(ok).To(BeFalse())
 			Expect(head).To(Equal(genesis))
@@ -94,6 +92,33 @@ var _ = Describe("Block", func() {
 				Expect(block).To(Equal(queryBlock))
 			})
 
+			It("should return blocks for a given range", func() {
+				blockchain := NewBlockchain()
+				for i := 0; i < 10; i++ {
+					block := Block{Height: Height(i), Header: testutils.RandomHash()}
+					signer, err := ecdsa.NewFromRandom()
+					Expect(err).ShouldNot(HaveOccurred())
+					signedBlock, err := block.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
+					commit := Commit{
+						Polka: Polka{
+							Block:       &signedBlock,
+							Round:       Round(i),
+							Height:      Height(i),
+							Signatures:  testutils.RandomSignatures(10),
+							Signatories: testutils.RandomSignatories(10),
+						},
+					}
+					blockchain.Extend(commit)
+				}
+
+				blocks := blockchain.Blocks(0, 5)
+				Expect(len(blocks)).To(Equal(5))
+
+				blocks = blockchain.Blocks(10, 15)
+				Expect(len(blocks)).To(Equal(0))
+			})
+
 			Context("when nil commits are inserted", func() {
 				It("should not insert the block", func() {
 					genesis := Genesis()
@@ -145,17 +170,21 @@ var _ = Describe("Block", func() {
 			Expect(genesis).To(Equal(expectedGenesis))
 		})
 	})
-})
 
-func expectedBlockHeader(block Block) sig.Hash {
-	nilHeader := sig.Hash{}
-	txHeaders := make([]byte, 32*len(block.Txs))
-	for i, tx := range block.Txs {
-		txHeader := tx.Header()
-		copy(txHeaders[32*i:], txHeader[:])
-	}
-	txHeaderSHA3 := sha3.Sum256(txHeaders)
-	txHeaderB64 := base64.StdEncoding.EncodeToString(txHeaderSHA3[:])
-	headerString := fmt.Sprintf("Block(Header=%s,ParentHeader=%s,Timestamp=%d,Height=%d,TxHeader=%s)", base64.StdEncoding.EncodeToString(nilHeader[:]), base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.Unix(), block.Height, txHeaderB64)
-	return sha3.Sum256([]byte(headerString))
-}
+	Context("when a new propose block is generated", func() {
+		It("should not error while signing", func() {
+			block := New(1, Genesis().Header, []tx.Transaction{testutils.RandomTransaction(), testutils.RandomTransaction()})
+			signer, err := ecdsa.NewFromRandom()
+			Expect(err).ShouldNot(HaveOccurred())
+			signedBlock, err := block.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
+			propose := Propose{
+				SignedBlock: &signedBlock,
+				Round:       1,
+			}
+			signedPropose, err := propose.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(signedPropose.Round).To(Equal(Round(1)))
+		})
+	})
+})
