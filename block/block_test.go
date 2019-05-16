@@ -27,7 +27,7 @@ var _ = Describe("Block", func() {
 			head, ok := blockchain.Head()
 			Expect(ok).To(BeFalse())
 			Expect(head).To(Equal(genesis))
-			block, ok := blockchain.Block(sig.Hash{})
+			block, ok := blockchain.Block(Height(0))
 			Expect(ok).To(BeFalse())
 			Expect(block).To(Equal(genesis))
 		})
@@ -88,7 +88,7 @@ var _ = Describe("Block", func() {
 					blockchain.Extend(commit)
 				}
 
-				block, ok := blockchain.Block(queryBlock.Header)
+				block, ok := blockchain.Block(queryBlock.Height)
 				Expect(ok).To(BeTrue())
 				Expect(block).To(Equal(queryBlock))
 			})
