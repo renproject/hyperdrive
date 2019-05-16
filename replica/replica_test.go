@@ -22,6 +22,7 @@ var _ = Describe("Replica", func() {
 
 	Context("when Init is called", func() {
 		It("should generate a new block", func() {
+			transitionBuffer := state.NewTransitionBuffer(128)
 			pool := tx.FIFOPool(100)
 			signer, err := ecdsa.NewFromRandom()
 			Expect(err).ShouldNot(HaveOccurred())
@@ -33,7 +34,7 @@ var _ = Describe("Replica", func() {
 			}
 			stateMachine := state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), 1)
 
-			replica := New(newMockDispatcher(), signer, pool, stateMachine, shard, block.Genesis())
+			replica := New(newMockDispatcher(), signer, pool, stateMachine, transitionBuffer, shard, block.Genesis())
 			Expect(func() { replica.Init() }).ToNot(Panic())
 		})
 	})
@@ -53,12 +54,12 @@ var _ = Describe("Replica", func() {
 			panic(fmt.Sprintf("error generating random SignerVerifier: %v", err))
 		}
 		testCases := generateTestCases(signer, participant1, participant2)
-		for _, t := range testCases {
+		for ind, t := range testCases {
 			t := t
-
-			Context(fmt.Sprintf("when replica starts with intial state - %s", reflect.TypeOf(t.startingState).Name()), func() {
+			ind := ind
+			Context(fmt.Sprintf("%d when replica starts with intial state - %s", ind, reflect.TypeOf(t.startingState).Name()), func() {
 				It(fmt.Sprintf("should arrive at %s", reflect.TypeOf(t.finalState).Name()), func() {
-
+					transitionBuffer := state.NewTransitionBuffer(128)
 					pool := tx.FIFOPool(100)
 
 					for i := 0; i < 100; i++ {
@@ -74,7 +75,7 @@ var _ = Describe("Replica", func() {
 					}
 					stateMachine := state.NewMachine(t.startingState, block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
 
-					replica := New(NewMockDispatcher(), signer, pool, stateMachine, shard, block.Genesis())
+					replica := New(NewMockDispatcher(), signer, pool, stateMachine, transitionBuffer, shard, block.Genesis())
 					for _, transition := range t.transitions {
 						replica.Transition(transition)
 					}
@@ -505,7 +506,7 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 			consensusThreshold: 1,
 
 			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPolka{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.Proposed{
@@ -631,7 +632,7 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 			consensusThreshold: 3,
 
 			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPolka{},
+			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
 				state.Proposed{
