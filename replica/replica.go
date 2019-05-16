@@ -60,7 +60,7 @@ func (replica *replica) Transition(transition state.Transition) {
 	}
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
 		if !replica.isTransitionValid(transition) {
-			return
+			continue
 		}
 		action := replica.transition(transition)
 		if action != nil {
@@ -141,6 +141,7 @@ func (replica *replica) shouldDropTransition(transition state.Transition) bool {
 func (replica *replica) shouldBufferTransition(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
+		// Only buffer Proposals from the future
 		if transition.Height <= replica.stateMachine.Height() {
 			return false
 		}
