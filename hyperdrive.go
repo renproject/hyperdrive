@@ -24,7 +24,10 @@ type Hyperdrive interface {
 	AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose)
 	AcceptPreVote(shardHash sig.Hash, preVote block.SignedPreVote)
 	AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit)
-	AcceptShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool)
+
+	BeginShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool)
+	EndShard(shardHash sig.Hash)
+	DropShard(shardHash sig.Hash)
 }
 
 type hyperdrive struct {
@@ -32,7 +35,6 @@ type hyperdrive struct {
 	dispatcher replica.Dispatcher
 
 	shardReplicas map[sig.Hash]replica.Replica
-	shardHistory  []sig.Hash
 
 	ticksPerShard map[sig.Hash]int
 }
@@ -44,7 +46,6 @@ func New(signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
 		dispatcher: dispatcher,
 
 		shardReplicas: map[sig.Hash]replica.Replica{},
-		shardHistory:  []sig.Hash{},
 
 		ticksPerShard: map[sig.Hash]int{},
 	}
@@ -84,7 +85,7 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 	}
 }
 
-func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool) {
+func (hyperdrive *hyperdrive) BeginShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool) {
 	if _, ok := hyperdrive.shardReplicas[shard.Hash]; ok {
 		return
 	}
@@ -100,12 +101,18 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, head block.SignedBl
 	)
 
 	hyperdrive.shardReplicas[shard.Hash] = r
-	hyperdrive.shardHistory = append(hyperdrive.shardHistory, shard.Hash)
 	hyperdrive.ticksPerShard[shard.Hash] = 0
-	if len(hyperdrive.shardHistory) > NumHistoricalShards {
-		delete(hyperdrive.shardReplicas, hyperdrive.shardHistory[0])
-		hyperdrive.shardHistory = hyperdrive.shardHistory[1:]
-	}
 
 	r.Init()
+}
+
+func (hyperdrive *hyperdrive) EndShard(shardHahs sig.Hash) {
+	// TODO: Stop the replica from pre-voting on blocks that contain
+	// transactions. It will only pre-vote on blocks that contain the "end
+	// shard" transaction.
+}
+
+func (hyperdrive *hyperdrive) DropShard(shardHash sig.Hash) {
+	delete(hyperdrive.shardReplicas, shardHash)
+	delete(hyperdrive.ticksPerShard, shardHash)
 }
