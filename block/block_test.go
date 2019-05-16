@@ -24,7 +24,6 @@ var _ = Describe("Block", func() {
 
 			blockchain := Blockchain{}
 			Expect(blockchain.Height()).To(Equal(genesis.Height))
-			Expect(blockchain.Round()).To(Equal(genesis.Round))
 			head, ok := blockchain.Head()
 			Expect(ok).To(BeFalse())
 			Expect(head).To(Equal(genesis))
@@ -39,7 +38,7 @@ var _ = Describe("Block", func() {
 				block := Block{}
 				signedBlock := SignedBlock{}
 				for i := 0; i < 10; i++ {
-					block = Block{Height: Height(i), Round: Round(i), Header: testutils.RandomHash()}
+					block = Block{Height: Height(i), Header: testutils.RandomHash()}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
 					signedBlock, err = block.Sign(signer)
@@ -58,7 +57,7 @@ var _ = Describe("Block", func() {
 				}
 
 				Expect(blockchain.Height()).To(Equal(Height(9)))
-				Expect(blockchain.Round()).To(Equal(Round(9)))
+				Expect(*blockchain.Round()).To(Equal(Round(9)))
 				head, ok := blockchain.Head()
 				Expect(ok).To(BeTrue())
 				Expect(head).To(Equal(signedBlock))
@@ -69,7 +68,7 @@ var _ = Describe("Block", func() {
 				queryIndex := rand.Intn(10)
 				queryBlock := Genesis()
 				for i := 0; i < 10; i++ {
-					block := Block{Height: Height(i), Round: Round(i), Header: testutils.RandomHash()}
+					block := Block{Height: Height(i), Header: testutils.RandomHash()}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
 					signedBlock, err := block.Sign(signer)
@@ -111,7 +110,7 @@ var _ = Describe("Block", func() {
 					blockchain.Extend(commit)
 
 					Expect(blockchain.Height()).To(Equal(genesis.Height))
-					Expect(blockchain.Round()).To(Equal(genesis.Round))
+					Expect(*blockchain.Round()).To(Equal(Round(0)))
 					head, ok := blockchain.Head()
 					Expect(ok).To(BeTrue())
 					Expect(head).To(Equal(genesis))
@@ -122,7 +121,7 @@ var _ = Describe("Block", func() {
 
 	Context("when a new block is generated", func() {
 		It("should populate the block header", func() {
-			block := New(1, 1, Genesis().Header, []tx.Transaction{testutils.RandomTransaction(), testutils.RandomTransaction()})
+			block := New(1, Genesis().Header, []tx.Transaction{testutils.RandomTransaction(), testutils.RandomTransaction()})
 			Expect(block.Header).NotTo(BeNil())
 			Expect(block.Header).NotTo(Equal(sig.Hash{}))
 		})
@@ -134,7 +133,6 @@ var _ = Describe("Block", func() {
 			expectedGenesis := SignedBlock{
 				Block: Block{
 					Time:         time.Unix(0, 0),
-					Round:        0,
 					Height:       0,
 					Header:       sig.Hash{},
 					ParentHeader: sig.Hash{},
@@ -157,6 +155,6 @@ func expectedBlockHeader(block Block) sig.Hash {
 	}
 	txHeaderSHA3 := sha3.Sum256(txHeaders)
 	txHeaderB64 := base64.StdEncoding.EncodeToString(txHeaderSHA3[:])
-	headerString := fmt.Sprintf("Block(Header=%s,ParentHeader=%s,Timestamp=%d,Round=%d,Height=%d,TxHeader=%s)", base64.StdEncoding.EncodeToString(nilHeader[:]), base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.Unix(), block.Round, block.Height, txHeaderB64)
+	headerString := fmt.Sprintf("Block(Header=%s,ParentHeader=%s,Timestamp=%d,Height=%d,TxHeader=%s)", base64.StdEncoding.EncodeToString(nilHeader[:]), base64.StdEncoding.EncodeToString(block.ParentHeader[:]), block.Time.Unix(), block.Height, txHeaderB64)
 	return sha3.Sum256([]byte(headerString))
 }

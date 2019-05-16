@@ -41,7 +41,7 @@ func (timedOut TimedOut) IsTransition() {
 
 // A Proposed block has been received by another Replica.
 type Proposed struct {
-	block.SignedBlock
+	block.SignedPropose
 }
 
 // IsTransition implements the `Transition` interface for the
@@ -100,7 +100,7 @@ func NewTransitionBuffer(cap int) TransitionBuffer {
 func (buffer *transitionBuffer) Enqueue(transition Transition) {
 	switch transition := transition.(type) {
 	case Proposed:
-		buffer.newQueue(transition.Height)
+		buffer.newQueue(transition.Block.Height)
 		if len(buffer.queues[transition.Height]) > 0 {
 			switch buffer.queues[transition.Height][0].(type) {
 			case PreVoted:

@@ -19,9 +19,7 @@ type Round int64
 type Height int64
 
 type Block struct {
-	Time time.Time
-	//TODO: request clarification on Round
-	Round        Round
+	Time         time.Time
 	Height       Height
 	Header       sig.Hash
 	ParentHeader sig.Hash
@@ -29,10 +27,9 @@ type Block struct {
 	TxHeader     sig.Hash
 }
 
-func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions) Block {
+func New(height Height, parentHeader sig.Hash, txs tx.Transactions) Block {
 	block := Block{
 		Time:         time.Now(),
-		Round:        round,
 		Height:       height,
 		ParentHeader: parentHeader,
 		Txs:          txs,
@@ -49,8 +46,7 @@ func New(round Round, height Height, parentHeader sig.Hash, txs tx.Transactions)
 
 // Equal excludes time from equality check
 func (block Block) Equal(other Block) bool {
-	return block.Round == other.Round &&
-		block.Height == other.Height &&
+	return block.Height == other.Height &&
 		block.Header.Equal(other.Header) &&
 		block.ParentHeader.Equal(other.ParentHeader)
 }
@@ -71,7 +67,7 @@ func (block Block) Sign(signer sig.Signer) (SignedBlock, error) {
 }
 
 func (block Block) String() string {
-	return fmt.Sprintf("Block(Height=%d,Round=%d,Timestamp=%d,TxHeader=%s,ParentHeader=%s)", block.Height, block.Round, block.Time.Unix(), block.TxHeader, block.ParentHeader)
+	return fmt.Sprintf("Block(Height=%d,Timestamp=%d,TxHeader=%s,ParentHeader=%s)", block.Height, block.Time.Unix(), block.TxHeader, block.ParentHeader)
 }
 
 type SignedBlock struct {
@@ -85,7 +81,6 @@ func Genesis() SignedBlock {
 	return SignedBlock{
 		Block: Block{
 			Time:         time.Unix(0, 0),
-			Round:        0,
 			Height:       0,
 			Header:       sig.Hash{},
 			ParentHeader: sig.Hash{},
@@ -97,7 +92,43 @@ func Genesis() SignedBlock {
 }
 
 func (signedBlock SignedBlock) String() string {
-	return fmt.Sprintf("Block(Height=%d,Round=%d,Timestamp=%d,TxHeader=%s,ParentHeader=%s,Header=%s)", signedBlock.Height, signedBlock.Round, signedBlock.Time.Unix(), signedBlock.TxHeader, signedBlock.ParentHeader, signedBlock.Header)
+	return fmt.Sprintf("Block(Height=%d,Timestamp=%d,TxHeader=%s,ParentHeader=%s,Header=%s)", signedBlock.Height, signedBlock.Time.Unix(), signedBlock.TxHeader, signedBlock.ParentHeader, signedBlock.Header)
+}
+
+type Propose struct {
+	*SignedBlock
+	Round Round
+}
+
+// Sign a Propose with your private key
+func (propose Propose) Sign(signer sig.Signer) (SignedPropose, error) {
+	data := []byte(propose.String())
+
+	hashSum256 := sha3.Sum256(data)
+	hash := sig.Hash{}
+	copy(hash[:], hashSum256[:])
+
+	signature, err := signer.Sign(hash)
+	if err != nil {
+		return SignedPropose{}, err
+	}
+
+	return SignedPropose{
+		Propose:   propose,
+		Signature: signature,
+		Signatory: signer.Signatory(),
+	}, nil
+}
+
+func (propose Propose) String() string {
+	return fmt.Sprintf("Propose(%s)", propose.Block.String())
+}
+
+type SignedPropose struct {
+	Propose
+
+	Signature sig.Signature
+	Signatory sig.Signatory
 }
 
 type Blockchain struct {
@@ -125,11 +156,11 @@ func (blockchain *Blockchain) Height() Height {
 	return blockchain.head.Polka.Block.Height
 }
 
-func (blockchain *Blockchain) Round() Round {
+func (blockchain *Blockchain) Round() *Round {
 	if blockchain.head.Polka.Block == nil {
-		return Genesis().Round
+		return nil
 	}
-	return blockchain.head.Polka.Block.Round
+	return &blockchain.head.Polka.Round
 }
 
 func (blockchain *Blockchain) Head() (SignedBlock, bool) {

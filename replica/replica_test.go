@@ -124,8 +124,8 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 						PreCommit: block.PreCommit{
 							Polka: block.Polka{
 								Height: 1,
+								Round:  2,
 								Block: testutils.SignBlock(block.Block{
-									Round:        2,
 									Header:       testutils.RandomHash(),
 									ParentHeader: testutils.RandomHash(),
 								}, signer),
@@ -394,11 +394,13 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 
 			transitions: []state.Transition{
 				state.Proposed{
-					SignedBlock: *testutils.SignBlock(block.Block{
-						Height:       1,
-						Header:       testutils.RandomHash(),
-						ParentHeader: testutils.RandomHash(),
-					}, signer),
+					SignedPropose: testutils.GenerateSignedPropose(
+						*testutils.SignBlock(block.Block{
+							Height:       1,
+							Header:       testutils.RandomHash(),
+							ParentHeader: testutils.RandomHash(),
+						}, signer),
+						1, signer),
 				},
 			},
 		},
@@ -411,59 +413,11 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 
 			transitions: []state.Transition{
 				state.Proposed{
-					SignedBlock: *testutils.SignBlock(block.Block{Height: 1}, maliciousSigner),
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{
-							Height: -1,
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{
-							Round: -1,
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{
+					SignedPropose: testutils.GenerateSignedPropose(
+						*testutils.SignBlock(block.Block{
 							Height: 1,
-							Time:   time.Now().Add(10 * time.Minute),
-						},
-					},
+						}, maliciousSigner),
+						1, maliciousSigner),
 				},
 			},
 		},
@@ -476,13 +430,12 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 
 			transitions: []state.Transition{
 				state.Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{
-							Height: 0,
-							Header: testutils.RandomHash(),
-						},
-						Signature: testutils.RandomSignature(),
-					},
+					SignedPropose: testutils.GenerateSignedPropose(
+						block.SignedBlock{
+							Block: block.Block{
+								Height: -1,
+							},
+						}, 1, maliciousSigner),
 				},
 			},
 		},
@@ -495,9 +448,10 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 
 			transitions: []state.Transition{
 				state.Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{},
-					},
+					SignedPropose: testutils.GenerateSignedPropose(
+						block.SignedBlock{
+							Block: block.Block{},
+						}, -1, signer),
 				},
 			},
 		},
@@ -510,7 +464,62 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 
 			transitions: []state.Transition{
 				state.Proposed{
-					SignedBlock: *signedBlock,
+					SignedPropose: testutils.GenerateSignedPropose(
+						block.SignedBlock{
+							Block: block.Block{
+								Height: 1,
+								Time:   time.Now().Add(10 * time.Minute),
+							},
+						}, 1, signer),
+				},
+			},
+		},
+
+		{
+			consensusThreshold: 1,
+
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
+
+			transitions: []state.Transition{
+				state.Proposed{
+					SignedPropose: testutils.GenerateSignedPropose(
+						block.SignedBlock{
+							Block: block.Block{
+								Height: 0,
+								Header: testutils.RandomHash(),
+							},
+							Signature: testutils.RandomSignature(),
+						}, 1, signer),
+				},
+			},
+		},
+
+		{
+			consensusThreshold: 1,
+
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
+
+			transitions: []state.Transition{
+				state.Proposed{
+					SignedPropose: testutils.GenerateSignedPropose(
+						block.SignedBlock{
+							Block: block.Block{},
+						}, 1, signer),
+				},
+			},
+		},
+
+		{
+			consensusThreshold: 1,
+
+			startingState: state.WaitingForPropose{},
+			finalState:    state.WaitingForPropose{},
+
+			transitions: []state.Transition{
+				state.Proposed{
+					SignedPropose: testutils.GenerateSignedPropose(*signedBlock, 1, signer),
 				},
 			},
 		},
@@ -554,9 +563,10 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 
 			transitions: []state.Transition{
 				state.Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{},
-					},
+					SignedPropose: testutils.GenerateSignedPropose(
+						block.SignedBlock{
+							Block: block.Block{},
+						}, 1, signer),
 				},
 			},
 		},
@@ -569,11 +579,12 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 
 			transitions: []state.Transition{
 				state.Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{
-							Height: -1,
-						},
-					},
+					SignedPropose: testutils.GenerateSignedPropose(
+						block.SignedBlock{
+							Block: block.Block{
+								Height: -1,
+							},
+						}, 1, signer),
 				},
 				state.PreVoted{
 					SignedPreVote: block.SignedPreVote{
@@ -636,7 +647,7 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 
 			transitions: []state.Transition{
 				state.Proposed{
-					SignedBlock: *signedFutureBlock,
+					SignedPropose: testutils.GenerateSignedPropose(*signedFutureBlock, 1, signer),
 				},
 				state.PreVoted{
 					SignedPreVote: testutils.GenerateSignedPreVote(*signedFutureBlock, signer),
@@ -657,7 +668,7 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 					SignedPreCommit: testutils.GenerateSignedPreCommit(*signedFutureBlock, p2, []sig.SignerVerifier{signer, p1, p2}),
 				},
 				state.Proposed{
-					SignedBlock: *signedBlock,
+					SignedPropose: testutils.GenerateSignedPropose(*signedBlock, 1, signer),
 				},
 				state.PreVoted{
 					SignedPreVote: testutils.GenerateSignedPreVote(*signedBlock, signer),

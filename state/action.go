@@ -7,7 +7,7 @@ type Action interface {
 }
 
 type Propose struct {
-	block.SignedBlock
+	block.SignedPropose
 }
 
 func (Propose) IsAction() {

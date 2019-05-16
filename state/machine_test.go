@@ -79,7 +79,13 @@ func generateTestCases() []TestCase {
 
 			transitions: []Transition{
 				Proposed{
-					SignedBlock: genesis,
+					SignedPropose: block.SignedPropose{
+						Propose: block.Propose{
+							SignedBlock: &genesis,
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
 				},
 				PreVoted{
 					block.SignedPreVote{
@@ -140,9 +146,9 @@ func generateTestCases() []TestCase {
 							Block: &block.SignedBlock{
 								Block: block.Block{
 									Height: 0,
-									Round:  0,
 								},
 							},
+							Round: 0,
 						},
 					},
 				},
@@ -158,8 +164,14 @@ func generateTestCases() []TestCase {
 
 			transitions: []Transition{
 				Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{},
+					SignedPropose: block.SignedPropose{
+						Propose: block.Propose{
+							SignedBlock: &block.SignedBlock{
+								Block: block.Block{},
+							},
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 				PreVoted{
@@ -168,8 +180,24 @@ func generateTestCases() []TestCase {
 							Block: &block.SignedBlock{
 								Block: block.Block{
 									Height: 0,
-									Round:  0,
 								},
+							},
+							Round: 0,
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+				PreCommitted{
+					block.SignedPreCommit{
+						PreCommit: block.PreCommit{
+							Polka: block.Polka{
+								Block: &block.SignedBlock{
+									Block: block.Block{
+										Height: 0,
+									},
+								},
+								Round:  0,
 							},
 						},
 						Signatory: testutils.RandomSignatory(),
@@ -183,25 +211,9 @@ func generateTestCases() []TestCase {
 								Block: &block.SignedBlock{
 									Block: block.Block{
 										Height: 0,
-										Round:  0,
 									},
 								},
-							},
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
-				},
-				PreCommitted{
-					block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Block: &block.SignedBlock{
-									Block: block.Block{
-										Height: 0,
-										Round:  0,
-									},
-								},
+								Round: 0,
 							},
 						},
 						Signatory: testutils.RandomSignatory(),
@@ -220,11 +232,17 @@ func generateTestCases() []TestCase {
 
 			transitions: []Transition{
 				Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{
-							Height: 0,
-							Round:  0,
+					SignedPropose: block.SignedPropose{
+						Propose: block.Propose{
+							SignedBlock: &block.SignedBlock{
+								Block: block.Block{
+									Height: 0,
+								},
+							},
+							Round: 0,
 						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 				PreVoted{
@@ -233,8 +251,24 @@ func generateTestCases() []TestCase {
 							Block: &block.SignedBlock{
 								Block: block.Block{
 									Height: 0,
-									Round:  0,
 								},
+							},
+							Round: 0,
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+				PreCommitted{
+					block.SignedPreCommit{
+						PreCommit: block.PreCommit{
+							Polka: block.Polka{
+								Block: &block.SignedBlock{
+									Block: block.Block{
+										Height: 0,
+									},
+								},
+								Round: 0,
 							},
 						},
 						Signatory: testutils.RandomSignatory(),
@@ -248,25 +282,9 @@ func generateTestCases() []TestCase {
 								Block: &block.SignedBlock{
 									Block: block.Block{
 										Height: 0,
-										Round:  0,
 									},
 								},
-							},
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
-				},
-				PreCommitted{
-					block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Block: &block.SignedBlock{
-									Block: block.Block{
-										Height: 0,
-										Round:  0,
-									},
-								},
+								Round: 0,
 							},
 						},
 						Signatory: testutils.RandomSignatory(),
@@ -309,8 +327,14 @@ func generateTestCases() []TestCase {
 
 			transitions: []Transition{
 				Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{},
+					SignedPropose: block.SignedPropose{
+						Propose: block.Propose{
+							SignedBlock: &block.SignedBlock{
+								Block: block.Block{},
+							},
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 			},
@@ -325,8 +349,14 @@ func generateTestCases() []TestCase {
 
 			transitions: []Transition{
 				Proposed{
-					SignedBlock: block.SignedBlock{
-						Block: block.Block{},
+					SignedPropose: block.SignedPropose{
+						Propose: block.Propose{
+							SignedBlock: &block.SignedBlock{
+								Block: block.Block{},
+							},
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
 					},
 				},
 			},
@@ -346,7 +376,6 @@ func generateTestCases() []TestCase {
 							Block: &block.SignedBlock{
 								Block: block.Block{
 									Height: 0,
-									Round:  0,
 								},
 							},
 							Round:  0,
@@ -371,7 +400,6 @@ func generateTestCases() []TestCase {
 							Block: &block.SignedBlock{
 								Block: block.Block{
 									Height: 1,
-									Round:  0,
 								},
 							},
 							Round:  0,
@@ -397,7 +425,6 @@ func generateTestCases() []TestCase {
 								Block: &block.SignedBlock{
 									Block: block.Block{
 										Height: 0,
-										Round:  0,
 									},
 								},
 								Height: 0,

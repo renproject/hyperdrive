@@ -228,7 +228,7 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 			case ActionObject:
 				switch action := input.action.(type) {
 				case state.Propose:
-					h.AcceptPropose(input.shardHash, action.SignedBlock)
+					h.AcceptPropose(input.shardHash, action.SignedPropose)
 				case state.SignedPreVote:
 					h.AcceptPreVote(input.shardHash, action.SignedPreVote)
 				case state.SignedPreCommit:

@@ -30,7 +30,8 @@ var _ = Describe("TransitionBuffer", func() {
 					incrementHeight++
 				}
 
-				genesis := Proposed{SignedBlock: block.Genesis()}
+				genesisBlock := block.Genesis()
+				genesis := Proposed{SignedPropose: block.SignedPropose{Propose: block.Propose{SignedBlock: &genesisBlock}}}
 				var height block.Height
 				height = 0
 				scratch := make(map[block.Height]uint8)
@@ -193,7 +194,8 @@ func (m *mockInput) nextTransition() Transition {
 
 	switch nextTran {
 	case mockProposed:
-		gen := Proposed{SignedBlock: block.Genesis()}
+		genesisBlock := block.Genesis()
+		gen := Proposed{SignedPropose: block.SignedPropose{Propose: block.Propose{SignedBlock: &genesisBlock}}}
 		gen.Height = m.height
 		rndTransition = gen
 		// The only time I would ever Dequeue a Propose is if either
