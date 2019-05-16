@@ -35,14 +35,15 @@ var _ = Describe("Block", func() {
 		Context("when valid commits are inserted", func() {
 			It("should return latest block", func() {
 				blockchain := NewBlockchain()
-				block := Block{}
-				signedBlock := SignedBlock{}
+				header := sig.Hash{}
 				for i := 0; i < 10; i++ {
-					block = Block{Height: Height(i), Header: testutils.RandomHash()}
+					block := Block{Height: Height(i), Header: testutils.RandomHash()}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
-					signedBlock, err = block.Sign(signer)
+					signedBlock, err := block.Sign(signer)
 					Expect(err).ShouldNot(HaveOccurred())
+
+					header = signedBlock.Header
 
 					commit := Commit{
 						Polka: Polka{
@@ -60,7 +61,7 @@ var _ = Describe("Block", func() {
 				Expect(*blockchain.Round()).To(Equal(Round(9)))
 				head, ok := blockchain.Head()
 				Expect(ok).To(BeTrue())
-				Expect(head).To(Equal(signedBlock))
+				Expect(head.Header).To(Equal(header))
 			})
 
 			It("should return block for a specific header", func() {
