@@ -125,7 +125,7 @@ func (replica *replica) isTransitionValid(transition state.Transition) bool {
 func (replica *replica) shouldDropTransition(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
-		if transition.Height < replica.stateMachine.Height() {
+		if transition.Block.Height < replica.stateMachine.Height() {
 			return true
 		}
 	case state.PreVoted:
@@ -144,7 +144,7 @@ func (replica *replica) shouldBufferTransition(transition state.Transition) bool
 	switch transition := transition.(type) {
 	case state.Proposed:
 		// Only buffer Proposals from the future
-		if transition.Height <= replica.stateMachine.Height() {
+		if transition.Block.Height <= replica.stateMachine.Height() {
 			return false
 		}
 		return true
@@ -160,8 +160,8 @@ func (replica *replica) shouldProposeBlock() bool {
 func (replica *replica) generateSignedBlock() {
 	if replica.shouldProposeBlock() {
 		propose := block.Propose{
-			SignedBlock: replica.buildSignedBlock(),
-			Round:       replica.stateMachine.Round(),
+			Block: replica.buildSignedBlock(),
+			Round: replica.stateMachine.Round(),
 		}
 
 		signedPropose, err := propose.Sign(replica.signer)

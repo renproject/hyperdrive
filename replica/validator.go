@@ -58,8 +58,8 @@ func NewValidator(signer sig.Verifier, shard shard.Shard) Validator {
 }
 
 func (validator *validator) ValidatePropose(propose block.SignedPropose, lastSignedBlock block.SignedBlock) bool {
-	if propose.Propose.Round < 0 {
-		fmt.Println("round check failed", propose.Propose.Round)
+	if propose.Round < 0 {
+		fmt.Println("round check failed", propose.Round)
 		return false
 	}
 
@@ -72,11 +72,11 @@ func (validator *validator) ValidatePropose(propose block.SignedPropose, lastSig
 
 	// Verify the signature
 	if !validator.verifySignature(hash, propose.Signature, propose.Signatory) {
-		fmt.Println("sig check failed")
+		fmt.Printf("sig check failed %s %s %s \n", hash, propose.Signature, propose.String())
 		return false
 	}
 
-	return validator.ValidateBlock(propose.SignedBlock, lastSignedBlock)
+	return validator.ValidateBlock(propose.Block, lastSignedBlock)
 }
 
 func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSignedBlock block.SignedBlock) bool {

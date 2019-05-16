@@ -95,7 +95,7 @@ func (signedBlock SignedBlock) String() string {
 }
 
 type Propose struct {
-	SignedBlock
+	Block SignedBlock
 	Round Round
 }
 
@@ -112,6 +112,7 @@ func (propose Propose) Sign(signer sig.Signer) (SignedPropose, error) {
 		return SignedPropose{}, err
 	}
 
+	fmt.Printf(" generating sig %s %s %s \n", hash, signature, propose.String())
 	return SignedPropose{
 		Propose:   propose,
 		Signature: signature,
@@ -120,7 +121,7 @@ func (propose Propose) Sign(signer sig.Signer) (SignedPropose, error) {
 }
 
 func (propose Propose) String() string {
-	return fmt.Sprintf("Propose(%s)", propose.SignedBlock.String())
+	return fmt.Sprintf("Propose(%s)", propose.Block.String())
 }
 
 type SignedPropose struct {

@@ -79,7 +79,7 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 		// FIXME: Proposals can (optionally) include a Polka to encourage
 		// unlocking faster than would otherwise be possible.
 		machine.state = WaitingForPolka{}
-		return machine.preVote(&transition.SignedBlock)
+		return machine.preVote(&transition.Block)
 
 	case PreVoted:
 		_ = machine.polkaBuilder.Insert(transition.SignedPreVote)
