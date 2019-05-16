@@ -187,12 +187,12 @@ func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
 	}
 }
 
-func (blockchain *Blockchain) Blocks(blockNumber Height, n int64) []Commit {
+func (blockchain *Blockchain) Blocks(start, end Height) []Commit {
 	var block Commit
 	var ok bool
 
 	blocks := []Commit{}
-	for i := blockNumber; i < blockNumber+Height(n); i++ {
+	for i := start; i <= end; i++ {
 		if block, ok = blockchain.blocks[i]; !ok {
 			return blocks
 		}
