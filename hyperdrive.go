@@ -94,6 +94,7 @@ func (hyperdrive *hyperdrive) AcceptShard(shard shard.Shard, head block.SignedBl
 		hyperdrive.signer,
 		pool,
 		state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), shard.ConsensusThreshold()),
+		state.NewTransitionBuffer(shard.Size()),
 		shard,
 		head,
 	)

@@ -103,7 +103,7 @@ var _ = Describe("Hyperdrive", func() {
 					defer GinkgoRecover()
 
 					h := New(signers[i], NewMockDispatcher(i, ipChans, done, cap))
-					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight, block.Round(0))).ShouldNot((HaveOccurred()))
+					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight)).ShouldNot((HaveOccurred()))
 				})
 			})
 		})
@@ -212,7 +212,7 @@ type TickObject struct {
 
 func (TickObject) IsObject() {}
 
-func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struct{}, maxHeight block.Height, expectedRound block.Round) error {
+func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struct{}, maxHeight block.Height) error {
 	var currentBlock *block.SignedBlock
 
 	for {
@@ -235,7 +235,6 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 					h.AcceptPreCommit(input.shardHash, action.SignedPreCommit)
 				case state.Commit:
 					Expect(len(action.Commit.Polka.Block.Txs)).To(BeNumerically("<=", block.MaxTransactions))
-					Expect(action.Commit.Polka.Block.Round).To(Equal(expectedRound))
 					if currentBlock == nil || action.Polka.Block.Height > currentBlock.Height {
 						if currentBlock != nil {
 							Expect(action.Polka.Block.Height).To(Equal(currentBlock.Height + 1))
