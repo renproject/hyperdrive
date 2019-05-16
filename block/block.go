@@ -112,7 +112,6 @@ func (propose Propose) Sign(signer sig.Signer) (SignedPropose, error) {
 		return SignedPropose{}, err
 	}
 
-	fmt.Printf(" generating sig %s %s %s \n", hash, signature, propose.String())
 	return SignedPropose{
 		Propose:   propose,
 		Signature: signature,

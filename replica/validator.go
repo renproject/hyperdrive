@@ -1,7 +1,6 @@
 package replica
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -59,7 +58,6 @@ func NewValidator(signer sig.Verifier, shard shard.Shard) Validator {
 
 func (validator *validator) ValidatePropose(propose block.SignedPropose, lastSignedBlock block.SignedBlock) bool {
 	if propose.Round < 0 {
-		fmt.Println("round check failed", propose.Round)
 		return false
 	}
 
@@ -72,7 +70,6 @@ func (validator *validator) ValidatePropose(propose block.SignedPropose, lastSig
 
 	// Verify the signature
 	if !validator.verifySignature(hash, propose.Signature, propose.Signatory) {
-		fmt.Printf("sig check failed %s %s %s \n", hash, propose.Signature, propose.String())
 		return false
 	}
 
