@@ -280,8 +280,6 @@ func (machine *machine) checkCommonExitConditions() Action {
 		machine.round = 0
 		machine.lockedBlock = nil
 		machine.lockedRound = nil
-		machine.polkaBuilder.Drop(machine.height)
-		machine.commitBuilder.Drop(machine.height)
 		return Commit{Commit: *commit}
 	}
 
@@ -301,4 +299,9 @@ func (machine *machine) checkCommonExitConditions() Action {
 	}
 
 	return nil
+}
+
+func (machine *machine) Drop() {
+	machine.polkaBuilder.Drop(machine.height)
+	machine.commitBuilder.Drop(machine.height)
 }
