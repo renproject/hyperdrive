@@ -151,8 +151,7 @@ func expectedBlockHeader(block Block) sig.Hash {
 	nilHeader := sig.Hash{}
 	txHeaders := make([]byte, 32*len(block.Txs))
 	for i, tx := range block.Txs {
-		txHeader := tx.Header()
-		copy(txHeaders[32*i:], txHeader[:])
+		copy(txHeaders[32*i:], tx[:])
 	}
 	txHeaderSHA3 := sha3.Sum256(txHeaders)
 	txHeaderB64 := base64.StdEncoding.EncodeToString(txHeaderSHA3[:])
