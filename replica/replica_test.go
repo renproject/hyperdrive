@@ -54,10 +54,10 @@ var _ = Describe("Replica", func() {
 			panic(fmt.Sprintf("error generating random SignerVerifier: %v", err))
 		}
 		testCases := generateTestCases(signer, participant1, participant2)
-		for ind, t := range testCases {
+		for _, t := range testCases {
 			t := t
-			ind := ind
-			Context(fmt.Sprintf("%d when replica starts with intial state - %s", ind, reflect.TypeOf(t.startingState).Name()), func() {
+
+			Context(fmt.Sprintf("when replica starts with intial state - %s", reflect.TypeOf(t.startingState).Name()), func() {
 				It(fmt.Sprintf("should arrive at %s", reflect.TypeOf(t.finalState).Name()), func() {
 					transitionBuffer := state.NewTransitionBuffer(128)
 					pool := tx.FIFOPool(100)
