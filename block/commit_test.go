@@ -239,7 +239,7 @@ var _ = Describe("CommitBuilder", func() {
 			})
 
 			Context("when PreCommits are inserted for different blocks", func() {
-				It("should return a Commit for a nil block", func() {
+				It("should return a nil commit", func() {
 					builder := NewCommitBuilder()
 					height := Height(mathRand.Intn(10))
 					round := Round(mathRand.Intn(100))
@@ -267,6 +267,32 @@ var _ = Describe("CommitBuilder", func() {
 					commit, commitRound := builder.Commit(height, 9)
 					Expect(commitRound).To(Equal(&round))
 					Expect(commit).To(BeNil())
+				})
+			})
+
+			Context("when PreCommits are inserted for nil block", func() {
+				It("should return a Commit for a nil block", func() {
+					builder := NewCommitBuilder()
+					height := Height(mathRand.Intn(10))
+					round := Round(mathRand.Intn(100))
+
+					for i := 0; i < 10; i++ {
+						signer, err := ecdsa.NewFromRandom()
+						Expect(err).ShouldNot(HaveOccurred())
+						precommit := PreCommit{
+							Polka: Polka{
+								Block:  nil,
+								Height: height,
+								Round:  round,
+							},
+						}
+						signedPreCommit, err := precommit.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
+						Expect(builder.Insert(signedPreCommit)).To(BeTrue())
+					}
+					commit, commitRound := builder.Commit(height, 9)
+					Expect(commitRound).To(Equal(&round))
+					Expect(commit.Polka.Block).To(BeNil())
 				})
 			})
 		})

@@ -181,7 +181,7 @@ var _ = Describe("PolkaBuilder", func() {
 			})
 
 			Context("when PreVotes are inserted for different blocks", func() {
-				It("should return a Polka for a nil block", func() {
+				It("should return a nil Polka", func() {
 					builder := NewPolkaBuilder()
 					height := Height(mathRand.Intn(10))
 					round := Round(mathRand.Intn(100))
@@ -203,6 +203,26 @@ var _ = Describe("PolkaBuilder", func() {
 					polka, polkaRound := builder.Polka(height, 9)
 					Expect(polkaRound).To(Equal(&round))
 					Expect(polka).To(BeNil())
+				})
+			})
+
+			Context("when PreVotes are inserted for nil block", func() {
+				It("should return a Polka for a nil block", func() {
+					builder := NewPolkaBuilder()
+					height := Height(mathRand.Intn(10))
+					round := Round(mathRand.Intn(100))
+
+					for i := 0; i < 10; i++ {
+						signer, err := ecdsa.NewFromRandom()
+						Expect(err).ShouldNot(HaveOccurred())
+						prevote := NewPreVote(nil, round, height)
+						signedPreVote, err := prevote.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
+						Expect(builder.Insert(signedPreVote)).To(BeTrue())
+					}
+					polka, polkaRound := builder.Polka(height, 9)
+					Expect(polkaRound).To(Equal(&round))
+					Expect(polka.Block).To(BeNil())
 				})
 			})
 		})
@@ -264,7 +284,7 @@ var _ = Describe("PolkaBuilder", func() {
 	})
 
 	Context("when Polkas are compared", func() {
-		It("should return true if both Polkas are equal", func() {
+		It("should return true if both Polkas are equal and have valid blocks", func() {
 			block := Block{Height: 1}
 			signer, err := ecdsa.NewFromRandom()
 			Expect(err).ShouldNot(HaveOccurred())
@@ -272,6 +292,18 @@ var _ = Describe("PolkaBuilder", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			polka := Polka{
 				Block:       &signedBlock,
+				Round:       0,
+				Height:      0,
+				Signatures:  testutils.RandomSignatures(10),
+				Signatories: testutils.RandomSignatories(10),
+			}
+			newPolka := polka
+			Expect(polka.Equal(&newPolka)).Should(BeTrue())
+		})
+
+		It("should return true if both Polkas are equal and have nil blocks", func() {
+			polka := Polka{
+				Block:       nil,
 				Round:       0,
 				Height:      0,
 				Signatures:  testutils.RandomSignatures(10),
