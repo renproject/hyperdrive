@@ -1,7 +1,6 @@
 package replica
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -75,7 +74,6 @@ func (replica *replica) Transition(transition state.Transition) {
 	}
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
 		if !replica.isTransitionValid(transition) {
-			fmt.Printf("invalid transition %T\n", transition)
 			continue
 		}
 		action := replica.transition(transition)
@@ -220,7 +218,7 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 
 func (replica *replica) transition(transition state.Transition) state.Action {
 	action := replica.stateMachine.Transition(transition)
-	replica.transitionBuffer.Drop(replica.lastBlock.Height + 1)
+	replica.transitionBuffer.Drop(replica.stateMachine.Height())
 	if commit, ok := action.(state.Commit); ok && commit.Polka.Block != nil {
 		// If round has progressed, drop all prevotes and precommits in the state-machine
 		replica.stateMachine.Drop()
