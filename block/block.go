@@ -2,6 +2,7 @@ package block
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/renproject/hyperdrive/sig"
@@ -131,8 +132,10 @@ type SignedPropose struct {
 }
 
 type Blockchain struct {
-	head   Commit
-	blocks map[Height]Commit
+	head Commit
+
+	blocksMu *sync.RWMutex
+	blocks   map[Height]Commit
 }
 
 func NewBlockchain() Blockchain {
@@ -143,8 +146,10 @@ func NewBlockchain() Blockchain {
 		},
 	}
 	return Blockchain{
-		head:   genesisCommit,
-		blocks: map[Height]Commit{genesis.Height: genesisCommit},
+		head: genesisCommit,
+
+		blocksMu: new(sync.RWMutex),
+		blocks:   map[Height]Commit{genesis.Height: genesisCommit},
 	}
 }
 
@@ -170,7 +175,10 @@ func (blockchain *Blockchain) Head() (SignedBlock, bool) {
 }
 
 func (blockchain *Blockchain) Block(height Height) (SignedBlock, bool) {
+	blockchain.blocksMu.RLock()
 	commit, ok := blockchain.blocks[height]
+	blockchain.blocksMu.RUnlock()
+
 	if !ok || commit.Polka.Block == nil {
 		return Genesis(), false
 	}
@@ -181,10 +189,14 @@ func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
 	if commitToNextBlock.Polka.Block == nil {
 		return
 	}
-	blockchain.blocks[commitToNextBlock.Polka.Block.Height] = commitToNextBlock
+
 	if blockchain.Height() < commitToNextBlock.Polka.Block.Height {
 		blockchain.head = commitToNextBlock
 	}
+
+	blockchain.blocksMu.Lock()
+	defer blockchain.blocksMu.Unlock()
+	blockchain.blocks[commitToNextBlock.Polka.Block.Height] = commitToNextBlock
 }
 
 func (blockchain *Blockchain) Blocks(start, end Height) []Commit {
@@ -194,8 +206,10 @@ func (blockchain *Blockchain) Blocks(start, end Height) []Commit {
 
 	var block Commit
 	var ok bool
-
 	blocks := []Commit{}
+
+	blockchain.blocksMu.RLock()
+	defer blockchain.blocksMu.RUnlock()
 	for i := start; i <= end; i++ {
 		if block, ok = blockchain.blocks[i]; !ok {
 			return blocks
