@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -157,6 +158,7 @@ func (replica *replica) shouldBufferTransition(transition state.Transition) bool
 		if transition.Block.Height <= replica.stateMachine.Height() {
 			return false
 		}
+		fmt.Printf("buffering propose: %d\n", transition.Block.Height)
 		return true
 	default:
 		return false
