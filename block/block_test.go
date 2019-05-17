@@ -19,13 +19,13 @@ var _ = Describe("Block", func() {
 		It("should return Genesis values", func() {
 			genesis := Genesis()
 
-			blockchain := Blockchain{}
+			blockchain := NewBlockchain()
 			Expect(blockchain.Height()).To(Equal(genesis.Height))
 			head, ok := blockchain.Head()
-			Expect(ok).To(BeFalse())
+			Expect(ok).To(BeTrue())
 			Expect(head).To(Equal(genesis))
 			block, ok := blockchain.Block(Height(0))
-			Expect(ok).To(BeFalse())
+			Expect(ok).To(BeTrue())
 			Expect(block).To(Equal(genesis))
 		})
 
