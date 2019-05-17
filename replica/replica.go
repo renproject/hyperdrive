@@ -31,6 +31,7 @@ type replica struct {
 	transitionBuffer state.TransitionBuffer
 	shard            shard.Shard
 	lastBlock        *block.SignedBlock
+	currentHeight    block.Height
 }
 
 func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard shard.Shard, lastBlock block.SignedBlock) Replica {
@@ -44,6 +45,7 @@ func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state
 		transitionBuffer: transitionBuffer,
 		shard:            shard,
 		lastBlock:        &lastBlock,
+		currentHeight:    lastBlock.Height,
 	}
 	return replica
 }
@@ -53,16 +55,17 @@ func (replica *replica) Init() {
 }
 
 func (replica *replica) SyncCommits(commits []block.Commit) {
-	fmt.Printf("current last block height %d\n", replica.lastBlock.Height)
+	fmt.Printf("current last block height %d\n", replica.currentHeight)
 	for _, commit := range commits {
 		// TODO: enable validation for commits; Figure out a way to store the commits in the blockchain.
 		// if replica.validator.ValidateCommit(commit) {
 		if replica.lastBlock.Height < commit.Polka.Height {
 			replica.lastBlock = commit.Polka.Block
+			replica.currentHeight = commit.Polka.Height + 1
 		}
 		// }
 	}
-	fmt.Printf("new last block height %d\n", replica.lastBlock.Height)
+	fmt.Printf("new last block height %d\n", replica.currentHeight)
 }
 
 func (replica *replica) Transition(transition state.Transition) {
@@ -73,7 +76,7 @@ func (replica *replica) Transition(transition state.Transition) {
 		replica.transitionBuffer.Enqueue(transition)
 		return
 	}
-	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
+	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.currentHeight) {
 		if !replica.isTransitionValid(transition) {
 			continue
 		}
@@ -115,6 +118,7 @@ func (replica *replica) dispatchAction(action state.Action) {
 	case state.Commit:
 		if action.Commit.Polka.Block != nil {
 			replica.lastBlock = action.Commit.Polka.Block
+			replica.currentHeight = action.Polka.Height + 1
 			replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		}
 		replica.generateSignedBlock()
@@ -138,15 +142,15 @@ func (replica *replica) isTransitionValid(transition state.Transition) bool {
 func (replica *replica) shouldDropTransition(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
-		if transition.Block.Height < replica.stateMachine.Height() {
+		if transition.Block.Height < replica.currentHeight {
 			return true
 		}
 	case state.PreVoted:
-		if transition.Height < replica.stateMachine.Height() {
+		if transition.Height < replica.currentHeight {
 			return true
 		}
 	case state.PreCommitted:
-		if transition.Polka.Height < replica.stateMachine.Height() {
+		if transition.Polka.Height < replica.currentHeight {
 			return true
 		}
 	}
@@ -157,10 +161,10 @@ func (replica *replica) shouldBufferTransition(transition state.Transition) bool
 	switch transition := transition.(type) {
 	case state.Proposed:
 		// Only buffer Proposals from the future
-		if transition.Block.Height <= replica.stateMachine.Height() {
+		if transition.Block.Height <= replica.currentHeight {
 			return false
 		}
-		fmt.Printf("buffering propose: %d, current height: %d\n", transition.Block.Height, replica.stateMachine.Height())
+		fmt.Printf("buffering propose: %d, current height: %d, %d\n", transition.Block.Height, replica.currentHeight, replica.stateMachine.Height())
 		return true
 	default:
 		return false
@@ -204,7 +208,7 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 	}
 
 	block := block.New(
-		replica.stateMachine.Height(),
+		replica.currentHeight,
 		replica.lastBlock.Header,
 		transactions,
 	)
@@ -219,7 +223,7 @@ func (replica *replica) buildSignedBlock() block.SignedBlock {
 
 func (replica *replica) transition(transition state.Transition) state.Action {
 	action := replica.stateMachine.Transition(transition)
-	replica.transitionBuffer.Drop(replica.stateMachine.Height())
+	replica.transitionBuffer.Drop(replica.lastBlock.Height + 1)
 	if commit, ok := action.(state.Commit); ok && commit.Polka.Block != nil {
 		// If round has progressed, drop all prevotes and precommits in the state-machine
 		replica.stateMachine.Drop()
