@@ -176,7 +176,7 @@ func (replica *replica) generateSignedBlock() {
 	}
 }
 
-func (replica *replica) buildSignedBlock() *block.SignedBlock {
+func (replica *replica) buildSignedBlock() block.SignedBlock {
 	// TODO: We should put more than one transaction into a block.
 	transactions := make(tx.Transactions, 0, block.MaxTransactions)
 	transaction, ok := replica.txPool.Dequeue()
@@ -196,7 +196,7 @@ func (replica *replica) buildSignedBlock() *block.SignedBlock {
 		// least be some sane logging and recovery.
 		panic(err)
 	}
-	return &signedBlock
+	return signedBlock
 }
 
 func (replica *replica) transition(transition state.Transition) state.Action {

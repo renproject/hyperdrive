@@ -8,10 +8,6 @@ import (
 
 var ErrPoolCapacityExceeded = errors.New("pool capacity exceeded")
 
-type Transaction []byte
-
-type Transactions []Transaction
-
 type Pool interface {
 	Enqueue(Transaction) error
 	Dequeue() (Transaction, bool)
