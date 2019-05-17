@@ -1,7 +1,6 @@
 package replica
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -18,7 +17,7 @@ type Dispatcher interface {
 type Replica interface {
 	Init()
 	Transition(transition state.Transition)
-	SyncCommits(commits []block.Commit)
+	SyncCommit(commit block.Commit) bool
 }
 
 type replica struct {
@@ -52,18 +51,15 @@ func (replica *replica) Init() {
 	replica.generateSignedBlock()
 }
 
-func (replica *replica) SyncCommits(commits []block.Commit) {
-	for _, commit := range commits {
-		// TODO: Figure out a way to store the commits in the blockchain.
+func (replica *replica) SyncCommit(commit block.Commit) bool {
+	if replica.validator.ValidateCommit(commit) {
 		if replica.lastBlock.Height < commit.Polka.Height {
-			if replica.validator.ValidateCommit(commit) {
-				replica.stateMachine.SyncCommit(commit)
-				replica.lastBlock = commit.Polka.Block
-			} else {
-				fmt.Println("invalid commit")
-			}
+			replica.stateMachine.SyncCommit(commit)
+			replica.lastBlock = commit.Polka.Block
 		}
+		return true
 	}
+	return false
 }
 
 func (replica *replica) Transition(transition state.Transition) {
