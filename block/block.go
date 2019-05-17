@@ -132,7 +132,7 @@ type SignedPropose struct {
 }
 
 type Blockchain struct {
-	head Commit
+	height Height
 
 	blocksMu *sync.RWMutex
 	blocks   map[Height]Commit
@@ -146,7 +146,7 @@ func NewBlockchain() Blockchain {
 		},
 	}
 	return Blockchain{
-		head: genesisCommit,
+		height: genesisCommit.Polka.Height,
 
 		blocksMu: new(sync.RWMutex),
 		blocks:   map[Height]Commit{genesis.Height: genesisCommit},
@@ -154,24 +154,17 @@ func NewBlockchain() Blockchain {
 }
 
 func (blockchain *Blockchain) Height() Height {
-	if blockchain.head.Polka.Block == nil {
-		return Genesis().Height
-	}
-	return blockchain.head.Polka.Block.Height
-}
-
-func (blockchain *Blockchain) Round() *Round {
-	if blockchain.head.Polka.Block == nil {
-		return nil
-	}
-	return &blockchain.head.Polka.Round
+	return blockchain.height
 }
 
 func (blockchain *Blockchain) Head() (SignedBlock, bool) {
-	if blockchain.head.Polka.Block == nil {
-		return Genesis(), false
+	blockchain.blocksMu.RLock()
+	defer blockchain.blocksMu.RUnlock()
+
+	if commit, ok := blockchain.blocks[blockchain.height]; ok {
+		return *commit.Polka.Block, true
 	}
-	return *blockchain.head.Polka.Block, true
+	return Genesis(), false
 }
 
 func (blockchain *Blockchain) Block(height Height) (SignedBlock, bool) {
@@ -190,8 +183,8 @@ func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
 		return
 	}
 
-	if blockchain.Height() < commitToNextBlock.Polka.Block.Height {
-		blockchain.head = commitToNextBlock
+	if blockchain.height < commitToNextBlock.Polka.Block.Height {
+		blockchain.height = commitToNextBlock.Polka.Block.Height
 	}
 
 	blockchain.blocksMu.Lock()

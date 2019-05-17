@@ -55,7 +55,6 @@ var _ = Describe("Block", func() {
 				}
 
 				Expect(blockchain.Height()).To(Equal(Height(9)))
-				Expect(*blockchain.Round()).To(Equal(Round(9)))
 				head, ok := blockchain.Head()
 				Expect(ok).To(BeTrue())
 				Expect(head.Header).To(Equal(header))
@@ -108,7 +107,6 @@ var _ = Describe("Block", func() {
 					blockchain.Extend(commit)
 
 					Expect(blockchain.Height()).To(Equal(genesis.Height))
-					Expect(*blockchain.Round()).To(Equal(Round(0)))
 					head, ok := blockchain.Head()
 					Expect(ok).To(BeTrue())
 					Expect(head).To(Equal(genesis))
