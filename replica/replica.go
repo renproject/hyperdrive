@@ -164,7 +164,7 @@ func (replica *replica) shouldBufferTransition(transition state.Transition) bool
 		if transition.Block.Height <= replica.currentHeight {
 			return false
 		}
-		fmt.Printf("buffering propose: %d, current height: %d, %d\n", transition.Block.Height, replica.currentHeight, replica.stateMachine.Height())
+		// fmt.Printf("buffering propose: %d, current height: %d, %d\n", transition.Block.Height, replica.currentHeight, replica.stateMachine.Height())
 		return true
 	default:
 		return false
