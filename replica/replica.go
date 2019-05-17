@@ -29,7 +29,7 @@ type replica struct {
 	stateMachine     state.Machine
 	transitionBuffer state.TransitionBuffer
 	shard            shard.Shard
-	lastBlock        block.SignedBlock
+	lastBlock        *block.SignedBlock
 }
 
 func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard shard.Shard, lastBlock block.SignedBlock) Replica {
@@ -42,7 +42,7 @@ func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state
 		stateMachine:     stateMachine,
 		transitionBuffer: transitionBuffer,
 		shard:            shard,
-		lastBlock:        lastBlock,
+		lastBlock:        &lastBlock,
 	}
 	return replica
 }
@@ -56,7 +56,7 @@ func (replica *replica) SyncCommits(commits []block.Commit) {
 		// TODO: enable validation for commits; Figure out a way to store the commits in the blockchain.
 		// if replica.validator.ValidateCommit(commit) {
 		if replica.lastBlock.Height < commit.Polka.Height {
-			replica.lastBlock = *commit.Polka.Block
+			replica.lastBlock = commit.Polka.Block
 		}
 		// }
 	}
@@ -109,7 +109,7 @@ func (replica *replica) dispatchAction(action state.Action) {
 		})
 	case state.Commit:
 		if action.Commit.Polka.Block != nil {
-			replica.lastBlock = *action.Commit.Polka.Block
+			replica.lastBlock = action.Commit.Polka.Block
 			replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		}
 		replica.generateSignedBlock()
@@ -121,9 +121,9 @@ func (replica *replica) isTransitionValid(transition state.Transition) bool {
 	case state.Proposed:
 		return replica.validator.ValidatePropose(transition.SignedPropose, replica.lastBlock)
 	case state.PreVoted:
-		return replica.validator.ValidatePreVote(transition.SignedPreVote, replica.lastBlock)
+		return replica.validator.ValidatePreVote(transition.SignedPreVote)
 	case state.PreCommitted:
-		return replica.validator.ValidatePreCommit(transition.SignedPreCommit, replica.lastBlock)
+		return replica.validator.ValidatePreCommit(transition.SignedPreCommit)
 	case state.TimedOut:
 		return transition.Time.Before(time.Now())
 	}
