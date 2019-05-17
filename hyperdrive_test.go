@@ -75,7 +75,7 @@ var _ = Describe("Hyperdrive", func() {
 		numHyperdrives int
 		maxHeight      block.Height
 	}{
-		{1, 640},
+		// {1, 640},
 		{2, 320},
 		{4, 160},
 		{8, 80},
@@ -143,10 +143,12 @@ func NewMockDispatcher(i int, channels []chan Object, done chan struct{}, cap in
 				return
 			case actionObject := <-dispatcher.reqCh:
 				for i := range dispatcher.channels {
-					select {
-					case <-dispatcher.done:
-						return
-					case dispatcher.channels[i] <- actionObject:
+					if i != dispatcher.index {
+						select {
+						case <-dispatcher.done:
+							return
+						case dispatcher.channels[i] <- actionObject:
+						}
 					}
 				}
 			default:
