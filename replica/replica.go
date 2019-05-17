@@ -53,6 +53,7 @@ func (replica *replica) Init() {
 }
 
 func (replica *replica) SyncCommits(commits []block.Commit) {
+	fmt.Printf("current last block height %d\n", replica.lastBlock.Height)
 	for _, commit := range commits {
 		// TODO: enable validation for commits; Figure out a way to store the commits in the blockchain.
 		// if replica.validator.ValidateCommit(commit) {
@@ -61,6 +62,7 @@ func (replica *replica) SyncCommits(commits []block.Commit) {
 		}
 		// }
 	}
+	fmt.Printf("new last block height %d\n", replica.lastBlock.Height)
 }
 
 func (replica *replica) Transition(transition state.Transition) {
