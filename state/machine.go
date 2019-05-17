@@ -11,6 +11,8 @@ type Machine interface {
 	Round() block.Round
 	State() State
 	Transition(transition Transition) Action
+	InsertPrevote(signedPreVote block.SignedPreVote)
+	InsertPrecommit(signedPreCommit block.SignedPreCommit)
 	Drop()
 }
 
@@ -46,6 +48,14 @@ func (machine *machine) Round() block.Round {
 
 func (machine *machine) State() State {
 	return machine.state
+}
+
+func (machine *machine) InsertPrevote(prevote block.SignedPreVote) {
+	machine.polkaBuilder.Insert(prevote)
+}
+
+func (machine *machine) InsertPrecommit(precommit block.SignedPreCommit) {
+	machine.commitBuilder.Insert(precommit)
 }
 
 func (machine *machine) Transition(transition Transition) Action {

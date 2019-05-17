@@ -94,6 +94,7 @@ func (replica *replica) dispatchAction(action state.Action) {
 			// least be some sane logging and recovery.
 			panic(err)
 		}
+		replica.stateMachine.InsertPrevote(signedPreVote)
 		replica.dispatcher.Dispatch(replica.shard.Hash, state.SignedPreVote{
 			SignedPreVote: signedPreVote,
 		})
@@ -104,6 +105,7 @@ func (replica *replica) dispatchAction(action state.Action) {
 			// least be some sane logging and recovery.
 			panic(err)
 		}
+		replica.stateMachine.InsertPrecommit(signedPreCommit)
 		replica.dispatcher.Dispatch(replica.shard.Hash, state.SignedPreCommit{
 			SignedPreCommit: signedPreCommit,
 		})
