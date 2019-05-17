@@ -25,6 +25,8 @@ type Hyperdrive interface {
 	AcceptPreVote(shardHash sig.Hash, preVote block.SignedPreVote)
 	AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit)
 
+	SyncCommits(shardHash sig.Hash, commit []block.Commit)
+
 	BeginShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool)
 	EndShard(shardHash sig.Hash)
 	DropShard(shardHash sig.Hash)
@@ -82,6 +84,12 @@ func (hyperdrive *hyperdrive) AcceptPreVote(shardHash sig.Hash, preVote block.Si
 func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit) {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
 		replica.Transition(state.PreCommitted{SignedPreCommit: preCommit})
+	}
+}
+
+func (hyperdrive *hyperdrive) SyncCommits(shardHash sig.Hash, commits []block.Commit) {
+	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
+		replica.SyncCommits(commits)
 	}
 }
 

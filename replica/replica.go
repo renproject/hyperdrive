@@ -17,6 +17,7 @@ type Dispatcher interface {
 type Replica interface {
 	Init()
 	Transition(transition state.Transition)
+	SyncCommits(commits []block.Commit)
 }
 
 type replica struct {
@@ -48,6 +49,17 @@ func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state
 
 func (replica *replica) Init() {
 	replica.generateSignedBlock()
+}
+
+func (replica *replica) SyncCommits(commits []block.Commit) {
+	for _, commit := range commits {
+		// TODO: enable validation for commits; Figure out a way to store the commits in the blockchain.
+		// if replica.validator.ValidateCommit(commit) {
+		if replica.lastBlock.Height < commit.Polka.Height {
+			replica.lastBlock = *commit.Polka.Block
+		}
+		// }
+	}
 }
 
 func (replica *replica) Transition(transition state.Transition) {
