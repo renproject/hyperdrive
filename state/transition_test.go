@@ -56,14 +56,14 @@ var _ = Describe("TransitionBuffer", func() {
 				}
 
 				genesisBlock := block.Genesis()
-				genesis := Proposed{SignedPropose: block.SignedPropose{Propose: block.Propose{SignedBlock: &genesisBlock}}}
+				genesis := Proposed{SignedPropose: block.SignedPropose{Propose: block.Propose{Block: genesisBlock}}}
 				var height block.Height
 				height = 0
 				scratch := make(map[block.Height]uint8)
 
 				for i := uint8(0); i < num; i++ {
 					if i%incrementHeight == 0 {
-						genesis.Height++
+						genesis.Block.Height++
 						height++
 					}
 					tb.Enqueue(genesis)
@@ -220,8 +220,8 @@ func (m *mockInput) nextTransition() Transition {
 	switch nextTran {
 	case mockProposed:
 		genesisBlock := block.Genesis()
-		gen := Proposed{SignedPropose: block.SignedPropose{Propose: block.Propose{SignedBlock: &genesisBlock}}}
-		gen.Height = m.height
+		gen := Proposed{SignedPropose: block.SignedPropose{Propose: block.Propose{Block: genesisBlock}}}
+		gen.Block.Height = m.height
 		rndTransition = gen
 		// The only time I would ever Dequeue a Propose is if either
 		// there already was a Propose or nothing else in the queue at

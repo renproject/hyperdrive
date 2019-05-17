@@ -163,7 +163,7 @@ func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action state.
 	round := block.Round(0)
 	switch action := action.(type) {
 	case state.Propose:
-		height = action.Height
+		height = action.Block.Height
 		round = action.Round
 	case state.SignedPreVote:
 		height = action.Height
