@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -53,14 +54,15 @@ func (replica *replica) Init() {
 
 func (replica *replica) SyncCommits(commits []block.Commit) {
 	for _, commit := range commits {
-		// TODO: enable validation for commits; Figure out a way to store the commits in the blockchain.
-		// if replica.validator.ValidateCommit(commit) {
+		// TODO: Figure out a way to store the commits in the blockchain.
 		if replica.lastBlock.Height < commit.Polka.Height {
-			replica.stateMachine.SyncCommit(commit)
-			replica.lastBlock = commit.Polka.Block
-			// replica.stateMachine.Height() = commit.Polka.Height + 1
+			if replica.validator.ValidateCommit(commit) {
+				replica.stateMachine.SyncCommit(commit)
+				replica.lastBlock = commit.Polka.Block
+			} else {
+				fmt.Println("invalid commit")
+			}
 		}
-		// }
 	}
 }
 

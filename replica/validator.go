@@ -37,6 +37,8 @@ type Validator interface {
 	ValidatePolka(polka block.Polka) bool
 
 	ValidatePreCommit(preCommit block.SignedPreCommit) bool
+
+	ValidateCommit(commit block.Commit) bool
 }
 
 type validator struct {
@@ -194,15 +196,14 @@ func (validator *validator) ValidatePreCommit(preCommit block.SignedPreCommit) b
 	return true
 }
 
-// TODO: Un-comment when needed
-// func (validator *validator) ValidateCommit(commit block.Commit) bool {
-// 	preCommit := block.PreCommit{
-// 		Polka: commit.Polka,
-// 	}
-// 	data := []byte(preCommit.String())
+func (validator *validator) ValidateCommit(commit block.Commit) bool {
+	preCommit := block.PreCommit{
+		Polka: commit.Polka,
+	}
+	data := []byte(preCommit.String())
 
-// 	return validator.ValidatePolka(commit.Polka) && validator.verifySignatures(data, commit.Signatures, commit.Signatories)
-// }
+	return validator.ValidatePolka(commit.Polka) && validator.verifySignatures(data, commit.Signatures, commit.Signatories)
+}
 
 // verifySignature verifies that the signatory provided was used to generate
 // the signature for the given hash. Also verifies that the signatory is a
