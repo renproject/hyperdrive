@@ -60,6 +60,7 @@ func (replica *replica) SyncCommits(commits []block.Commit) {
 		// TODO: enable validation for commits; Figure out a way to store the commits in the blockchain.
 		// if replica.validator.ValidateCommit(commit) {
 		if replica.lastBlock.Height < commit.Polka.Height {
+			replica.stateMachine.SyncCommit(commit)
 			replica.lastBlock = commit.Polka.Block
 			replica.currentHeight = commit.Polka.Height + 1
 		}

@@ -13,6 +13,7 @@ type Machine interface {
 	Transition(transition Transition) Action
 	InsertPrevote(signedPreVote block.SignedPreVote)
 	InsertPrecommit(signedPreCommit block.SignedPreCommit)
+	SyncCommit(commit block.Commit)
 	Drop()
 }
 
@@ -56,6 +57,16 @@ func (machine *machine) InsertPrevote(prevote block.SignedPreVote) {
 
 func (machine *machine) InsertPrecommit(precommit block.SignedPreCommit) {
 	machine.commitBuilder.Insert(precommit)
+}
+
+func (machine *machine) SyncCommit(commit block.Commit) {
+	if commit.Polka.Height > machine.height {
+		machine.state = WaitingForPropose{}
+		machine.height = commit.Polka.Height + 1
+		machine.round = 0
+		machine.lockedBlock = nil
+		machine.lockedRound = nil
+	}
 }
 
 func (machine *machine) Transition(transition Transition) Action {
