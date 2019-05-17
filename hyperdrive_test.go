@@ -95,7 +95,12 @@ var _ = Describe("Hyperdrive", func() {
 
 		Context(fmt.Sprintf("when reaching consensus on a shard with %v replicas", entry.numHyperdrives), func() {
 			It("should commit blocks", func() {
+				// The estimated number of messages a Replica will receive throughout the test
 				cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
+				// Increase by an order of magnitude to account for timeouts and
+				// multiple rounds
+				cap = 10 * cap
+
 				ipChans, signers, ticker, done, _ := initReplicas(entry.numHyperdrives)
 				defer ticker.Stop()
 
@@ -179,13 +184,11 @@ func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action state.
 	}
 	mockDispatcher.dups[key] = true
 
-	go func() {
-		select {
-		case <-mockDispatcher.done:
-			return
-		case mockDispatcher.reqCh <- ActionObject{shardHash, action}:
-		}
-	}()
+	select {
+	case <-mockDispatcher.done:
+		return
+	case mockDispatcher.reqCh <- ActionObject{shardHash, action}:
+	}
 }
 
 type Object interface {
@@ -224,7 +227,7 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 			case TickObject:
 				h.AcceptTick(input.Time)
 			case ShardObject:
-				h.AcceptShard(input.shard, block.Genesis(), input.pool)
+				h.BeginShard(input.shard, block.Genesis(), input.pool)
 			case ActionObject:
 				switch action := input.action.(type) {
 				case state.Propose:

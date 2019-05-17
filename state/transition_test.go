@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/state"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -20,6 +21,30 @@ var conf = quick.Config{
 }
 
 var _ = Describe("TransitionBuffer", func() {
+
+	Context("when using TimedOut", func() {
+		It("should implement the State interface", func() {
+			state.TimedOut{}.IsTransition()
+		})
+	})
+
+	Context("when using Proposed", func() {
+		It("should implement the State interface", func() {
+			state.Proposed{}.IsTransition()
+		})
+	})
+
+	Context("when using PreVoted", func() {
+		It("should implement the State interface", func() {
+			state.PreVoted{}.IsTransition()
+		})
+	})
+
+	Context("when using PreCommitted", func() {
+		It("should implement the State interface", func() {
+			state.PreCommitted{}.IsTransition()
+		})
+	})
 
 	Context("when only propose transitions are enqueued", func() {
 		It("should enqueue the same number of times as it dequeues for a given height", func() {

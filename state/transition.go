@@ -36,7 +36,7 @@ type TimedOut struct {
 
 // IsTransition implements the `Transition` interface for the
 // `TimedOut` event.
-func (timedOut TimedOut) IsTransition() {
+func (TimedOut) IsTransition() {
 }
 
 // A Proposed block has been received by another Replica.
@@ -46,7 +46,7 @@ type Proposed struct {
 
 // IsTransition implements the `Transition` interface for the
 // `Proposed` event.
-func (proposed Proposed) IsTransition() {
+func (Proposed) IsTransition() {
 }
 
 // A PreVoted block has been signed and broadcast by another
@@ -57,7 +57,7 @@ type PreVoted struct {
 
 // IsTransition implements the `Transition` interface for the
 // `PreVoted` event.
-func (preVoted PreVoted) IsTransition() {
+func (PreVoted) IsTransition() {
 }
 
 // A PreCommitted polka has been signed and broadcast by another
@@ -68,7 +68,7 @@ type PreCommitted struct {
 
 // IsTransition implements the `Transition` interface for the
 // `PreCommitted` event.
-func (preCommitted PreCommitted) IsTransition() {
+func (PreCommitted) IsTransition() {
 }
 
 // A TransitionBuffer is used to temporarily buffer `Transitions` that
@@ -103,8 +103,7 @@ func (buffer *transitionBuffer) Enqueue(transition Transition) {
 		buffer.newQueue(transition.Block.Height)
 		if len(buffer.queues[transition.Block.Height]) > 0 {
 			switch buffer.queues[transition.Block.Height][0].(type) {
-			case PreVoted:
-			case PreCommitted:
+			case PreVoted, PreCommitted:
 			default:
 				buffer.queues[transition.Block.Height] = append(buffer.queues[transition.Block.Height], transition)
 			}

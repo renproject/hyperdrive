@@ -13,5 +13,5 @@ func RandomTransaction() tx.Transaction {
 	if err != nil {
 		panic(fmt.Sprintf("error generating random bytes: %v", err))
 	}
-	return bytes[:]
+	return tx.Transaction(bytes[:])
 }
