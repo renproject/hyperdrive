@@ -1,6 +1,7 @@
 package hyperdrive
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -61,6 +62,7 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 		if hyperdrive.ticksPerShard[shardHash] > NumTicksToTriggerTimeOut {
 			// 2. Send a TimedOut transition to the shard
 			if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
+				fmt.Println("timed out")
 				replica.Transition(state.TimedOut{Time: t})
 				hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
 			}
