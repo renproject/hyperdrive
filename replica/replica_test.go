@@ -34,7 +34,7 @@ var _ = Describe("Replica", func() {
 			}
 			stateMachine := state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), 1)
 
-			replica := New(newMockDispatcher(), signer, pool, stateMachine, transitionBuffer, shard, block.Genesis())
+			replica := New(newMockDispatcher(), signer, pool, stateMachine, transitionBuffer, shard, shard, block.Genesis())
 			Expect(func() { replica.Init() }).ToNot(Panic())
 		})
 	})
@@ -75,7 +75,7 @@ var _ = Describe("Replica", func() {
 					}
 					stateMachine := state.NewMachine(t.startingState, block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
 
-					replica := New(NewMockDispatcher(), signer, pool, stateMachine, transitionBuffer, shard, block.Genesis())
+					replica := New(NewMockDispatcher(), signer, pool, stateMachine, transitionBuffer, shard, shard, block.Genesis())
 					for _, transition := range t.transitions {
 						replica.Transition(transition)
 					}

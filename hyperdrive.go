@@ -27,7 +27,7 @@ type Hyperdrive interface {
 
 	SyncCommit(shardHash sig.Hash, commit block.Commit) bool
 
-	BeginShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool)
+	BeginShard(shard, previousShard shard.Shard, head block.SignedBlock, pool tx.Pool)
 	EndShard(shardHash sig.Hash)
 	DropShard(shardHash sig.Hash)
 }
@@ -94,7 +94,7 @@ func (hyperdrive *hyperdrive) SyncCommit(shardHash sig.Hash, commit block.Commit
 	return false
 }
 
-func (hyperdrive *hyperdrive) BeginShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool) {
+func (hyperdrive *hyperdrive) BeginShard(shard, previousShard shard.Shard, head block.SignedBlock, pool tx.Pool) {
 	if _, ok := hyperdrive.shardReplicas[shard.Hash]; ok {
 		return
 	}
@@ -106,6 +106,7 @@ func (hyperdrive *hyperdrive) BeginShard(shard shard.Shard, head block.SignedBlo
 		state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), shard.ConsensusThreshold()),
 		state.NewTransitionBuffer(shard.Size()),
 		shard,
+		previousShard,
 		head,
 	)
 

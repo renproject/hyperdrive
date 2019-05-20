@@ -23,26 +23,28 @@ type Replica interface {
 type replica struct {
 	dispatcher Dispatcher
 
-	signer           sig.Signer
-	validator        Validator
-	txPool           tx.Pool
-	stateMachine     state.Machine
-	transitionBuffer state.TransitionBuffer
-	shard            shard.Shard
-	lastBlock        *block.SignedBlock
+	signer                 sig.Signer
+	validator              Validator
+	previousShardValidator Validator
+	txPool                 tx.Pool
+	stateMachine           state.Machine
+	transitionBuffer       state.TransitionBuffer
+	shard                  shard.Shard
+	lastBlock              *block.SignedBlock
 }
 
-func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard shard.Shard, lastBlock block.SignedBlock) Replica {
+func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard, lastBlock block.SignedBlock) Replica {
 	replica := &replica{
 		dispatcher: dispatcher,
 
-		signer:           signer,
-		validator:        NewValidator(signer, shard),
-		txPool:           txPool,
-		stateMachine:     stateMachine,
-		transitionBuffer: transitionBuffer,
-		shard:            shard,
-		lastBlock:        &lastBlock,
+		signer:                 signer,
+		validator:              NewValidator(signer, shard),
+		previousShardValidator: NewValidator(signer, previousShard),
+		txPool:                 txPool,
+		stateMachine:           stateMachine,
+		transitionBuffer:       transitionBuffer,
+		shard:                  shard,
+		lastBlock:              &lastBlock,
 	}
 	return replica
 }
@@ -59,7 +61,7 @@ func (replica *replica) SyncCommit(commit block.Commit) bool {
 		}
 		return true
 	}
-	return false
+	return replica.previousShardValidator.ValidateCommit(commit)
 }
 
 func (replica *replica) Transition(transition state.Transition) {
