@@ -101,15 +101,14 @@ func (buffer *transitionBuffer) Enqueue(transition Transition) {
 	switch transition := transition.(type) {
 	case Proposed:
 		buffer.newQueue(transition.Block.Height)
-		if len(buffer.queues[transition.Height]) > 0 {
-			switch buffer.queues[transition.Height][0].(type) {
-			case PreVoted:
-			case PreCommitted:
+		if len(buffer.queues[transition.Block.Height]) > 0 {
+			switch buffer.queues[transition.Block.Height][0].(type) {
+			case PreVoted, PreCommitted:
 			default:
-				buffer.queues[transition.Height] = append(buffer.queues[transition.Height], transition)
+				buffer.queues[transition.Block.Height] = append(buffer.queues[transition.Block.Height], transition)
 			}
 		} else {
-			buffer.queues[transition.Height] = append(buffer.queues[transition.Height], transition)
+			buffer.queues[transition.Block.Height] = append(buffer.queues[transition.Block.Height], transition)
 		}
 
 	case PreVoted:

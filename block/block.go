@@ -2,6 +2,7 @@ package block
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/renproject/hyperdrive/sig"
@@ -95,7 +96,7 @@ func (signedBlock SignedBlock) String() string {
 }
 
 type Propose struct {
-	*SignedBlock
+	Block SignedBlock
 	Round Round
 }
 
@@ -131,8 +132,10 @@ type SignedPropose struct {
 }
 
 type Blockchain struct {
-	head   Commit
-	blocks map[Height]Commit
+	height Height
+
+	blocksMu *sync.RWMutex
+	blocks   map[Height]Commit
 }
 
 func NewBlockchain() Blockchain {
@@ -143,34 +146,32 @@ func NewBlockchain() Blockchain {
 		},
 	}
 	return Blockchain{
-		head:   genesisCommit,
-		blocks: map[Height]Commit{genesis.Height: genesisCommit},
+		height: genesisCommit.Polka.Height,
+
+		blocksMu: new(sync.RWMutex),
+		blocks:   map[Height]Commit{genesis.Height: genesisCommit},
 	}
 }
 
 func (blockchain *Blockchain) Height() Height {
-	if blockchain.head.Polka.Block == nil {
-		return Genesis().Height
-	}
-	return blockchain.head.Polka.Block.Height
-}
-
-func (blockchain *Blockchain) Round() *Round {
-	if blockchain.head.Polka.Block == nil {
-		return nil
-	}
-	return &blockchain.head.Polka.Round
+	return blockchain.height
 }
 
 func (blockchain *Blockchain) Head() (SignedBlock, bool) {
-	if blockchain.head.Polka.Block == nil {
-		return Genesis(), false
+	blockchain.blocksMu.RLock()
+	defer blockchain.blocksMu.RUnlock()
+
+	if commit, ok := blockchain.blocks[blockchain.height]; ok {
+		return *commit.Polka.Block, true
 	}
-	return *blockchain.head.Polka.Block, true
+	return Genesis(), false
 }
 
 func (blockchain *Blockchain) Block(height Height) (SignedBlock, bool) {
+	blockchain.blocksMu.RLock()
 	commit, ok := blockchain.blocks[height]
+	blockchain.blocksMu.RUnlock()
+
 	if !ok || commit.Polka.Block == nil {
 		return Genesis(), false
 	}
@@ -181,18 +182,28 @@ func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
 	if commitToNextBlock.Polka.Block == nil {
 		return
 	}
-	blockchain.blocks[commitToNextBlock.Polka.Block.Height] = commitToNextBlock
-	if blockchain.Height() < commitToNextBlock.Polka.Block.Height {
-		blockchain.head = commitToNextBlock
+
+	if blockchain.height < commitToNextBlock.Polka.Block.Height {
+		blockchain.height = commitToNextBlock.Polka.Block.Height
 	}
+
+	blockchain.blocksMu.Lock()
+	defer blockchain.blocksMu.Unlock()
+	blockchain.blocks[commitToNextBlock.Polka.Block.Height] = commitToNextBlock
 }
 
-func (blockchain *Blockchain) Blocks(blockNumber Height, n int64) []Commit {
+func (blockchain *Blockchain) Blocks(start, end Height) []Commit {
+	if end <= start {
+		return nil
+	}
+
 	var block Commit
 	var ok bool
-
 	blocks := []Commit{}
-	for i := blockNumber; i < blockNumber+Height(n); i++ {
+
+	blockchain.blocksMu.RLock()
+	defer blockchain.blocksMu.RUnlock()
+	for i := start; i <= end; i++ {
 		if block, ok = blockchain.blocks[i]; !ok {
 			return blocks
 		}

@@ -17,37 +17,51 @@ type Dispatcher interface {
 type Replica interface {
 	Init()
 	Transition(transition state.Transition)
+	SyncCommit(commit block.Commit) bool
 }
 
 type replica struct {
 	dispatcher Dispatcher
 
-	signer           sig.Signer
-	validator        Validator
-	txPool           tx.Pool
-	stateMachine     state.Machine
-	transitionBuffer state.TransitionBuffer
-	shard            shard.Shard
-	lastBlock        block.SignedBlock
+	signer                 sig.Signer
+	validator              Validator
+	previousShardValidator Validator
+	txPool                 tx.Pool
+	stateMachine           state.Machine
+	transitionBuffer       state.TransitionBuffer
+	shard                  shard.Shard
+	lastBlock              *block.SignedBlock
 }
 
-func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard shard.Shard, lastBlock block.SignedBlock) Replica {
+func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard, lastBlock block.SignedBlock) Replica {
 	replica := &replica{
 		dispatcher: dispatcher,
 
-		signer:           signer,
-		validator:        NewValidator(signer, shard),
-		txPool:           txPool,
-		stateMachine:     stateMachine,
-		transitionBuffer: transitionBuffer,
-		shard:            shard,
-		lastBlock:        lastBlock,
+		signer:                 signer,
+		validator:              NewValidator(signer, shard),
+		previousShardValidator: NewValidator(signer, previousShard),
+		txPool:                 txPool,
+		stateMachine:           stateMachine,
+		transitionBuffer:       transitionBuffer,
+		shard:                  shard,
+		lastBlock:              &lastBlock,
 	}
 	return replica
 }
 
 func (replica *replica) Init() {
 	replica.generateSignedBlock()
+}
+
+func (replica *replica) SyncCommit(commit block.Commit) bool {
+	if replica.validator.ValidateCommit(commit) {
+		if replica.lastBlock.Height < commit.Polka.Height {
+			replica.stateMachine.SyncCommit(commit)
+			replica.lastBlock = commit.Polka.Block
+		}
+		return true
+	}
+	return replica.previousShardValidator.ValidateCommit(commit)
 }
 
 func (replica *replica) Transition(transition state.Transition) {
@@ -63,11 +77,9 @@ func (replica *replica) Transition(transition state.Transition) {
 			continue
 		}
 		action := replica.transition(transition)
-		if action != nil {
-			// It is important that the Action is dispatched after the State has been completely transitioned in the
-			// Replica. Otherwise, re-entrance into the Replica may cause issues.
-			replica.dispatchAction(action)
-		}
+		// It is important that the Action is dispatched after the State has been completely transitioned in the
+		// Replica. Otherwise, re-entrance into the Replica may cause issues.
+		replica.dispatchAction(action)
 	}
 }
 
@@ -84,6 +96,7 @@ func (replica *replica) dispatchAction(action state.Action) {
 			// least be some sane logging and recovery.
 			panic(err)
 		}
+		replica.stateMachine.InsertPrevote(signedPreVote)
 		replica.dispatcher.Dispatch(replica.shard.Hash, state.SignedPreVote{
 			SignedPreVote: signedPreVote,
 		})
@@ -94,12 +107,13 @@ func (replica *replica) dispatchAction(action state.Action) {
 			// least be some sane logging and recovery.
 			panic(err)
 		}
+		replica.stateMachine.InsertPrecommit(signedPreCommit)
 		replica.dispatcher.Dispatch(replica.shard.Hash, state.SignedPreCommit{
 			SignedPreCommit: signedPreCommit,
 		})
 	case state.Commit:
 		if action.Commit.Polka.Block != nil {
-			replica.lastBlock = *action.Commit.Polka.Block
+			replica.lastBlock = action.Commit.Polka.Block
 			replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		}
 		replica.generateSignedBlock()
@@ -123,7 +137,7 @@ func (replica *replica) isTransitionValid(transition state.Transition) bool {
 func (replica *replica) shouldDropTransition(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
-		if transition.Height < replica.stateMachine.Height() {
+		if transition.Block.Height < replica.stateMachine.Height() {
 			return true
 		}
 	case state.PreVoted:
@@ -142,7 +156,7 @@ func (replica *replica) shouldBufferTransition(transition state.Transition) bool
 	switch transition := transition.(type) {
 	case state.Proposed:
 		// Only buffer Proposals from the future
-		if transition.Height <= replica.stateMachine.Height() {
+		if transition.Block.Height <= replica.stateMachine.Height() {
 			return false
 		}
 		return true
@@ -158,8 +172,8 @@ func (replica *replica) shouldProposeBlock() bool {
 func (replica *replica) generateSignedBlock() {
 	if replica.shouldProposeBlock() {
 		propose := block.Propose{
-			SignedBlock: replica.buildSignedBlock(),
-			Round:       replica.stateMachine.Round(),
+			Block: replica.buildSignedBlock(),
+			Round: replica.stateMachine.Round(),
 		}
 
 		signedPropose, err := propose.Sign(replica.signer)
@@ -178,7 +192,7 @@ func (replica *replica) generateSignedBlock() {
 	}
 }
 
-func (replica *replica) buildSignedBlock() *block.SignedBlock {
+func (replica *replica) buildSignedBlock() block.SignedBlock {
 	// TODO: We should put more than one transaction into a block.
 	transactions := make(tx.Transactions, 0, block.MaxTransactions)
 	transaction, ok := replica.txPool.Dequeue()
@@ -198,7 +212,7 @@ func (replica *replica) buildSignedBlock() *block.SignedBlock {
 		// least be some sane logging and recovery.
 		panic(err)
 	}
-	return &signedBlock
+	return signedBlock
 }
 
 func (replica *replica) transition(transition state.Transition) state.Action {
