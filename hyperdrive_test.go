@@ -30,7 +30,7 @@ var _ = Describe("Hyperdrive", func() {
 		shardHash := testutils.RandomHash()
 
 		txPool := tx.FIFOPool(100)
-		go populateTxPool(txPool)
+		go populateTxPool(txPool, done)
 
 		for i := 0; i < n; i++ {
 			var err error
@@ -296,11 +296,15 @@ func rand32Byte() [32]byte {
 	return b
 }
 
-func populateTxPool(txPool tx.Pool) {
+func populateTxPool(txPool tx.Pool, done chan struct{}) {
 	for {
 		tx := testutils.RandomTransaction()
 		if err := txPool.Enqueue(tx); err != nil {
-			time.Sleep(time.Duration(mrand.Intn(5)) * time.Millisecond)
+			select {
+			case <-done:
+				return
+			case <-time.After(time.Duration(mrand.Intn(5)) * time.Millisecond):
+			}
 		}
 	}
 }
