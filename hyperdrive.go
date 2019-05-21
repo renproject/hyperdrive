@@ -34,6 +34,7 @@ type Hyperdrive interface {
 }
 
 type hyperdrive struct {
+	index      int
 	signer     sig.SignerVerifier
 	dispatcher replica.Dispatcher
 
@@ -43,8 +44,9 @@ type hyperdrive struct {
 }
 
 // New returns a Hyperdrive.
-func New(signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
+func New(index int, signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
 	return &hyperdrive{
+		index:      index,
 		signer:     signer,
 		dispatcher: dispatcher,
 
@@ -62,7 +64,7 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 		if hyperdrive.ticksPerShard[shardHash] > NumTicksToTriggerTimeOut {
 			// 2. Send a TimedOut transition to the shard
 			if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-				fmt.Println("timed out")
+				fmt.Println(hyperdrive.index, "timed out")
 				replica.Transition(state.TimedOut{Time: t})
 				hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
 			}

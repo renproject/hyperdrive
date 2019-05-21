@@ -107,13 +107,13 @@ var _ = Describe("Hyperdrive", func() {
 				co.ParForAll(entry.numHyperdrives, func(i int) {
 					defer GinkgoRecover()
 
-					h := New(signers[i], NewMockDispatcher(i, ipChans, done, cap))
+					h := New(i, signers[i], NewMockDispatcher(i, ipChans, done, cap))
 					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight)).ShouldNot((HaveOccurred()))
 				})
 			})
 
 			if entry.numHyperdrives > 2 && entry.numHyperdrives <= 16 {
-				Context("when leader at index = 0 is inactive", func() {
+				FContext("when leader at index = 0 is inactive", func() {
 					It("should commit blocks with new leader", func() {
 						cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
 						ipChans, signers, ticker, done, consensusThreshold := initReplicas(entry.numHyperdrives)
@@ -122,7 +122,7 @@ var _ = Describe("Hyperdrive", func() {
 						co.ParForAll(entry.numHyperdrives, func(i int) {
 							defer GinkgoRecover()
 
-							h := New(signers[i], NewMockDispatcher(i, ipChans, done, cap))
+							h := New(i, signers[i], NewMockDispatcher(i, ipChans, done, cap))
 							if i == 0 {
 								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(i, ipChans, done, cap), consensusThreshold)
 							}
@@ -261,6 +261,7 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 					h.AcceptPreCommit(input.shardHash, action.SignedPreCommit)
 				case state.Commit:
 					Expect(len(action.Commit.Polka.Block.Txs)).To(BeNumerically("<=", block.MaxTransactions))
+					Expect(action.Polka.Round).To(Equal(block.Round(1)))
 					if currentBlock == nil || action.Polka.Block.Height > currentBlock.Height {
 						if currentBlock != nil {
 							Expect(action.Polka.Block.Height).To(Equal(currentBlock.Height + 1))
