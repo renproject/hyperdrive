@@ -103,6 +103,7 @@ var _ = Describe("Hyperdrive", func() {
 
 				ipChans, signers, ticker, done, _ := initReplicas(entry.numHyperdrives)
 				defer ticker.Stop()
+				defer close(done)
 
 				co.ParForAll(entry.numHyperdrives, func(i int) {
 					defer GinkgoRecover()
@@ -113,7 +114,7 @@ var _ = Describe("Hyperdrive", func() {
 			})
 
 			if entry.numHyperdrives > 2 && entry.numHyperdrives <= 16 {
-				FContext("when leader at index = 0 is inactive", func() {
+				Context("when leader at index = 0 is inactive", func() {
 					It("should commit blocks with new leader", func() {
 						// The estimated number of messages a Replica will receive throughout the test
 						cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
@@ -123,6 +124,7 @@ var _ = Describe("Hyperdrive", func() {
 
 						ipChans, signers, ticker, done, consensusThreshold := initReplicas(entry.numHyperdrives)
 						defer ticker.Stop()
+						defer close(done)
 
 						co.ParForAll(entry.numHyperdrives, func(i int) {
 							defer GinkgoRecover()
