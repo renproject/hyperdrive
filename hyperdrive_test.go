@@ -115,7 +115,12 @@ var _ = Describe("Hyperdrive", func() {
 			if entry.numHyperdrives > 2 && entry.numHyperdrives <= 16 {
 				FContext("when leader at index = 0 is inactive", func() {
 					It("should commit blocks with new leader", func() {
+						// The estimated number of messages a Replica will receive throughout the test
 						cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
+						// Increase by an order of magnitude to account for timeouts and
+						// multiple rounds
+						cap = 10 * cap
+
 						ipChans, signers, ticker, done, consensusThreshold := initReplicas(entry.numHyperdrives)
 						defer ticker.Stop()
 
@@ -268,7 +273,7 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 							Expect(currentBlock.Header.Equal(action.Polka.Block.ParentHeader)).To(Equal(true))
 						}
 						if index == 0 {
-							fmt.Printf("%v\n", *action.Polka.Block)
+							fmt.Printf("%v, Round=%d\n", *action.Polka.Block, action.Polka.Round)
 						}
 						currentBlock = action.Polka.Block
 						if currentBlock.Height == maxHeight {
