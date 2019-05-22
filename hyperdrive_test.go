@@ -56,10 +56,7 @@ var _ = Describe("Hyperdrive", func() {
 		}
 		ticker := time.NewTicker(tickerInterval * time.Millisecond)
 		go func() {
-			select {
-			case <-done:
-				return
-			case t := <-ticker.C:
+			for t := range ticker.C {
 				for i := 0; i < n; i++ {
 					select {
 					case <-done:
