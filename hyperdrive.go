@@ -20,12 +20,12 @@ const NumTicksToTriggerTimeOut = 2
 
 // Hyperdrive accepts blocks and ticks and sends relevant Transitions to the respective replica.
 type Hyperdrive interface {
+	SyncCommit(shardHash sig.Hash, commit block.Commit) bool
+
 	AcceptTick(t time.Time)
 	AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose)
 	AcceptPreVote(shardHash sig.Hash, preVote block.SignedPreVote)
 	AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit)
-
-	SyncCommit(shardHash sig.Hash, commit block.Commit) bool
 
 	BeginShard(shard, previousShard shard.Shard, head block.SignedBlock, pool tx.Pool)
 	EndShard(shardHash sig.Hash)
@@ -51,6 +51,13 @@ func New(signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
 
 		ticksPerShard: map[sig.Hash]int{},
 	}
+}
+
+func (hyperdrive *hyperdrive) SyncCommit(shardHash sig.Hash, commit block.Commit) bool {
+	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
+		return replica.SyncCommit(commit)
+	}
+	return false
 }
 
 func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
@@ -85,13 +92,6 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
 		replica.Transition(state.PreCommitted{SignedPreCommit: preCommit})
 	}
-}
-
-func (hyperdrive *hyperdrive) SyncCommit(shardHash sig.Hash, commit block.Commit) bool {
-	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		return replica.SyncCommit(commit)
-	}
-	return false
 }
 
 func (hyperdrive *hyperdrive) BeginShard(shard, previousShard shard.Shard, head block.SignedBlock, pool tx.Pool) {
