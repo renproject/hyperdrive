@@ -35,27 +35,30 @@ func NewFaultyLeader(signer sig.SignerVerifier, dispatcher replica.Dispatcher, c
 	}
 }
 
+func (faultyLeader *faultyLeader) SyncCommit(shardHash sig.Hash, commit block.Commit) bool {
+	return false
+}
+
 func (faultyLeader *faultyLeader) AcceptTick(t time.Time) {
-	return
 }
 
 func (faultyLeader *faultyLeader) AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose) {
 	action := state.PreVote{
 		PreVote: block.PreVote{
-			Block:  proposed.SignedBlock,
+			Block:  &proposed.Block,
 			Round:  proposed.Round,
-			Height: proposed.Height,
+			Height: proposed.Block.Height,
 		},
 	}
 	signedPreVote, err := action.PreVote.Sign(faultyLeader.signer)
 	if err != nil {
 		panic(err)
 	}
-	if _, ok := faultyLeader.prevotes[proposed.Header]; ok {
-		faultyLeader.prevotes[proposed.Header][signedPreVote.Signatory] = signedPreVote.Signature
+	if _, ok := faultyLeader.prevotes[proposed.Block.Header]; ok {
+		faultyLeader.prevotes[proposed.Block.Header][signedPreVote.Signatory] = signedPreVote.Signature
 	} else {
-		faultyLeader.prevotes[proposed.Header] = map[sig.Signatory]sig.Signature{}
-		faultyLeader.prevotes[proposed.Header][signedPreVote.Signatory] = signedPreVote.Signature
+		faultyLeader.prevotes[proposed.Block.Header] = map[sig.Signatory]sig.Signature{}
+		faultyLeader.prevotes[proposed.Block.Header][signedPreVote.Signatory] = signedPreVote.Signature
 	}
 
 	faultyLeader.dispatcher.Dispatch(shardHash, state.SignedPreVote{
@@ -121,15 +124,11 @@ func (faultyLeader *faultyLeader) AcceptCommit(shardHash sig.Hash, commit block.
 	panic("unimplemented")
 }
 
-func (faultyLeader *faultyLeader) BeginShard(shard shard.Shard, head block.SignedBlock, pool tx.Pool) {
-	return
+func (faultyLeader *faultyLeader) BeginShard(shard, previousShard shard.Shard, head block.SignedBlock, pool tx.Pool) {
 }
 
-
 func (faultyLeader *faultyLeader) EndShard(shardHash sig.Hash) {
-	return
 }
 
 func (faultyLeader *faultyLeader) DropShard(shardHash sig.Hash) {
-	return
 }
