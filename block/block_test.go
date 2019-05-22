@@ -21,7 +21,6 @@ var _ = Describe("Block", func() {
 
 			blockchain := NewBlockchain()
 			Expect(blockchain.Height()).To(Equal(genesis.Height))
-			Expect(blockchain.Round()).To(BeNil())
 			head, ok := blockchain.Head()
 			Expect(ok).To(BeTrue())
 			Expect(head).To(Equal(genesis))
@@ -111,9 +110,13 @@ var _ = Describe("Block", func() {
 					blockchain.Extend(commit)
 				}
 
-				blocks := blockchain.Blocks(0, 5)
+				// NOTE: Block range is inclusive.
+				blocks := blockchain.Blocks(0, 0)
+				Expect(len(blocks)).To(Equal(1))
+				blocks = blockchain.Blocks(0, 4)
 				Expect(len(blocks)).To(Equal(5))
-
+				blocks = blockchain.Blocks(5, 9)
+				Expect(len(blocks)).To(Equal(5))
 				blocks = blockchain.Blocks(10, 15)
 				Expect(len(blocks)).To(Equal(0))
 			})
@@ -177,8 +180,8 @@ var _ = Describe("Block", func() {
 			signedBlock, err := block.Sign(signer)
 			Expect(err).ShouldNot(HaveOccurred())
 			propose := Propose{
-				SignedBlock: &signedBlock,
-				Round:       1,
+				Block: signedBlock,
+				Round: 1,
 			}
 			signedPropose, err := propose.Sign(signer)
 			Expect(err).ShouldNot(HaveOccurred())
