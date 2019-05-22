@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -141,17 +142,21 @@ func (validator *validator) ValidatePreVote(preVote block.SignedPreVote, lastSig
 
 func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock *block.SignedBlock) bool {
 	if polka.Equal(&block.Polka{}) {
+		fmt.Println("polka is nil")
 		return false
 	}
 	if polka.Round < 0 || polka.Height < 0 {
+		fmt.Println("polka invalid round/height", polka.Round, polka.Height)
 		return false
 	}
 
 	if polka.Block != nil {
 		if polka.Height != polka.Block.Height {
+			fmt.Println("polka invalid height", polka.Height, polka.Block.Height)
 			return false
 		}
 		if !validator.ValidateBlock(*polka.Block, lastSignedBlock) {
+			fmt.Println("polka invalid block", *polka.Block, lastSignedBlock)
 			return false
 		}
 	}
@@ -167,6 +172,7 @@ func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock *bl
 
 	// Verify the signature
 	if !validator.verifySignatures(data, polka.Signatures, polka.Signatories) {
+		fmt.Println("polka invalid sig")
 		return false
 	}
 
@@ -177,6 +183,7 @@ func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock *bl
 func (validator *validator) ValidatePreCommit(preCommit block.SignedPreCommit, lastSignedBlock *block.SignedBlock) bool {
 	// Verify the underlying Polka is well-formed
 	if !validator.ValidatePolka(preCommit.PreCommit.Polka, lastSignedBlock) {
+		fmt.Println("polka validation failed")
 		return false
 	}
 
@@ -189,6 +196,7 @@ func (validator *validator) ValidatePreCommit(preCommit block.SignedPreCommit, l
 
 	// Verify the signature
 	if !validator.verifySignature(hash, preCommit.Signature, preCommit.Signatory) {
+		fmt.Println("signature validation failed")
 		return false
 	}
 
