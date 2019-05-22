@@ -153,18 +153,20 @@ func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock *bl
 		}
 	}
 
-	preVote := block.PreVote{
-		Block:  polka.Block,
-		Height: polka.Height,
-		Round:  polka.Round,
-	}
-	data := []byte(preVote.String())
+	if len(polka.Signatures) > 0 {
+		preVote := block.PreVote{
+			Block:  polka.Block,
+			Height: polka.Height,
+			Round:  polka.Round,
+		}
+		data := []byte(preVote.String())
 
-	// TODO: Check cache
+		// TODO: Check cache
 
-	// Verify the signature
-	if !validator.verifySignatures(data, polka.Signatures, polka.Signatories) {
-		return false
+		// Verify the signature
+		if !validator.verifySignatures(data, polka.Signatures, polka.Signatories) {
+			return false
+		}
 	}
 
 	// TODO: Fill cache
