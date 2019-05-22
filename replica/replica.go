@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -74,6 +75,7 @@ func (replica *replica) Transition(transition state.Transition) {
 	}
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
 		if !replica.isTransitionValid(transition) {
+			fmt.Printf("transition %T invalid\n", transition)
 			continue
 		}
 		action := replica.transition(transition)
@@ -222,5 +224,6 @@ func (replica *replica) transition(transition state.Transition) state.Action {
 		// If round has progressed, drop all prevotes and precommits in the state-machine
 		replica.stateMachine.Drop()
 	}
+	fmt.Printf("got action from SM: %T\n", action)
 	return action
 }
