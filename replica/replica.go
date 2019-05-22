@@ -225,6 +225,6 @@ func (replica *replica) transition(transition state.Transition) state.Action {
 		// If round has progressed, drop all prevotes and precommits in the state-machine
 		replica.stateMachine.Drop()
 	}
-	fmt.Printf("got action from SM: %T\n", action)
+	// fmt.Printf("got action from SM: %T\n", action)
 	return action
 }
