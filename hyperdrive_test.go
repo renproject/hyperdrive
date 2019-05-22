@@ -56,13 +56,15 @@ var _ = Describe("Hyperdrive", func() {
 		}
 		ticker := time.NewTicker(tickerInterval * time.Millisecond)
 		go func() {
-			for t := range ticker.C {
+			select {
+			case <-done:
+				return
+			case t := <-ticker.C:
 				for i := 0; i < n; i++ {
 					select {
 					case <-done:
 						return
 					case ipChans[i] <- TickObject{t}:
-					default:
 					}
 				}
 			}
@@ -179,7 +181,6 @@ func NewMockDispatcher(i int, channels []chan Object, done chan struct{}, cap in
 						}
 					}
 				}
-			default:
 			}
 		}
 	}()
