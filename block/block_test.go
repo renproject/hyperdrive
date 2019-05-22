@@ -110,8 +110,8 @@ var _ = Describe("Block", func() {
 					blockchain.Extend(commit)
 				}
 
-				blocks := blockchain.Blocks(0, 5)
-				Expect(len(blocks)).To(Equal(5))
+				blocks := blockchain.Blocks(0, 10)
+				Expect(len(blocks)).To(Equal(10))
 
 				blocks = blockchain.Blocks(10, 15)
 				Expect(len(blocks)).To(Equal(0))
