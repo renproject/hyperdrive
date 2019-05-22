@@ -107,7 +107,7 @@ var _ = Describe("Hyperdrive", func() {
 				co.ParForAll(entry.numHyperdrives, func(i int) {
 					defer GinkgoRecover()
 
-					h := New(i, signers[i], NewMockDispatcher(i, ipChans, done, cap))
+					h := New(signers[i], NewMockDispatcher(i, ipChans, done, cap))
 					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight)).ShouldNot((HaveOccurred()))
 				})
 			})
@@ -128,7 +128,7 @@ var _ = Describe("Hyperdrive", func() {
 						co.ParForAll(entry.numHyperdrives, func(i int) {
 							defer GinkgoRecover()
 
-							h := New(i, signers[i], NewMockDispatcher(i, ipChans, done, cap))
+							h := New(signers[i], NewMockDispatcher(i, ipChans, done, cap))
 							if i == 0 {
 								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(i, ipChans, done, cap), consensusThreshold)
 							}
