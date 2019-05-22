@@ -143,7 +143,7 @@ func (validator *validator) ValidatePreVote(preVote block.SignedPreVote, lastSig
 func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock *block.SignedBlock) bool {
 	if polka.Equal(&block.Polka{}) {
 		fmt.Println("polka is nil")
-		return false
+		return true
 	}
 	if polka.Round < 0 || polka.Height < 0 {
 		fmt.Println("polka invalid round/height", polka.Round, polka.Height)
