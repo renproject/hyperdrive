@@ -3,9 +3,10 @@ package sig_test
 import (
 	"crypto/rand"
 
+	"github.com/renproject/hyperdrive/sig"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/hyperdrive/sig"
 )
 
 var _ = Describe("Signatures", func() {

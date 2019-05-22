@@ -27,8 +27,8 @@ var _ = Describe("State Machine", func() {
 				action = reflect.TypeOf(t.finalAction).Name()
 			}
 
-			Context(fmt.Sprintf("when state machine begins with state - %s", reflect.TypeOf(t.startingState).Name()), func() {
-				It(fmt.Sprintf("should eventually return action - %s", action), func() {
+			Context(fmt.Sprintf("when state machine begins in state %s", reflect.TypeOf(t.startingState).Name()), func() {
+				It(fmt.Sprintf("should eventually return action %s", action), func() {
 					stateMachine := NewMachine(t.startingState, block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
 					var action Action
 					for _, transition := range t.transitions {
@@ -43,10 +43,8 @@ var _ = Describe("State Machine", func() {
 					} else {
 						Expect(reflect.TypeOf(action).Name()).To(Equal(reflect.TypeOf(t.finalAction).Name()))
 					}
-
 				})
 			})
-
 		}
 	})
 })
@@ -197,7 +195,7 @@ func generateTestCases() []TestCase {
 										Height: 0,
 									},
 								},
-								Round:  0,
+								Round: 0,
 							},
 						},
 						Signatory: testutils.RandomSignatory(),
