@@ -1,6 +1,7 @@
 package hyperdrive
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -54,13 +55,17 @@ func New(signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
 }
 
 func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
+
 	// 1. Increment number of ticks seen by each shard
 	for shardHash := range hyperdrive.shardReplicas {
 		hyperdrive.ticksPerShard[shardHash]++
 
+		fmt.Println("hyperdrive got tick", hyperdrive.ticksPerShard[shardHash])
 		if hyperdrive.ticksPerShard[shardHash] > NumTicksToTriggerTimeOut {
 			// 2. Send a TimedOut transition to the shard
 			if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
+
+				fmt.Println("hyperdrive timed out, reset ticks")
 				replica.Transition(state.TimedOut{Time: t})
 				hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
 			}
@@ -70,6 +75,7 @@ func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 
 func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose) {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
+		fmt.Println("hyperdrive reset ticks")
 		hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
 		replica.Transition(state.Proposed{SignedPropose: proposed})
 	}
