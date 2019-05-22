@@ -21,6 +21,7 @@ jobs:
             go get -u github.com/onsi/ginkgo/ginkgo
             go get -u github.com/loongy/covermerge
             go get -u github.com/mattn/goveralls
+            go test -v -timeout 20m ./... 
             CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out ./...
             /go/bin/covermerge           \
               block/coverprofile.out     \
