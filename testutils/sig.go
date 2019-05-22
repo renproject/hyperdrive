@@ -36,7 +36,7 @@ func RandomSignatory() sig.Signatory {
 }
 
 // RandomSignatories returns an array of n `sig.Signatories`
-func RandomSignatories(n int) []sig.Signatory {
+func RandomSignatories(n int) sig.Signatories {
 	signatories := []sig.Signatory{}
 	for i := 0; i < n; i++ {
 		signatories = append(signatories, RandomSignatory())
@@ -59,7 +59,7 @@ func RandomSignature() sig.Signature {
 }
 
 // RandomSignatures returns an array of n `sig.Signatures`
-func RandomSignatures(n int) []sig.Signature {
+func RandomSignatures(n int) sig.Signatures {
 	signatures := []sig.Signature{}
 	for i := 0; i < n; i++ {
 		signatures = append(signatures, RandomSignature())

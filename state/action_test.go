@@ -1,8 +1,9 @@
 package state_test
 
 import (
-	. "github.com/onsi/ginkgo"
 	"github.com/renproject/hyperdrive/state"
+
+	. "github.com/onsi/ginkgo"
 )
 
 var _ = Describe("Actions", func() {

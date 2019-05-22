@@ -21,6 +21,7 @@ var _ = Describe("Block", func() {
 
 			blockchain := NewBlockchain()
 			Expect(blockchain.Height()).To(Equal(genesis.Height))
+			Expect(blockchain.Round()).To(BeNil())
 			head, ok := blockchain.Head()
 			Expect(ok).To(BeTrue())
 			Expect(head).To(Equal(genesis))
@@ -90,6 +91,33 @@ var _ = Describe("Block", func() {
 				Expect(block).To(Equal(queryBlock))
 			})
 
+			It("should return blocks for a given range", func() {
+				blockchain := NewBlockchain()
+				for i := 0; i < 10; i++ {
+					block := Block{Height: Height(i), Header: testutils.RandomHash()}
+					signer, err := ecdsa.NewFromRandom()
+					Expect(err).ShouldNot(HaveOccurred())
+					signedBlock, err := block.Sign(signer)
+					Expect(err).ShouldNot(HaveOccurred())
+					commit := Commit{
+						Polka: Polka{
+							Block:       &signedBlock,
+							Round:       Round(i),
+							Height:      Height(i),
+							Signatures:  testutils.RandomSignatures(10),
+							Signatories: testutils.RandomSignatories(10),
+						},
+					}
+					blockchain.Extend(commit)
+				}
+
+				blocks := blockchain.Blocks(0, 5)
+				Expect(len(blocks)).To(Equal(5))
+
+				blocks = blockchain.Blocks(10, 15)
+				Expect(len(blocks)).To(Equal(0))
+			})
+
 			Context("when nil commits are inserted", func() {
 				It("should not insert the block", func() {
 					genesis := Genesis()
@@ -138,6 +166,23 @@ var _ = Describe("Block", func() {
 				Signatory: sig.Signatory{},
 			}
 			Expect(genesis).To(Equal(expectedGenesis))
+		})
+	})
+
+	Context("when a new propose block is generated", func() {
+		It("should not error while signing", func() {
+			block := New(1, Genesis().Header, []tx.Transaction{testutils.RandomTransaction(), testutils.RandomTransaction()})
+			signer, err := ecdsa.NewFromRandom()
+			Expect(err).ShouldNot(HaveOccurred())
+			signedBlock, err := block.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
+			propose := Propose{
+				SignedBlock: &signedBlock,
+				Round:       1,
+			}
+			signedPropose, err := propose.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(signedPropose.Round).To(Equal(Round(1)))
 		})
 	})
 })
