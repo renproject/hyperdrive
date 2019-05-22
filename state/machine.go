@@ -143,7 +143,7 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 	case TimedOut:
 		_, preVotingRound := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
 		if preVotingRound == nil {
-			return nil
+			return machine.preVote(nil)
 		}
 
 		machine.state = WaitingForCommit{}
@@ -186,7 +186,7 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 	case TimedOut:
 		_, preCommittingRound := machine.commitBuilder.Commit(machine.height, machine.consensusThreshold)
 		if preCommittingRound == nil {
-			return nil
+			return machine.preCommit()
 		}
 
 		machine.state = WaitingForPropose{}
