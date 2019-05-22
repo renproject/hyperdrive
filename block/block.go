@@ -193,8 +193,8 @@ func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
 }
 
 func (blockchain *Blockchain) Blocks(begin, end Height) []Commit {
-	if end <= begin {
-		return nil
+	if end < begin {
+		return []Commit{}
 	}
 
 	var block Commit
