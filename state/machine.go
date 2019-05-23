@@ -139,6 +139,7 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 
 	case PreVoted:
 		if !machine.polkaBuilder.Insert(transition.SignedPreVote) {
+			fmt.Println("not new")
 			return nil
 		}
 
