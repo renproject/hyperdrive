@@ -328,7 +328,7 @@ func (machine *machine) checkCommonExitConditions() Action {
 	if preVotingRound != nil && *preVotingRound > machine.round {
 		// After any +2/3 prevotes received at (H,R+x). --> goto Prevote(H,R+x)
 		machine.round = *preVotingRound
-		// machine.state = WaitingForPolka{}
+		machine.state = WaitingForPolka{}
 		return machine.preVote(nil)
 	}
 
