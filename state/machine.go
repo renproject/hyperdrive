@@ -145,7 +145,7 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 
 		polka, _ := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
 		if polka != nil && polka.Round == machine.round {
-			fmt.Printf("changing to wait for commit on receiving polka (H,R) = (%d, %d) for prevote(H,R) = (%d, %d)\n", polka.Height, polka.Round, transition.Block.Height, transition.Round)
+			fmt.Printf("changing to wait for commit on receiving polka (H,R) = (%d, %d) for prevote\n", polka.Height, polka.Round)
 			machine.state = WaitingForCommit{}
 			return machine.preCommit()
 		}
