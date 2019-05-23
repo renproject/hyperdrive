@@ -78,7 +78,7 @@ func (machine *machine) SyncCommit(commit block.Commit) {
 
 func (machine *machine) Drop() {
 	if machine.index < 100 {
-		fmt.Println("dropping everything at ", machine.height)
+		// fmt.Println("dropping everything at ", machine.height)
 	}
 	// machine.bufferredProposals = map[block.Round]block.SignedPropose{}
 	machine.polkaBuilder.Drop(machine.height)
@@ -101,17 +101,17 @@ func (machine *machine) Transition(transition Transition) Action {
 	switch machine.state.(type) {
 	case WaitingForPropose:
 		if machine.index < 100 {
-			fmt.Printf("got %T while waiting for propose\n", transition)
+			// fmt.Printf("got %T while waiting for propose\n", transition)
 		}
 		return machine.waitForPropose(transition)
 	case WaitingForPolka:
 		if machine.index < 100 {
-			fmt.Printf("got %T while waiting for polka\n", transition)
+			// fmt.Printf("got %T while waiting for polka\n", transition)
 		}
 		return machine.waitForPolka(transition)
 	case WaitingForCommit:
 		if machine.index < 100 {
-			fmt.Printf("got %T while waiting for commit\n", transition)
+			// fmt.Printf("got %T while waiting for commit\n", transition)
 		}
 		return machine.waitForCommit(transition)
 	default:
@@ -126,7 +126,7 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 		// unlocking faster than would otherwise be possible.
 
 		if machine.index < 100 {
-			fmt.Printf("changing to wait for polka at propose(H,R) = (%d, %d)\n", transition.Block.Height, transition.Round)
+			// fmt.Printf("changing to wait for polka at propose(H,R) = (%d, %d)\n", transition.Block.Height, transition.Round)
 		}
 		machine.state = WaitingForPolka{}
 		machine.lastAction = machine.preVote(&transition.Block)
@@ -140,7 +140,7 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 
 	case TimedOut:
 		if machine.index < 100 {
-			fmt.Printf("changing to wait for polka at timedout\n")
+			// fmt.Printf("changing to wait for polka at timedout\n")
 		}
 		machine.state = WaitingForPolka{}
 		machine.lastAction = machine.preVote(nil)
@@ -163,18 +163,18 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 	case PreVoted:
 		if !machine.polkaBuilder.Insert(transition.SignedPreVote) {
 			if machine.index < 100 {
-				fmt.Println("not new")
+				// fmt.Println("not new")
 			}
 			return nil
 		}
 
 		// polka, polkaRound := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
 		// if (polkaRound != nil && polka == nil) || (polka != nil && polka.Round == machine.round) {
-		// 	if machine.index < 100 { // fmt.Printf("changing to wait for commit on receiving polka (H,R) = (%d, %d) for prevote\n", polka.Height, polka.Round)
+		// 	if machine.index < 100 { // // fmt.Printf("changing to wait for commit on receiving polka (H,R) = (%d, %d) for prevote\n", polka.Height, polka.Round)
 		// 	}
 		polka, _ := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
 		if polka != nil && polka.Round == machine.round {
-			fmt.Printf("changing to wait for commit on receiving polka (H,R) = (%d, %d) for prevote\n", polka.Height, polka.Round)
+			// fmt.Printf("changing to wait for commit on receiving polka (H,R) = (%d, %d) for prevote\n", polka.Height, polka.Round)
 			machine.state = WaitingForCommit{}
 			machine.lastAction = machine.preCommit()
 			return machine.lastAction
@@ -192,7 +192,7 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 		}
 
 		if machine.index < 100 {
-			fmt.Printf("changing to wait for commit on receiving timeout\n")
+			// fmt.Printf("changing to wait for commit on receiving timeout\n")
 		}
 		machine.state = WaitingForCommit{}
 		machine.lastAction = machine.preCommit()
@@ -223,11 +223,11 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 		// commit, commitRound := machine.commitBuilder.Commit(machine.height, machine.consensusThreshold)
 		// if (commitRound != nil && commit == nil) || (commit != nil && commit.Polka.Block == nil && commit.Polka.Round == machine.round) {
 		// 	if machine.index < 100 {
-		// 		fmt.Printf("changing to wait for propose on receiving commit (H,R) = (%d, %d) for precommit (H,R) = (%d, %d)\n", commit.Polka.Height, commit.Polka.Round, transition.Polka.Height, transition.Polka.Round)
+		// 		// fmt.Printf("changing to wait for propose on receiving commit (H,R) = (%d, %d) for precommit (H,R) = (%d, %d)\n", commit.Polka.Height, commit.Polka.Round, transition.Polka.Height, transition.Polka.Round)
 		// 	}
 		commit, _ := machine.commitBuilder.Commit(machine.height, machine.consensusThreshold)
 		if commit != nil && commit.Polka.Block == nil && commit.Polka.Round == machine.round {
-			fmt.Printf("changing to wait for propose on receiving commit (H,R) = (%d, %d) for precommit (H,R) = (%d, %d)\n", commit.Polka.Height, commit.Polka.Round, transition.Polka.Height, transition.Polka.Round)
+			// fmt.Printf("changing to wait for propose on receiving commit (H,R) = (%d, %d) for precommit (H,R) = (%d, %d)\n", commit.Polka.Height, commit.Polka.Round, transition.Polka.Height, transition.Polka.Round)
 			machine.state = WaitingForPropose{}
 			machine.lastAction = nil
 			machine.round++
@@ -248,7 +248,7 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 		}
 
 		if machine.index < 100 {
-			fmt.Printf("changing to wait for propose on receiving timeout\n")
+			// fmt.Printf("changing to wait for propose on receiving timeout\n")
 		}
 		machine.state = WaitingForPropose{}
 		machine.lastAction = nil
@@ -359,7 +359,7 @@ func (machine *machine) checkCommonExitConditions() Action {
 	if commit != nil && commit.Polka.Block != nil {
 		// After +2/3 precommits for a particular block. --> goto Commit(H)
 		if machine.index < 100 {
-			fmt.Printf("changing to wait for propose on receiving commit (H,R) = (%d, %d)\n", commit.Polka.Height, commit.Polka.Round)
+			// fmt.Printf("changing to wait for propose on receiving commit (H,R) = (%d, %d)\n", commit.Polka.Height, commit.Polka.Round)
 		}
 		machine.state = WaitingForPropose{}
 		machine.height = commit.Polka.Height + 1
@@ -376,7 +376,7 @@ func (machine *machine) checkCommonExitConditions() Action {
 		// After any +2/3 prevotes received at (H,R+x). --> goto Prevote(H,R+x)
 		machine.round = *preVotingRound
 		if machine.index < 100 {
-			fmt.Printf("prevoting nil at stage %T \n", machine.state)
+			// fmt.Printf("prevoting nil at stage %T \n", machine.state)
 		}
 		// machine.state = WaitingForPolka{}
 		machine.lastAction = machine.preVote(nil)
@@ -386,10 +386,10 @@ func (machine *machine) checkCommonExitConditions() Action {
 	if preCommittingRound != nil && *preCommittingRound > machine.round {
 		// After any +2/3 precommits received at (H,R+x). --> goto Precommit(H,R+x)
 		if machine.index < 100 {
-			fmt.Printf("changing to wait for commit on receiving 2/3+ commits\n")
+			// fmt.Printf("changing to wait for commit on receiving 2/3+ commits\n")
 		}
 		if machine.index < 100 {
-			fmt.Printf("precommiting nil at stage %T \n", machine.state)
+			// fmt.Printf("precommiting nil at stage %T \n", machine.state)
 		}
 		machine.state = WaitingForCommit{}
 		machine.round = *preCommittingRound

@@ -77,16 +77,17 @@ func (replica *replica) Transition(transition state.Transition) {
 	}
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
 		if !replica.isTransitionValid(transition) {
+			fmt.Printf("%T invalid\n", transition)
 			continue
 		}
 		action := replica.transition(transition)
 		if _, ok := transition.(state.TimedOut); ok {
 			if replica.index < 100 {
-				fmt.Println("timeout transition", action)
+				// fmt.Println("timeout transition", action)
 			}
 		} else {
 			if replica.index < 100 {
-				fmt.Println("not timeout", action)
+				// fmt.Println("not timeout", action)
 			}
 		}
 

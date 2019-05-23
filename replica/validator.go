@@ -1,7 +1,6 @@
 package replica
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -175,7 +174,7 @@ func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock *bl
 func (validator *validator) ValidatePreCommit(preCommit block.SignedPreCommit, lastSignedBlock *block.SignedBlock) bool {
 	// Verify the underlying Polka is well-formed
 	if !validator.ValidatePolka(preCommit.PreCommit.Polka, lastSignedBlock) {
-		fmt.Println("invalid polka")
+		// fmt.Println("invalid polka")
 		return false
 	}
 
