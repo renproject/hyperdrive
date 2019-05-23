@@ -109,6 +109,8 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 	case Proposed:
 		// FIXME: Proposals can (optionally) include a Polka to encourage
 		// unlocking faster than would otherwise be possible.
+
+		fmt.Printf("changing to wait for polka at propose(H,R) = (%d, %d)\n", transition.Block.Height, transition.Round)
 		machine.state = WaitingForPolka{}
 		return machine.preVote(&transition.Block)
 
@@ -119,6 +121,7 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 		_ = machine.commitBuilder.Insert(transition.SignedPreCommit)
 
 	case TimedOut:
+		fmt.Printf("changing to wait for polka at timedout\n")
 		machine.state = WaitingForPolka{}
 		return machine.preVote(nil)
 
@@ -141,6 +144,7 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 
 		polka, _ := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
 		if polka != nil && polka.Round == machine.round {
+			fmt.Printf("changing to wait for commit on receiving polka (H,R) = (%d, %d) for prevote(H,R) = (%d, %d)\n", polka.Height, polka.Round, transition.Block.Height, transition.Round)
 			machine.state = WaitingForCommit{}
 			return machine.preCommit()
 		}
@@ -156,6 +160,7 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 			return nil
 		}
 
+		fmt.Printf("changing to wait for commit on receiving timeout\n")
 		machine.state = WaitingForCommit{}
 		return machine.preCommit()
 
@@ -181,6 +186,7 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 
 		commit, _ := machine.commitBuilder.Commit(machine.height, machine.consensusThreshold)
 		if commit != nil && commit.Polka.Block == nil && commit.Polka.Round == machine.round {
+			fmt.Printf("changing to wait for propose on receiving commit (H,R) = (%d, %d) for precommit (H,R) = (%d, %d)\n", commit.Polka.Height, commit.Polka.Round, transition.Polka.Height, transition.Polka.Round)
 			machine.state = WaitingForPropose{}
 			machine.round++
 			return Commit{
@@ -199,6 +205,7 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 			return nil
 		}
 
+		fmt.Printf("changing to wait for propose on receiving timeout\n")
 		machine.state = WaitingForPropose{}
 		machine.round++
 		return Commit{
@@ -306,6 +313,7 @@ func (machine *machine) checkCommonExitConditions() Action {
 	commit, preCommittingRound := machine.commitBuilder.Commit(machine.height, machine.consensusThreshold)
 	if commit != nil && commit.Polka.Block != nil {
 		// After +2/3 precommits for a particular block. --> goto Commit(H)
+		fmt.Printf("changing to wait for propose on receiving commit (H,R) = (%d, %d)\n", commit.Polka.Height, commit.Polka.Round)
 		machine.state = WaitingForPropose{}
 		machine.height = commit.Polka.Height + 1
 		machine.round = 0
@@ -319,11 +327,13 @@ func (machine *machine) checkCommonExitConditions() Action {
 	if preVotingRound != nil && *preVotingRound > machine.round {
 		// After any +2/3 prevotes received at (H,R+x). --> goto Prevote(H,R+x)
 		machine.round = *preVotingRound
+		// machine.state = WaitingForPolka{}
 		return machine.preVote(nil)
 	}
 
 	if preCommittingRound != nil && *preCommittingRound > machine.round {
 		// After any +2/3 precommits received at (H,R+x). --> goto Precommit(H,R+x)
+		fmt.Printf("changing to wait for commit on receiving 2/3+ commits\n")
 		machine.state = WaitingForCommit{}
 		machine.round = *preCommittingRound
 		return machine.preCommit()
