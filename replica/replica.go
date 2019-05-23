@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -21,6 +22,7 @@ type Replica interface {
 }
 
 type replica struct {
+	index      int
 	dispatcher Dispatcher
 
 	signer                 sig.Signer
@@ -33,8 +35,9 @@ type replica struct {
 	lastBlock              *block.SignedBlock
 }
 
-func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard, lastBlock block.SignedBlock) Replica {
+func New(index int, dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard, lastBlock block.SignedBlock) Replica {
 	replica := &replica{
+		index:      index,
 		dispatcher: dispatcher,
 
 		signer:                 signer,
@@ -77,6 +80,16 @@ func (replica *replica) Transition(transition state.Transition) {
 			continue
 		}
 		action := replica.transition(transition)
+		if _, ok := transition.(state.TimedOut); ok {
+			if replica.index < 100 {
+				fmt.Println("timeout transition", action)
+			}
+		} else {
+			if replica.index < 100 {
+				fmt.Println("not timeout", action)
+			}
+		}
+
 		// It is important that the Action is dispatched after the State has been completely transitioned in the
 		// Replica. Otherwise, re-entrance into the Replica may cause issues.
 		replica.dispatchAction(action)
@@ -157,6 +170,10 @@ func (replica *replica) shouldBufferTransition(transition state.Transition) bool
 	switch transition := transition.(type) {
 	case state.Proposed:
 		// Only buffer Proposals from the future
+		// if transition.Block.Height < replica.stateMachine.Height() {
+		// 	return false
+		// }
+		// if (transition.Block.Height == replica.stateMachine.Height()) && (transition.Round <= replica.stateMachine.Round()) {
 		if transition.Block.Height <= replica.stateMachine.Height() {
 			return false
 		}

@@ -24,6 +24,7 @@ import (
 var _ = Describe("Hyperdrive", func() {
 
 	initReplicas := func(n int) ([]chan Object, []sig.SignerVerifier, *time.Ticker, chan struct{}, int) {
+		mrand.Seed(time.Now().UnixNano())
 		done := make(chan struct{})
 		ipChans := make([]chan Object, n)
 		signatories := make(sig.Signatories, n)
@@ -51,11 +52,11 @@ var _ = Describe("Hyperdrive", func() {
 			ipChans[i] <- ShardObject{shard, txPool}
 		}
 
-		tickerInterval := time.Duration(n * n * 2)
-		if n <= 16 {
-			tickerInterval = time.Duration(1000)
-		}
-		ticker := time.NewTicker(tickerInterval * time.Millisecond)
+		// tickerInterval := time.Duration(n * n * 2)
+		// if n <= 16 {
+		// 	tickerInterval = time.Duration(1000)
+		// }
+		ticker := time.NewTicker(200 * time.Millisecond)
 		go func() {
 			for t := range ticker.C {
 				for i := 0; i < n; i++ {
@@ -101,21 +102,21 @@ var _ = Describe("Hyperdrive", func() {
 				// multiple rounds
 				cap = 10 * cap
 
-				ipChans, signers, ticker, done, _ := initReplicas(entry.numHyperdrives)
+				ipChans, signers, ticker, done, consensusThreshold := initReplicas(entry.numHyperdrives)
 				defer ticker.Stop()
 				defer close(done)
 
 				co.ParForAll(entry.numHyperdrives, func(i int) {
 					defer GinkgoRecover()
 
-					h := New(signers[i], NewMockDispatcher(i, ipChans, done, cap))
+					h := New(signers[i], NewMockDispatcher(true, i, consensusThreshold, ipChans, done, cap))
 					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight)).ShouldNot((HaveOccurred()))
 				})
 			})
 
 			_, ok := os.LookupEnv("CI")
 			if (!ok && entry.numHyperdrives > 2 && entry.numHyperdrives <= 16) || (ok && entry.numHyperdrives == 8) {
-				Context("when leader at index = 0 is inactive", func() {
+				FContext("when leader at index = 0 is inactive", func() {
 					It("should commit blocks with new leader", func() {
 						// The estimated number of messages a Replica will receive throughout the test
 						cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
@@ -130,9 +131,9 @@ var _ = Describe("Hyperdrive", func() {
 						co.ParForAll(entry.numHyperdrives, func(i int) {
 							defer GinkgoRecover()
 
-							h := New(signers[i], NewMockDispatcher(i, ipChans, done, cap))
+							h := New(signers[i], NewMockDispatcher(false, i, consensusThreshold, ipChans, done, cap))
 							if i == 0 {
-								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(i, ipChans, done, cap), consensusThreshold)
+								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(false, i, consensusThreshold, ipChans, done, cap), consensusThreshold)
 							}
 
 							Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight)).ShouldNot(HaveOccurred())
@@ -154,7 +155,7 @@ type mockDispatcher struct {
 	done chan struct{}
 }
 
-func NewMockDispatcher(i int, channels []chan Object, done chan struct{}, cap int) *mockDispatcher {
+func NewMockDispatcher(perfect bool, i, consensusThreshold int, channels []chan Object, done chan struct{}, cap int) *mockDispatcher {
 	dispatcher := &mockDispatcher{
 		index: i,
 
@@ -173,6 +174,10 @@ func NewMockDispatcher(i int, channels []chan Object, done chan struct{}, cap in
 			case actionObject := <-dispatcher.reqCh:
 				for i := range dispatcher.channels {
 					if i != dispatcher.index {
+						if !SimulateCommsFault(perfect, len(channels), 2, dispatcher.index, i) {
+							fmt.Println(dispatcher.index, "not sending to ", i)
+							continue
+						}
 						select {
 						case <-dispatcher.done:
 							return
@@ -257,7 +262,7 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 			case TickObject:
 				h.AcceptTick(input.Time)
 			case ShardObject:
-				h.BeginShard(input.shard, shard.Shard{}, block.Genesis(), input.pool)
+				h.BeginShard(index, input.shard, shard.Shard{}, block.Genesis(), input.pool)
 			case ActionObject:
 				switch action := input.action.(type) {
 				case state.Propose:
@@ -308,4 +313,20 @@ func populateTxPool(txPool tx.Pool, done chan struct{}) {
 			}
 		}
 	}
+}
+
+// SimulateCommsFault mimics an imperfect communication channel. It returns
+// true if the message is to be sent as normal, and false if the message should
+// be dropped. If perfect is true, the function will always return true.
+// Otherwise, there is a chance that it will return false, and it will also
+// delay returning for a brief random time interval.
+func SimulateCommsFault(perfect bool, n, k, from, to int) bool {
+	// Simulate message failure
+	if !perfect {
+		if mrand.Intn(100) < 10 {
+			return false
+		}
+		time.Sleep(time.Duration(mrand.Intn(100)) * time.Millisecond)
+	}
+	return true
 }
