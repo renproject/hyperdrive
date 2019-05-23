@@ -127,7 +127,7 @@ func (replica *replica) isTransitionValid(transition state.Transition) bool {
 	case state.PreVoted:
 		return replica.validator.ValidatePreVote(transition.SignedPreVote, replica.lastBlock)
 	case state.PreCommitted:
-		return replica.validator.ValidatePreCommit(transition.SignedPreCommit, replica.lastBlock)
+		return replica.validator.ValidatePreCommit(transition.SignedPreCommit, nil)
 	case state.TimedOut:
 		return transition.Time.Before(time.Now())
 	}
