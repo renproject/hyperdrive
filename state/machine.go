@@ -10,11 +10,12 @@ type Machine interface {
 	Height() block.Height
 	Round() block.Round
 	State() State
-	Transition(transition Transition) Action
 	InsertPrevote(signedPreVote block.SignedPreVote)
 	InsertPrecommit(signedPreCommit block.SignedPreCommit)
 	SyncCommit(commit block.Commit)
 	Drop()
+
+	Transition(transition Transition) Action
 }
 
 type machine struct {
@@ -69,6 +70,12 @@ func (machine *machine) SyncCommit(commit block.Commit) {
 	}
 }
 
+func (machine *machine) Drop() {
+	fmt.Println("dropping everything at ", machine.height)
+	machine.polkaBuilder.Drop(machine.height)
+	machine.commitBuilder.Drop(machine.height)
+}
+
 func (machine *machine) Transition(transition Transition) Action {
 	// Check pre-conditions
 	if machine.lockedRound == nil {
@@ -84,10 +91,13 @@ func (machine *machine) Transition(transition Transition) Action {
 
 	switch machine.state.(type) {
 	case WaitingForPropose:
+		fmt.Printf("got %T while waiting for propose\n", transition)
 		return machine.waitForPropose(transition)
 	case WaitingForPolka:
+		fmt.Printf("got %T while waiting for polka\n", transition)
 		return machine.waitForPolka(transition)
 	case WaitingForCommit:
+		fmt.Printf("got %T while waiting for commit\n", transition)
 		return machine.waitForCommit(transition)
 	default:
 		panic(fmt.Errorf("unexpected state type %T", machine.state))
@@ -320,9 +330,4 @@ func (machine *machine) checkCommonExitConditions() Action {
 	}
 
 	return nil
-}
-
-func (machine *machine) Drop() {
-	machine.polkaBuilder.Drop(machine.height)
-	machine.commitBuilder.Drop(machine.height)
 }
