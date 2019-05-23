@@ -158,7 +158,7 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 	case TimedOut:
 		_, preVotingRound := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
 		if preVotingRound == nil {
-			return nil
+			return machine.preVote(machine.lockedBlock)
 		}
 
 		fmt.Printf("changing to wait for commit on receiving timeout\n")
@@ -203,7 +203,7 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 	case TimedOut:
 		_, preCommittingRound := machine.commitBuilder.Commit(machine.height, machine.consensusThreshold)
 		if preCommittingRound == nil {
-			return nil
+			return machine.preCommit()
 		}
 
 		fmt.Printf("changing to wait for propose on receiving timeout\n")
