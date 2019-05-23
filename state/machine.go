@@ -328,13 +328,15 @@ func (machine *machine) checkCommonExitConditions() Action {
 	if preVotingRound != nil && *preVotingRound > machine.round {
 		// After any +2/3 prevotes received at (H,R+x). --> goto Prevote(H,R+x)
 		machine.round = *preVotingRound
-		machine.state = WaitingForPolka{}
+		fmt.Printf("prevoting nil at stage %T \n", machine.state)
+		// machine.state = WaitingForCommit{}
 		return machine.preVote(nil)
 	}
 
 	if preCommittingRound != nil && *preCommittingRound > machine.round {
 		// After any +2/3 precommits received at (H,R+x). --> goto Precommit(H,R+x)
 		fmt.Printf("changing to wait for commit on receiving 2/3+ commits\n")
+		fmt.Printf("precommiting nil at stage %T \n", machine.state)
 		machine.state = WaitingForCommit{}
 		machine.round = *preCommittingRound
 		return machine.preCommit()
