@@ -35,9 +35,9 @@ type machine struct {
 	consensusThreshold int
 }
 
-func NewMachine(index int, state State, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, consensusThreshold int) Machine {
+func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, consensusThreshold int) Machine {
 	return &machine{
-		index: index,
+		index: 0,
 		state: state,
 		// bufferredProposals: map[block.Round]block.SignedPropose{},
 		polkaBuilder:       polkaBuilder,

@@ -35,9 +35,9 @@ type replica struct {
 	lastBlock              *block.SignedBlock
 }
 
-func New(index int, dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard, lastBlock block.SignedBlock) Replica {
+func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard, lastBlock block.SignedBlock) Replica {
 	replica := &replica{
-		index:      index,
+		index:      0,
 		dispatcher: dispatcher,
 
 		signer:                 signer,

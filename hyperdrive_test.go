@@ -175,7 +175,7 @@ func NewMockDispatcher(perfect bool, i, consensusThreshold int, channels []chan 
 				for i := range dispatcher.channels {
 					if i != dispatcher.index {
 						if !SimulateCommsFault(perfect, len(channels), 2, dispatcher.index, i) {
-							fmt.Println(dispatcher.index, "not sending to ", i)
+							// fmt.Println(dispatcher.index, "not sending to ", i)
 							continue
 						}
 						select {
@@ -279,7 +279,7 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 							Expect(currentBlock.Header.Equal(action.Polka.Block.ParentHeader)).To(Equal(true))
 						}
 						if index == 0 {
-							fmt.Printf("%v, Round=%d\n", *action.Polka.Block, action.Polka.Round)
+							// fmt.Printf("%v, Round=%d\n", *action.Polka.Block, action.Polka.Round)
 						}
 						currentBlock = action.Polka.Block
 						if currentBlock.Height == maxHeight {
