@@ -160,12 +160,12 @@ func (replica *replica) dispatchAction(action state.Action) {
 func (replica *replica) isTransitionValid(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
-		return replica.validator.ValidatePropose(transition.SignedPropose, replica.lastBlock)
+		return replica.validator.ValidatePropose(transition.SignedPropose, nil)
 	case state.PreVoted:
 		return replica.validator.ValidatePreVote(transition.SignedPreVote, nil)
 	case state.PreCommitted:
-		// return replica.validator.ValidatePreCommit(transition.SignedPreCommit, nil)
-		return true
+		return replica.validator.ValidatePreCommit(transition.SignedPreCommit, nil)
+		// return true
 	case state.TimedOut:
 		return transition.Time.Before(time.Now())
 	}
