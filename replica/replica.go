@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -9,6 +10,10 @@ import (
 	"github.com/renproject/hyperdrive/state"
 	"github.com/renproject/hyperdrive/tx"
 )
+
+// NumTicksToTriggerTimeOut specifies the maximum number of Ticks to wait before
+// triggering a TimedOut  transition.
+const NumTicksToTriggerTimeOut = 2
 
 type Dispatcher interface {
 	Dispatch(shardHash sig.Hash, action state.Action)
@@ -24,6 +29,7 @@ type replica struct {
 	index      int
 	dispatcher Dispatcher
 
+	ticks                  int
 	signer                 sig.Signer
 	validator              Validator
 	previousShardValidator Validator
@@ -39,6 +45,7 @@ func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state
 		index:      0,
 		dispatcher: dispatcher,
 
+		ticks:                  0,
 		signer:                 signer,
 		validator:              NewValidator(signer, shard),
 		previousShardValidator: NewValidator(signer, previousShard),
@@ -74,11 +81,28 @@ func (replica *replica) Transition(transition state.Transition) {
 		replica.transitionBuffer.Enqueue(transition)
 		return
 	}
+
+	if tick, ok := transition.(state.Ticked); ok {
+		replica.ticks++
+		if replica.ticks <= NumTicksToTriggerTimeOut {
+			return
+		}
+
+		fmt.Println("replica timed out, reset ticks")
+
+		transition = state.TimedOut{Time: tick.Time}
+		replica.ticks = 0
+	}
+
+	if _, ok := transition.(state.Proposed); ok {
+		replica.ticks = 0
+	}
+
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
-		// if !replica.isTransitionValid(transition) {
-		// 	fmt.Printf("%T invalid\n", transition)
-		// 	continue
-		// }
+		if !replica.isTransitionValid(transition) {
+			fmt.Printf("%T invalid\n", transition)
+			continue
+		}
 		action := replica.transition(transition)
 		if _, ok := transition.(state.TimedOut); ok {
 			if replica.index < 100 {
@@ -189,6 +213,8 @@ func (replica *replica) shouldProposeBlock() bool {
 
 func (replica *replica) generateSignedBlock() {
 	if replica.shouldProposeBlock() {
+		replica.ticks = 0
+		fmt.Println("sending propose")
 		propose := block.Propose{
 			Block: replica.buildSignedBlock(),
 			Round: replica.stateMachine.Round(),

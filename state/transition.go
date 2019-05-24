@@ -39,6 +39,16 @@ type TimedOut struct {
 func (TimedOut) IsTransition() {
 }
 
+// An external event has triggered a Tick.
+type Ticked struct {
+	time.Time
+}
+
+// IsTransition implements the `Transition` interface for the
+// `Ticked` event.
+func (Ticked) IsTransition() {
+}
+
 // A Proposed block has been received by another Replica.
 type Proposed struct {
 	block.SignedPropose

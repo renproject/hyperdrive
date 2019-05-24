@@ -1,7 +1,6 @@
 package hyperdrive
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -15,9 +14,6 @@ import (
 // NumHistoricalShards specifies the number of historical shards allowed.
 const NumHistoricalShards = 3
 
-// NumTicksToTriggerTimeOut specifies the maximum number of Ticks to wait before
-// triggering a TimedOut  transition.
-const NumTicksToTriggerTimeOut = 2
 
 // Hyperdrive accepts blocks and ticks and sends relevant Transitions to the respective replica.
 type Hyperdrive interface {
@@ -39,7 +35,7 @@ type hyperdrive struct {
 
 	shardReplicas map[sig.Hash]replica.Replica
 
-	ticksPerShard map[sig.Hash]int
+	// ticksPerShard map[sig.Hash]int
 }
 
 // New returns a Hyperdrive.
@@ -50,29 +46,29 @@ func New(signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
 
 		shardReplicas: map[sig.Hash]replica.Replica{},
 
-		ticksPerShard: map[sig.Hash]int{},
+		// ticksPerShard: map[sig.Hash]int{},
 	}
 }
 
 func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 	// 1. Increment number of ticks seen by each shard
 	for shardHash := range hyperdrive.shardReplicas {
-		hyperdrive.ticksPerShard[shardHash]++
+		// hyperdrive.ticksPerShard[shardHash]++
 
-		if hyperdrive.ticksPerShard[shardHash] > NumTicksToTriggerTimeOut {
-			// 2. Send a TimedOut transition to the shard
-			if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-				fmt.Println("hyperdrive timed out, reset ticks")
-				replica.Transition(state.TimedOut{Time: t})
-				hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
-			}
+		// if hyperdrive.ticksPerShard[shardHash] > NumTicksToTriggerTimeOut {
+		// 2. Send a TimedOut transition to the shard
+		if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
+			// fmt.Println("hyperdrive timed out, reset ticks")
+			replica.Transition(state.Ticked{Time: t})
+			// hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
 		}
+		// }
 	}
 }
 
 func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose) {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
+		// hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
 		replica.Transition(state.Proposed{SignedPropose: proposed})
 	}
 }
@@ -113,7 +109,7 @@ func (hyperdrive *hyperdrive) BeginShard(shard, previousShard shard.Shard, head 
 	)
 
 	hyperdrive.shardReplicas[shard.Hash] = r
-	hyperdrive.ticksPerShard[shard.Hash] = 0
+	// hyperdrive.ticksPerShard[shard.Hash] = 0
 
 	r.Init()
 }
@@ -126,5 +122,4 @@ func (hyperdrive *hyperdrive) EndShard(shardHahs sig.Hash) {
 
 func (hyperdrive *hyperdrive) DropShard(shardHash sig.Hash) {
 	delete(hyperdrive.shardReplicas, shardHash)
-	delete(hyperdrive.ticksPerShard, shardHash)
 }
