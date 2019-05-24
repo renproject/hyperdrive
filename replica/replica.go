@@ -1,7 +1,6 @@
 package replica
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -88,8 +87,6 @@ func (replica *replica) Transition(transition state.Transition) {
 			return
 		}
 
-		fmt.Println("replica timed out, reset ticks", replica.stateMachine.Height(), replica.stateMachine.Round())
-
 		transition = state.TimedOut{Time: tick.Time}
 		replica.ticks = 0
 	}
@@ -100,7 +97,6 @@ func (replica *replica) Transition(transition state.Transition) {
 
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
 		if !replica.isTransitionValid(transition) {
-			fmt.Printf("%T invalid\n", transition)
 			continue
 		}
 		action := replica.transition(transition)
@@ -156,7 +152,6 @@ func (replica *replica) isTransitionValid(transition state.Transition) bool {
 		return replica.validator.ValidatePreVote(transition.SignedPreVote, nil)
 	case state.PreCommitted:
 		return replica.validator.ValidatePreCommit(transition.SignedPreCommit, nil)
-		// return true
 	case state.TimedOut:
 		return transition.Time.Before(time.Now())
 	}
@@ -205,7 +200,6 @@ func (replica *replica) shouldProposeBlock() bool {
 func (replica *replica) generateSignedBlock() {
 	if replica.shouldProposeBlock() {
 		replica.ticks = 0
-		fmt.Println("sending propose")
 		propose := block.Propose{
 			Block: replica.buildSignedBlock(),
 			Round: replica.stateMachine.Round(),

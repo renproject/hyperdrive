@@ -14,7 +14,6 @@ import (
 // NumHistoricalShards specifies the number of historical shards allowed.
 const NumHistoricalShards = 3
 
-
 // Hyperdrive accepts blocks and ticks and sends relevant Transitions to the respective replica.
 type Hyperdrive interface {
 	AcceptTick(t time.Time)
