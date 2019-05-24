@@ -56,7 +56,7 @@ var _ = Describe("Hyperdrive", func() {
 		// if n <= 16 {
 		// 	tickerInterval = time.Duration(1000)
 		// }
-		ticker := time.NewTicker(200 * time.Millisecond)
+		ticker := time.NewTicker(300 * time.Millisecond)
 		go func() {
 			for t := range ticker.C {
 				for i := 0; i < n; i++ {
@@ -131,9 +131,9 @@ var _ = Describe("Hyperdrive", func() {
 						co.ParForAll(entry.numHyperdrives, func(i int) {
 							defer GinkgoRecover()
 
-							h := New(signers[i], NewMockDispatcher(false, i, consensusThreshold, ipChans, done, cap))
+							h := New(signers[i], NewMockDispatcher(true, i, consensusThreshold, ipChans, done, cap))
 							if i == 0 {
-								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(false, i, consensusThreshold, ipChans, done, cap), consensusThreshold)
+								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(true, i, consensusThreshold, ipChans, done, cap), consensusThreshold)
 							}
 
 							Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight)).ShouldNot(HaveOccurred())
@@ -175,7 +175,7 @@ func NewMockDispatcher(perfect bool, i, consensusThreshold int, channels []chan 
 				for i := range dispatcher.channels {
 					if i != dispatcher.index {
 						if !SimulateCommsFault(perfect, len(channels), 2, dispatcher.index, i) {
-							// fmt.Println(dispatcher.index, "not sending to ", i)
+							fmt.Println(dispatcher.index, "dropping message to ", i)
 							continue
 						}
 						select {
@@ -262,7 +262,7 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 			case TickObject:
 				h.AcceptTick(input.Time)
 			case ShardObject:
-				h.BeginShard(index, input.shard, shard.Shard{}, block.Genesis(), input.pool)
+				h.BeginShard(input.shard, shard.Shard{}, block.Genesis(), input.pool)
 			case ActionObject:
 				switch action := input.action.(type) {
 				case state.Propose:
@@ -279,7 +279,7 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 							Expect(currentBlock.Header.Equal(action.Polka.Block.ParentHeader)).To(Equal(true))
 						}
 						if index == 0 {
-							// fmt.Printf("%v, Round=%d\n", *action.Polka.Block, action.Polka.Round)
+							fmt.Printf("%v, Round=%d\n", *action.Polka.Block, action.Polka.Round)
 						}
 						currentBlock = action.Polka.Block
 						if currentBlock.Height == maxHeight {
@@ -323,7 +323,7 @@ func populateTxPool(txPool tx.Pool, done chan struct{}) {
 func SimulateCommsFault(perfect bool, n, k, from, to int) bool {
 	// Simulate message failure
 	if !perfect {
-		if mrand.Intn(100) < 10 {
+		if mrand.Intn(100) < 5 {
 			return false
 		}
 		time.Sleep(time.Duration(mrand.Intn(100)) * time.Millisecond)
