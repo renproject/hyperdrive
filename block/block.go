@@ -67,7 +67,7 @@ func (block Block) Sign(signer sig.Signer) (SignedBlock, error) {
 }
 
 func (block Block) String() string {
-	return fmt.Sprintf("Block(Height=%d,Timestamp=%d,TxHeader=%s,ParentHeader=%s)", block.Height, block.Time.Unix(), block.TxHeader, block.ParentHeader)
+	return fmt.Sprintf("Block(Height=%d,Timestamp=%d,TxHeader=%s,ParentHeader=%s)", block.Height, block.Time.UnixNano(), block.TxHeader, block.ParentHeader)
 }
 
 type SignedBlock struct {
