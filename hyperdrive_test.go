@@ -116,7 +116,7 @@ var _ = Describe("Hyperdrive", func() {
 
 			_, ok := os.LookupEnv("CI")
 			if (!ok && entry.numHyperdrives > 2 && entry.numHyperdrives <= 16) || (ok && entry.numHyperdrives == 8) {
-				FContext("when leader at index = 0 is inactive", func() {
+				Context("when leader at index = 0 is inactive", func() {
 					It("should commit blocks with new leader", func() {
 						// The estimated number of messages a Replica will receive throughout the test
 						cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
