@@ -257,10 +257,10 @@ func (builder PolkaBuilder) Polka(height Height, consensusThreshold int) (*Polka
 		if polka.Height != height {
 			panic(fmt.Errorf("expected the polka height (%v) to equal %v", polka.Height, height))
 		}
-		// fmt.Println("returning polka for ", polka.Round, &polka.Round)
+		fmt.Println("returning polka for ", polka.Round, &polka.Round)
 		return polka, &polka.Round
 	}
-	// fmt.Println("returning nil for ", preVotesRound)
+	fmt.Println("returning nil for ", preVotesRound)
 	return nil, preVotesRound
 }
 

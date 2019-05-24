@@ -88,7 +88,7 @@ func (replica *replica) Transition(transition state.Transition) {
 			return
 		}
 
-		fmt.Println("replica timed out, reset ticks")
+		fmt.Println("replica timed out, reset ticks", replica.stateMachine.Height(), replica.stateMachine.Round())
 
 		transition = state.TimedOut{Time: tick.Time}
 		replica.ticks = 0
@@ -104,15 +104,6 @@ func (replica *replica) Transition(transition state.Transition) {
 			continue
 		}
 		action := replica.transition(transition)
-		if _, ok := transition.(state.TimedOut); ok {
-			if replica.index < 100 {
-				// fmt.Println("timeout transition", action)
-			}
-		} else {
-			if replica.index < 100 {
-				// fmt.Println("not timeout", action)
-			}
-		}
 
 		// It is important that the Action is dispatched after the State has been completely transitioned in the
 		// Replica. Otherwise, re-entrance into the Replica may cause issues.
