@@ -33,8 +33,6 @@ type hyperdrive struct {
 	dispatcher replica.Dispatcher
 
 	shardReplicas map[sig.Hash]replica.Replica
-
-	// ticksPerShard map[sig.Hash]int
 }
 
 // New returns a Hyperdrive.
@@ -44,30 +42,22 @@ func New(signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
 		dispatcher: dispatcher,
 
 		shardReplicas: map[sig.Hash]replica.Replica{},
-
-		// ticksPerShard: map[sig.Hash]int{},
 	}
 }
 
 func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 	// 1. Increment number of ticks seen by each shard
 	for shardHash := range hyperdrive.shardReplicas {
-		// hyperdrive.ticksPerShard[shardHash]++
 
-		// if hyperdrive.ticksPerShard[shardHash] > NumTicksToTriggerTimeOut {
-		// 2. Send a TimedOut transition to the shard
+		// 2. Send a Ticked transition to the shard
 		if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-			// fmt.Println("hyperdrive timed out, reset ticks")
 			replica.Transition(state.Ticked{Time: t})
-			// hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
 		}
-		// }
 	}
 }
 
 func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose) {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		// hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
 		replica.Transition(state.Proposed{SignedPropose: proposed})
 	}
 }
@@ -108,7 +98,6 @@ func (hyperdrive *hyperdrive) BeginShard(shard, previousShard shard.Shard, head 
 	)
 
 	hyperdrive.shardReplicas[shard.Hash] = r
-	// hyperdrive.ticksPerShard[shard.Hash] = 0
 
 	r.Init()
 }

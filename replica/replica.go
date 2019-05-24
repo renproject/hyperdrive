@@ -25,7 +25,6 @@ type Replica interface {
 }
 
 type replica struct {
-	index      int
 	dispatcher Dispatcher
 
 	ticks                  int
@@ -41,7 +40,6 @@ type replica struct {
 
 func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard, lastBlock block.SignedBlock) Replica {
 	replica := &replica{
-		index:      0,
 		dispatcher: dispatcher,
 
 		ticks:                  0,
@@ -100,7 +98,6 @@ func (replica *replica) Transition(transition state.Transition) {
 			continue
 		}
 		action := replica.transition(transition)
-
 		// It is important that the Action is dispatched after the State has been completely transitioned in the
 		// Replica. Otherwise, re-entrance into the Replica may cause issues.
 		replica.dispatchAction(action)
@@ -180,10 +177,6 @@ func (replica *replica) shouldBufferTransition(transition state.Transition) bool
 	switch transition := transition.(type) {
 	case state.Proposed:
 		// Only buffer Proposals from the future
-		// if transition.Block.Height < replica.stateMachine.Height() {
-		// 	return false
-		// }
-		// if (transition.Block.Height == replica.stateMachine.Height()) && (transition.Round <= replica.stateMachine.Round()) {
 		if transition.Block.Height <= replica.stateMachine.Height() {
 			return false
 		}
