@@ -85,6 +85,7 @@ func (replica *replica) Transition(transition state.Transition) {
 			return
 		}
 
+		// Update transition to a TimedOut
 		transition = state.TimedOut{Time: tick.Time}
 		replica.ticks = 0
 	}

@@ -138,13 +138,8 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 			return nil
 		}
 
-		// polka, polkaRound := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
-		// if (polkaRound != nil && polka == nil) || (polka != nil && polka.Round == machine.round) {
-		// 	if machine.index < 100 { // fmt.Printf("changing to wait for commit on receiving polka (H,R) = (%d, %d) for prevote\n", polka.Height, polka.Round)
-		// 	}
 		polka, _ := machine.polkaBuilder.Polka(machine.height, machine.consensusThreshold)
 		if polka != nil && polka.Round == machine.round {
-			// fmt.Printf("changing to wait for commit on receiving polka (H,R) = (%d, %d) for prevote\n", polka.Height, polka.Round)
 			machine.state = WaitingForCommit{}
 			machine.lastAction = machine.preCommit()
 			return machine.lastAction
