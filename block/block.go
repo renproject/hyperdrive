@@ -96,8 +96,9 @@ func (signedBlock SignedBlock) String() string {
 }
 
 type Propose struct {
-	Block SignedBlock
-	Round Round
+	Block      SignedBlock
+	Round      Round
+	ValidRound Round // TODO: Rename to something appropriate
 }
 
 // Sign a Propose with your private key
@@ -121,7 +122,7 @@ func (propose Propose) Sign(signer sig.Signer) (SignedPropose, error) {
 }
 
 func (propose Propose) String() string {
-	return fmt.Sprintf("Propose(%s)", propose.Block.String())
+	return fmt.Sprintf("Propose(Block = %s, Round = %d, ValidRound = %d)", propose.Block.String(), propose.Round, propose.ValidRound)
 }
 
 type SignedPropose struct {

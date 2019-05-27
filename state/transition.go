@@ -20,12 +20,15 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/sig"
 )
 
 // A Transition is an event that transitions a `Machine` from one
 // State to another. It is generated externally to the `Machine`.
 type Transition interface {
 	IsTransition()
+	Round() block.Round
+	Signer() sig.Signatory
 }
 
 // TimedOut waiting for some other external event.
@@ -39,6 +42,18 @@ type TimedOut struct {
 func (TimedOut) IsTransition() {
 }
 
+// Round implements the `Transition` interface for the
+// `TimedOut` event.
+func (TimedOut) Round() block.Round {
+	return -1
+}
+
+// Signer implements the `Transition` interface for the
+// `TimedOut` event.
+func (TimedOut) Signer() sig.Signatory {
+	return sig.Signatory{}
+}
+
 // An external event has triggered a Tick.
 type Ticked struct {
 	time.Time
@@ -49,6 +64,18 @@ type Ticked struct {
 func (Ticked) IsTransition() {
 }
 
+// Signer implements the `Transition` interface for the
+// `Ticked` event.
+func (Ticked) Signer() sig.Signatory {
+	return sig.Signatory{}
+}
+
+// Round implements the `Transition` interface for the
+// `Ticked` event.
+func (Ticked) Round() block.Round {
+	return -1
+}
+
 // A Proposed block has been received by another Replica.
 type Proposed struct {
 	block.SignedPropose
@@ -57,6 +84,18 @@ type Proposed struct {
 // IsTransition implements the `Transition` interface for the
 // `Proposed` event.
 func (Proposed) IsTransition() {
+}
+
+// Round implements the `Transition` interface for the
+// `Proposed` event.
+func (proposed Proposed) Round() block.Round {
+	return proposed.SignedPropose.Round
+}
+
+// Signer implements the `Transition` interface for the
+// `Proposed` event.
+func (proposed Proposed) Signer() sig.Signatory {
+	return proposed.Signatory
 }
 
 // A PreVoted block has been signed and broadcast by another
@@ -70,6 +109,18 @@ type PreVoted struct {
 func (PreVoted) IsTransition() {
 }
 
+// Round implements the `Transition` interface for the
+// `PreVoted` event.
+func (prevoted PreVoted) Round() block.Round {
+	return prevoted.SignedPreVote.Round
+}
+
+// Signer implements the `Transition` interface for the
+// `PreVoted` event.
+func (prevoted PreVoted) Signer() sig.Signatory {
+	return prevoted.Signatory
+}
+
 // A PreCommitted polka has been signed and broadcast by another
 // `Replica`.
 type PreCommitted struct {
@@ -79,6 +130,18 @@ type PreCommitted struct {
 // IsTransition implements the `Transition` interface for the
 // `PreCommitted` event.
 func (PreCommitted) IsTransition() {
+}
+
+// Round implements the `Transition` interface for the
+// `PreCommitted` event.
+func (precommitted PreCommitted) Round() block.Round {
+	return precommitted.SignedPreCommit.Polka.Round
+}
+
+// Signer implements the `Transition` interface for the
+// `PreCommitted` event.
+func (precommitted PreCommitted) Signer() sig.Signatory {
+	return precommitted.Signatory
 }
 
 // A TransitionBuffer is used to temporarily buffer `Transitions` that

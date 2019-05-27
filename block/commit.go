@@ -41,6 +41,10 @@ type SignedPreCommit struct {
 	Signatory sig.Signatory
 }
 
+func (signedPreCommit SignedPreCommit) String() string {
+	return fmt.Sprintf("SignedPreCommit(%s,Signature=%v,Signatory=%v)", signedPreCommit.PreCommit.String(), signedPreCommit.Signature, signedPreCommit.Signatory)
+}
+
 type Commit struct {
 	Polka       Polka
 	Signatures  sig.Signatures

@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -25,6 +26,7 @@ type Replica interface {
 }
 
 type replica struct {
+	index      int
 	dispatcher Dispatcher
 
 	ticks                  int
@@ -38,8 +40,9 @@ type replica struct {
 	lastBlock              *block.SignedBlock
 }
 
-func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard, lastBlock block.SignedBlock) Replica {
+func New(index int, dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard, lastBlock block.SignedBlock) Replica {
 	replica := &replica{
+		index:      index,
 		dispatcher: dispatcher,
 
 		ticks:                  0,
@@ -56,7 +59,18 @@ func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, state
 }
 
 func (replica *replica) Init() {
-	replica.generateSignedBlock()
+	propose := replica.stateMachine.StartRound(0, nil)
+	fmt.Println(replica.index, "yo yo got propose", propose)
+	if propose, ok := propose.(state.Propose); ok {
+		fmt.Println(replica.index, "got propose", propose)
+		replica.dispatcher.Dispatch(replica.shard.Hash, state.Propose{
+			SignedPropose: propose.SignedPropose,
+		})
+		replica.Transition(state.Proposed{
+			SignedPropose: propose.SignedPropose,
+		})
+
+	}
 }
 
 func (replica *replica) SyncCommit(commit block.Commit) bool {
@@ -72,35 +86,37 @@ func (replica *replica) SyncCommit(commit block.Commit) bool {
 
 func (replica *replica) Transition(transition state.Transition) {
 	if replica.shouldDropTransition(transition) {
+		fmt.Printf("dropping transition %T\n", transition)
 		return
 	}
 	if replica.shouldBufferTransition(transition) {
+		fmt.Printf("buffering transition %T\n", transition)
 		replica.transitionBuffer.Enqueue(transition)
 		return
 	}
 
-	if tick, ok := transition.(state.Ticked); ok {
-		replica.ticks++
-		if replica.ticks <= NumTicksToTriggerTimeOut {
-			return
-		}
-
-		// Update transition to a TimedOut
-		transition = state.TimedOut{Time: tick.Time}
-		replica.ticks = 0
-	}
-
-	if _, ok := transition.(state.Proposed); ok {
-		replica.ticks = 0
-	}
-
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
-		if !replica.isTransitionValid(transition) {
-			continue
-		}
+		// if !replica.isTransitionValid(transition) {
+		// 	continue
+		// }
+
+		fmt.Printf("%d got transition %T\n", replica.index, transition)
 		action := replica.transition(transition)
+		fmt.Printf("%d got action %T\n", replica.index, action)
 		// It is important that the Action is dispatched after the State has been completely transitioned in the
 		// Replica. Otherwise, re-entrance into the Replica may cause issues.
+		if propose, ok := action.(state.Propose); ok {
+			// It is important that the Action is dispatched after the State has been completely transitioned in the
+			// Replica. Otherwise, re-entrance into the Replica may cause issues.
+			replica.dispatcher.Dispatch(replica.shard.Hash, state.Propose{
+				SignedPropose: propose.SignedPropose,
+			})
+			replica.Transition(state.Proposed{
+				SignedPropose: propose.SignedPropose,
+			})
+			continue
+
+		}
 		replica.dispatchAction(action)
 	}
 }
@@ -111,34 +127,21 @@ func (replica *replica) dispatchAction(action state.Action) {
 	}
 
 	switch action := action.(type) {
-	case state.PreVote:
-		signedPreVote, err := action.PreVote.Sign(replica.signer)
-		if err != nil {
-			// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
-			// least be some sane logging and recovery.
-			panic(err)
-		}
-		replica.stateMachine.InsertPrevote(signedPreVote)
+	case state.SignedPreVote:
 		replica.dispatcher.Dispatch(replica.shard.Hash, state.SignedPreVote{
-			SignedPreVote: signedPreVote,
+			SignedPreVote: action.SignedPreVote,
 		})
-	case state.PreCommit:
-		signedPreCommit, err := action.PreCommit.Sign(replica.signer)
-		if err != nil {
-			// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
-			// least be some sane logging and recovery.
-			panic(err)
-		}
-		replica.stateMachine.InsertPrecommit(signedPreCommit)
+	case state.SignedPreCommit:
 		replica.dispatcher.Dispatch(replica.shard.Hash, state.SignedPreCommit{
-			SignedPreCommit: signedPreCommit,
+			SignedPreCommit: action.SignedPreCommit,
 		})
 	case state.Commit:
 		if action.Commit.Polka.Block != nil {
 			replica.lastBlock = action.Commit.Polka.Block
 			replica.dispatcher.Dispatch(replica.shard.Hash, action)
 		}
-		replica.generateSignedBlock()
+	default:
+		panic(fmt.Sprintf("unexpected message %T", action))
 	}
 }
 
@@ -159,15 +162,15 @@ func (replica *replica) isTransitionValid(transition state.Transition) bool {
 func (replica *replica) shouldDropTransition(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
-		if transition.Block.Height < replica.stateMachine.Height() {
+		if transition.Block.Height < replica.stateMachine.Height() || transition.Round() < replica.stateMachine.Round() {
 			return true
 		}
 	case state.PreVoted:
-		if transition.Height < replica.stateMachine.Height() {
+		if transition.Height < replica.stateMachine.Height() || transition.Round() < replica.stateMachine.Round() {
 			return true
 		}
 	case state.PreCommitted:
-		if transition.Polka.Height < replica.stateMachine.Height() {
+		if transition.Polka.Height < replica.stateMachine.Height() || transition.Round() < replica.stateMachine.Round() {
 			return true
 		}
 	}
@@ -187,61 +190,14 @@ func (replica *replica) shouldBufferTransition(transition state.Transition) bool
 	}
 }
 
-func (replica *replica) shouldProposeBlock() bool {
-	return replica.signer.Signatory().Equal(replica.shard.Leader(replica.stateMachine.Round()))
-}
-
-func (replica *replica) generateSignedBlock() {
-	if replica.shouldProposeBlock() {
-		replica.ticks = 0
-		propose := block.Propose{
-			Block: replica.buildSignedBlock(),
-			Round: replica.stateMachine.Round(),
-		}
-
-		signedPropose, err := propose.Sign(replica.signer)
-		if err != nil {
-			panic(err)
-		}
-		replica.dispatcher.Dispatch(replica.shard.Hash, state.Propose{
-			SignedPropose: signedPropose,
-		})
-
-		// It is important that the Action is dispatched after the State has been completely transitioned in the
-		// Replica. Otherwise, re-entrance into the Replica may cause issues.
-		replica.dispatchAction(replica.transition(state.Proposed{
-			SignedPropose: signedPropose,
-		}))
-	}
-}
-
-func (replica *replica) buildSignedBlock() block.SignedBlock {
-	// TODO: We should put more than one transaction into a block.
-	transactions := make(tx.Transactions, 0, block.MaxTransactions)
-	transaction, ok := replica.txPool.Dequeue()
-	for ok && len(transactions) < block.MaxTransactions {
-		transactions = append(transactions, transaction)
-		transaction, ok = replica.txPool.Dequeue()
-	}
-
-	block := block.New(
-		replica.stateMachine.Height(),
-		replica.lastBlock.Header,
-		transactions,
-	)
-	signedBlock, err := block.Sign(replica.signer)
-	if err != nil {
-		// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
-		// least be some sane logging and recovery.
-		panic(err)
-	}
-	return signedBlock
-}
-
 func (replica *replica) transition(transition state.Transition) state.Action {
 	action := replica.stateMachine.Transition(transition)
 	replica.transitionBuffer.Drop(replica.stateMachine.Height())
 	if commit, ok := action.(state.Commit); ok && commit.Polka.Block != nil {
+		// If round has progressed, drop all prevotes and precommits in the state-machine
+		replica.stateMachine.Drop()
+	}
+	if propose, ok := action.(state.Propose); ok && len(propose.Commit.Signatures) > 0 && propose.Commit.Polka.Block != nil {
 		// If round has progressed, drop all prevotes and precommits in the state-machine
 		replica.stateMachine.Drop()
 	}

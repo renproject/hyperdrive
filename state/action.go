@@ -8,6 +8,7 @@ type Action interface {
 
 type Propose struct {
 	block.SignedPropose
+	Commit Commit
 }
 
 func (Propose) IsAction() {
