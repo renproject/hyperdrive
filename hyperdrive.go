@@ -29,6 +29,7 @@ type Hyperdrive interface {
 }
 
 type hyperdrive struct {
+	index      int
 	signer     sig.SignerVerifier
 	dispatcher replica.Dispatcher
 
@@ -36,8 +37,9 @@ type hyperdrive struct {
 }
 
 // New returns a Hyperdrive.
-func New(signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
+func New(index int, signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
 	return &hyperdrive{
+		index:      index,
 		signer:     signer,
 		dispatcher: dispatcher,
 
@@ -86,11 +88,11 @@ func (hyperdrive *hyperdrive) BeginShard(shard, previousShard shard.Shard, head 
 		return
 	}
 
-	r := replica.New(
+	r := replica.New(hyperdrive.index,
 		hyperdrive.dispatcher,
 		hyperdrive.signer,
 		pool,
-		state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), shard.ConsensusThreshold()),
+		state.NewMachine(block.NewPolkaBuilder(), block.NewCommitBuilder(), hyperdrive.signer, shard, pool, shard.ConsensusThreshold()),
 		state.NewTransitionBuffer(shard.Size()),
 		shard,
 		previousShard,

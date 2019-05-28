@@ -52,11 +52,11 @@ var _ = Describe("Hyperdrive", func() {
 			ipChans[i] <- ShardObject{shard, txPool}
 		}
 
-		// tickerInterval := time.Duration(n * n * 2)
-		// if n <= 16 {
-		// 	tickerInterval = time.Duration(1000)
-		// }
-		ticker := time.NewTicker(300 * time.Millisecond)
+		tickerInterval := time.Duration(n * n * 2)
+		if n <= 16 {
+			tickerInterval = time.Duration(1000)
+		}
+		ticker := time.NewTicker(tickerInterval * time.Millisecond)
 		go func() {
 			for t := range ticker.C {
 				for i := 0; i < n; i++ {
@@ -77,7 +77,7 @@ var _ = Describe("Hyperdrive", func() {
 		maxHeight      block.Height
 	}{
 		// {1, 640},
-		{2, 320},
+		// {2, 320},
 		{4, 160},
 		{8, 80},
 		{16, 40},
@@ -102,14 +102,14 @@ var _ = Describe("Hyperdrive", func() {
 				// multiple rounds
 				cap = 10 * cap
 
-				ipChans, signers, ticker, done, consensusThreshold := initReplicas(entry.numHyperdrives)
+				ipChans, signers, ticker, done, _ := initReplicas(entry.numHyperdrives)
 				defer ticker.Stop()
 				defer close(done)
 
 				co.ParForAll(entry.numHyperdrives, func(i int) {
 					defer GinkgoRecover()
 
-					h := New(signers[i], NewMockDispatcher(true, i, consensusThreshold, ipChans, done, cap))
+					h := New(i, signers[i], NewMockDispatcher(true, i, ipChans, done, cap))
 					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight)).ShouldNot((HaveOccurred()))
 				})
 			})
@@ -131,9 +131,9 @@ var _ = Describe("Hyperdrive", func() {
 						co.ParForAll(entry.numHyperdrives, func(i int) {
 							defer GinkgoRecover()
 
-							h := New(signers[i], NewMockDispatcher(true, i, consensusThreshold, ipChans, done, cap))
+							h := New(i, signers[i], NewMockDispatcher(false, i, ipChans, done, cap))
 							if i == 0 {
-								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(true, i, consensusThreshold, ipChans, done, cap), consensusThreshold)
+								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(false, i, ipChans, done, cap), consensusThreshold)
 							}
 
 							Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight)).ShouldNot(HaveOccurred())
@@ -155,7 +155,7 @@ type mockDispatcher struct {
 	done chan struct{}
 }
 
-func NewMockDispatcher(perfect bool, i, consensusThreshold int, channels []chan Object, done chan struct{}, cap int) *mockDispatcher {
+func NewMockDispatcher(perfect bool, i int, channels []chan Object, done chan struct{}, cap int) *mockDispatcher {
 	dispatcher := &mockDispatcher{
 		index: i,
 
@@ -276,13 +276,15 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 					if currentBlock == nil || action.Polka.Block.Height > currentBlock.Height {
 						if currentBlock != nil {
 							Expect(action.Polka.Block.Height).To(Equal(currentBlock.Height + 1))
-							Expect(currentBlock.Header.Equal(action.Polka.Block.ParentHeader)).To(Equal(true))
+							// Expect(currentBlock.Header.Equal(action.Polka.Block.ParentHeader)).To(Equal(true))
 						}
-						if index == 0 {
-							fmt.Printf("%v, Round=%d\n", *action.Polka.Block, action.Polka.Round)
+						if index == 1 {
+							fmt.Printf("%d => %v, Round=%d\n", index, *action.Polka.Block, action.Polka.Round)
 						}
 						currentBlock = action.Polka.Block
 						if currentBlock.Height == maxHeight {
+							// fmt.Printf("%v, Round=%d\n", *action.Polka.Block, action.Polka.Round)
+
 							return nil
 						}
 					}
@@ -323,9 +325,6 @@ func populateTxPool(txPool tx.Pool, done chan struct{}) {
 func SimulateCommsFault(perfect bool, n, k, from, to int) bool {
 	// Simulate message failure
 	if !perfect {
-		if mrand.Intn(100) < 5 {
-			return false
-		}
 		time.Sleep(time.Duration(mrand.Intn(100)) * time.Millisecond)
 	}
 	return true
