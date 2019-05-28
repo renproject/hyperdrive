@@ -22,9 +22,9 @@ var conf = quick.Config{
 
 var _ = Describe("TransitionBuffer", func() {
 
-	Context("when using TimedOut", func() {
+	Context("when using Ticked", func() {
 		It("should implement the State interface", func() {
-			state.TimedOut{}.IsTransition()
+			state.Ticked{}.IsTransition()
 		})
 	})
 
@@ -119,7 +119,7 @@ var _ = Describe("TransitionBuffer", func() {
 					case PreCommitted:
 						Expect(mockTran).To(Equal(mockPreCommitted),
 							"expected %v, got: %T", show(mockTran), tranType)
-					case TimedOut:
+					case Ticked:
 						Expect(mock.GotImmediate).To(Equal(true),
 							"expected %v, got: %T", show(mockTran), tranType)
 					default:
@@ -263,7 +263,7 @@ func (m *mockInput) nextTransition() Transition {
 			m.Map[m.height] = mockPreCommitted
 		}
 	case mockImmediate:
-		rndTransition = TimedOut{Time: time.Now()}
+		rndTransition = Ticked{Time: time.Now()}
 		m.GotImmediate = true
 	}
 

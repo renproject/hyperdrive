@@ -31,29 +31,6 @@ type Transition interface {
 	Signer() sig.Signatory
 }
 
-// TimedOut waiting for some other external event.
-// FIXME: TimedOut should probably have Height and Round
-type TimedOut struct {
-	time.Time
-}
-
-// IsTransition implements the `Transition` interface for the
-// `TimedOut` event.
-func (TimedOut) IsTransition() {
-}
-
-// Round implements the `Transition` interface for the
-// `TimedOut` event.
-func (TimedOut) Round() block.Round {
-	return -1
-}
-
-// Signer implements the `Transition` interface for the
-// `TimedOut` event.
-func (TimedOut) Signer() sig.Signatory {
-	return sig.Signatory{}
-}
-
 // An external event has triggered a Tick.
 type Ticked struct {
 	time.Time
