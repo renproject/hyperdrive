@@ -54,9 +54,7 @@ func New(index int, dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.
 
 func (replica *replica) Init() {
 	propose := replica.stateMachine.StartRound(0, nil)
-	// fmt.Println(replica.index, "yo yo got propose", propose)
 	if propose, ok := propose.(state.Propose); ok {
-		// fmt.Println(replica.index, "got propose", propose)
 		replica.dispatcher.Dispatch(replica.shard.Hash, state.Propose{
 			SignedPropose: propose.SignedPropose,
 		})
@@ -80,24 +78,19 @@ func (replica *replica) SyncCommit(commit block.Commit) bool {
 
 func (replica *replica) Transition(transition state.Transition) {
 	if replica.shouldDropTransition(transition) {
-		fmt.Printf("dropping transition %T %d\n", transition, transition.Round())
 		return
 	}
 	if replica.shouldBufferTransition(transition) {
-		fmt.Printf("buffering transition %T\n", transition)
 		replica.transitionBuffer.Enqueue(transition)
 		return
 	}
 
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
 		if !replica.isTransitionValid(transition) {
-			fmt.Println("invalid")
 			continue
 		}
 
-		// fmt.Printf("%d got transition %T\n", replica.index, transition)
 		action := replica.transition(transition)
-		// fmt.Printf("%d got action %T\n", replica.index, action)
 		// It is important that the Action is dispatched after the State has been completely transitioned in the
 		// Replica. Otherwise, re-entrance into the Replica may cause issues.
 		if propose, ok := action.(state.Propose); ok {
@@ -130,7 +123,6 @@ func (replica *replica) dispatchAction(action state.Action) {
 			SignedPreVote: action.SignedPreVote,
 		})
 	case state.SignedPreCommit:
-		fmt.Println(replica.index, "dispatching ", action)
 		replica.dispatcher.Dispatch(replica.shard.Hash, state.SignedPreCommit{
 			SignedPreCommit: action.SignedPreCommit,
 		})
