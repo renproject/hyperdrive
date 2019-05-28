@@ -370,7 +370,7 @@ func (machine *machine) broadcastPreCommit(polka block.Polka) Action {
 }
 
 func (machine *machine) StartRound(round block.Round, commit *block.Commit) Action {
-	fmt.Println("starting round", round, machine.currentHeight)
+	// fmt.Println("starting round", round, machine.currentHeight)
 	machine.currentRound = round
 	machine.currentState = WaitingForPropose{}
 	machine.ticksAtProposeState = 0

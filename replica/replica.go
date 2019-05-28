@@ -11,10 +11,6 @@ import (
 	"github.com/renproject/hyperdrive/tx"
 )
 
-// NumTicksToTriggerTimeOut specifies the maximum number of Ticks to wait before
-// triggering a TimedOut  transition.
-const NumTicksToTriggerTimeOut = 2
-
 type Dispatcher interface {
 	Dispatch(shardHash sig.Hash, action state.Action)
 }
@@ -29,7 +25,6 @@ type replica struct {
 	index      int
 	dispatcher Dispatcher
 
-	ticks                  int
 	signer                 sig.Signer
 	validator              Validator
 	previousShardValidator Validator
@@ -45,7 +40,6 @@ func New(index int, dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.
 		index:      index,
 		dispatcher: dispatcher,
 
-		ticks:                  0,
 		signer:                 signer,
 		validator:              NewValidator(signer, shard),
 		previousShardValidator: NewValidator(signer, previousShard),
@@ -96,13 +90,13 @@ func (replica *replica) Transition(transition state.Transition) {
 	}
 
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
-		// if !replica.isTransitionValid(transition) {
-		// 	continue
-		// }
+		if !replica.isTransitionValid(transition) {
+			continue
+		}
 
-		fmt.Printf("%d got transition %T\n", replica.index, transition)
+		// fmt.Printf("%d got transition %T\n", replica.index, transition)
 		action := replica.transition(transition)
-		fmt.Printf("%d got action %T\n", replica.index, action)
+		// fmt.Printf("%d got action %T\n", replica.index, action)
 		// It is important that the Action is dispatched after the State has been completely transitioned in the
 		// Replica. Otherwise, re-entrance into the Replica may cause issues.
 		if propose, ok := action.(state.Propose); ok {
@@ -111,6 +105,9 @@ func (replica *replica) Transition(transition state.Transition) {
 			replica.dispatcher.Dispatch(replica.shard.Hash, state.Propose{
 				SignedPropose: propose.SignedPropose,
 			})
+			if len(propose.Commit.Signatures) > 0 {
+				replica.dispatcher.Dispatch(replica.shard.Hash, propose.Commit)
+			}
 			replica.Transition(state.Proposed{
 				SignedPropose: propose.SignedPropose,
 			})
@@ -193,13 +190,13 @@ func (replica *replica) shouldBufferTransition(transition state.Transition) bool
 func (replica *replica) transition(transition state.Transition) state.Action {
 	action := replica.stateMachine.Transition(transition)
 	replica.transitionBuffer.Drop(replica.stateMachine.Height())
-	if commit, ok := action.(state.Commit); ok && commit.Polka.Block != nil {
-		// If round has progressed, drop all prevotes and precommits in the state-machine
-		replica.stateMachine.Drop()
-	}
-	if propose, ok := action.(state.Propose); ok && len(propose.Commit.Signatures) > 0 && propose.Commit.Polka.Block != nil {
-		// If round has progressed, drop all prevotes and precommits in the state-machine
-		replica.stateMachine.Drop()
-	}
+	// if commit, ok := action.(state.Commit); ok && commit.Polka.Block != nil {
+	// 	// If round has progressed, drop all prevotes and precommits in the state-machine
+	// 	replica.stateMachine.Drop()
+	// }
+	// if propose, ok := action.(state.Propose); ok && len(propose.Commit.Signatures) > 0 && propose.Commit.Polka.Block != nil {
+	// 	// If round has progressed, drop all prevotes and precommits in the state-machine
+	// 	replica.stateMachine.Drop()
+	// }
 	return action
 }

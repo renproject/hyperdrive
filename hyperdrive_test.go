@@ -52,11 +52,11 @@ var _ = Describe("Hyperdrive", func() {
 			ipChans[i] <- ShardObject{shard, txPool}
 		}
 
-		tickerInterval := time.Duration(n * n * 2)
-		if n <= 16 {
-			tickerInterval = time.Duration(1000)
-		}
-		ticker := time.NewTicker(tickerInterval * time.Millisecond)
+		// tickerInterval := time.Duration(n * n * 2)
+		// if n <= 16 {
+		// 	tickerInterval = time.Duration(1000)
+		// }
+		ticker := time.NewTicker(100 * time.Millisecond)
 		go func() {
 			for t := range ticker.C {
 				for i := 0; i < n; i++ {
@@ -77,7 +77,7 @@ var _ = Describe("Hyperdrive", func() {
 		maxHeight      block.Height
 	}{
 		// {1, 640},
-		// {2, 320},
+		{2, 320},
 		{4, 160},
 		{8, 80},
 		{16, 40},
