@@ -5,9 +5,11 @@ import (
 	"reflect"
 
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"github.com/renproject/hyperdrive/testutils"
+	"github.com/renproject/hyperdrive/tx"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -29,7 +31,16 @@ var _ = Describe("State Machine", func() {
 
 			Context(fmt.Sprintf("when state machine begins with state - %s", reflect.TypeOf(t.startingState).Name()), func() {
 				It(fmt.Sprintf("should eventually return action - %s", action), func() {
-					stateMachine := NewMachine(t.startingState, block.NewPolkaBuilder(), block.NewCommitBuilder(), t.consensusThreshold)
+					pool := tx.FIFOPool(100)
+					signer, err := ecdsa.NewFromRandom()
+					Expect(err).ShouldNot(HaveOccurred())
+					shard := shard.Shard{
+						Hash:        sig.Hash{},
+						BlockHeader: sig.Hash{},
+						BlockHeight: 0,
+						Signatories: sig.Signatories{signer.Signatory()},
+					}
+					stateMachine := NewMachine(t.startingState, block.NewPolkaBuilder(), block.NewCommitBuilder(), signer, shard, pool, t.consensusThreshold)
 					var action Action
 					for _, transition := range t.transitions {
 						if t.shouldPanic {

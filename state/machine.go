@@ -56,9 +56,9 @@ type machine struct {
 	bufferedMessages map[block.Round]map[sig.Signatory]struct{}
 }
 
-func NewMachine(polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, signer sig.Signer, shard shard.Shard, txPool tx.Pool, consensusThreshold int) Machine {
+func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, signer sig.Signer, shard shard.Shard, txPool tx.Pool, consensusThreshold int) Machine {
 	return &machine{
-		currentState:  WaitingForPropose{},
+		currentState:  state,
 		currentHeight: 0,
 		currentRound:  0,
 
