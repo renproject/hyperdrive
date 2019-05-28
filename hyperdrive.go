@@ -92,7 +92,7 @@ func (hyperdrive *hyperdrive) BeginShard(shard, previousShard shard.Shard, head 
 		hyperdrive.dispatcher,
 		hyperdrive.signer,
 		pool,
-		state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), hyperdrive.signer, shard, pool, shard.ConsensusThreshold()),
+		state.NewMachine(hyperdrive.index, state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), hyperdrive.signer, shard, pool, shard.ConsensusThreshold()),
 		state.NewTransitionBuffer(shard.Size()),
 		shard,
 		previousShard,

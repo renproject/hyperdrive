@@ -80,17 +80,18 @@ func (replica *replica) SyncCommit(commit block.Commit) bool {
 
 func (replica *replica) Transition(transition state.Transition) {
 	if replica.shouldDropTransition(transition) {
-		// fmt.Printf("dropping transition %T\n", transition)
+		fmt.Printf("dropping transition %T %d\n", transition, transition.Round())
 		return
 	}
 	if replica.shouldBufferTransition(transition) {
-		// fmt.Printf("buffering transition %T\n", transition)
+		fmt.Printf("buffering transition %T\n", transition)
 		replica.transitionBuffer.Enqueue(transition)
 		return
 	}
 
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
 		if !replica.isTransitionValid(transition) {
+			fmt.Println("invalid")
 			continue
 		}
 
@@ -129,6 +130,7 @@ func (replica *replica) dispatchAction(action state.Action) {
 			SignedPreVote: action.SignedPreVote,
 		})
 	case state.SignedPreCommit:
+		fmt.Println(replica.index, "dispatching ", action)
 		replica.dispatcher.Dispatch(replica.shard.Hash, state.SignedPreCommit{
 			SignedPreCommit: action.SignedPreCommit,
 		})
@@ -190,13 +192,5 @@ func (replica *replica) shouldBufferTransition(transition state.Transition) bool
 func (replica *replica) transition(transition state.Transition) state.Action {
 	action := replica.stateMachine.Transition(transition)
 	replica.transitionBuffer.Drop(replica.stateMachine.Height())
-	// if commit, ok := action.(state.Commit); ok && commit.Polka.Block != nil {
-	// 	// If round has progressed, drop all prevotes and precommits in the state-machine
-	// 	replica.stateMachine.Drop()
-	// }
-	// if propose, ok := action.(state.Propose); ok && len(propose.Commit.Signatures) > 0 && propose.Commit.Polka.Block != nil {
-	// 	// If round has progressed, drop all prevotes and precommits in the state-machine
-	// 	replica.stateMachine.Drop()
-	// }
 	return action
 }
