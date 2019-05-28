@@ -136,7 +136,12 @@ var _ = Describe("Hyperdrive", func() {
 								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(false, i, ipChans, done, cap), consensusThreshold)
 							}
 
-							Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight)).ShouldNot(HaveOccurred())
+							maxBlock := entry.maxHeight
+							if ok {
+								maxBlock /= 2
+							}
+
+							Expect(runHyperdrive(i, h, ipChans[i], done, maxBlock)).ShouldNot(HaveOccurred())
 						})
 					})
 				})
