@@ -315,12 +315,12 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 		}
 
 	case Ticked:
-		fmt.Println(machine.ticksAtPrecommitState)
+		// fmt.Println(machine.ticksAtPrecommitState)
 		if machine.ticksAtPrecommitState >= 0 {
 			machine.ticksAtPrecommitState++
 			maxTicksToTimeout := int(NumTicksToTriggerTimeOut + machine.currentRound)
 
-			fmt.Println(maxTicksToTimeout)
+			// fmt.Println(maxTicksToTimeout)
 			if machine.ticksAtPrecommitState > maxTicksToTimeout {
 				machine.ticksAtPrecommitState = -1
 				return machine.StartRound(machine.currentRound+1, nil)

@@ -60,9 +60,9 @@ func New(index int, dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.
 
 func (replica *replica) Init() {
 	propose := replica.stateMachine.StartRound(0, nil)
-	fmt.Println(replica.index, "yo yo got propose", propose)
+	// fmt.Println(replica.index, "yo yo got propose", propose)
 	if propose, ok := propose.(state.Propose); ok {
-		fmt.Println(replica.index, "got propose", propose)
+		// fmt.Println(replica.index, "got propose", propose)
 		replica.dispatcher.Dispatch(replica.shard.Hash, state.Propose{
 			SignedPropose: propose.SignedPropose,
 		})
@@ -86,11 +86,11 @@ func (replica *replica) SyncCommit(commit block.Commit) bool {
 
 func (replica *replica) Transition(transition state.Transition) {
 	if replica.shouldDropTransition(transition) {
-		fmt.Printf("dropping transition %T\n", transition)
+		// fmt.Printf("dropping transition %T\n", transition)
 		return
 	}
 	if replica.shouldBufferTransition(transition) {
-		fmt.Printf("buffering transition %T\n", transition)
+		// fmt.Printf("buffering transition %T\n", transition)
 		replica.transitionBuffer.Enqueue(transition)
 		return
 	}

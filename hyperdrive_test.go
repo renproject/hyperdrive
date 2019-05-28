@@ -175,7 +175,7 @@ func NewMockDispatcher(perfect bool, i int, channels []chan Object, done chan st
 				for i := range dispatcher.channels {
 					if i != dispatcher.index {
 						if !SimulateCommsFault(perfect, len(channels), 2, dispatcher.index, i) {
-							fmt.Println(dispatcher.index, "dropping message to ", i)
+							// fmt.Println(dispatcher.index, "dropping message to ", i)
 							continue
 						}
 						select {
