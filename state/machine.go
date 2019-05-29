@@ -226,8 +226,8 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 			}
 			return machine.broadcastPreVote(nil)
 		}
-		if _, polkaRound := machine.polkaBuilder.Polka(machine.currentHeight, machine.consensusThreshold); polkaRound != nil {
-			if transition.ValidRound < machine.currentRound {
+		if polka, polkaRound := machine.polkaBuilder.Polka(machine.currentHeight, machine.consensusThreshold); polkaRound != nil {
+			if polka.Block != nil && polka.Block.Block.Equal(transition.Block.Block) && transition.ValidRound < machine.currentRound {
 				machine.ticksAtProposeState = -1
 				machine.currentState = WaitingForPolka{}
 				if machine.lockedRound <= transition.ValidRound || machine.lockedValue.Block.Equal(transition.Block.Block) {
