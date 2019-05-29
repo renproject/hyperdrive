@@ -110,7 +110,7 @@ var _ = Describe("Hyperdrive", func() {
 					defer GinkgoRecover()
 
 					h := New(signers[i], NewMockDispatcher(true, i, ipChans, done, cap))
-					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight)).ShouldNot((HaveOccurred()))
+					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight, block.Round(0))).ShouldNot((HaveOccurred()))
 				})
 			})
 
@@ -136,7 +136,7 @@ var _ = Describe("Hyperdrive", func() {
 								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(false, i, ipChans, done, cap), consensusThreshold)
 							}
 
-							Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight/2)).ShouldNot(HaveOccurred())
+							Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight/2, block.Round(1))).ShouldNot(HaveOccurred())
 						})
 					})
 				})
@@ -249,7 +249,7 @@ type TickObject struct {
 
 func (TickObject) IsObject() {}
 
-func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struct{}, maxHeight block.Height) error {
+func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struct{}, maxHeight block.Height, expectedRound block.Round) error {
 	var currentBlock *block.SignedBlock
 
 	for {
@@ -272,10 +272,11 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 					h.AcceptPreCommit(input.shardHash, action.SignedPreCommit)
 				case state.Commit:
 					Expect(len(action.Commit.Polka.Block.Txs)).To(BeNumerically("<=", block.MaxTransactions))
+					Expect(action.Polka.Round).To(Equal(expectedRound))
 					if currentBlock == nil || action.Polka.Block.Height > currentBlock.Height {
 						if currentBlock != nil {
 							Expect(action.Polka.Block.Height).To(Equal(currentBlock.Height + 1))
-							// Expect(currentBlock.Header.Equal(action.Polka.Block.ParentHeader)).To(Equal(true))
+							Expect(currentBlock.Header.Equal(action.Polka.Block.ParentHeader)).To(Equal(true))
 						}
 						if index == 1 {
 							fmt.Printf("%v, Round=%d\n", *action.Polka.Block, action.Polka.Round)

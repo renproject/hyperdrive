@@ -498,7 +498,7 @@ func generateTestCases() []TestCase {
 			consensusThreshold: 2,
 
 			startingState: WaitingForPolka{},
-			finalAction:   Propose{},
+			finalAction:   nil,
 
 			transitions: []Transition{
 				PreVoted{
