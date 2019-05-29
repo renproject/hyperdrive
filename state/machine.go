@@ -104,12 +104,16 @@ func (machine *machine) StartRound(round block.Round, commit *block.Commit) Acti
 		machine.bufferedMessages = map[block.Round]map[sig.Signatory]struct{}{}
 	}
 
+	if commit != nil {
+		machine.lastBlock = commit.Polka.Block
+	}
+
 	if machine.shouldProposeBlock() {
 		signedBlock := block.SignedBlock{}
 		if machine.validValue != nil {
 			signedBlock = *machine.validValue
 		} else {
-			signedBlock = machine.buildSignedBlock(commit)
+			signedBlock = machine.buildSignedBlock()
 		}
 
 		if signedBlock.Height != machine.currentHeight {
@@ -499,7 +503,7 @@ func (machine *machine) shouldProposeBlock() bool {
 	return machine.signer.Signatory().Equal(machine.shard.Leader(machine.currentRound))
 }
 
-func (machine *machine) buildSignedBlock(commit *block.Commit) block.SignedBlock {
+func (machine *machine) buildSignedBlock() block.SignedBlock {
 	transactions := make(tx.Transactions, 0, block.MaxTransactions)
 	transaction, ok := machine.txPool.Dequeue()
 	for ok && len(transactions) < block.MaxTransactions {
@@ -507,13 +511,9 @@ func (machine *machine) buildSignedBlock(commit *block.Commit) block.SignedBlock
 		transaction, ok = machine.txPool.Dequeue()
 	}
 
-	parentHeader := sig.Hash{}
-	if commit != nil && commit.Polka.Block != nil {
-		parentHeader = commit.Polka.Block.Header
-	}
 	block := block.New(
 		machine.currentHeight,
-		parentHeader,
+		machine.lastBlock.Header,
 		transactions,
 	)
 	signedBlock, err := block.Sign(machine.signer)
