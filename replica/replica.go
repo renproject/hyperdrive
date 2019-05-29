@@ -71,11 +71,14 @@ func (replica *replica) Transition(transition state.Transition) {
 			return
 		}
 
+		fmt.Printf("got transition %T\n", transition)
 		replica.dispatchAction(replica.transition(transition))
 	}
 }
 
 func (replica *replica) dispatchAction(action state.Action) {
+
+	fmt.Printf("got action %T\n", action)
 	if action == nil {
 		return
 	}
