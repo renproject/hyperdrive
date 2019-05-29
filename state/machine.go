@@ -271,32 +271,59 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 		}
 
 		polka, polkaRound := machine.polkaBuilder.Polka(machine.currentHeight, machine.consensusThreshold)
-		if polkaRound != nil && /**polkaRound == machine.currentRound && */ machine.ticksAtPrevoteState < 0 {
+		if polkaRound != nil && *polkaRound == machine.currentRound && machine.ticksAtPrevoteState < 0 {
 			machine.ticksAtPrevoteState = 0
 		}
 
-		if polka != nil {
+		if polka != nil && polka.Round == machine.currentRound {
 			if polka.Block == nil {
 				machine.ticksAtPrevoteState = -1
 				machine.currentState = WaitingForCommit{}
 				return machine.broadcastPreCommit(*polka)
 			}
-			if polka.Round == machine.currentRound {
-				machine.lockedRound = machine.currentRound
-				machine.lockedValue = polka.Block
-				machine.validRound = machine.currentRound
-				machine.validValue = polka.Block
+			machine.lockedRound = machine.currentRound
+			machine.lockedValue = polka.Block
+			machine.validRound = machine.currentRound
+			machine.validValue = polka.Block
+			machine.ticksAtPrevoteState = -1
+			machine.currentState = WaitingForCommit{}
+			return machine.broadcastPreCommit(*polka)
+		}
+	case PreCommitted:
+		polka, _ := machine.polkaBuilder.Polka(machine.currentHeight, machine.consensusThreshold)
+		if polka != nil && polka.Round == machine.currentRound {
+			if polka.Block == nil {
 				machine.ticksAtPrevoteState = -1
 				machine.currentState = WaitingForCommit{}
 				return machine.broadcastPreCommit(*polka)
 			}
+			machine.lockedRound = machine.currentRound
+			machine.lockedValue = polka.Block
+			machine.validRound = machine.currentRound
+			machine.validValue = polka.Block
+			machine.ticksAtPrevoteState = -1
+			machine.currentState = WaitingForCommit{}
+			return machine.broadcastPreCommit(*polka)
 		}
-	case PreCommitted:
+
 		machine.commitBuilder.Insert(transition.SignedPreCommit)
 
 	case Ticked:
-		machine.checkAndSchedulePreVoteTimeout()
-
+		polka, _ := machine.polkaBuilder.Polka(machine.currentHeight, machine.consensusThreshold)
+		if polka != nil && polka.Round == machine.currentRound {
+			if polka.Block == nil {
+				machine.ticksAtPrevoteState = -1
+				machine.currentState = WaitingForCommit{}
+				return machine.broadcastPreCommit(*polka)
+			}
+			machine.lockedRound = machine.currentRound
+			machine.lockedValue = polka.Block
+			machine.validRound = machine.currentRound
+			machine.validValue = polka.Block
+			machine.ticksAtPrevoteState = -1
+			machine.currentState = WaitingForCommit{}
+			return machine.broadcastPreCommit(*polka)
+		}
 		if machine.ticksAtPrevoteState >= 0 {
 			machine.ticksAtPrevoteState++
 			maxTicksToTimeout := int(NumTicksToTriggerTimeOut + machine.currentRound)
@@ -320,29 +347,50 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 
 func (machine *machine) waitForCommit(transition Transition) Action {
 	machine.checkAndSchedulePreCommitTimeout()
-
+	polka, _ := machine.polkaBuilder.Polka(machine.currentHeight, machine.consensusThreshold)
+	if polka != nil && polka.Round == machine.currentRound && polka.Block != nil {
+		machine.validRound = machine.currentRound
+		machine.validValue = polka.Block
+	}
 	switch transition := transition.(type) {
 	case Proposed:
-		// Ignore
+		commit, _ := machine.commitBuilder.Commit(machine.currentHeight, machine.consensusThreshold)
+		if commit != nil && commit.Polka.Round == machine.currentRound {
+			if commit.Polka.Block != nil {
+				machine.currentHeight++
+				machine.Drop()
+				machine.lockedRound = -1
+				machine.lockedValue = nil
+				machine.validRound = -1
+				machine.validValue = nil
+				return machine.StartRound(0, commit)
+			}
+			machine.ticksAtPrecommitState = -1
+			return machine.StartRound(machine.currentRound+1, nil)
+		}
 
 	case PreVoted:
-		machine.checkAndSchedulePreCommitTimeout()
 		commit, _ := machine.commitBuilder.Commit(machine.currentHeight, machine.consensusThreshold)
-		if commit != nil && commit.Polka.Block != nil {
-			machine.currentHeight++
-			machine.Drop()
-			machine.lockedRound = -1
-			machine.lockedValue = nil
-			machine.validRound = -1
-			machine.validValue = nil
-			return machine.StartRound(0, commit)
+		if commit != nil && commit.Polka.Round == machine.currentRound {
+			if commit.Polka.Block != nil {
+				machine.currentHeight++
+				machine.Drop()
+				machine.lockedRound = -1
+				machine.lockedValue = nil
+				machine.validRound = -1
+				machine.validValue = nil
+				return machine.StartRound(0, commit)
+			}
+			machine.ticksAtPrecommitState = -1
+			return machine.StartRound(machine.currentRound+1, nil)
 		}
+
 		if !machine.polkaBuilder.Insert(transition.SignedPreVote) {
 			return nil
 		}
 
 		polka, _ := machine.polkaBuilder.Polka(machine.currentHeight, machine.consensusThreshold)
-		if polka != nil && polka.Round == machine.currentRound {
+		if polka != nil && polka.Round == machine.currentRound && polka.Block != nil {
 			machine.validRound = machine.currentRound
 			machine.validValue = polka.Block
 		}
@@ -354,11 +402,11 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 		}
 
 		commit, commitRound := machine.commitBuilder.Commit(machine.currentHeight, machine.consensusThreshold)
-		if commitRound != nil && /**commitRound == machine.currentRound && */ machine.ticksAtPrecommitState < 0 {
+		if commitRound != nil && *commitRound == machine.currentRound && machine.ticksAtPrecommitState < 0 {
 			machine.ticksAtPrecommitState = 0
 		}
 
-		if commit != nil {
+		if commit != nil && commit.Polka.Round == machine.currentRound {
 			if commit.Polka.Block != nil {
 				machine.currentHeight++
 				machine.Drop()
@@ -373,6 +421,25 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 		}
 
 	case Ticked:
+		commit, commitRound := machine.commitBuilder.Commit(machine.currentHeight, machine.consensusThreshold)
+		if commitRound != nil && *commitRound == machine.currentRound && machine.ticksAtPrecommitState < 0 {
+			machine.ticksAtPrecommitState = 0
+		}
+
+		if commit != nil && commit.Polka.Round == machine.currentRound {
+			if commit.Polka.Block != nil {
+				machine.currentHeight++
+				machine.Drop()
+				machine.lockedRound = -1
+				machine.lockedValue = nil
+				machine.validRound = -1
+				machine.validValue = nil
+				return machine.StartRound(0, commit)
+			}
+			machine.ticksAtPrecommitState = -1
+			return machine.StartRound(machine.currentRound+1, nil)
+		}
+
 		if machine.ticksAtPrecommitState >= 0 {
 			machine.ticksAtPrecommitState++
 			maxTicksToTimeout := int(NumTicksToTriggerTimeOut + machine.currentRound)
@@ -474,14 +541,14 @@ func (machine *machine) UpdateRound() *block.Round {
 
 func (machine *machine) checkAndSchedulePreCommitTimeout() {
 	_, commitRound := machine.commitBuilder.Commit(machine.currentHeight, machine.consensusThreshold)
-	if commitRound != nil && /**commitRound == machine.currentRound &&*/ machine.ticksAtPrecommitState < 0 {
+	if commitRound != nil && *commitRound == machine.currentRound && machine.ticksAtPrecommitState < 0 {
 		machine.ticksAtPrecommitState = 0
 	}
 }
 
 func (machine *machine) checkAndSchedulePreVoteTimeout() {
 	_, polkaRound := machine.polkaBuilder.Polka(machine.currentHeight, machine.consensusThreshold)
-	if polkaRound != nil /*&& *polkaRound == machine.currentRound */ && machine.ticksAtPrevoteState < 0 {
+	if polkaRound != nil && *polkaRound == machine.currentRound && machine.ticksAtPrevoteState < 0 {
 		machine.ticksAtPrevoteState = 0
 	}
 }
