@@ -54,6 +54,7 @@ type machine struct {
 }
 
 func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, signer sig.Signer, shard shard.Shard, txPool tx.Pool, lastBlock block.SignedBlock) Machine {
+	fmt.Printf("%s\n", signer.Signatory())
 	return &machine{
 		currentState:  state,
 		currentHeight: 0,

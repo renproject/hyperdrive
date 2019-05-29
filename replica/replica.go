@@ -71,7 +71,7 @@ func (replica *replica) Transition(transition state.Transition) {
 			return
 		}
 
-		fmt.Printf("got transition %T %d\n", transition, transition.Round())
+		fmt.Printf("got transition %T %d from %s\n", transition, transition.Round(), transition.Signer())
 		replica.dispatchAction(replica.transition(transition))
 	}
 }
