@@ -40,7 +40,7 @@ var _ = Describe("State Machine", func() {
 						BlockHeight: 0,
 						Signatories: sig.Signatories{signer.Signatory()},
 					}
-					stateMachine := NewMachine(0, t.startingState, block.NewPolkaBuilder(), block.NewCommitBuilder(), signer, shard, pool, t.consensusThreshold)
+					stateMachine := NewMachine(t.startingState, block.NewPolkaBuilder(), block.NewCommitBuilder(), signer, shard, pool, block.Genesis())
 					var action Action
 					for _, transition := range t.transitions {
 						if t.shouldPanic {
@@ -240,7 +240,7 @@ func generateTestCases() []TestCase {
 			consensusThreshold: 2,
 
 			startingState: WaitingForCommit{},
-			finalAction:   Propose{},
+			finalAction:   nil,
 
 			transitions: []Transition{
 				Proposed{
@@ -498,7 +498,7 @@ func generateTestCases() []TestCase {
 			consensusThreshold: 2,
 
 			startingState: WaitingForPolka{},
-			finalAction:   nil,
+			finalAction:   Propose{},
 
 			transitions: []Transition{
 				PreVoted{

@@ -21,7 +21,7 @@ type Validator interface {
 	// 5. parent header is the block at head of the shard's blockchain
 	ValidatePropose(propose block.SignedPropose, lastSignedBlock *block.SignedBlock) bool
 
-	ValidatePreVote(preVote block.SignedPreVote, lastSignedBlock *block.SignedBlock) bool
+	ValidatePreVote(preVote block.SignedPreVote) bool
 
 	// ValidatePolka validates a polka and its signatures and returns true if
 	// the polka is valid.
@@ -34,9 +34,9 @@ type Validator interface {
 	//
 	// validatePolka assumes that `polka.Signatures` are ordered to match
 	// the order of `polka.Signatories`.
-	ValidatePolka(polka block.Polka, lastSignedBlock *block.SignedBlock) bool
+	ValidatePolka(polka block.Polka) bool
 
-	ValidatePreCommit(preCommit block.SignedPreCommit, lastSignedBlock *block.SignedBlock) bool
+	ValidatePreCommit(preCommit block.SignedPreCommit) bool
 
 	ValidateCommit(commit block.Commit) bool
 }
@@ -109,10 +109,10 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 	return true
 }
 
-func (validator *validator) ValidatePreVote(preVote block.SignedPreVote, lastSignedBlock *block.SignedBlock) bool {
+func (validator *validator) ValidatePreVote(preVote block.SignedPreVote) bool {
 	// Verify the pre-vote is well-formed
 	if preVote.PreVote.Block != nil {
-		if !validator.ValidateBlock(*preVote.PreVote.Block, lastSignedBlock) {
+		if !validator.ValidateBlock(*preVote.PreVote.Block, nil) {
 			return false
 		}
 		if preVote.PreVote.Height != preVote.PreVote.Block.Height {
@@ -139,7 +139,7 @@ func (validator *validator) ValidatePreVote(preVote block.SignedPreVote, lastSig
 	return true
 }
 
-func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock *block.SignedBlock) bool {
+func (validator *validator) ValidatePolka(polka block.Polka) bool {
 	if polka.Round < 0 || polka.Height < 0 {
 		return false
 	}
@@ -148,7 +148,7 @@ func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock *bl
 		if polka.Height != polka.Block.Height {
 			return false
 		}
-		if !validator.ValidateBlock(*polka.Block, lastSignedBlock) {
+		if !validator.ValidateBlock(*polka.Block, nil) {
 			return false
 		}
 
@@ -171,9 +171,9 @@ func (validator *validator) ValidatePolka(polka block.Polka, lastSignedBlock *bl
 	return true
 }
 
-func (validator *validator) ValidatePreCommit(preCommit block.SignedPreCommit, lastSignedBlock *block.SignedBlock) bool {
+func (validator *validator) ValidatePreCommit(preCommit block.SignedPreCommit) bool {
 	// Verify the underlying Polka is well-formed
-	if !validator.ValidatePolka(preCommit.PreCommit.Polka, lastSignedBlock) {
+	if !validator.ValidatePolka(preCommit.PreCommit.Polka) {
 		return false
 	}
 
@@ -199,7 +199,7 @@ func (validator *validator) ValidateCommit(commit block.Commit) bool {
 	}
 	data := []byte(preCommit.String())
 
-	return validator.ValidatePolka(commit.Polka, nil) && validator.verifySignatures(data, commit.Signatures, commit.Signatories)
+	return validator.ValidatePolka(commit.Polka) && validator.verifySignatures(data, commit.Signatures, commit.Signatories)
 }
 
 // verifySignature verifies that the signatory provided was used to generate

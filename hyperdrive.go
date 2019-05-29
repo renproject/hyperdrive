@@ -89,12 +89,10 @@ func (hyperdrive *hyperdrive) BeginShard(shard, previousShard shard.Shard, head 
 	r := replica.New(
 		hyperdrive.dispatcher,
 		hyperdrive.signer,
-		pool,
-		state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), hyperdrive.signer, shard, pool, shard.ConsensusThreshold()),
+		state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), hyperdrive.signer, shard, pool, head),
 		state.NewTransitionBuffer(shard.Size()),
 		shard,
 		previousShard,
-		head,
 	)
 
 	hyperdrive.shardReplicas[shard.Hash] = r
