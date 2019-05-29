@@ -24,11 +24,9 @@ type Machine interface {
 	Height() block.Height
 	Round() block.Round
 	SyncCommit(commit block.Commit)
-	Drop()
 }
 
 type machine struct {
-	index         int
 	currentState  State
 	currentHeight block.Height
 	currentRound  block.Round
@@ -53,9 +51,8 @@ type machine struct {
 	bufferedMessages map[block.Round]map[sig.Signatory]struct{}
 }
 
-func NewMachine(index int, state State, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, signer sig.Signer, shard shard.Shard, txPool tx.Pool, consensusThreshold int) Machine {
+func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, signer sig.Signer, shard shard.Shard, txPool tx.Pool, consensusThreshold int) Machine {
 	return &machine{
-		index:         index,
 		currentState:  state,
 		currentHeight: 0,
 		currentRound:  0,
@@ -153,7 +150,7 @@ func (machine *machine) SyncCommit(commit block.Commit) {
 	}
 }
 
-func (machine *machine) Drop() {
+func (machine *machine) drop() {
 	machine.polkaBuilder.Drop(machine.currentHeight)
 	machine.commitBuilder.Drop(machine.currentHeight)
 }
@@ -191,7 +188,7 @@ func (machine *machine) Transition(transition Transition) Action {
 		}
 	}
 
-	updateRound := machine.UpdateRound()
+	updateRound := machine.updateRound()
 	if updateRound != nil && *updateRound > machine.currentRound {
 		switch transition := transition.(type) {
 		case PreVoted:
@@ -358,7 +355,7 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 		if commit != nil && commit.Polka.Round == machine.currentRound {
 			if commit.Polka.Block != nil {
 				machine.currentHeight++
-				machine.Drop()
+				machine.drop()
 				machine.lockedRound = -1
 				machine.lockedValue = nil
 				machine.validRound = -1
@@ -374,7 +371,7 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 		if commit != nil && commit.Polka.Round == machine.currentRound {
 			if commit.Polka.Block != nil {
 				machine.currentHeight++
-				machine.Drop()
+				machine.drop()
 				machine.lockedRound = -1
 				machine.lockedValue = nil
 				machine.validRound = -1
@@ -409,7 +406,7 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 		if commit != nil && commit.Polka.Round == machine.currentRound {
 			if commit.Polka.Block != nil {
 				machine.currentHeight++
-				machine.Drop()
+				machine.drop()
 				machine.lockedRound = -1
 				machine.lockedValue = nil
 				machine.validRound = -1
@@ -429,7 +426,7 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 		if commit != nil && commit.Polka.Round == machine.currentRound {
 			if commit.Polka.Block != nil {
 				machine.currentHeight++
-				machine.Drop()
+				machine.drop()
 				machine.lockedRound = -1
 				machine.lockedValue = nil
 				machine.validRound = -1
@@ -521,7 +518,7 @@ func (machine *machine) buildSignedBlock(commit *block.Commit) block.SignedBlock
 	return signedBlock
 }
 
-func (machine *machine) UpdateRound() *block.Round {
+func (machine *machine) updateRound() *block.Round {
 	currentRound := &machine.currentRound
 	for round, sigMap := range machine.bufferedMessages {
 		if round > *currentRound && len(sigMap) > machine.consensusThreshold/2 {

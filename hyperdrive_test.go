@@ -109,7 +109,7 @@ var _ = Describe("Hyperdrive", func() {
 				co.ParForAll(entry.numHyperdrives, func(i int) {
 					defer GinkgoRecover()
 
-					h := New(i, signers[i], NewMockDispatcher(true, i, ipChans, done, cap))
+					h := New(signers[i], NewMockDispatcher(true, i, ipChans, done, cap))
 					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight)).ShouldNot((HaveOccurred()))
 				})
 			})
@@ -131,7 +131,7 @@ var _ = Describe("Hyperdrive", func() {
 						co.ParForAll(entry.numHyperdrives, func(i int) {
 							defer GinkgoRecover()
 
-							h := New(i, signers[i], NewMockDispatcher(false, i, ipChans, done, cap))
+							h := New(signers[i], NewMockDispatcher(false, i, ipChans, done, cap))
 							if i == 0 {
 								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(false, i, ipChans, done, cap), consensusThreshold)
 							}
@@ -278,7 +278,7 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 							// Expect(currentBlock.Header.Equal(action.Polka.Block.ParentHeader)).To(Equal(true))
 						}
 						if index == 1 {
-							fmt.Printf("%d => %v, Round=%d\n", index, *action.Polka.Block, action.Polka.Round)
+							fmt.Printf("%v, Round=%d\n", *action.Polka.Block, action.Polka.Round)
 						}
 						currentBlock = action.Polka.Block
 						if currentBlock.Height == maxHeight {

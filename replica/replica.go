@@ -22,7 +22,6 @@ type Replica interface {
 }
 
 type replica struct {
-	index      int
 	dispatcher Dispatcher
 
 	signer                 sig.Signer
@@ -35,9 +34,8 @@ type replica struct {
 	lastBlock              *block.SignedBlock
 }
 
-func New(index int, dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard, lastBlock block.SignedBlock) Replica {
+func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard, lastBlock block.SignedBlock) Replica {
 	replica := &replica{
-		index:      index,
 		dispatcher: dispatcher,
 
 		signer:                 signer,
