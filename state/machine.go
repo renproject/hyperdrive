@@ -156,6 +156,14 @@ func (machine *machine) SyncCommit(commit block.Commit) {
 		machine.currentRound = 0
 		machine.lockedValue = nil
 		machine.lockedRound = -1
+		machine.validValue = nil
+		machine.validRound = -1
+		machine.lastBlock = commit.Polka.Block
+		machine.bufferedMessages = map[block.Round]map[sig.Signatory]struct{}{}
+		machine.ticksAtProposeState = 0
+		machine.ticksAtPrevoteState = -1
+		machine.ticksAtPrecommitState = -1
+		machine.drop()
 	}
 }
 
