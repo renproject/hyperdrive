@@ -263,26 +263,26 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 func (machine *machine) waitForPolka(transition Transition) Action {
 	machine.checkAndSchedulePreVoteTimeout()
 
+	polka := &block.Polka{}
+
 	switch transition := transition.(type) {
 	case Proposed:
-		// Ignore
+		return nil
 
 	case PreVoted:
 		if !machine.polkaBuilder.Insert(transition.SignedPreVote) {
 			return nil
 		}
 
-		polka, polkaRound := machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
+		var polkaRound *block.Round
+		polka, polkaRound = machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
 		if polkaRound != nil && *polkaRound == machine.currentRound && machine.ticksAtPrevoteState < 0 {
 			machine.ticksAtPrevoteState = 0
 		}
-		return machine.handlePolka(polka)
 
 	case PreCommitted:
 		machine.commitBuilder.Insert(transition.SignedPreCommit)
-
-		polka, _ := machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
-		return machine.handlePolka(polka)
+		polka, _ = machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
 
 	case Ticked:
 		if machine.ticksAtPrevoteState >= 0 {
@@ -298,15 +298,13 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 				return machine.broadcastPreCommit(polka)
 			}
 		}
-
-		polka, _ := machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
-		return machine.handlePolka(polka)
+		polka, _ = machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
 
 	default:
 		panic(fmt.Errorf("unexpected transition type %T", transition))
 	}
 
-	return nil
+	return machine.handlePolka(polka)
 }
 
 func (machine *machine) waitForCommit(transition Transition) Action {
