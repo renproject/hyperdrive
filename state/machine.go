@@ -160,7 +160,7 @@ func (machine *machine) StartRound(round block.Round, commit *block.Commit) Acti
 }
 
 func (machine *machine) SyncCommit(commit block.Commit) {
-	if commit.Polka.Height > machine.currentHeight {
+	if commit.Polka.Height >= machine.currentHeight {
 		machine.currentState = WaitingForPropose{}
 		machine.currentHeight = commit.Polka.Height + 1
 		machine.currentRound = 0
