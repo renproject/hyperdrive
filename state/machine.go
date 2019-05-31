@@ -25,7 +25,6 @@ type Machine interface {
 	Round() block.Round
 	SyncCommit(commit block.Commit)
 	LastBlock() *block.SignedBlock
-	State() State
 }
 
 type machine struct {
@@ -55,7 +54,6 @@ type machine struct {
 }
 
 func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, signer sig.Signer, shard shard.Shard, txPool tx.Pool, lastCommit *block.Commit) Machine {
-	fmt.Printf("%s\n", signer.Signatory())
 	return &machine{
 		currentState:  state,
 		currentHeight: 0,
@@ -96,10 +94,6 @@ func (machine *machine) LastBlock() *block.SignedBlock {
 		return machine.lastCommit.Polka.Block
 	}
 	return nil
-}
-
-func (machine *machine) State() State {
-	return machine.currentState
 }
 
 func (machine *machine) StartRound(round block.Round, commit *block.Commit) Action {
