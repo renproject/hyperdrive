@@ -63,9 +63,9 @@ func (replica *replica) Transition(transition state.Transition) {
 	}
 
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
-		// if !replica.isTransitionValid(transition) {
-		// 	continue
-		// }
+		if !replica.isTransitionValid(transition) {
+			continue
+		}
 		if replica.shouldBufferTransition(transition) {
 			replica.transitionBuffer.Enqueue(transition)
 			return
