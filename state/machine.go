@@ -489,8 +489,8 @@ func (machine *machine) handlePolka(polka *block.Polka) Action {
 
 func (machine *machine) handleCommit(commit *block.Commit) Action {
 	if commit != nil && commit.Polka.Round == machine.currentRound {
-		if commit.Polka.Block != nil {
-			machine.currentHeight++
+		if commit.Polka.Block != nil && machine.currentHeight <= commit.Polka.Height {
+			machine.currentHeight = commit.Polka.Height + 1
 			machine.drop()
 			machine.lockedRound = -1
 			machine.lockedValue = nil
