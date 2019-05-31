@@ -25,6 +25,7 @@ type Machine interface {
 	Round() block.Round
 	SyncCommit(commit block.Commit)
 	LastBlock() *block.SignedBlock
+	State() State
 }
 
 type machine struct {
@@ -95,6 +96,10 @@ func (machine *machine) LastBlock() *block.SignedBlock {
 		return machine.lastCommit.Polka.Block
 	}
 	return nil
+}
+
+func (machine *machine) State() State {
+	return machine.currentState
 }
 
 func (machine *machine) StartRound(round block.Round, commit *block.Commit) Action {
