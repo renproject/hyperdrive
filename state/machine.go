@@ -217,9 +217,10 @@ func (machine *machine) Transition(transition Transition) Action {
 
 	if propose, ok := transition.(Proposed); ok {
 		if propose.SignedPropose.Block.Height > machine.currentHeight {
-			if propose.LastCommit != nil {
-				machine.SyncCommit(*propose.LastCommit)
+			if propose.LastCommit == nil {
+				return nil
 			}
+			machine.SyncCommit(*propose.LastCommit)
 		}
 	}
 	switch machine.currentState.(type) {
