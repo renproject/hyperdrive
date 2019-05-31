@@ -75,6 +75,10 @@ func (validator *validator) ValidatePropose(propose block.SignedPropose, lastSig
 		return false
 	}
 
+	if propose.LastCommit != nil && !validator.ValidateCommit(*propose.LastCommit) {
+		return false
+	}
+
 	return validator.ValidateBlock(propose.Block, lastSignedBlock)
 }
 

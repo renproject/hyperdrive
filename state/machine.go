@@ -37,7 +37,7 @@ type machine struct {
 	validRound  block.Round
 	validValue  *block.SignedBlock
 
-	lastBlock *block.SignedBlock
+	lastCommit *block.Commit
 
 	polkaBuilder  block.PolkaBuilder
 	commitBuilder block.CommitBuilder
@@ -53,7 +53,7 @@ type machine struct {
 	bufferedMessages map[block.Round]map[sig.Signatory]struct{}
 }
 
-func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, signer sig.Signer, shard shard.Shard, txPool tx.Pool, lastBlock block.SignedBlock) Machine {
+func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, signer sig.Signer, shard shard.Shard, txPool tx.Pool, lastCommit *block.Commit) Machine {
 	fmt.Printf("%s\n", signer.Signatory())
 	return &machine{
 		currentState:  state,
@@ -65,7 +65,7 @@ func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder bloc
 		validRound:  -1,
 		validValue:  nil,
 
-		lastBlock: &lastBlock,
+		lastCommit: lastCommit,
 
 		polkaBuilder:  polkaBuilder,
 		commitBuilder: commitBuilder,
@@ -91,7 +91,10 @@ func (machine *machine) Round() block.Round {
 }
 
 func (machine *machine) LastBlock() *block.SignedBlock {
-	return machine.lastBlock
+	if machine.lastCommit != nil {
+		return machine.lastCommit.Polka.Block
+	}
+	return nil
 }
 
 func (machine *machine) StartRound(round block.Round, commit *block.Commit) Action {
@@ -107,7 +110,7 @@ func (machine *machine) StartRound(round block.Round, commit *block.Commit) Acti
 
 	committed := Commit{}
 	if commit != nil {
-		machine.lastBlock = commit.Polka.Block
+		machine.lastCommit = commit
 		committed = Commit{
 			Commit: *commit,
 		}
@@ -129,6 +132,7 @@ func (machine *machine) StartRound(round block.Round, commit *block.Commit) Acti
 			Block:      signedBlock,
 			Round:      round,
 			ValidRound: machine.validRound,
+			LastCommit: machine.lastCommit,
 		}
 
 		signedPropose, err := propose.Sign(machine.signer)
@@ -159,7 +163,7 @@ func (machine *machine) SyncCommit(commit block.Commit) {
 		machine.lockedRound = -1
 		machine.validValue = nil
 		machine.validRound = -1
-		machine.lastBlock = commit.Polka.Block
+		machine.lastCommit = &commit
 		machine.bufferedMessages = map[block.Round]map[sig.Signatory]struct{}{}
 		machine.ticksAtProposeState = 0
 		machine.ticksAtPrevoteState = -1
@@ -212,6 +216,12 @@ func (machine *machine) Transition(transition Transition) Action {
 		return machine.StartRound(*higherRound, nil)
 	}
 
+	if propose, ok := transition.(Proposed); ok {
+		if propose.SignedPropose.Block.Height > machine.currentHeight {
+			machine.SyncCommit(*propose.LastCommit)
+			// return nil
+		}
+	}
 	switch machine.currentState.(type) {
 	case WaitingForPropose:
 		return machine.waitForPropose(transition)
@@ -375,9 +385,13 @@ func (machine *machine) buildSignedBlock() block.SignedBlock {
 		transaction, ok = machine.txPool.Dequeue()
 	}
 
+	header := block.Genesis().Header
+	if machine.LastBlock() != nil {
+		header = machine.LastBlock().Header
+	}
 	block := block.New(
 		machine.currentHeight,
-		machine.lastBlock.Header,
+		header,
 		transactions,
 	)
 	signedBlock, err := block.Sign(machine.signer)

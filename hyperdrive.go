@@ -89,7 +89,7 @@ func (hyperdrive *hyperdrive) BeginShard(shard, previousShard shard.Shard, head 
 	r := replica.New(
 		hyperdrive.dispatcher,
 		hyperdrive.signer,
-		state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), hyperdrive.signer, shard, pool, head),
+		state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), hyperdrive.signer, shard, pool, nil),
 		state.NewTransitionBuffer(shard.Size()),
 		shard,
 		previousShard,

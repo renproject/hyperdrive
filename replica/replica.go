@@ -151,7 +151,7 @@ func (replica *replica) shouldBufferTransition(transition state.Transition) bool
 	switch transition := transition.(type) {
 	case state.Proposed:
 		// Only buffer Proposals from the future
-		if transition.Block.Height > replica.stateMachine.Height() || transition.Round() > replica.stateMachine.Round() {
+		if transition.Block.Height == replica.stateMachine.Height() && transition.Round() > replica.stateMachine.Round() {
 			return true
 		}
 		return false

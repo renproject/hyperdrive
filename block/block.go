@@ -99,6 +99,7 @@ type Propose struct {
 	Block      SignedBlock
 	Round      Round
 	ValidRound Round // TODO: Rename to something appropriate
+	LastCommit *Commit
 }
 
 // Sign a Propose with your private key
