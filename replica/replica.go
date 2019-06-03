@@ -59,28 +59,28 @@ func (replica *replica) SyncCommit(commit block.Commit) bool {
 
 func (replica *replica) Transition(transition state.Transition) {
 	if replica.shouldDropTransition(transition) {
-		fmt.Printf("%T dropping %T (Round=%d)\n", replica.stateMachine.State(), transition, transition.Round())
+		fmt.Printf("(Height =%d) %T dropping %T (Round=%d)\n", replica.stateMachine.Height(), replica.stateMachine.State(), transition, transition.Round())
 		return
 	}
 
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
 		if !replica.isTransitionValid(transition) {
-			fmt.Printf("%T invalid %T (Round=%d)\n", replica.stateMachine.State(), transition, transition.Round())
+			fmt.Printf("(Height =%d) %T invalid %T (Round=%d)\n", replica.stateMachine.Height(), replica.stateMachine.State(), transition, transition.Round())
 			continue
 		}
 		if replica.shouldBufferTransition(transition) {
-			fmt.Printf("%T buffering %T (Round=%d)\n", replica.stateMachine.State(), transition, transition.Round())
+			fmt.Printf("(Height =%d) %T buffering %T (Round=%d)\n", replica.stateMachine.Height(), replica.stateMachine.State(), transition, transition.Round())
 			replica.transitionBuffer.Enqueue(transition)
 			return
 		}
-		fmt.Printf("%T received valid %T (Round=%d)\n", replica.stateMachine.State(), transition, transition.Round())
+		fmt.Printf("(Height =%d) %T received valid %T (Round=%d)\n", replica.stateMachine.Height(), replica.stateMachine.State(), transition, transition.Round())
 
 		replica.dispatchAction(replica.transition(transition))
 	}
 }
 
 func (replica *replica) dispatchAction(action state.Action) {
-	fmt.Printf("dispatching %T \n", action)
+	fmt.Printf("(Height =%d) dispatching %T \n", replica.stateMachine.Height(), action)
 	if action == nil {
 		return
 	}
