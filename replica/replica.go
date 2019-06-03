@@ -59,21 +59,21 @@ func (replica *replica) SyncCommit(commit block.Commit) bool {
 
 func (replica *replica) Transition(transition state.Transition) {
 	if replica.shouldDropTransition(transition) {
-		fmt.Printf("dropping %T (Round=%d)\n", transition, transition.Round())
+		fmt.Printf("%T dropping %T (Round=%d)\n", replica.stateMachine.State(), transition, transition.Round())
 		return
 	}
 
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
 		if !replica.isTransitionValid(transition) {
-			fmt.Printf("invalid %T (Round=%d)\n", transition, transition.Round())
+			fmt.Printf("%T invalid %T (Round=%d)\n", replica.stateMachine.State(), transition, transition.Round())
 			continue
 		}
 		if replica.shouldBufferTransition(transition) {
-			fmt.Printf("buffering %T (Round=%d)\n", transition, transition.Round())
+			fmt.Printf("%T buffering %T (Round=%d)\n", replica.stateMachine.State(), transition, transition.Round())
 			replica.transitionBuffer.Enqueue(transition)
 			return
 		}
-		fmt.Printf("received valid %T (Round=%d)\n", transition, transition.Round())
+		fmt.Printf("%T received valid %T (Round=%d)\n", replica.stateMachine.State(), transition, transition.Round())
 
 		replica.dispatchAction(replica.transition(transition))
 	}

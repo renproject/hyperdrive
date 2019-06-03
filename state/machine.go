@@ -25,6 +25,8 @@ type Machine interface {
 	Round() block.Round
 	SyncCommit(commit block.Commit)
 	LastBlock() *block.SignedBlock
+
+	State() State
 }
 
 type machine struct {
@@ -79,6 +81,10 @@ func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder bloc
 
 		bufferedMessages: map[block.Round]map[sig.Signatory]struct{}{},
 	}
+}
+
+func (machine *machine) State() State {
+	return machine.currentState
 }
 
 func (machine *machine) Height() block.Height {
