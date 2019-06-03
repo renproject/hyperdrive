@@ -228,6 +228,7 @@ func (machine *machine) Transition(transition Transition) Action {
 				return nil
 			}
 			machine.SyncCommit(*propose.LastCommit)
+			machine.currentRound = propose.Round()
 		}
 	}
 	switch machine.currentState.(type) {
