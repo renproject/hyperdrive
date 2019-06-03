@@ -2,7 +2,6 @@ package replica
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/shard"
@@ -78,9 +77,15 @@ func (validator *validator) ValidatePropose(propose block.SignedPropose, lastSig
 		return false
 	}
 
-	if propose.LastCommit != nil && !validator.ValidateCommit(*propose.LastCommit) {
-		fmt.Printf("invalid commit %+v\n", *propose.LastCommit)
-		return false
+	if propose.LastCommit != nil {
+		if !validator.ValidateCommit(*propose.LastCommit) {
+			fmt.Printf("invalid commit %+v\n", *propose.LastCommit)
+			return false
+		}
+		if !propose.LastCommit.Polka.Block.Header.Equal(propose.Block.ParentHeader) {
+			fmt.Printf("invalid commit header %s %s\n", propose.LastCommit.Polka.Block.Header, propose.Block.ParentHeader)
+			return false
+		}
 	}
 
 	return validator.ValidateBlock(propose.Block, lastSignedBlock)
@@ -92,10 +97,10 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 
 		return false
 	}
-	if signedBlock.Time.After(time.Now()) {
-		fmt.Printf("invalid time\n")
-		return false
-	}
+	// if signedBlock.Time.After(time.Now()) {
+	// 	fmt.Printf("invalid time\n")
+	// 	return false
+	// }
 	if signedBlock.Height < 0 {
 		fmt.Printf("invalid height %+v\n", signedBlock.Height)
 		return false
