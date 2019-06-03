@@ -152,7 +152,7 @@ func (replica *replica) shouldDropTransition(transition state.Transition) bool {
 func (replica *replica) shouldBufferTransition(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
-		fmt.Printf("%T with H=%d Received proposal for (H=%d, R=%d)\n", replica.stateMachine.State(), replica.stateMachine.Height(), transition.Block.Height, transition.Round())
+		// fmt.Printf("%T with H=%d Received proposal for (H=%d, R=%d)\n", replica.stateMachine.State(), replica.stateMachine.Height(), transition.Block.Height, transition.Round())
 		// Only buffer Proposals from the future
 		if transition.Block.Height == replica.stateMachine.Height() && transition.Round() > replica.stateMachine.Round() {
 			return true
