@@ -448,7 +448,7 @@ func (machine *machine) broadcastPreCommit(polka block.Polka) Action {
 func (machine *machine) checkForHigherRounds() *block.Round {
 	highestRound := &machine.currentRound
 	for round, sigMap := range machine.bufferedMessages {
-		if round > *highestRound && len(sigMap) >= machine.shard.ConsensusThreshold() {
+		if round > *highestRound && len(sigMap) >= machine.shard.ConsensusThreshold()/2 {
 			highestRound = &round
 		}
 	}
