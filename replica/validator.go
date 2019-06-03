@@ -1,6 +1,7 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -60,6 +61,7 @@ func NewValidator(signer sig.Verifier, shard shard.Shard) Validator {
 
 func (validator *validator) ValidatePropose(propose block.SignedPropose, lastSignedBlock *block.SignedBlock) bool {
 	if propose.Round < 0 {
+		fmt.Printf("invalid round %d\n", propose.Round)
 		return false
 	}
 
@@ -72,10 +74,12 @@ func (validator *validator) ValidatePropose(propose block.SignedPropose, lastSig
 
 	// Verify the signature
 	if !validator.verifySignature(hash, propose.Signature, propose.Signatory) {
+		fmt.Printf("invalid sig %d\n", propose.Round)
 		return false
 	}
 
 	if propose.LastCommit != nil && !validator.ValidateCommit(*propose.LastCommit) {
+		fmt.Printf("invalid commit %+v\n", *propose.LastCommit)
 		return false
 	}
 
@@ -84,12 +88,16 @@ func (validator *validator) ValidatePropose(propose block.SignedPropose, lastSig
 
 func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSignedBlock *block.SignedBlock) bool {
 	if signedBlock.Block.Equal(block.Block{}) {
+		fmt.Printf("invalid block %+v\n", signedBlock.Block)
+
 		return false
 	}
 	if signedBlock.Time.After(time.Now()) {
+		fmt.Printf("invalid time\n")
 		return false
 	}
 	if signedBlock.Height < 0 {
+		fmt.Printf("invalid height %+v\n", signedBlock.Height)
 		return false
 	}
 
@@ -98,6 +106,7 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 	// Verify the parent block
 	if lastSignedBlock != nil {
 		if !lastSignedBlock.Header.Equal(signedBlock.ParentHeader) {
+			fmt.Printf("invalid parent %s\n", signedBlock.ParentHeader)
 			return false
 		}
 	}
@@ -106,6 +115,7 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 
 	// Verify the signature
 	if !validator.verifySignature(signedBlock.Block.Header, signedBlock.Signature, signedBlock.Signatory) {
+		fmt.Printf("invalid sig %s\n", signedBlock.Header)
 		return false
 	}
 
