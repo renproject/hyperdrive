@@ -98,7 +98,7 @@ func (signedBlock SignedBlock) String() string {
 type Propose struct {
 	Block      SignedBlock
 	Round      Round
-	ValidRound Round // TODO: Rename to something appropriate
+	ValidRound Round // TODO: (Review) This name comes from the pseudocode in (https://arxiv.org/pdf/1807.04938.pdf). Should this be renamed to something more appropriate?
 	LastCommit *Commit
 }
 

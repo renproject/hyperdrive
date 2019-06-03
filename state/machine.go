@@ -246,24 +246,27 @@ func (machine *machine) Transition(transition Transition) Action {
 func (machine *machine) waitForPropose(transition Transition) Action {
 	switch transition := transition.(type) {
 	case Proposed:
-		// TODO: Verify proposer is for the current round
-		if transition.ValidRound < 0 {
-			machine.ticksAtProposeState = -1
-			machine.currentState = WaitingForPolka{}
-			if machine.lockedRound == -1 || machine.lockedValue.Block.Equal(transition.Block.Block) {
-				return machine.broadcastPreVote(&transition.Block)
-			}
-			return machine.broadcastPreVote(nil)
-		}
-		if polka, polkaRound := machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold()); polkaRound != nil {
-			if polka.Block != nil && polka.Block.Block.Equal(transition.Block.Block) && transition.ValidRound < machine.currentRound {
+		if machine.shard.Leader(machine.currentRound).Equal(transition.Signatory) {
+			if transition.ValidRound < 0 {
 				machine.ticksAtProposeState = -1
 				machine.currentState = WaitingForPolka{}
-				if machine.lockedRound <= transition.ValidRound || machine.lockedValue.Block.Equal(transition.Block.Block) {
+				if machine.lockedRound == -1 || machine.lockedValue.Block.Equal(transition.Block.Block) {
 					return machine.broadcastPreVote(&transition.Block)
 				}
 				return machine.broadcastPreVote(nil)
 			}
+			if polka, polkaRound := machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold()); polkaRound != nil {
+				if polka.Block != nil && polka.Block.Block.Equal(transition.Block.Block) && transition.ValidRound < machine.currentRound {
+					machine.ticksAtProposeState = -1
+					machine.currentState = WaitingForPolka{}
+					if machine.lockedRound <= transition.ValidRound || machine.lockedValue.Block.Equal(transition.Block.Block) {
+						return machine.broadcastPreVote(&transition.Block)
+					}
+					return machine.broadcastPreVote(nil)
+				}
+			}
+		} else {
+			fmt.Printf("incorrect proposal, have %d, got %d => %s, %s\n", machine.currentRound, transition.Round(), transition.Signatory, machine.shard.Leader(machine.currentRound))
 		}
 
 	case PreVoted:
