@@ -103,6 +103,7 @@ func (machine *machine) LastBlock() *block.SignedBlock {
 }
 
 func (machine *machine) StartRound(round block.Round, commit *block.Commit) Action {
+	fmt.Printf("starting new round (Height = %d, Round = %d)\n", machine.currentHeight, machine.currentRound)
 	machine.currentRound = round
 	machine.currentState = WaitingForPropose{}
 
