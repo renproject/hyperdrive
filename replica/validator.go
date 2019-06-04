@@ -1,8 +1,6 @@
 package replica
 
 import (
-	"fmt"
-
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
@@ -60,7 +58,6 @@ func NewValidator(signer sig.Verifier, shard shard.Shard) Validator {
 
 func (validator *validator) ValidatePropose(propose block.SignedPropose) bool {
 	if propose.Round < 0 {
-		fmt.Printf("invalid round %d\n", propose.Round)
 		return false
 	}
 
@@ -73,17 +70,14 @@ func (validator *validator) ValidatePropose(propose block.SignedPropose) bool {
 
 	// Verify the signature
 	if !validator.verifySignature(hash, propose.Signature, propose.Signatory) {
-		fmt.Printf("invalid sig %d\n", propose.Round)
 		return false
 	}
 
 	if propose.LastCommit != nil {
 		if !validator.ValidateCommit(*propose.LastCommit) {
-			fmt.Printf("invalid commit %+v\n", *propose.LastCommit)
 			return false
 		}
 		if !propose.LastCommit.Polka.Block.Header.Equal(propose.Block.ParentHeader) {
-			fmt.Printf("invalid commit header %s %s\n", propose.LastCommit.Polka.Block.Header, propose.Block.ParentHeader)
 			return false
 		}
 	}
@@ -93,34 +87,16 @@ func (validator *validator) ValidatePropose(propose block.SignedPropose) bool {
 
 func (validator *validator) ValidateBlock(signedBlock block.SignedBlock) bool {
 	if signedBlock.Block.Equal(block.Block{}) {
-		fmt.Printf("invalid block %+v\n", signedBlock.Block)
-
 		return false
 	}
-	// if signedBlock.Time.After(time.Now()) {
-	// 	fmt.Printf("invalid time\n")
-	// 	return false
-	// }
+
 	if signedBlock.Height < 0 {
-		fmt.Printf("invalid height %+v\n", signedBlock.Height)
 		return false
 	}
-
-	// TODO: Verify the Block header equals the expected header.
-
-	// // Verify the parent block
-	// if lastSignedBlock != nil {
-	// 	if !lastSignedBlock.Header.Equal(signedBlock.ParentHeader) {
-	// 		fmt.Printf("invalid parent %s\n", signedBlock.ParentHeader)
-	// 		return false
-	// 	}
-	// }
-
 	// TODO: Check cache
 
 	// Verify the signature
 	if !validator.verifySignature(signedBlock.Block.Header, signedBlock.Signature, signedBlock.Signatory) {
-		fmt.Printf("invalid sig %s\n", signedBlock.Header)
 		return false
 	}
 

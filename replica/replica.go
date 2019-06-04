@@ -59,28 +59,23 @@ func (replica *replica) SyncCommit(commit block.Commit) bool {
 
 func (replica *replica) Transition(transition state.Transition) {
 	if replica.shouldDropTransition(transition) {
-		// fmt.Printf("(Height =%d) %T dropping %T (Round=%d)\n", replica.stateMachine.Height(), replica.stateMachine.State(), transition, transition.Round())
 		return
 	}
 	if replica.shouldBufferTransition(transition) {
-		// fmt.Printf("(Height =%d) %T buffering %T (Round=%d)\n", replica.stateMachine.Height(), replica.stateMachine.State(), transition, transition.Round())
 		replica.transitionBuffer.Enqueue(transition)
 		return
 	}
+
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
 		if !replica.isTransitionValid(transition) {
-			// fmt.Printf("(Height =%d) %T invalid %T (Round=%d)\n", replica.stateMachine.Height(), replica.stateMachine.State(), transition, transition.Round())
 			continue
 		}
-
-		// fmt.Printf("(Height =%d) %T received valid %T (Round=%d)\n", replica.stateMachine.Height(), replica.stateMachine.State(), transition, transition.Round())
 
 		replica.dispatchAction(replica.transition(transition))
 	}
 }
 
 func (replica *replica) dispatchAction(action state.Action) {
-	// fmt.Printf("(Height =%d) dispatching %T \n", replica.stateMachine.Height(), action)
 	if action == nil {
 		return
 	}
@@ -152,8 +147,7 @@ func (replica *replica) shouldDropTransition(transition state.Transition) bool {
 func (replica *replica) shouldBufferTransition(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
-		// fmt.Printf("%T with H=%d Received proposal for (H=%d, R=%d)\n", replica.stateMachine.State(), replica.stateMachine.Height(), transition.Block.Height, transition.Round())
-		// Only buffer Proposals from the future
+		// Only buffer Proposals from future rounds
 		if transition.Block.Height == replica.stateMachine.Height() && transition.Round() > replica.stateMachine.Round() {
 			return true
 		}
