@@ -2,7 +2,6 @@ package block
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/renproject/hyperdrive/sig"
@@ -133,83 +132,10 @@ type SignedPropose struct {
 	Signatory sig.Signatory
 }
 
-type Blockchain struct {
-	height Height
-
-	blocksMu *sync.RWMutex
-	blocks   map[Height]Commit
-}
-
-func NewBlockchain() Blockchain {
-	genesis := Genesis()
-	genesisCommit := Commit{
-		Polka: Polka{
-			Block: &genesis,
-		},
-	}
-	return Blockchain{
-		height: genesisCommit.Polka.Height,
-
-		blocksMu: new(sync.RWMutex),
-		blocks:   map[Height]Commit{genesis.Height: genesisCommit},
-	}
-}
-
-func (blockchain *Blockchain) Height() Height {
-	return blockchain.height
-}
-
-func (blockchain *Blockchain) Head() (SignedBlock, bool) {
-	blockchain.blocksMu.RLock()
-	defer blockchain.blocksMu.RUnlock()
-
-	if commit, ok := blockchain.blocks[blockchain.height]; ok {
-		return *commit.Polka.Block, true
-	}
-	return Genesis(), false
-}
-
-func (blockchain *Blockchain) Block(height Height) (SignedBlock, bool) {
-	blockchain.blocksMu.RLock()
-	commit, ok := blockchain.blocks[height]
-	blockchain.blocksMu.RUnlock()
-
-	if !ok || commit.Polka.Block == nil {
-		return Genesis(), false
-	}
-	return *commit.Polka.Block, true
-}
-
-func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
-	if commitToNextBlock.Polka.Block == nil {
-		return
-	}
-
-	if blockchain.height < commitToNextBlock.Polka.Block.Height {
-		blockchain.height = commitToNextBlock.Polka.Block.Height
-	}
-
-	blockchain.blocksMu.Lock()
-	defer blockchain.blocksMu.Unlock()
-	blockchain.blocks[commitToNextBlock.Polka.Block.Height] = commitToNextBlock
-}
-
-func (blockchain *Blockchain) Blocks(start, end Height) []Commit {
-	if end <= start {
-		return nil
-	}
-
-	var block Commit
-	var ok bool
-	blocks := []Commit{}
-
-	blockchain.blocksMu.RLock()
-	defer blockchain.blocksMu.RUnlock()
-	for i := start; i <= end; i++ {
-		if block, ok = blockchain.blocks[i]; !ok {
-			return blocks
-		}
-		blocks = append(blocks, block)
-	}
-	return blocks
+type Blockchain interface {
+	Height() Height
+	Head() (SignedBlock, bool)
+	Block(height Height) (SignedBlock, bool)
+	Extend(commitToNextBlock Commit)
+	Blocks(start, end Height) []Commit
 }
