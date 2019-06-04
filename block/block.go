@@ -136,6 +136,6 @@ type Blockchain interface {
 	Height() Height
 	Head() SignedBlock
 	Block(height Height) (SignedBlock, error)
-	Extend(commitToNextBlock Commit)
-	Blocks(start, end Height) []Commit
+	Extend(commitToNextBlock Commit) error
+	Blocks(start, end Height) ([]Commit, error)
 }
