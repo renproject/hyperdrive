@@ -18,8 +18,8 @@ type Validator interface {
 	// 2. have valid blockTime, Round, and Height
 	// 3. have a valid signature
 	// 4. signatory belongs to the same shard
-	// 5. parent header is the block at head of the shard's blockchain
-	ValidatePropose(propose block.SignedPropose, lastSignedBlock *block.SignedBlock) bool
+	// 5. parent header maps to the block at head of the shard's blockchain
+	ValidatePropose(propose block.SignedPropose) bool
 
 	ValidatePreVote(preVote block.SignedPreVote) bool
 
@@ -58,7 +58,7 @@ func NewValidator(signer sig.Verifier, shard shard.Shard) Validator {
 	}
 }
 
-func (validator *validator) ValidatePropose(propose block.SignedPropose, lastSignedBlock *block.SignedBlock) bool {
+func (validator *validator) ValidatePropose(propose block.SignedPropose) bool {
 	if propose.Round < 0 {
 		fmt.Printf("invalid round %d\n", propose.Round)
 		return false
@@ -88,10 +88,10 @@ func (validator *validator) ValidatePropose(propose block.SignedPropose, lastSig
 		}
 	}
 
-	return validator.ValidateBlock(propose.Block, lastSignedBlock)
+	return validator.ValidateBlock(propose.Block)
 }
 
-func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSignedBlock *block.SignedBlock) bool {
+func (validator *validator) ValidateBlock(signedBlock block.SignedBlock) bool {
 	if signedBlock.Block.Equal(block.Block{}) {
 		fmt.Printf("invalid block %+v\n", signedBlock.Block)
 
@@ -108,13 +108,13 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 
 	// TODO: Verify the Block header equals the expected header.
 
-	// Verify the parent block
-	if lastSignedBlock != nil {
-		if !lastSignedBlock.Header.Equal(signedBlock.ParentHeader) {
-			fmt.Printf("invalid parent %s\n", signedBlock.ParentHeader)
-			return false
-		}
-	}
+	// // Verify the parent block
+	// if lastSignedBlock != nil {
+	// 	if !lastSignedBlock.Header.Equal(signedBlock.ParentHeader) {
+	// 		fmt.Printf("invalid parent %s\n", signedBlock.ParentHeader)
+	// 		return false
+	// 	}
+	// }
 
 	// TODO: Check cache
 
@@ -131,7 +131,7 @@ func (validator *validator) ValidateBlock(signedBlock block.SignedBlock, lastSig
 func (validator *validator) ValidatePreVote(preVote block.SignedPreVote) bool {
 	// Verify the pre-vote is well-formed
 	if preVote.PreVote.Block != nil {
-		if !validator.ValidateBlock(*preVote.PreVote.Block, nil) {
+		if !validator.ValidateBlock(*preVote.PreVote.Block) {
 			return false
 		}
 		if preVote.PreVote.Height != preVote.PreVote.Block.Height {
@@ -167,7 +167,7 @@ func (validator *validator) ValidatePolka(polka block.Polka) bool {
 		if polka.Height != polka.Block.Height {
 			return false
 		}
-		if !validator.ValidateBlock(*polka.Block, nil) {
+		if !validator.ValidateBlock(*polka.Block) {
 			return false
 		}
 

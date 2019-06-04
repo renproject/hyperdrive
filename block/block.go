@@ -66,7 +66,7 @@ func (block Block) Sign(signer sig.Signer) (SignedBlock, error) {
 }
 
 func (block Block) String() string {
-	return fmt.Sprintf("Block(Height=%d,Timestamp=%d,TxHeader=%s,ParentHeader=%s)", block.Height, block.Time.UnixNano(), block.TxHeader, block.ParentHeader)
+	return fmt.Sprintf("Block(Height=%d,Timestamp=%d,TxHeader=%s,ParentHeader=%s)", block.Height, block.Time.Unix(), block.TxHeader, block.ParentHeader)
 }
 
 type SignedBlock struct {
@@ -122,7 +122,7 @@ func (propose Propose) Sign(signer sig.Signer) (SignedPropose, error) {
 }
 
 func (propose Propose) String() string {
-	return fmt.Sprintf("Propose(Block = %s, Round = %d, ValidRound = %d)", propose.Block.String(), propose.Round, propose.ValidRound)
+	return fmt.Sprintf("Propose(Block=%s,Round=%d,ValidRound=%d)", propose.Block.String(), propose.Round, propose.ValidRound)
 }
 
 type SignedPropose struct {
