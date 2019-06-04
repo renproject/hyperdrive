@@ -103,7 +103,6 @@ func (machine *machine) LastBlock() *block.SignedBlock {
 }
 
 func (machine *machine) StartRound(round block.Round, commit *block.Commit) Action {
-	// fmt.Printf("starting new round (Height = %d, Round = %d)\n", machine.currentHeight, round)
 	machine.currentRound = round
 	machine.currentState = WaitingForPropose{}
 
@@ -265,8 +264,6 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 					return machine.broadcastPreVote(nil)
 				}
 			}
-		} else {
-			fmt.Printf("incorrect proposal, have %d, got %d => %s, %s\n", machine.currentRound, transition.Round(), transition.Signatory, machine.shard.Leader(machine.currentRound))
 		}
 
 	case PreVoted:
