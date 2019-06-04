@@ -21,9 +21,7 @@ var _ = XDescribe("Block", func() {
 
 			var blockchain Blockchain
 			Expect(blockchain.Height()).To(Equal(genesis.Height))
-			head, ok := blockchain.Head()
-			Expect(ok).To(BeTrue())
-			Expect(head).To(Equal(genesis))
+			Expect(blockchain.Head()).To(Equal(genesis))
 			block, ok := blockchain.Block(Height(0))
 			Expect(ok).To(BeTrue())
 			Expect(block).To(Equal(genesis))
@@ -55,9 +53,7 @@ var _ = XDescribe("Block", func() {
 				}
 
 				Expect(blockchain.Height()).To(Equal(Height(9)))
-				head, ok := blockchain.Head()
-				Expect(ok).To(BeTrue())
-				Expect(head.Header).To(Equal(header))
+				Expect( blockchain.Head().Header).To(Equal(header))
 			})
 
 			It("should return block for a specific header", func() {
@@ -134,9 +130,7 @@ var _ = XDescribe("Block", func() {
 					blockchain.Extend(commit)
 
 					Expect(blockchain.Height()).To(Equal(genesis.Height))
-					head, ok := blockchain.Head()
-					Expect(ok).To(BeTrue())
-					Expect(head).To(Equal(genesis))
+					Expect(blockchain.Head()).To(Equal(genesis))
 				})
 			})
 		})

@@ -134,8 +134,8 @@ type SignedPropose struct {
 
 type Blockchain interface {
 	Height() Height
-	Head() (SignedBlock, bool)
-	Block(height Height) (SignedBlock, bool)
+	Head() SignedBlock
+	Block(height Height) (SignedBlock, error)
 	Extend(commitToNextBlock Commit)
 	Blocks(start, end Height) []Commit
 }
