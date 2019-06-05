@@ -48,9 +48,9 @@ type machine struct {
 	shard  shard.Shard
 	txPool tx.Pool
 
-	proposeTimer   timer
-	preVoteTimer   timer
-	preCommitTimer timer
+	proposeTimer   *timer
+	preVoteTimer   *timer
+	preCommitTimer *timer
 
 	bufferedMessages map[block.Round]map[sig.Signatory]struct{}
 }
@@ -311,7 +311,7 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 		var polkaRound *block.Round
 		polka, polkaRound = machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
 		if polkaRound != nil && *polkaRound == machine.currentRound && !machine.preVoteTimer.IsActive() {
-			machine.activateTimerWithExpiry(&machine.preVoteTimer)
+			machine.activateTimerWithExpiry(machine.preVoteTimer)
 		}
 
 	case PreCommitted:
@@ -363,7 +363,7 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 		var commitRound *block.Round
 		commit, commitRound = machine.commitBuilder.Commit(machine.currentHeight, machine.shard.ConsensusThreshold())
 		if commitRound != nil && *commitRound == machine.currentRound && !machine.preCommitTimer.IsActive() {
-			machine.activateTimerWithExpiry(&machine.preCommitTimer)
+			machine.activateTimerWithExpiry(machine.preCommitTimer)
 		}
 
 	case Ticked:
@@ -385,7 +385,7 @@ func (machine *machine) resetTimersOnNewRound() {
 	machine.preVoteTimer.Reset()
 	machine.preCommitTimer.Reset()
 
-	machine.activateTimerWithExpiry(&machine.proposeTimer)
+	machine.activateTimerWithExpiry(machine.proposeTimer)
 }
 
 func (machine *machine) shouldProposeBlock() bool {
@@ -524,14 +524,14 @@ func (machine *machine) checkForHigherRounds() block.Round {
 func (machine *machine) checkAndSchedulePreVoteTimeout() {
 	_, polkaRound := machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
 	if polkaRound != nil && *polkaRound == machine.currentRound && !machine.preVoteTimer.IsActive() {
-		machine.activateTimerWithExpiry(&machine.preVoteTimer)
+		machine.activateTimerWithExpiry(machine.preVoteTimer)
 	}
 }
 
 func (machine *machine) checkAndSchedulePreCommitTimeout() {
 	_, commitRound := machine.commitBuilder.Commit(machine.currentHeight, machine.shard.ConsensusThreshold())
 	if commitRound != nil && *commitRound == machine.currentRound && !machine.preCommitTimer.IsActive() {
-		machine.activateTimerWithExpiry(&machine.preCommitTimer)
+		machine.activateTimerWithExpiry(machine.preCommitTimer)
 	}
 }
 
