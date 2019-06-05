@@ -215,7 +215,9 @@ func (machine *machine) Transition(transition Transition) Action {
 
 	// Handle all timers
 	if ticked, ok := transition.(Ticked); ok {
-		return machine.handleTimers(ticked)
+		if timeoutAction := machine.handleTimers(ticked); timeoutAction != nil {
+			return timeoutAction
+		}
 	}
 
 	switch machine.currentState.(type) {
@@ -283,6 +285,9 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 			machine.checkAndSchedulePreCommitTimeout()
 		}
 
+	case Ticked:
+		// Ignore
+
 	default:
 		panic(fmt.Errorf("unexpected transition type %T", transition))
 	}
@@ -316,6 +321,9 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 			machine.checkAndSchedulePreCommitTimeout()
 		}
 
+		polka, _ = machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
+
+	case Ticked:
 		polka, _ = machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
 
 	default:
@@ -357,6 +365,12 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 		if commitRound != nil && *commitRound == machine.currentRound && !machine.preCommitTimer.IsActive() {
 			machine.activateTimerWithExpiry(&machine.preCommitTimer)
 		}
+
+	case Ticked:
+		// Retrieve commit for processing later. We ignore the round at which the commit was found
+		// because that information is only needed by the state machine to activate precommit timers,
+		// something that should have already been completed prior to this stage.
+		commit, _ = machine.commitBuilder.Commit(machine.currentHeight, machine.shard.ConsensusThreshold())
 
 	default:
 		panic(fmt.Errorf("unexpected transition type %T", transition))
