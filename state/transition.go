@@ -72,7 +72,7 @@ func (proposed Proposed) Round() block.Round {
 // Signer implements the `Transition` interface for the
 // `Proposed` event.
 func (proposed Proposed) Signer() sig.Signatory {
-	return proposed.Signatory
+	return proposed.SignedPropose.Signatory
 }
 
 // A PreVoted block has been signed and broadcast by another
