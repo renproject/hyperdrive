@@ -11,8 +11,8 @@ type timer struct {
 
 // NewTimer returns a timer object that is initialized with the number of ticks
 // required for expiry of the timer.
-func NewTimer(numTicksToExpiry int) *timer {
-	return &timer{
+func NewTimer(numTicksToExpiry int) timer {
+	return timer{
 		active:           false,
 		numTicks:         0,
 		numTicksToExpiry: numTicksToExpiry,
