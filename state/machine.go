@@ -178,8 +178,27 @@ func (machine *machine) Transition(transition Transition) Action {
 
 	// Handle messages for rounds greater than the current round. If there are f+1
 	// transitions for a round higher than the current round, progress to the new round.
-	if newRound := machine.handleTransitionsForHigherRounds(transition); newRound != nil {
-		return newRound
+	if transition.Round() > machine.currentRound {
+		if _, ok := machine.bufferedMessages[transition.Round()]; !ok {
+			machine.bufferedMessages[transition.Round()] = map[sig.Signatory]struct{}{}
+		}
+		machine.bufferedMessages[transition.Round()][transition.Signer()] = struct{}{}
+	}
+
+	higherRound := machine.checkForHigherRounds()
+	if higherRound > machine.currentRound {
+		// Found f+1 messages for a higher round, progress to the new round.
+		switch transition := transition.(type) {
+		case PreVoted:
+			// At this stage, we want to buffer all prevotes. It doesn't matter if
+			// the prevote is new or not, because we want to start a new round regardless.
+			_ = machine.polkaBuilder.Insert(transition.SignedPreVote)
+		case PreCommitted:
+			// At this stage, we want to buffer all precommits. It doesn't matter if
+			// the precommit is new or not, because we want to start a new round regardless.
+			_ = machine.commitBuilder.Insert(transition.SignedPreCommit)
+		}
+		return machine.StartRound(higherRound, nil)
 	}
 
 	// If a Proposal is received for a height higher than the currentHeight, progress
@@ -407,32 +426,6 @@ func (machine *machine) preconditionCheck() {
 			panic("expected valid block to not be nil")
 		}
 	}
-}
-
-func (machine *machine) handleTransitionsForHigherRounds(transition Transition) Action {
-	if transition.Round() > machine.currentRound {
-		if _, ok := machine.bufferedMessages[transition.Round()]; !ok {
-			machine.bufferedMessages[transition.Round()] = map[sig.Signatory]struct{}{}
-		}
-		machine.bufferedMessages[transition.Round()][transition.Signer()] = struct{}{}
-	}
-
-	higherRound := machine.checkForHigherRounds()
-	if higherRound > machine.currentRound {
-		// Found f+1 messages for a higher round, progress to the new round.
-		switch transition := transition.(type) {
-		case PreVoted:
-			// At this stage, we want to buffer all prevotes. It doesn't matter if
-			// the prevote is new or not, because we want to start a new round regardless.
-			_ = machine.polkaBuilder.Insert(transition.SignedPreVote)
-		case PreCommitted:
-			// At this stage, we want to buffer all precommits. It doesn't matter if
-			// the precommit is new or not, because we want to start a new round regardless.
-			_ = machine.commitBuilder.Insert(transition.SignedPreCommit)
-		}
-		return machine.StartRound(higherRound, nil)
-	}
-	return nil
 }
 
 func (machine *machine) handleTimers(tick Ticked) Action {
