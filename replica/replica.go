@@ -58,16 +58,19 @@ func (replica *replica) SyncCommit(commit block.Commit) bool {
 }
 
 func (replica *replica) Transition(transition state.Transition) {
-	if replica.shouldDropTransition(transition) {
-		return
-	}
-	if replica.shouldBufferTransition(transition) {
-		replica.transitionBuffer.Enqueue(transition)
-		return
-	}
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
+		if replica.shouldDropTransition(transition) {
+			continue
+		}
+
 		if !replica.isTransitionValid(transition) {
 			continue
+		}
+
+		// If a `Proposed` is seen for a higher round, buffer and return immediately
+		if replica.shouldBufferTransition(transition) {
+			replica.transitionBuffer.Enqueue(transition)
+			return
 		}
 
 		replica.dispatchAction(replica.transition(transition))
