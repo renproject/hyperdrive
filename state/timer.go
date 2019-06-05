@@ -27,19 +27,16 @@ func (timer *timer) IsActive() bool {
 // Activate must be called explicitly to start the timer.
 func (timer *timer) Activate() {
 	timer.active = true
-	timer.numTicks = 0
 }
 
 // Deactivate deactivates the timer
 func (timer *timer) Deactivate() {
 	timer.active = false
-	timer.numTicks = 0
 }
 
-// AcceptTick accepts a Ticked transition object and increments
-// `numTicks`, if the timer is active. If number of ticks exceeds
-// `numTicksToExpiry`, this function returns true to indicate expiry.
-func (timer *timer) AcceptTick(tick Ticked) bool {
+// Tick increments `numTicks` if the timer is active. If number of ticks
+// exceeds `numTicksToExpiry`, this function returns true to indicate expiry.
+func (timer *timer) Tick() bool {
 	if timer.active {
 		timer.numTicks++
 	}

@@ -190,12 +190,12 @@ func (machine *machine) Transition(transition Transition) Action {
 		// Found f+1 messages for a higher round, progress to the new round.
 		switch transition := transition.(type) {
 		case PreVoted:
-			// At this stage, we want to buffer all prevotes. It doesn't matter if
-			// the prevote is new or not, because we want to start a new round regardless.
+			// At this stage, we want to buffer all preVotes. It doesn't matter if
+			// the preVote is new or not, because we want to start a new round regardless.
 			_ = machine.polkaBuilder.Insert(transition.SignedPreVote)
 		case PreCommitted:
-			// At this stage, we want to buffer all precommits. It doesn't matter if
-			// the precommit is new or not, because we want to start a new round regardless.
+			// At this stage, we want to buffer all preCommits. It doesn't matter if
+			// the preCommit is new or not, because we want to start a new round regardless.
 			_ = machine.commitBuilder.Insert(transition.SignedPreCommit)
 		}
 		return machine.StartRound(higherRound, nil)
@@ -213,9 +213,13 @@ func (machine *machine) Transition(transition Transition) Action {
 		}
 	}
 
-	// Handle all timers
+	// Always check to see if the machine has received 2f+1 preCommits for the
+	// current round and activate preCommitTimer if it has.
+	machine.checkAndActivatePreCommitTimer()
+
+	// Handle ticks
 	if ticked, ok := transition.(Ticked); ok {
-		if timeoutAction := machine.handleTimers(ticked); timeoutAction != nil {
+		if timeoutAction := machine.handleTick(ticked); timeoutAction != nil {
 			return timeoutAction
 		}
 	}
@@ -274,15 +278,15 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 		}
 
 	case PreVoted:
-		// Insert all prevotes. We explicitly ignore whether the prevote was already
+		// Insert all preVotes. We explicitly ignore whether the preVote was already
 		// added because we don't need that information at this stage.
 		_ = machine.polkaBuilder.Insert(transition.SignedPreVote)
 
 	case PreCommitted:
-		// Insert all precommits. If the precommit was new information, check and update
-		// the precommit timer.
+		// Insert all preCommits. If the preCommit was new information, check and update
+		// the preCommit timer.
 		if machine.commitBuilder.Insert(transition.SignedPreCommit) {
-			machine.checkAndSchedulePreCommitTimeout()
+			machine.checkAndActivatePreCommitTimer()
 		}
 
 	case Ticked:
@@ -295,6 +299,7 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 }
 
 func (machine *machine) waitForPolka(transition Transition) Action {
+	machine.checkAndActivatePreVoteTimer()
 	polka := &block.Polka{}
 
 	switch transition := transition.(type) {
@@ -303,7 +308,7 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 		return nil
 
 	case PreVoted:
-		// If prevote received is not new information, return immediately.
+		// If preVote received is not new information, return immediately.
 		if !machine.polkaBuilder.Insert(transition.SignedPreVote) {
 			return nil
 		}
@@ -315,10 +320,10 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 		}
 
 	case PreCommitted:
-		// Insert all precommits. If the precommit was new information, check and update
-		// the precommit timer.
+		// Insert all preCommits. If the preCommit was new information, check and update
+		// the preCommit timer.
 		if machine.commitBuilder.Insert(transition.SignedPreCommit) {
-			machine.checkAndSchedulePreCommitTimeout()
+			machine.checkAndActivatePreCommitTimer()
 		}
 
 		polka, _ = machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
@@ -339,27 +344,27 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 	switch transition := transition.(type) {
 	case Proposed:
 		// Retrieve commits for processing later. We ignore the round at which the commit was found
-		// because that information is only needed by the state machine to activate precommit timers,
+		// because that information is only needed by the state machine to activate preCommit timers,
 		// something that should have already been completed prior to this stage.
 		commit, _ = machine.commitBuilder.Commit(machine.currentHeight, machine.shard.ConsensusThreshold())
 
 	case PreVoted:
-		// Insert all prevotes. It doesn't matter to this stage if the prevote is not new.
+		// Insert all preVotes. It doesn't matter to this stage if the preVote is not new.
 		_ = machine.polkaBuilder.Insert(transition.SignedPreVote)
 
 		// Retrieve commits for processing later. We ignore the round at which the commit was found
-		// because that information is only needed by the state machine to activate precommit timers,
+		// because that information is only needed by the state machine to activate preCommit timers,
 		// something that should have already been completed prior to this stage.
 		commit, _ = machine.commitBuilder.Commit(machine.currentHeight, machine.shard.ConsensusThreshold())
 
 	case PreCommitted:
-		// If precommit received is not new information, return immediately.
+		// If preCommit received is not new information, return immediately.
 		if !machine.commitBuilder.Insert(transition.SignedPreCommit) {
 			return nil
 		}
 
-		// At this point, we have received a new precommit. Here, we need to check if there are 2f+1
-		// precommits for the current height and activate the precommit timer, if required.
+		// At this point, we have received a new preCommit. Here, we need to check if there are 2f+1
+		// preCommits for the current height and activate the preCommit timer, if required.
 		var commitRound *block.Round
 		commit, commitRound = machine.commitBuilder.Commit(machine.currentHeight, machine.shard.ConsensusThreshold())
 		if commitRound != nil && *commitRound == machine.currentRound && !machine.preCommitTimer.IsActive() {
@@ -368,7 +373,7 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 
 	case Ticked:
 		// Retrieve commit for processing later. We ignore the round at which the commit was found
-		// because that information is only needed by the state machine to activate precommit timers,
+		// because that information is only needed by the state machine to activate preCommit timers,
 		// something that should have already been completed prior to this stage.
 		commit, _ = machine.commitBuilder.Commit(machine.currentHeight, machine.shard.ConsensusThreshold())
 
@@ -442,30 +447,17 @@ func (machine *machine) preconditionCheck() {
 	}
 }
 
-func (machine *machine) handleTimers(tick Ticked) Action {
-	machine.checkAndSchedulePreCommitTimeout()
-
-	if machine.preCommitTimer.AcceptTick(tick) {
-		return machine.StartRound(machine.currentRound+1, nil)
+func (machine *machine) handleTick(tick Ticked) Action {
+	// Check for preCommit timeouts first to ensure the machine
+	// doesn't have to progress rounds.
+	if machine.preCommitTimer.Tick() {
+		return machine.onTimeoutPrecommit()
 	}
-	switch machine.currentState.(type) {
-	case WaitingForPropose:
-		if machine.proposeTimer.AcceptTick(tick) {
-			machine.proposeTimer.Reset()
-			machine.currentState = WaitingForPolka{}
-			return machine.broadcastPreVote(nil)
-		}
-	case WaitingForPolka:
-		machine.checkAndSchedulePreVoteTimeout()
-		if machine.preVoteTimer.AcceptTick(tick) {
-			machine.preVoteTimer.Reset()
-			machine.currentState = WaitingForCommit{}
-			polka := block.Polka{
-				Round:  machine.currentRound,
-				Height: machine.currentHeight,
-			}
-			return machine.broadcastPreCommit(polka)
-		}
+	if machine.proposeTimer.Tick() {
+		return machine.onTimeoutPropose()
+	}
+	if machine.preVoteTimer.Tick() {
+		return machine.onTimeoutPrevote()
 	}
 	return nil
 }
@@ -489,11 +481,11 @@ func (machine *machine) broadcastPreVote(proposedBlock *block.SignedBlock) Actio
 }
 
 func (machine *machine) broadcastPreCommit(polka block.Polka) Action {
-	precommit := block.PreCommit{
+	preCommit := block.PreCommit{
 		Polka: polka,
 	}
 
-	signedPreCommit, err := precommit.Sign(machine.signer)
+	signedPreCommit, err := preCommit.Sign(machine.signer)
 	if err != nil {
 		panic(err)
 	}
@@ -521,14 +513,14 @@ func (machine *machine) checkForHigherRounds() block.Round {
 	return highestRound
 }
 
-func (machine *machine) checkAndSchedulePreVoteTimeout() {
+func (machine *machine) checkAndActivatePreVoteTimer() {
 	_, polkaRound := machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
 	if polkaRound != nil && *polkaRound == machine.currentRound && !machine.preVoteTimer.IsActive() {
 		machine.activateTimerWithExpiry(&machine.preVoteTimer)
 	}
 }
 
-func (machine *machine) checkAndSchedulePreCommitTimeout() {
+func (machine *machine) checkAndActivatePreCommitTimer() {
 	_, commitRound := machine.commitBuilder.Commit(machine.currentHeight, machine.shard.ConsensusThreshold())
 	if commitRound != nil && *commitRound == machine.currentRound && !machine.preCommitTimer.IsActive() {
 		machine.activateTimerWithExpiry(&machine.preCommitTimer)
@@ -582,7 +574,35 @@ func (machine *machine) drop() {
 	machine.commitBuilder.Drop(machine.currentHeight)
 }
 
-func (machine *machine) activateTimerWithExpiry(updateTimer *timer) {
-	updateTimer.Activate()
-	updateTimer.SetExpiry(int(NumTicksToTriggerTimeOut + machine.currentRound))
+func (machine *machine) activateTimerWithExpiry(timer *timer) {
+	timer.Reset()
+	timer.Activate()
+	timer.SetExpiry(int(NumTicksToTriggerTimeOut + machine.currentRound))
+}
+
+func (machine *machine) onTimeoutPropose() Action {
+	if _, ok := machine.currentState.(WaitingForPropose); !ok {
+		panic("expected state machine to timeoutPropose while waiting on propose")
+	}
+
+	machine.proposeTimer.Reset()
+	machine.currentState = WaitingForPolka{}
+	return machine.broadcastPreVote(nil)
+}
+
+func (machine *machine) onTimeoutPrevote() Action {
+	if _, ok := machine.currentState.(WaitingForPolka); !ok {
+		panic("expected state machine to timeoutPrevote while waiting on polka")
+	}
+
+	machine.preVoteTimer.Reset()
+	machine.currentState = WaitingForCommit{}
+	return machine.broadcastPreCommit(block.Polka{
+		Round:  machine.currentRound,
+		Height: machine.currentHeight,
+	})
+}
+
+func (machine *machine) onTimeoutPrecommit() Action {
+	return machine.StartRound(machine.currentRound+1, nil)
 }
