@@ -121,7 +121,7 @@ func (faultyLeader *faultyLeader) SyncCommit(shardHash sig.Hash, commit block.Co
 	panic("unimplemented")
 }
 
-func (faultyLeader *faultyLeader) BeginShard(shard, previousShard shard.Shard, head block.SignedBlock, pool tx.Pool) {
+func (faultyLeader *faultyLeader) BeginShard(shard, previousShard shard.Shard, head *block.Commit, pool tx.Pool) {
 	return
 }
 
