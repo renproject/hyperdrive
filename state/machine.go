@@ -56,10 +56,9 @@ type machine struct {
 }
 
 func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, signer sig.Signer, shard shard.Shard, txPool tx.Pool, lastCommit *block.Commit) Machine {
-	return &machine{
-		currentState:  state,
-		currentHeight: 0,
-		currentRound:  0,
+	machine := machine{
+		currentState: state,
+		currentRound: 0,
 
 		lockedRound: -1,
 		lockedValue: nil,
@@ -81,6 +80,13 @@ func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder bloc
 
 		bufferedMessages: map[block.Round]map[sig.Signatory]struct{}{},
 	}
+
+	machine.currentHeight = 0
+	if lastCommit != nil {
+		machine.currentHeight = lastCommit.Polka.Height + 1
+	}
+
+	return &machine
 }
 
 func (machine *machine) State() State {
