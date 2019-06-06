@@ -260,6 +260,8 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 			if transition.ValidRound < 0 {
 				// Reset propose timer and update state
 				machine.proposeTimer.Reset()
+				fmt.Println("reseting propose timer", machine.proposeTimer.IsActive(), machine.preVoteTimer.IsActive(), machine.preCommitTimer.IsActive(), machine.currentHeight, machine.currentRound)
+			
 				machine.currentState = WaitingForPolka{}
 
 				// Broadcast PreVote
@@ -272,6 +274,8 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 				if polka.Block != nil && polka.Block.Block.Equal(transition.Block.Block) && transition.ValidRound < machine.currentRound {
 					// Reset propose timer and update state
 					machine.proposeTimer.Reset()
+					fmt.Println("reseting propose timer", machine.proposeTimer.IsActive(), machine.preVoteTimer.IsActive(), machine.preCommitTimer.IsActive(), machine.currentHeight, machine.currentRound)
+			
 					machine.currentState = WaitingForPolka{}
 
 					// Broadcast PreVote
@@ -554,6 +558,7 @@ func (machine *machine) handlePolka(polka *block.Polka) Action {
 		machine.validRound = machine.currentRound
 		machine.validValue = polka.Block
 		machine.preVoteTimer.Reset()
+		fmt.Println("reseting prevote timer", machine.proposeTimer.IsActive(), machine.preVoteTimer.IsActive(), machine.preCommitTimer.IsActive(), machine.currentHeight, machine.currentRound)
 		machine.currentState = WaitingForCommit{}
 		return machine.broadcastPreCommit(*polka)
 	}
@@ -601,6 +606,7 @@ func (machine *machine) onTimeoutPropose() Action {
 	}
 
 	machine.proposeTimer.Reset()
+	fmt.Println("reseting propose timer", machine.proposeTimer.IsActive(), machine.preVoteTimer.IsActive(), machine.preCommitTimer.IsActive(), machine.currentHeight, machine.currentRound)
 	machine.currentState = WaitingForPolka{}
 	return machine.broadcastPreVote(nil)
 }
@@ -611,6 +617,8 @@ func (machine *machine) onTimeoutPrevote() Action {
 	}
 
 	machine.preVoteTimer.Reset()
+	fmt.Println("reseting prevote timer", machine.proposeTimer.IsActive(), machine.preVoteTimer.IsActive(), machine.preCommitTimer.IsActive(), machine.currentHeight, machine.currentRound)
+			
 	machine.currentState = WaitingForCommit{}
 	return machine.broadcastPreCommit(block.Polka{
 		Round:  machine.currentRound,
