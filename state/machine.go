@@ -457,12 +457,15 @@ func (machine *machine) handleTick(tick Ticked) Action {
 	// Check for preCommit timeouts first to ensure the machine
 	// doesn't have to progress rounds.
 	if machine.preCommitTimer.Tick() {
+		fmt.Println("precommit timeout", machine.currentHeight, machine.currentRound)
 		return machine.onTimeoutPrecommit()
 	}
 	if machine.proposeTimer.Tick() {
+		fmt.Println("propose timeout", machine.currentHeight, machine.currentRound)
 		return machine.onTimeoutPropose()
 	}
 	if machine.preVoteTimer.Tick() {
+		fmt.Println("prevote timeout", machine.currentHeight, machine.currentRound)
 		return machine.onTimeoutPrevote()
 	}
 	return nil
