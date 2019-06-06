@@ -138,4 +138,5 @@ type Blockchain interface {
 	Block(height Height) (Commit, error)
 	Extend(commitToNextBlock Commit) error
 	Blocks(start, end Height) ([]Commit, error)
+	LastCommit() (Commit, error)
 }
