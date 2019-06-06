@@ -3,20 +3,12 @@
 //
 // Note: TransitionBuffer is not thread safe
 //
-// There are two types of `Transition`, those with a `Height` and those
-// that are "immediate". Any "immediate" `Transition`s will be
-// `Dequeue`ed first, regardless of the provided `Height`. Otherwise,
-// `Dequeue` will return the most relevant `Transition` for the given
-// `Height`. For example: you will not get a `PreVoted` if a
-// `PreCommitted` was already `Enqueue`ed at that `Height`.
-//
-// Keep in mind`Transition`s that don't have a `Height` are not pruned.
-// For example: if you `Enqueue` a `TimedOut` twice then the next two
-// `Dequeue` will return a `TimedOut`. The "immediate" `Transition`s are
-// stored in a FIFO queue.
+// `Dequeue` will return the most relevant `Proposed` transition for the given
+// `Height`.
 package state
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -72,7 +64,7 @@ func (proposed Proposed) Round() block.Round {
 // Signer implements the `Transition` interface for the
 // `Proposed` event.
 func (proposed Proposed) Signer() sig.Signatory {
-	return proposed.Signatory
+	return proposed.SignedPropose.Signatory
 }
 
 // A PreVoted block has been signed and broadcast by another
@@ -121,8 +113,8 @@ func (precommitted PreCommitted) Signer() sig.Signatory {
 	return precommitted.Signatory
 }
 
-// A TransitionBuffer is used to temporarily buffer `Transitions` that
-// are not ready to be processed because of the `State`. All
+// A TransitionBuffer is used to temporarily buffer `Proposed` that
+// are not ready to be processed because they are from higher rounds. All
 // `Transitions` are buffered against their respective `Height` and
 // will be dequeued one by one.
 type TransitionBuffer interface {
@@ -135,14 +127,14 @@ type TransitionBuffer interface {
 }
 
 type transitionBuffer struct {
-	queues map[block.Height][]Transition
+	queues map[block.Height][]Proposed
 	cap    int
 }
 
 // NewTransitionBuffer creates an empty TransitionBuffer with a maximum queue capacity.
 func NewTransitionBuffer(cap int) TransitionBuffer {
 	return &transitionBuffer{
-		queues: make(map[block.Height][]Transition),
+		queues: make(map[block.Height][]Proposed),
 		cap:    cap,
 	}
 }
@@ -151,49 +143,13 @@ func (buffer *transitionBuffer) Enqueue(transition Transition) {
 	switch transition := transition.(type) {
 	case Proposed:
 		buffer.newQueue(transition.Block.Height)
-		if len(buffer.queues[transition.Block.Height]) > 0 {
-			switch buffer.queues[transition.Block.Height][0].(type) {
-			case PreVoted, PreCommitted:
-			default:
-				buffer.queues[transition.Block.Height] = append(buffer.queues[transition.Block.Height], transition)
-			}
-		} else {
-			buffer.queues[transition.Block.Height] = append(buffer.queues[transition.Block.Height], transition)
-		}
-
-	case PreVoted:
-		buffer.newQueue(transition.Height)
-		if len(buffer.queues[transition.Height]) > 0 {
-			switch buffer.queues[transition.Height][0].(type) {
-			case Proposed:
-				buffer.queues[transition.Height] = []Transition{transition}
-			case PreCommitted:
-			default:
-				buffer.queues[transition.Height] = append(buffer.queues[transition.Height], transition)
-			}
-		} else {
-			buffer.queues[transition.Height] = append(buffer.queues[transition.Height], transition)
-		}
-
-	case PreCommitted:
-		buffer.newQueue(transition.Polka.Height)
-		if len(buffer.queues[transition.Polka.Height]) > 0 {
-			switch buffer.queues[transition.Polka.Height][0].(type) {
-			case Proposed:
-				buffer.queues[transition.Polka.Height] = []Transition{}
-			case PreVoted:
-				buffer.queues[transition.Polka.Height] = []Transition{}
-			default:
-			}
-		}
-		buffer.queues[transition.Polka.Height] = append(buffer.queues[transition.Polka.Height], transition)
-
+		buffer.queues[transition.Block.Height] = append(buffer.queues[transition.Block.Height], transition)
 	default:
+		panic(fmt.Sprintf("unsupported transition %T", transition))
 	}
 }
 
-// Dequeue picks things that don't have a height first, like timeouts
-// then takes the next Transition for the provided height. If there is
+// Dequeue takes the next Proposed for the provided height. If there is
 // nothing at that height or the queue is empty it will return false.
 func (buffer *transitionBuffer) Dequeue(height block.Height) (Transition, bool) {
 	if queue, ok := buffer.queues[height]; ok && len(queue) > 0 {
@@ -218,6 +174,6 @@ func (buffer *transitionBuffer) Drop(height block.Height) {
 
 func (buffer *transitionBuffer) newQueue(height block.Height) {
 	if _, ok := buffer.queues[height]; !ok {
-		buffer.queues[height] = make([]Transition, 0, buffer.cap)
+		buffer.queues[height] = make([]Proposed, 0, buffer.cap)
 	}
 }
