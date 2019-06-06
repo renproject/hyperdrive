@@ -323,6 +323,7 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 		polka, polkaRound = machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
 		if polkaRound != nil && *polkaRound == machine.currentRound && !machine.preVoteTimer.IsActive() {
 			machine.activateTimerWithExpiry(&machine.preVoteTimer)
+			fmt.Println("activating prevote timer", machine.proposeTimer.IsActive(), machine.preVoteTimer.IsActive(), machine.preCommitTimer.IsActive(), machine.currentHeight, machine.currentRound)
 		}
 
 	case PreCommitted:
@@ -375,6 +376,7 @@ func (machine *machine) waitForCommit(transition Transition) Action {
 		commit, commitRound = machine.commitBuilder.Commit(machine.currentHeight, machine.shard.ConsensusThreshold())
 		if commitRound != nil && *commitRound == machine.currentRound && !machine.preCommitTimer.IsActive() {
 			machine.activateTimerWithExpiry(&machine.preCommitTimer)
+			fmt.Println("activating precommit timer", machine.proposeTimer.IsActive(), machine.preVoteTimer.IsActive(), machine.preCommitTimer.IsActive(), machine.currentHeight, machine.currentRound)
 		}
 
 	case Ticked:
@@ -397,6 +399,7 @@ func (machine *machine) resetTimersOnNewRound() {
 	machine.preCommitTimer.Reset()
 
 	machine.activateTimerWithExpiry(&machine.proposeTimer)
+	fmt.Println("activating propose timer", machine.proposeTimer.IsActive(), machine.preVoteTimer.IsActive(), machine.preCommitTimer.IsActive(), machine.currentHeight, machine.currentRound)
 }
 
 func (machine *machine) shouldProposeBlock() bool {
@@ -526,6 +529,7 @@ func (machine *machine) checkAndActivatePreVoteTimer() {
 	_, polkaRound := machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
 	if polkaRound != nil && *polkaRound == machine.currentRound && !machine.preVoteTimer.IsActive() {
 		machine.activateTimerWithExpiry(&machine.preVoteTimer)
+		fmt.Println("activating prevote timer", machine.proposeTimer.IsActive(), machine.preVoteTimer.IsActive(), machine.preCommitTimer.IsActive(), machine.currentHeight, machine.currentRound)
 	}
 }
 
@@ -533,6 +537,7 @@ func (machine *machine) checkAndActivatePreCommitTimer() {
 	_, commitRound := machine.commitBuilder.Commit(machine.currentHeight, machine.shard.ConsensusThreshold())
 	if commitRound != nil && *commitRound == machine.currentRound && !machine.preCommitTimer.IsActive() {
 		machine.activateTimerWithExpiry(&machine.preCommitTimer)
+		fmt.Println("activating precommit timer", machine.proposeTimer.IsActive(), machine.preVoteTimer.IsActive(), machine.preCommitTimer.IsActive(), machine.currentHeight, machine.currentRound)
 	}
 }
 
@@ -540,6 +545,7 @@ func (machine *machine) handlePolka(polka *block.Polka) Action {
 	if polka != nil && polka.Round == machine.currentRound {
 		if polka.Block == nil {
 			machine.preVoteTimer.Reset()
+			fmt.Println("reseting prevote timer", machine.proposeTimer.IsActive(), machine.preVoteTimer.IsActive(), machine.preCommitTimer.IsActive(), machine.currentHeight, machine.currentRound)
 			machine.currentState = WaitingForCommit{}
 			return machine.broadcastPreCommit(*polka)
 		}
