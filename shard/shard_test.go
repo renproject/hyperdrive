@@ -34,7 +34,7 @@ var _ = Describe("Shard", func() {
 		}
 
 		Context(fmt.Sprintf("when a new Shard is created with %d signatories", entry.cap), func() {
-			It(fmt.Sprintf("should return size of shard = %d", entry.cap), func() {
+			It("should return size of shard", func() {
 				Expect(shard.Size()).Should(Equal(entry.cap))
 			})
 
@@ -54,7 +54,6 @@ var _ = Describe("Shard", func() {
 				}
 				Expect(shard.Includes(testutils.RandomSignatory())).Should(BeFalse())
 			})
-
 		})
 	}
 })

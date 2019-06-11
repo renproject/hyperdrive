@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/state"
 
 	. "github.com/onsi/ginkgo"
@@ -25,24 +26,32 @@ var _ = Describe("TransitionBuffer", func() {
 	Context("when using Ticked", func() {
 		It("should implement the State interface", func() {
 			state.Ticked{}.IsTransition()
+			Expect(state.Ticked{}.Round()).To(Equal(block.Round(-1)))
+			Expect(state.Ticked{}.Signer()).To(Equal(sig.Signatory{}))
 		})
 	})
 
 	Context("when using Proposed", func() {
 		It("should implement the State interface", func() {
 			state.Proposed{}.IsTransition()
+			Expect(state.Proposed{}.Round()).To(Equal(block.Round(0)))
+			Expect(state.Proposed{}.Signer()).To(Equal(sig.Signatory{}))
 		})
 	})
 
 	Context("when using PreVoted", func() {
 		It("should implement the State interface", func() {
 			state.PreVoted{}.IsTransition()
+			Expect(state.PreVoted{}.Round()).To(Equal(block.Round(0)))
+			Expect(state.PreVoted{}.Signer()).To(Equal(sig.Signatory{}))
 		})
 	})
 
 	Context("when using PreCommitted", func() {
 		It("should implement the State interface", func() {
 			state.PreCommitted{}.IsTransition()
+			Expect(state.PreCommitted{}.Round()).To(Equal(block.Round(0)))
+			Expect(state.PreCommitted{}.Signer()).To(Equal(sig.Signatory{}))
 		})
 	})
 
@@ -139,6 +148,13 @@ var _ = Describe("TransitionBuffer", func() {
 			Expect(ok).To(Equal(false), "dequeued type %T", tran)
 			_, ok = tb.Dequeue(1)
 			Expect(ok).To(Equal(true))
+		})
+	})
+
+	Context("when unsupported transitions are added", func() {
+		It("should panic", func() {
+			tb := NewTransitionBuffer(5)
+			Expect(func() { tb.Enqueue(PreCommitted{}) }).To(Panic())
 		})
 	})
 })

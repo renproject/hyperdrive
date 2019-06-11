@@ -36,7 +36,6 @@ func NewFaultyLeader(signer sig.SignerVerifier, dispatcher replica.Dispatcher, c
 }
 
 func (faultyLeader *faultyLeader) AcceptTick(t time.Time) {
-	return
 }
 
 func (faultyLeader *faultyLeader) AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose) {
@@ -122,13 +121,13 @@ func (faultyLeader *faultyLeader) SyncCommit(shardHash sig.Hash, commit block.Co
 }
 
 func (faultyLeader *faultyLeader) BeginShard(shard, previousShard shard.Shard, head *block.Commit, pool tx.Pool) {
-	return
+	panic("unimplemented")
 }
 
 func (faultyLeader *faultyLeader) EndShard(shardHash sig.Hash) {
-	return
+	panic("unimplemented")
 }
 
 func (faultyLeader *faultyLeader) DropShard(shardHash sig.Hash) {
-	return
+	panic("unimplemented")
 }

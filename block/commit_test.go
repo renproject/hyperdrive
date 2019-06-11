@@ -350,6 +350,29 @@ var _ = Describe("CommitBuilder", func() {
 		})
 	})
 
+	Context("when a PreCommit is converted to string format", func() {
+		It("should return the correct string representation", func() {
+			block := Block{
+				Height: 1,
+			}
+			signer, err := ecdsa.NewFromRandom()
+			Expect(err).ShouldNot(HaveOccurred())
+			signedBlock, err := block.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			precommit := PreCommit{
+				Polka: Polka{
+					Block:  &signedBlock,
+					Height: 0,
+					Round:  0,
+				},
+			}
+			signedPreCommit, err := precommit.Sign(signer)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(signedPreCommit.String()).To(ContainSubstring("SignedPreCommit(PreCommit(Polka(Height=0,Round=0,BlockHeader=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=))"))
+		})
+	})
+
 	Context("when Drop is called on a specific Height", func() {
 		It("should remove all SignedPreCommits below the given Height", func() {
 			builder := NewCommitBuilder()
