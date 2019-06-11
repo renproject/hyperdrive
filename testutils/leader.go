@@ -121,13 +121,10 @@ func (faultyLeader *faultyLeader) SyncCommit(shardHash sig.Hash, commit block.Co
 }
 
 func (faultyLeader *faultyLeader) BeginShard(shard, previousShard shard.Shard, head *block.Commit, pool tx.Pool) {
-	panic("unimplemented")
 }
 
 func (faultyLeader *faultyLeader) EndShard(shardHash sig.Hash) {
-	panic("unimplemented")
 }
 
 func (faultyLeader *faultyLeader) DropShard(shardHash sig.Hash) {
-	panic("unimplemented")
 }
