@@ -2,6 +2,8 @@ package state
 
 import (
 	"fmt"
+	"math/rand"
+	"time"
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/shard"
@@ -127,6 +129,9 @@ func (machine *machine) StartRound(round block.Round, commit *block.Commit) Acti
 	}
 
 	if machine.shouldProposeBlock() {
+		// Introduce an artificial random delay of maximum 5 seconds
+		time.Sleep(time.Duration(rand.Intn(5)) * time.Second)
+
 		signedBlock := block.SignedBlock{}
 		if machine.validValue != nil {
 			signedBlock = *machine.validValue
