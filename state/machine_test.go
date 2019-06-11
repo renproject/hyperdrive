@@ -29,8 +29,8 @@ var _ = Describe("State Machine", func() {
 				action = reflect.TypeOf(t.finalAction).Name()
 			}
 
-			Context(fmt.Sprintf("when state machine begins with state - %s", reflect.TypeOf(t.startingState).Name()), func() {
-				It(fmt.Sprintf("should eventually return action - %s", action), func() {
+			Context(fmt.Sprintf("when state machine begins with state %s", reflect.TypeOf(t.startingState).Name()), func() {
+				It(fmt.Sprintf("should eventually return action %s", action), func() {
 					pool := tx.FIFOPool(100)
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
@@ -55,10 +55,8 @@ var _ = Describe("State Machine", func() {
 						Expect(action).NotTo(BeNil())
 						Expect(reflect.TypeOf(action).Name()).To(Equal(reflect.TypeOf(t.finalAction).Name()))
 					}
-
 				})
 			})
-
 		}
 	})
 })

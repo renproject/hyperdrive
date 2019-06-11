@@ -194,9 +194,9 @@ func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
 	blockchain.blocks[commitToNextBlock.Polka.Block.Height] = commitToNextBlock
 }
 
-func (blockchain *Blockchain) Blocks(start, end Height) []Commit {
-	if end <= start {
-		return nil
+func (blockchain *Blockchain) Blocks(begin, end Height) []Commit {
+	if end < begin {
+		return []Commit{}
 	}
 
 	var block Commit
@@ -205,7 +205,7 @@ func (blockchain *Blockchain) Blocks(start, end Height) []Commit {
 
 	blockchain.blocksMu.RLock()
 	defer blockchain.blocksMu.RUnlock()
-	for i := start; i <= end; i++ {
+	for i := begin; i <= end; i++ {
 		if block, ok = blockchain.blocks[i]; !ok {
 			return blocks
 		}
