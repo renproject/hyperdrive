@@ -230,6 +230,11 @@ func (machine *machine) Transition(transition Transition) Action {
 		}
 	}
 
+	commit, _ := machine.commitBuilder.Commit(machine.currentHeight, machine.shard.ConsensusThreshold())
+	if action := machine.handleCommit(commit); action != nil {
+		return action
+	}
+
 	switch machine.currentState.(type) {
 	case WaitingForPropose:
 		return machine.waitForPropose(transition)
@@ -295,6 +300,8 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 		// the preCommit timer.
 		if machine.commitBuilder.Insert(transition.SignedPreCommit) {
 			machine.checkAndActivatePreCommitTimer()
+			commit, _ := machine.commitBuilder.Commit(machine.currentHeight, machine.shard.ConsensusThreshold())
+			return machine.handleCommit(commit)
 		}
 
 	case Ticked:
@@ -332,6 +339,10 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 		// the preCommit timer.
 		if machine.commitBuilder.Insert(transition.SignedPreCommit) {
 			machine.checkAndActivatePreCommitTimer()
+			commit, _ := machine.commitBuilder.Commit(machine.currentHeight, machine.shard.ConsensusThreshold())
+			if action := machine.handleCommit(commit); action != nil {
+				return action
+			}
 		}
 
 		polka, _ = machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
