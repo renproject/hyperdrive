@@ -1,13 +1,13 @@
 package replica
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/shard"
 	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/state"
-	"github.com/renproject/hyperdrive/tx"
 )
 
 type Dispatcher interface {
@@ -16,48 +16,41 @@ type Dispatcher interface {
 
 type Replica interface {
 	Init()
+	Sync(commit block.Commit) bool
 	Transition(transition state.Transition)
-	SyncCommit(commit block.Commit) bool
 }
 
 type replica struct {
 	dispatcher Dispatcher
 
-	signer                 sig.Signer
 	validator              Validator
 	previousShardValidator Validator
-	txPool                 tx.Pool
 	stateMachine           state.Machine
 	transitionBuffer       state.TransitionBuffer
-	shard                  shard.Shard
-	lastBlock              *block.SignedBlock
+	shardHash              sig.Hash
 }
 
-func New(dispatcher Dispatcher, signer sig.SignerVerifier, txPool tx.Pool, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard, lastBlock block.SignedBlock) Replica {
+func New(dispatcher Dispatcher, signer sig.SignerVerifier, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard) Replica {
 	replica := &replica{
 		dispatcher: dispatcher,
 
-		signer:                 signer,
 		validator:              NewValidator(signer, shard),
 		previousShardValidator: NewValidator(signer, previousShard),
-		txPool:                 txPool,
 		stateMachine:           stateMachine,
 		transitionBuffer:       transitionBuffer,
-		shard:                  shard,
-		lastBlock:              &lastBlock,
+		shardHash:              shard.Hash,
 	}
 	return replica
 }
 
 func (replica *replica) Init() {
-	replica.generateSignedBlock()
+	replica.dispatchAction(replica.stateMachine.StartRound(0, nil))
 }
 
-func (replica *replica) SyncCommit(commit block.Commit) bool {
+func (replica *replica) Sync(commit block.Commit) bool {
 	if replica.validator.ValidateCommit(commit) {
-		if replica.lastBlock.Height < commit.Polka.Height {
-			replica.stateMachine.SyncCommit(commit)
-			replica.lastBlock = commit.Polka.Block
+		if replica.stateMachine.LastBlock().Height < commit.Polka.Height {
+			replica.stateMachine.Commit(commit)
 		}
 		return true
 	}
@@ -65,21 +58,22 @@ func (replica *replica) SyncCommit(commit block.Commit) bool {
 }
 
 func (replica *replica) Transition(transition state.Transition) {
-	if replica.shouldDropTransition(transition) {
-		return
-	}
-	if replica.shouldBufferTransition(transition) {
-		replica.transitionBuffer.Enqueue(transition)
-		return
-	}
 	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
+		if replica.shouldDropTransition(transition) {
+			continue
+		}
+
 		if !replica.isTransitionValid(transition) {
 			continue
 		}
-		action := replica.transition(transition)
-		// It is important that the Action is dispatched after the State has been completely transitioned in the
-		// Replica. Otherwise, re-entrance into the Replica may cause issues.
-		replica.dispatchAction(action)
+
+		// If a `Proposed` is seen for a higher round, buffer and return immediately
+		if replica.shouldBufferTransition(transition) {
+			replica.transitionBuffer.Enqueue(transition)
+			return
+		}
+
+		replica.dispatchAction(replica.transition(transition))
 	}
 }
 
@@ -89,46 +83,46 @@ func (replica *replica) dispatchAction(action state.Action) {
 	}
 
 	switch action := action.(type) {
-	case state.PreVote:
-		signedPreVote, err := action.PreVote.Sign(replica.signer)
-		if err != nil {
-			// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
-			// least be some sane logging and recovery.
-			panic(err)
-		}
-		replica.stateMachine.InsertPrevote(signedPreVote)
-		replica.dispatcher.Dispatch(replica.shard.Hash, state.SignedPreVote{
-			SignedPreVote: signedPreVote,
+	case state.Propose:
+		// Dispatch the Propose
+		replica.dispatcher.Dispatch(replica.shardHash, state.Propose{
+			SignedPropose: action.SignedPropose,
 		})
-	case state.PreCommit:
-		signedPreCommit, err := action.PreCommit.Sign(replica.signer)
-		if err != nil {
-			// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
-			// least be some sane logging and recovery.
-			panic(err)
+		// Dispatch commits (if any)
+		if len(action.LastCommit.Signatures) > 0 {
+			replica.dispatcher.Dispatch(replica.shardHash, action.LastCommit)
 		}
-		replica.stateMachine.InsertPrecommit(signedPreCommit)
-		replica.dispatcher.Dispatch(replica.shard.Hash, state.SignedPreCommit{
-			SignedPreCommit: signedPreCommit,
+		// Transition the stateMachine
+		replica.Transition(state.Proposed{
+			SignedPropose: action.SignedPropose,
+		})
+
+	case state.SignedPreVote:
+		replica.dispatcher.Dispatch(replica.shardHash, state.SignedPreVote{
+			SignedPreVote: action.SignedPreVote,
+		})
+	case state.SignedPreCommit:
+		replica.dispatcher.Dispatch(replica.shardHash, state.SignedPreCommit{
+			SignedPreCommit: action.SignedPreCommit,
 		})
 	case state.Commit:
 		if action.Commit.Polka.Block != nil {
-			replica.lastBlock = action.Commit.Polka.Block
-			replica.dispatcher.Dispatch(replica.shard.Hash, action)
+			replica.dispatcher.Dispatch(replica.shardHash, action)
 		}
-		replica.generateSignedBlock()
+	default:
+		panic(fmt.Sprintf("unexpected message %T", action))
 	}
 }
 
 func (replica *replica) isTransitionValid(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
-		return replica.validator.ValidatePropose(transition.SignedPropose, replica.lastBlock)
+		return replica.validator.ValidatePropose(transition.SignedPropose)
 	case state.PreVoted:
-		return replica.validator.ValidatePreVote(transition.SignedPreVote, replica.lastBlock)
+		return replica.validator.ValidatePreVote(transition.SignedPreVote)
 	case state.PreCommitted:
-		return replica.validator.ValidatePreCommit(transition.SignedPreCommit, replica.lastBlock)
-	case state.TimedOut:
+		return replica.validator.ValidatePreCommit(transition.SignedPreCommit)
+	case state.Ticked:
 		return transition.Time.Before(time.Now())
 	}
 	return false
@@ -137,15 +131,15 @@ func (replica *replica) isTransitionValid(transition state.Transition) bool {
 func (replica *replica) shouldDropTransition(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
-		if transition.Block.Height < replica.stateMachine.Height() {
+		if transition.Block.Height < replica.stateMachine.Height() || transition.Round() < replica.stateMachine.Round() {
 			return true
 		}
 	case state.PreVoted:
-		if transition.Height < replica.stateMachine.Height() {
+		if transition.Height < replica.stateMachine.Height() || transition.Round() < replica.stateMachine.Round() {
 			return true
 		}
 	case state.PreCommitted:
-		if transition.Polka.Height < replica.stateMachine.Height() {
+		if transition.Polka.Height < replica.stateMachine.Height() || transition.Round() < replica.stateMachine.Round() {
 			return true
 		}
 	}
@@ -155,72 +149,18 @@ func (replica *replica) shouldDropTransition(transition state.Transition) bool {
 func (replica *replica) shouldBufferTransition(transition state.Transition) bool {
 	switch transition := transition.(type) {
 	case state.Proposed:
-		// Only buffer Proposals from the future
-		if transition.Block.Height <= replica.stateMachine.Height() {
-			return false
+		// Only buffer Proposals for higher rounds of the current height
+		if transition.Block.Height == replica.stateMachine.Height() && transition.Round() > replica.stateMachine.Round() {
+			return true
 		}
-		return true
+		return false
 	default:
 		return false
 	}
 }
 
-func (replica *replica) shouldProposeBlock() bool {
-	return replica.signer.Signatory().Equal(replica.shard.Leader(replica.stateMachine.Round()))
-}
-
-func (replica *replica) generateSignedBlock() {
-	if replica.shouldProposeBlock() {
-		propose := block.Propose{
-			Block: replica.buildSignedBlock(),
-			Round: replica.stateMachine.Round(),
-		}
-
-		signedPropose, err := propose.Sign(replica.signer)
-		if err != nil {
-			panic(err)
-		}
-		replica.dispatcher.Dispatch(replica.shard.Hash, state.Propose{
-			SignedPropose: signedPropose,
-		})
-
-		// It is important that the Action is dispatched after the State has been completely transitioned in the
-		// Replica. Otherwise, re-entrance into the Replica may cause issues.
-		replica.dispatchAction(replica.transition(state.Proposed{
-			SignedPropose: signedPropose,
-		}))
-	}
-}
-
-func (replica *replica) buildSignedBlock() block.SignedBlock {
-	// TODO: We should put more than one transaction into a block.
-	transactions := make(tx.Transactions, 0, block.MaxTransactions)
-	transaction, ok := replica.txPool.Dequeue()
-	for ok && len(transactions) < block.MaxTransactions {
-		transactions = append(transactions, transaction)
-		transaction, ok = replica.txPool.Dequeue()
-	}
-
-	block := block.New(
-		replica.stateMachine.Height(),
-		replica.lastBlock.Header,
-		transactions,
-	)
-	signedBlock, err := block.Sign(replica.signer)
-	if err != nil {
-		// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
-		// least be some sane logging and recovery.
-		panic(err)
-	}
-	return signedBlock
-}
-
 func (replica *replica) transition(transition state.Transition) state.Action {
 	action := replica.stateMachine.Transition(transition)
 	replica.transitionBuffer.Drop(replica.stateMachine.Height())
-	if commit, ok := action.(state.Commit); ok && commit.Polka.Block != nil {
-		// If round has progressed, drop all prevotes and precommits in the state-machine
-		replica.stateMachine.Drop()
-	}
 	return action
 }

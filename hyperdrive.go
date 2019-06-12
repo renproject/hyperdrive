@@ -14,20 +14,16 @@ import (
 // NumHistoricalShards specifies the number of historical shards allowed.
 const NumHistoricalShards = 3
 
-// NumTicksToTriggerTimeOut specifies the maximum number of Ticks to wait before
-// triggering a TimedOut  transition.
-const NumTicksToTriggerTimeOut = 2
-
 // Hyperdrive accepts blocks and ticks and sends relevant Transitions to the respective replica.
 type Hyperdrive interface {
-	SyncCommit(shardHash sig.Hash, commit block.Commit) bool
+	Sync(shardHash sig.Hash, commit block.Commit) bool
 
 	AcceptTick(t time.Time)
 	AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose)
 	AcceptPreVote(shardHash sig.Hash, preVote block.SignedPreVote)
 	AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit)
 
-	BeginShard(shard, previousShard shard.Shard, head block.SignedBlock, pool tx.Pool)
+	BeginShard(shard, previousShard shard.Shard, head *block.Commit, pool tx.Pool)
 	EndShard(shardHash sig.Hash)
 	DropShard(shardHash sig.Hash)
 }
@@ -37,8 +33,6 @@ type hyperdrive struct {
 	dispatcher replica.Dispatcher
 
 	shardReplicas map[sig.Hash]replica.Replica
-
-	ticksPerShard map[sig.Hash]int
 }
 
 // New returns a Hyperdrive.
@@ -48,14 +42,12 @@ func New(signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
 		dispatcher: dispatcher,
 
 		shardReplicas: map[sig.Hash]replica.Replica{},
-
-		ticksPerShard: map[sig.Hash]int{},
 	}
 }
 
-func (hyperdrive *hyperdrive) SyncCommit(shardHash sig.Hash, commit block.Commit) bool {
+func (hyperdrive *hyperdrive) Sync(shardHash sig.Hash, commit block.Commit) bool {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		return replica.SyncCommit(commit)
+		return replica.Sync(commit)
 	}
 	return false
 }
@@ -63,21 +55,16 @@ func (hyperdrive *hyperdrive) SyncCommit(shardHash sig.Hash, commit block.Commit
 func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
 	// 1. Increment number of ticks seen by each shard
 	for shardHash := range hyperdrive.shardReplicas {
-		hyperdrive.ticksPerShard[shardHash]++
 
-		if hyperdrive.ticksPerShard[shardHash] > NumTicksToTriggerTimeOut {
-			// 2. Send a TimedOut transition to the shard
-			if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-				replica.Transition(state.TimedOut{Time: t})
-				hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
-			}
+		// 2. Send a Ticked transition to the shard
+		if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
+			replica.Transition(state.Ticked{Time: t})
 		}
 	}
 }
 
 func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose) {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		hyperdrive.ticksPerShard[shardHash] = 0 // Reset tickPerShard
 		replica.Transition(state.Proposed{SignedPropose: proposed})
 	}
 }
@@ -94,7 +81,7 @@ func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit bloc
 	}
 }
 
-func (hyperdrive *hyperdrive) BeginShard(shard, previousShard shard.Shard, head block.SignedBlock, pool tx.Pool) {
+func (hyperdrive *hyperdrive) BeginShard(shard, previousShard shard.Shard, head *block.Commit, pool tx.Pool) {
 	if _, ok := hyperdrive.shardReplicas[shard.Hash]; ok {
 		return
 	}
@@ -102,16 +89,13 @@ func (hyperdrive *hyperdrive) BeginShard(shard, previousShard shard.Shard, head 
 	r := replica.New(
 		hyperdrive.dispatcher,
 		hyperdrive.signer,
-		pool,
-		state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), shard.ConsensusThreshold()),
+		state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), hyperdrive.signer, shard, pool, head),
 		state.NewTransitionBuffer(shard.Size()),
 		shard,
 		previousShard,
-		head,
 	)
 
 	hyperdrive.shardReplicas[shard.Hash] = r
-	hyperdrive.ticksPerShard[shard.Hash] = 0
 
 	r.Init()
 }
@@ -124,5 +108,4 @@ func (hyperdrive *hyperdrive) EndShard(shardHahs sig.Hash) {
 
 func (hyperdrive *hyperdrive) DropShard(shardHash sig.Hash) {
 	delete(hyperdrive.shardReplicas, shardHash)
-	delete(hyperdrive.ticksPerShard, shardHash)
 }

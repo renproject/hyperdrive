@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/state"
 
 	. "github.com/onsi/ginkgo"
@@ -22,27 +23,35 @@ var conf = quick.Config{
 
 var _ = Describe("TransitionBuffer", func() {
 
-	Context("when using TimedOut", func() {
+	Context("when using Ticked", func() {
 		It("should implement the State interface", func() {
-			state.TimedOut{}.IsTransition()
+			state.Ticked{}.IsTransition()
+			Expect(state.Ticked{}.Round()).To(Equal(block.Round(-1)))
+			Expect(state.Ticked{}.Signer()).To(Equal(sig.Signatory{}))
 		})
 	})
 
 	Context("when using Proposed", func() {
 		It("should implement the State interface", func() {
 			state.Proposed{}.IsTransition()
+			Expect(state.Proposed{}.Round()).To(Equal(block.Round(0)))
+			Expect(state.Proposed{}.Signer()).To(Equal(sig.Signatory{}))
 		})
 	})
 
 	Context("when using PreVoted", func() {
 		It("should implement the State interface", func() {
 			state.PreVoted{}.IsTransition()
+			Expect(state.PreVoted{}.Round()).To(Equal(block.Round(0)))
+			Expect(state.PreVoted{}.Signer()).To(Equal(sig.Signatory{}))
 		})
 	})
 
 	Context("when using PreCommitted", func() {
 		It("should implement the State interface", func() {
 			state.PreCommitted{}.IsTransition()
+			Expect(state.PreCommitted{}.Round()).To(Equal(block.Round(0)))
+			Expect(state.PreCommitted{}.Signer()).To(Equal(sig.Signatory{}))
 		})
 	})
 
@@ -113,15 +122,6 @@ var _ = Describe("TransitionBuffer", func() {
 					case Proposed:
 						Expect(mockTran).To(Equal(mockProposed),
 							"expected %v, got: %T", show(mockTran), tranType)
-					case PreVoted:
-						Expect(mockTran).To(Equal(mockPreVoted),
-							"expected %v, got: %T", show(mockTran), tranType)
-					case PreCommitted:
-						Expect(mockTran).To(Equal(mockPreCommitted),
-							"expected %v, got: %T", show(mockTran), tranType)
-					case TimedOut:
-						Expect(mock.GotImmediate).To(Equal(true),
-							"expected %v, got: %T", show(mockTran), tranType)
 					default:
 						Expect(false).To(Equal(true),
 							"unexpected Transition type: %T FIXME!", tranType)
@@ -137,17 +137,24 @@ var _ = Describe("TransitionBuffer", func() {
 		It("should remove everything below the dropped height", func() {
 			tb := NewTransitionBuffer(5)
 
-			precom := PreCommitted{}
-			precom.Polka.Height = 0
-			tb.Enqueue(precom)
-			tb.Enqueue(precom)
-			precom.Polka.Height = 1
-			tb.Enqueue(precom)
+			proposed := Proposed{}
+			proposed.Block.Height = 0
+			tb.Enqueue(proposed)
+			tb.Enqueue(proposed)
+			proposed.Block.Height = 1
+			tb.Enqueue(proposed)
 			tb.Drop(1)
 			tran, ok := tb.Dequeue(0)
 			Expect(ok).To(Equal(false), "dequeued type %T", tran)
 			_, ok = tb.Dequeue(1)
 			Expect(ok).To(Equal(true))
+		})
+	})
+
+	Context("when unsupported transitions are added", func() {
+		It("should panic", func() {
+			tb := NewTransitionBuffer(5)
+			Expect(func() { tb.Enqueue(PreCommitted{}) }).To(Panic())
 		})
 	})
 })
@@ -165,21 +172,12 @@ type mockTran uint8
 
 const (
 	mockProposed mockTran = iota
-	mockPreVoted
-	mockPreCommitted
-	mockImmediate
 )
 
 func show(tran mockTran) string {
 	switch tran {
 	case mockProposed:
 		return "Proposed"
-	case mockPreVoted:
-		return "PreVoted"
-	case mockPreCommitted:
-		return "PreCommitted"
-	case mockImmediate:
-		return "TimedOut"
 	default:
 		return "FIXME, Not a mockTran"
 	}
@@ -210,12 +208,7 @@ func (m *mockInput) nextTransition() Transition {
 	}
 
 	// pick Transition
-	nextTran := mockTran(m.rnd.Intn(3))
-
-	// rarely pick a timout
-	if m.rnd.Intn(100) == 1 {
-		nextTran = mockImmediate
-	}
+	nextTran := mockTran(m.rnd.Intn(1))
 
 	switch nextTran {
 	case mockProposed:
@@ -229,42 +222,6 @@ func (m *mockInput) nextTransition() Transition {
 		if _, ok := m.Map[m.height]; !ok {
 			m.Map[m.height] = mockProposed
 		}
-	case mockPreVoted:
-		prevote := PreVoted{}
-		prevote.Height = m.height
-		rndTransition = prevote
-		// The only time I would change what I Dequeue to a PreVoted
-		// is if a Propose was the last thing in the queue
-		if mock, ok := m.Map[m.height]; ok {
-			switch mock {
-			case mockProposed:
-				m.Map[m.height] = mockPreVoted
-			default:
-			}
-		} else {
-			m.Map[m.height] = mockPreVoted
-		}
-	case mockPreCommitted:
-		precom := PreCommitted{}
-		precom.Polka.Height = m.height
-		rndTransition = precom
-		// The only time I would change what I Dequeue to a
-		// PreCommitted is if either a Propose or a PreVoted
-		// was at the top of the queue
-		if mock, ok := m.Map[m.height]; ok {
-			switch mock {
-			case mockProposed:
-				m.Map[m.height] = mockPreCommitted
-			case mockPreVoted:
-				m.Map[m.height] = mockPreCommitted
-			default:
-			}
-		} else {
-			m.Map[m.height] = mockPreCommitted
-		}
-	case mockImmediate:
-		rndTransition = TimedOut{Time: time.Now()}
-		m.GotImmediate = true
 	}
 
 	return rndTransition
