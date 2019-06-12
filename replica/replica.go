@@ -50,7 +50,7 @@ func (replica *replica) Init() {
 func (replica *replica) SyncCommit(commit block.Commit) bool {
 	if replica.validator.ValidateCommit(commit) {
 		if replica.stateMachine.LastBlock().Height < commit.Polka.Height {
-			replica.stateMachine.SyncCommit(commit)
+			replica.stateMachine.Commit(commit)
 		}
 		return true
 	}
@@ -89,8 +89,8 @@ func (replica *replica) dispatchAction(action state.Action) {
 			SignedPropose: action.SignedPropose,
 		})
 		// Dispatch commits (if any)
-		if len(action.Commit.Signatures) > 0 {
-			replica.dispatcher.Dispatch(replica.shardHash, action.Commit)
+		if len(action.LastCommit.Signatures) > 0 {
+			replica.dispatcher.Dispatch(replica.shardHash, action.LastCommit)
 		}
 		// Transition the stateMachine
 		replica.Transition(state.Proposed{
