@@ -95,7 +95,7 @@ var _ = Describe("Hyperdrive", func() {
 			It("should commit blocks", func() {
 				maxHeight := entry.maxHeight
 				if ok {
-					maxHeight /= 2
+					maxHeight /= 4
 				}
 				// The estimated number of messages a Replica will receive throughout the test
 				cap := 2 * (entry.numHyperdrives + 1) * int(maxHeight)
@@ -119,8 +119,12 @@ var _ = Describe("Hyperdrive", func() {
 			if (!ok && entry.numHyperdrives > 2 && entry.numHyperdrives <= 16) || (ok && entry.numHyperdrives == 8) {
 				Context("when leader at index = 0 is inactive", func() {
 					It("should commit blocks with new leader", func() {
+						maxHeight := entry.maxHeight / 4
+						if ok {
+							entry.maxHeight /= 8
+						}
 						// The estimated number of messages a Replica will receive throughout the test
-						cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
+						cap := 2 * (entry.numHyperdrives + 1) * int(maxHeight)
 						// Increase by an order of magnitude to account for timeouts and
 						// multiple rounds
 						cap = 10 * cap
@@ -137,7 +141,7 @@ var _ = Describe("Hyperdrive", func() {
 								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(false, i, ipChans, done, cap), consensusThreshold)
 							}
 
-							Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight/4, block.Round(1))).ShouldNot(HaveOccurred())
+							Expect(runHyperdrive(i, h, ipChans[i], done, maxHeight, block.Round(1))).ShouldNot(HaveOccurred())
 						})
 					})
 				})
