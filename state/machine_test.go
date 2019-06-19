@@ -43,7 +43,7 @@ var _ = Describe("State Machine", func() {
 						BlockHeight: 0,
 						Signatories: sig.Signatories{signer.Signatory(), testutils.RandomSignatory()},
 					}
-					stateMachine := NewMachine(t.startingState, block.NewPolkaBuilder(), block.NewCommitBuilder(), signer, shard, pool, nil)
+					stateMachine := NewMachine(t.startingState, block.NewPolkaBuilder(), block.NewCommitBuilder(), signer, shard, pool, block.Commit{})
 					var action Action
 					for _, transition := range t.transitions {
 						if t.shouldPanic {

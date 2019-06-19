@@ -266,7 +266,7 @@ func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struc
 			case TickObject:
 				h.AcceptTick(input.Time)
 			case ShardObject:
-				h.BeginShard(input.shard, shard.Shard{}, nil, input.pool)
+				h.BeginShard(input.shard, shard.Shard{}, block.Commit{}, input.pool)
 			case ActionObject:
 				switch action := input.action.(type) {
 				case state.Propose:

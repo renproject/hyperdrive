@@ -41,7 +41,7 @@ type machine struct {
 	validRound  block.Round
 	validValue  *block.SignedBlock
 
-	lastCommit *block.Commit
+	lastCommit block.Commit
 
 	polkaBuilder  block.PolkaBuilder
 	commitBuilder block.CommitBuilder
@@ -57,7 +57,7 @@ type machine struct {
 	bufferedMessages map[block.Round]map[sig.Signatory]struct{}
 }
 
-func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, signer sig.Signer, shard shard.Shard, txPool tx.Pool, lastCommit *block.Commit) Machine {
+func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder block.CommitBuilder, signer sig.Signer, shard shard.Shard, txPool tx.Pool, lastCommit block.Commit) Machine {
 	machine := machine{
 		currentState: state,
 		currentRound: 0,
@@ -84,7 +84,7 @@ func NewMachine(state State, polkaBuilder block.PolkaBuilder, commitBuilder bloc
 	}
 
 	machine.currentHeight = 0
-	if lastCommit != nil {
+	if lastCommit.Polka.Block != nil {
 		machine.currentHeight = lastCommit.Polka.Height + 1
 	}
 
@@ -104,7 +104,7 @@ func (machine *machine) Round() block.Round {
 }
 
 func (machine *machine) LastBlock() *block.SignedBlock {
-	if machine.lastCommit != nil {
+	if machine.lastCommit.Polka.Block != nil {
 		return machine.lastCommit.Polka.Block
 	}
 	return nil
@@ -122,7 +122,7 @@ func (machine *machine) StartRound(round block.Round, commit *block.Commit) Acti
 
 	committed := Commit{}
 	if commit != nil {
-		machine.lastCommit = commit
+		machine.lastCommit = *commit
 		committed = Commit{
 			Commit: *commit,
 		}
@@ -147,7 +147,7 @@ func (machine *machine) StartRound(round block.Round, commit *block.Commit) Acti
 			Block:      signedBlock,
 			Round:      round,
 			ValidRound: machine.validRound,
-			LastCommit: machine.lastCommit,
+			LastCommit: &machine.lastCommit,
 		}
 
 		signedPropose, err := propose.Sign(machine.signer)
@@ -176,7 +176,7 @@ func (machine *machine) SyncCommit(commit block.Commit) {
 		machine.lockedRound = -1
 		machine.validValue = nil
 		machine.validRound = -1
-		machine.lastCommit = &commit
+		machine.lastCommit = commit
 		machine.bufferedMessages = map[block.Round]map[sig.Signatory]struct{}{}
 		machine.resetTimersOnNewRound()
 		machine.drop()
