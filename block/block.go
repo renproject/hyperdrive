@@ -132,11 +132,77 @@ type SignedPropose struct {
 	Signatory sig.Signatory
 }
 
-type Blockchain interface {
-	Height() Height
-	Head() SignedBlock
-	Block(height Height) (Commit, error)
+type Blockchain struct {
+	blocks BlockStore
+}
+
+func NewBlockchain(blocks BlockStore) Blockchain {
+	return Blockchain{
+		blocks: blocks,
+	}
+}
+
+func (blockchain *Blockchain) Height() Height {
+	height, err := blockchain.blocks.Height()
+	if err != nil {
+		return Genesis().Height
+	}
+	return height
+}
+
+func (blockchain *Blockchain) Head() (Commit, bool) {
+	head, err := blockchain.blocks.Head()
+	if err != nil || head.Polka.Block == nil {
+		genesis := Genesis()
+		return Commit{Polka: Polka{Block: &genesis}}, false
+	}
+	return head, true
+}
+
+func (blockchain *Blockchain) Block(height Height) (Commit, bool) {
+	commit, err := blockchain.blocks.Block(height)
+	if err != nil || commit.Polka.Block == nil {
+		genesis := Genesis()
+		return Commit{Polka: Polka{Block: &genesis}}, false
+	}
+	return commit, true
+}
+
+func (blockchain *Blockchain) Extend(commitToNextBlock Commit) error {
+	if commitToNextBlock.Polka.Block == nil {
+		return nil
+	}
+	return blockchain.blocks.Extend(commitToNextBlock)
+}
+
+func (blockchain *Blockchain) Blocks(begin, end Height) []Commit {
+	if end < begin {
+		return []Commit{}
+	}
+
+	var block Commit
+	var err error
+	blocks := []Commit{}
+
+	for i := begin; i <= end; i++ {
+		if block, err = blockchain.blocks.Block(i); err != nil || block.Polka.Block == nil {
+			return blocks
+		}
+		blocks = append(blocks, block)
+	}
+	return blocks
+}
+
+type BlockStore interface {
+	// Extend inserts the commit to the BlockStore and updates its head
 	Extend(commitToNextBlock Commit) error
-	Blocks(start, end Height) ([]Commit, error)
-	LastCommit() (*Commit, error)
+
+	// Return block (if it exists) that corresponds to the given height
+	Block(height Height) (Commit, error)
+
+	// Head returns the last seen commit
+	Head() (Commit, error)
+
+	// Height returns the height of the last seen commit
+	Height() (Height, error)
 }
