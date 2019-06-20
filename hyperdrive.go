@@ -16,7 +16,7 @@ const NumHistoricalShards = 3
 
 // Hyperdrive accepts blocks and ticks and sends relevant Transitions to the respective replica.
 type Hyperdrive interface {
-	SyncCommit(shardHash sig.Hash, commit block.Commit) bool
+	Sync(shardHash sig.Hash, commit block.Commit) bool
 
 	AcceptTick(t time.Time)
 	AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose)
@@ -45,9 +45,9 @@ func New(signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
 	}
 }
 
-func (hyperdrive *hyperdrive) SyncCommit(shardHash sig.Hash, commit block.Commit) bool {
+func (hyperdrive *hyperdrive) Sync(shardHash sig.Hash, commit block.Commit) bool {
 	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		return replica.SyncCommit(commit)
+		return replica.Sync(commit)
 	}
 	return false
 }

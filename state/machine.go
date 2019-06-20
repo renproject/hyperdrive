@@ -15,20 +15,44 @@ import (
 // triggering a TimedOut  transition.
 const NumTicksToTriggerTimeOut = 2
 
+// A Machine is a deterministic state machine that is used to implement all
+// states and transitions required to participate in a BFT replicated state
+// machine using the Tendermint consensus algorithm. For more information, see
+// https://arxiv.org/pdf/1807.04938.pdf.
 type Machine interface {
-	// StartRound is called once when the StateMachine starts operating and everytime a round is completed.
-	// Actions returned by StartRound are expected to be dispatched to all other Replicas in the system.
-	// If the action returned by StartRound is not nil, it must be sent back to the same StateMachine for it to progress.
+
+	// State returns the current state of the Machine. Generally, the Machine
+	// will be waiting for a Propose, waiting for a Polka, or waiting for a
+	// Commit.
+	State() State
+
+	// Height returns the current height on which the Machine is trying to reach
+	// consensus on a new Block.
+	Height() block.Height
+
+	// Round returns the current round in which the Machine is trying tp reach
+	// consensus on a new Block.
+	Round() block.Round
+
+	// LastBlock returns the last Block to which the Machine has committed. If
+	// no such Block exists, the genesis block is returned.
+	LastBlock() block.SignedBlock
+
+	// StartRound is called once when the StateMachine starts operating and
+	// everytime a round is completed. Actions returned by StartRound are
+	// expected to be dispatched to all other Replicas in the system. If the
+	// action returned by StartRound is not nil, it must be sent back to the
+	// same StateMachine for it to progress.
 	StartRound(round block.Round, commit *block.Commit) Action
 
+	// Commit the Machine to a Block that has already been committed to by the
+	// BFT replicated state machine.
+	Commit(commit block.Commit)
+
+	// Transition the Machine from one state to another. The state might not
+	// actually change, depending on the Transition and the current state of the
+	// Machine.
 	Transition(transition Transition) Action
-
-	Height() block.Height
-	Round() block.Round
-	SyncCommit(commit block.Commit)
-	LastBlock() *block.SignedBlock
-
-	State() State
 }
 
 type machine struct {
@@ -103,14 +127,17 @@ func (machine *machine) Round() block.Round {
 	return machine.currentRound
 }
 
-func (machine *machine) LastBlock() *block.SignedBlock {
+func (machine *machine) LastBlock() block.SignedBlock {
 	if machine.lastCommit != nil {
-		return machine.lastCommit.Polka.Block
+		if machine.lastCommit.Polka.Block == nil {
+			panic("invariant violated: nil block committed")
+		}
+		return *machine.lastCommit.Polka.Block
 	}
-	return nil
+	return block.Genesis()
 }
 
-func (machine *machine) StartRound(round block.Round, commit *block.Commit) Action {
+func (machine *machine) StartRound(round block.Round, lastCommit *block.Commit) Action {
 	machine.currentRound = round
 	machine.currentState = WaitingForPropose{}
 
@@ -121,10 +148,10 @@ func (machine *machine) StartRound(round block.Round, commit *block.Commit) Acti
 	}
 
 	committed := Commit{}
-	if commit != nil {
-		machine.lastCommit = commit
+	if lastCommit != nil {
+		machine.lastCommit = lastCommit
 		committed = Commit{
-			Commit: *commit,
+			Commit: *lastCommit,
 		}
 	}
 
@@ -152,12 +179,18 @@ func (machine *machine) StartRound(round block.Round, commit *block.Commit) Acti
 
 		signedPropose, err := propose.Sign(machine.signer)
 		if err != nil {
+			// FIXME: Should an error cause a panic? I am confident that there
+			// is not a sane alternative, and that letting the state Machine
+			// panic (and therefore reboot), is reasonable. One potential
+			// alternative is logging the error and returning nil. This will
+			// cause the state Machine to not need to reboot and the network
+			// will naturally progress to the next round.
 			panic(err)
 		}
 
 		return Propose{
 			SignedPropose: signedPropose,
-			Commit:        committed,
+			LastCommit:    committed,
 		}
 	}
 
@@ -167,7 +200,7 @@ func (machine *machine) StartRound(round block.Round, commit *block.Commit) Acti
 	return nil
 }
 
-func (machine *machine) SyncCommit(commit block.Commit) {
+func (machine *machine) Commit(commit block.Commit) {
 	if commit.Polka.Height >= machine.currentHeight {
 		machine.currentState = WaitingForPropose{}
 		machine.currentHeight = commit.Polka.Height + 1
@@ -219,7 +252,7 @@ func (machine *machine) Transition(transition Transition) Action {
 			if propose.LastCommit == nil {
 				return nil
 			}
-			machine.SyncCommit(*propose.LastCommit)
+			machine.Commit(*propose.LastCommit)
 			machine.currentRound = propose.Round()
 		}
 	}
@@ -429,19 +462,20 @@ func (machine *machine) buildSignedBlock() block.SignedBlock {
 		transaction, ok = machine.txPool.Dequeue()
 	}
 
-	header := block.Genesis().Header
-	if machine.LastBlock() != nil {
-		header = machine.LastBlock().Header
-	}
+	parentHeader := machine.LastBlock().Header
 	block := block.New(
 		machine.currentHeight,
-		header,
+		parentHeader,
 		transactions,
 	)
 	signedBlock, err := block.Sign(machine.signer)
 	if err != nil {
-		// FIXME: We should handle this error properly. It would not make sense to propagate it, but there should at
-		// least be some sane logging and recovery.
+		// FIXME: Should an error cause a panic? I am confident that there is
+		// not a sane alternative, and that letting the state Machine panic (and
+		// therefore reboot), is reasonable. One potential alternative is
+		// logging the error and returning nil. This will cause the state
+		// Machine to not need to reboot and the network will naturally progress
+		// to the next round.
 		panic(err)
 	}
 	return signedBlock
