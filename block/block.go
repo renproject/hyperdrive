@@ -146,17 +146,17 @@ type SignedPropose struct {
 }
 
 type Blockchain struct {
-	blocks BlockStore
+	store Store
 }
 
-func NewBlockchain(blocks BlockStore) Blockchain {
+func NewBlockchain(store Store) Blockchain {
 	return Blockchain{
-		blocks: blocks,
+		store: store,
 	}
 }
 
 func (blockchain *Blockchain) Height() Height {
-	height, err := blockchain.blocks.Height()
+	height, err := blockchain.store.Height()
 	if err != nil {
 		return Genesis().Height
 	}
@@ -164,16 +164,11 @@ func (blockchain *Blockchain) Height() Height {
 }
 
 func (blockchain *Blockchain) Head() (Commit, bool) {
-	head, err := blockchain.blocks.Head()
-	if err != nil || head.Polka.Block == nil {
-		genesis := Genesis()
-		return Commit{Polka: Polka{Block: &genesis}}, false
-	}
-	return head, true
+	return blockchain.Block(blockchain.Height())
 }
 
 func (blockchain *Blockchain) Block(height Height) (Commit, bool) {
-	commit, err := blockchain.blocks.Block(height)
+	commit, err := blockchain.store.Block(height)
 	if err != nil || commit.Polka.Block == nil {
 		genesis := Genesis()
 		return Commit{Polka: Polka{Block: &genesis}}, false
@@ -185,7 +180,10 @@ func (blockchain *Blockchain) Extend(commitToNextBlock Commit) error {
 	if commitToNextBlock.Polka.Block == nil {
 		return nil
 	}
-	return blockchain.blocks.Extend(commitToNextBlock)
+	if commitToNextBlock.Polka.Block.Height < blockchain.Height() {
+		panic("invariant violation: insert block before latest height")
+	}
+	return blockchain.store.InsertBlock(commitToNextBlock)
 }
 
 func (blockchain *Blockchain) Blocks(begin, end Height) []Commit {
@@ -195,10 +193,10 @@ func (blockchain *Blockchain) Blocks(begin, end Height) []Commit {
 
 	var block Commit
 	var err error
-	blocks := []Commit{}
 
+	blocks := make([]Commit, 0, end-begin)
 	for i := begin; i <= end; i++ {
-		if block, err = blockchain.blocks.Block(i); err != nil || block.Polka.Block == nil {
+		if block, err = blockchain.store.Block(i); err != nil || block.Polka.Block == nil {
 			return blocks
 		}
 		blocks = append(blocks, block)
@@ -206,16 +204,16 @@ func (blockchain *Blockchain) Blocks(begin, end Height) []Commit {
 	return blocks
 }
 
-type BlockStore interface {
-	// Extend inserts the commit to the BlockStore and updates its head
-	Extend(commitToNextBlock Commit) error
+type Store interface {
 
-	// Return block (if it exists) that corresponds to the given height
+	// InsertBlock stores a committed SignedBlock to persistent storage.
+	InsertBlock(commit Commit) error
+
+	// Block returns a committed SignedBlock from persistent storage. An error
+	// is returned when there is no SignedBlock committed at the given Height.
 	Block(height Height) (Commit, error)
 
-	// Head returns the last seen commit
-	Head() (Commit, error)
-
-	// Height returns the height of the last seen commit
+	// Height returns the latest Height that has been seen when inserting a
+	// Block. An error is returned when there is no Height.
 	Height() (Height, error)
 }

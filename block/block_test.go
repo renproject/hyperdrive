@@ -1,6 +1,7 @@
 package block_test
 
 import (
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -201,40 +202,44 @@ var _ = Describe("Block", func() {
 })
 
 type mockBlockStore struct {
-	height Height
-
-	blocks   map[Height]Commit
-	blocksMu *sync.RWMutex
+	mu     *sync.RWMutex
+	height *Height
+	blocks map[Height]Commit
 }
 
-func NewMockBlockStore() BlockStore {
+func NewMockBlockStore() Store {
 	return &mockBlockStore{
-		Genesis().Height,
-		map[Height]Commit{},
-		new(sync.RWMutex),
+		mu:     new(sync.RWMutex),
+		height: nil,
+		blocks: map[Height]Commit{},
 	}
 }
 
-func (mockBlockStore *mockBlockStore) Extend(commit Commit) error {
-	mockBlockStore.blocksMu.Lock()
-	defer mockBlockStore.blocksMu.Unlock()
+func (mockBlockStore *mockBlockStore) InsertBlock(commit Commit) error {
+	mockBlockStore.mu.Lock()
+	defer mockBlockStore.mu.Unlock()
 
-	if mockBlockStore.height < commit.Polka.Height {
-		mockBlockStore.height = commit.Polka.Height
+	if mockBlockStore.height == nil || *mockBlockStore.height < commit.Polka.Height {
+		mockBlockStore.height = &commit.Polka.Height
 	}
 	mockBlockStore.blocks[commit.Polka.Height] = commit
 	return nil
 }
 
 func (mockBlockStore *mockBlockStore) Block(height Height) (Commit, error) {
-	mockBlockStore.blocksMu.RLock()
-	defer mockBlockStore.blocksMu.RUnlock()
+	mockBlockStore.mu.RLock()
+	defer mockBlockStore.mu.RUnlock()
 
-	return mockBlockStore.blocks[height], nil
+	commit, ok := mockBlockStore.blocks[height]
+	if !ok {
+		return Commit{}, fmt.Errorf("not found")
+	}
+	return commit, nil
 }
-func (mockBlockStore *mockBlockStore) Head() (Commit, error) {
-	return mockBlockStore.Block(mockBlockStore.height)
-}
+
 func (mockBlockStore *mockBlockStore) Height() (Height, error) {
-	return mockBlockStore.height, nil
+	if mockBlockStore.height == nil {
+		return 0, fmt.Errorf("not found")
+	}
+	return *mockBlockStore.height, nil
 }
