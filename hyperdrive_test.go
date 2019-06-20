@@ -52,11 +52,8 @@ var _ = Describe("Hyperdrive", func() {
 			ipChans[i] <- ShardObject{shard, txPool}
 		}
 
-		tickerInterval := time.Duration(n * n * 2)
-		if n <= 16 {
-			tickerInterval = time.Duration(1000)
-		}
-		ticker := time.NewTicker(tickerInterval * time.Millisecond)
+		tickerInterval := time.Duration(20 + mrand.Intn(10))
+		ticker := time.NewTicker(tickerInterval * time.Second)
 		go func() {
 			for t := range ticker.C {
 				for i := 0; i < n; i++ {
@@ -76,7 +73,6 @@ var _ = Describe("Hyperdrive", func() {
 		numHyperdrives int
 		maxHeight      block.Height
 	}{
-		// {1, 640},
 		{2, 320},
 		{4, 160},
 		{8, 80},
@@ -94,10 +90,15 @@ var _ = Describe("Hyperdrive", func() {
 	for _, entry := range table {
 		entry := entry
 
+		_, ok := os.LookupEnv("CI")
 		Context(fmt.Sprintf("when reaching consensus on a shard with %v replicas", entry.numHyperdrives), func() {
 			It("should commit blocks", func() {
+				maxHeight := entry.maxHeight
+				if ok {
+					maxHeight /= 10
+				}
 				// The estimated number of messages a Replica will receive throughout the test
-				cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
+				cap := 2 * (entry.numHyperdrives + 1) * int(maxHeight)
 				// Increase by an order of magnitude to account for timeouts and
 				// multiple rounds
 				cap = 10 * cap
@@ -110,16 +111,20 @@ var _ = Describe("Hyperdrive", func() {
 					defer GinkgoRecover()
 
 					h := New(signers[i], NewMockDispatcher(true, i, ipChans, done, cap))
-					Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight, block.Round(0))).ShouldNot((HaveOccurred()))
+
+					Expect(runHyperdrive(i, h, ipChans[i], done, maxHeight, block.Round(0))).ShouldNot((HaveOccurred()))
 				})
 			})
 
-			_, ok := os.LookupEnv("CI")
 			if (!ok && entry.numHyperdrives > 2 && entry.numHyperdrives <= 16) || (ok && entry.numHyperdrives == 8) {
 				Context("when leader at index = 0 is inactive", func() {
 					It("should commit blocks with new leader", func() {
+						maxHeight := entry.maxHeight / 4
+						if ok {
+							maxHeight = 4
+						}
 						// The estimated number of messages a Replica will receive throughout the test
-						cap := 2 * (entry.numHyperdrives + 1) * int(entry.maxHeight)
+						cap := 2 * (entry.numHyperdrives + 1) * int(maxHeight)
 						// Increase by an order of magnitude to account for timeouts and
 						// multiple rounds
 						cap = 10 * cap
@@ -136,7 +141,7 @@ var _ = Describe("Hyperdrive", func() {
 								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(false, i, ipChans, done, cap), consensusThreshold)
 							}
 
-							Expect(runHyperdrive(i, h, ipChans[i], done, entry.maxHeight/2, block.Round(1))).ShouldNot(HaveOccurred())
+							Expect(runHyperdrive(i, h, ipChans[i], done, maxHeight, block.Round(1))).ShouldNot(HaveOccurred())
 						})
 					})
 				})

@@ -2,7 +2,6 @@ package block
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/renproject/hyperdrive/sig"
@@ -147,64 +146,44 @@ type SignedPropose struct {
 }
 
 type Blockchain struct {
-	height Height
-
-	blocksMu *sync.RWMutex
-	blocks   map[Height]Commit
+	store Store
 }
 
-func NewBlockchain() Blockchain {
-	genesis := Genesis()
-	genesisCommit := Commit{
-		Polka: Polka{
-			Block: &genesis,
-		},
-	}
+func NewBlockchain(store Store) Blockchain {
 	return Blockchain{
-		height: genesisCommit.Polka.Height,
-
-		blocksMu: new(sync.RWMutex),
-		blocks:   map[Height]Commit{genesis.Height: genesisCommit},
+		store: store,
 	}
 }
 
 func (blockchain *Blockchain) Height() Height {
-	return blockchain.height
-}
-
-func (blockchain *Blockchain) Head() (SignedBlock, bool) {
-	blockchain.blocksMu.RLock()
-	defer blockchain.blocksMu.RUnlock()
-
-	if commit, ok := blockchain.blocks[blockchain.height]; ok {
-		return *commit.Polka.Block, true
+	height, err := blockchain.store.Height()
+	if err != nil {
+		return Genesis().Height
 	}
-	return Genesis(), false
+	return height
 }
 
-func (blockchain *Blockchain) Block(height Height) (SignedBlock, bool) {
-	blockchain.blocksMu.RLock()
-	commit, ok := blockchain.blocks[height]
-	blockchain.blocksMu.RUnlock()
+func (blockchain *Blockchain) Head() (Commit, bool) {
+	return blockchain.Block(blockchain.Height())
+}
 
-	if !ok || commit.Polka.Block == nil {
-		return Genesis(), false
+func (blockchain *Blockchain) Block(height Height) (Commit, bool) {
+	commit, err := blockchain.store.Block(height)
+	if err != nil || commit.Polka.Block == nil {
+		genesis := Genesis()
+		return Commit{Polka: Polka{Block: &genesis}}, false
 	}
-	return *commit.Polka.Block, true
+	return commit, true
 }
 
-func (blockchain *Blockchain) Extend(commitToNextBlock Commit) {
+func (blockchain *Blockchain) Extend(commitToNextBlock Commit) error {
 	if commitToNextBlock.Polka.Block == nil {
-		return
+		return nil
 	}
-
-	if blockchain.height < commitToNextBlock.Polka.Block.Height {
-		blockchain.height = commitToNextBlock.Polka.Block.Height
+	if commitToNextBlock.Polka.Block.Height < blockchain.Height() {
+		panic("invariant violation: insert block before latest height")
 	}
-
-	blockchain.blocksMu.Lock()
-	defer blockchain.blocksMu.Unlock()
-	blockchain.blocks[commitToNextBlock.Polka.Block.Height] = commitToNextBlock
+	return blockchain.store.InsertBlock(commitToNextBlock)
 }
 
 func (blockchain *Blockchain) Blocks(begin, end Height) []Commit {
@@ -213,16 +192,28 @@ func (blockchain *Blockchain) Blocks(begin, end Height) []Commit {
 	}
 
 	var block Commit
-	var ok bool
-	blocks := []Commit{}
+	var err error
 
-	blockchain.blocksMu.RLock()
-	defer blockchain.blocksMu.RUnlock()
+	blocks := make([]Commit, 0, end-begin)
 	for i := begin; i <= end; i++ {
-		if block, ok = blockchain.blocks[i]; !ok {
+		if block, err = blockchain.store.Block(i); err != nil || block.Polka.Block == nil {
 			return blocks
 		}
 		blocks = append(blocks, block)
 	}
 	return blocks
+}
+
+type Store interface {
+
+	// InsertBlock stores a committed SignedBlock to persistent storage.
+	InsertBlock(commit Commit) error
+
+	// Block returns a committed SignedBlock from persistent storage. An error
+	// is returned when there is no SignedBlock committed at the given Height.
+	Block(height Height) (Commit, error)
+
+	// Height returns the latest Height that has been seen when inserting a
+	// Block. An error is returned when there is no Height.
+	Height() (Height, error)
 }

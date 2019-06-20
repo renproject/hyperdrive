@@ -1,7 +1,9 @@
 package block_test
 
 import (
+	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/renproject/hyperdrive/sig"
@@ -18,20 +20,24 @@ var _ = Describe("Block", func() {
 	Context("when blockchain is empty", func() {
 		It("should return Genesis values", func() {
 			genesis := Genesis()
-
-			blockchain := NewBlockchain()
+			genesisCommit := Commit{
+				Polka: Polka{
+					Block: &genesis,
+				},
+			}
+			blockchain := NewBlockchain(NewMockBlockStore())
 			Expect(blockchain.Height()).To(Equal(genesis.Height))
 			head, ok := blockchain.Head()
-			Expect(ok).To(BeTrue())
-			Expect(head).To(Equal(genesis))
+			Expect(ok).To(BeFalse())
+			Expect(head).To(Equal(genesisCommit))
 			block, ok := blockchain.Block(Height(0))
-			Expect(ok).To(BeTrue())
-			Expect(block).To(Equal(genesis))
+			Expect(ok).To(BeFalse())
+			Expect(block).To(Equal(genesisCommit))
 		})
 
 		Context("when valid commits are inserted", func() {
 			It("should return latest block", func() {
-				blockchain := NewBlockchain()
+				blockchain := NewBlockchain(NewMockBlockStore())
 				header := sig.Hash{}
 				for i := 0; i < 10; i++ {
 					block := Block{Height: Height(i), Header: testutils.RandomHash()}
@@ -57,22 +63,19 @@ var _ = Describe("Block", func() {
 				Expect(blockchain.Height()).To(Equal(Height(9)))
 				head, ok := blockchain.Head()
 				Expect(ok).To(BeTrue())
-				Expect(head.Header).To(Equal(header))
+				Expect(head.Polka.Block.Header).To(Equal(header))
 			})
 
 			It("should return block for a specific header", func() {
-				blockchain := NewBlockchain()
+				blockchain := NewBlockchain(NewMockBlockStore())
 				queryIndex := rand.Intn(10)
-				queryBlock := Genesis()
+				var queryBlock Commit
 				for i := 0; i < 10; i++ {
 					block := Block{Height: Height(i), Header: testutils.RandomHash()}
 					signer, err := ecdsa.NewFromRandom()
 					Expect(err).ShouldNot(HaveOccurred())
 					signedBlock, err := block.Sign(signer)
 					Expect(err).ShouldNot(HaveOccurred())
-					if i == queryIndex {
-						queryBlock = signedBlock
-					}
 					commit := Commit{
 						Polka: Polka{
 							Block:       &signedBlock,
@@ -82,16 +85,19 @@ var _ = Describe("Block", func() {
 							Signatories: testutils.RandomSignatories(10),
 						},
 					}
+					if i == queryIndex {
+						queryBlock = commit
+					}
 					blockchain.Extend(commit)
 				}
 
-				block, ok := blockchain.Block(queryBlock.Height)
+				block, ok := blockchain.Block(queryBlock.Polka.Height)
 				Expect(ok).To(BeTrue())
 				Expect(block).To(Equal(queryBlock))
 			})
 
 			It("should return blocks for a given range", func() {
-				blockchain := NewBlockchain()
+				blockchain := NewBlockchain(NewMockBlockStore())
 				for i := 0; i < 10; i++ {
 					block := Block{Height: Height(i), Header: testutils.RandomHash()}
 					signer, err := ecdsa.NewFromRandom()
@@ -124,6 +130,11 @@ var _ = Describe("Block", func() {
 			Context("when nil commits are inserted", func() {
 				It("should not insert the block", func() {
 					genesis := Genesis()
+					genesisCommit := Commit{
+						Polka: Polka{
+							Block: &genesis,
+						},
+					}
 					commit := Commit{
 						Polka: Polka{
 							Block:       nil,
@@ -134,13 +145,13 @@ var _ = Describe("Block", func() {
 						},
 					}
 
-					blockchain := NewBlockchain()
+					blockchain := NewBlockchain(NewMockBlockStore())
 					blockchain.Extend(commit)
 
 					Expect(blockchain.Height()).To(Equal(genesis.Height))
 					head, ok := blockchain.Head()
-					Expect(ok).To(BeTrue())
-					Expect(head).To(Equal(genesis))
+					Expect(ok).To(BeFalse())
+					Expect(head).To(Equal(genesisCommit))
 				})
 			})
 		})
@@ -189,3 +200,46 @@ var _ = Describe("Block", func() {
 		})
 	})
 })
+
+type mockBlockStore struct {
+	mu     *sync.RWMutex
+	height *Height
+	blocks map[Height]Commit
+}
+
+func NewMockBlockStore() Store {
+	return &mockBlockStore{
+		mu:     new(sync.RWMutex),
+		height: nil,
+		blocks: map[Height]Commit{},
+	}
+}
+
+func (mockBlockStore *mockBlockStore) InsertBlock(commit Commit) error {
+	mockBlockStore.mu.Lock()
+	defer mockBlockStore.mu.Unlock()
+
+	if mockBlockStore.height == nil || *mockBlockStore.height < commit.Polka.Height {
+		mockBlockStore.height = &commit.Polka.Height
+	}
+	mockBlockStore.blocks[commit.Polka.Height] = commit
+	return nil
+}
+
+func (mockBlockStore *mockBlockStore) Block(height Height) (Commit, error) {
+	mockBlockStore.mu.RLock()
+	defer mockBlockStore.mu.RUnlock()
+
+	commit, ok := mockBlockStore.blocks[height]
+	if !ok {
+		return Commit{}, fmt.Errorf("not found")
+	}
+	return commit, nil
+}
+
+func (mockBlockStore *mockBlockStore) Height() (Height, error) {
+	if mockBlockStore.height == nil {
+		return 0, fmt.Errorf("not found")
+	}
+	return *mockBlockStore.height, nil
+}

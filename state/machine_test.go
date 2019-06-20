@@ -247,6 +247,82 @@ func generateTestCases(signer sig.SignerVerifier) []TestCase {
 			},
 		},
 
+		// (WaitForCommit) 	-> Proposed(Round:1)
+		//					-> PreVoted(Round:1)  (sig 1)
+		//  				-> PreCommitted(Round:1)  (sig 1)
+		// 					-> PreCommitted(Round:1)  (sig 2)
+		{
+
+			startingState: WaitingForCommit{},
+			finalState:    WaitingForPropose{},
+			finalAction:   Propose{},
+			finalRound:    0,
+			finalHeight:   1,
+
+			transitions: []Transition{
+				Proposed{
+					SignedPropose: block.SignedPropose{
+						Propose: block.Propose{
+							Block: block.SignedBlock{
+								Block: block.Block{
+									Height: 0,
+								},
+							},
+							Round: 1,
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+				PreVoted{
+					block.SignedPreVote{
+						PreVote: block.PreVote{
+							Block: &block.SignedBlock{
+								Block: block.Block{
+									Height: 0,
+								},
+							},
+							Round: 1,
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+				PreCommitted{
+					block.SignedPreCommit{
+						PreCommit: block.PreCommit{
+							Polka: block.Polka{
+								Block: &block.SignedBlock{
+									Block: block.Block{
+										Height: 0,
+									},
+								},
+								Round: 1,
+							},
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+				PreCommitted{
+					block.SignedPreCommit{
+						PreCommit: block.PreCommit{
+							Polka: block.Polka{
+								Block: &block.SignedBlock{
+									Block: block.Block{
+										Height: 0,
+									},
+								},
+								Round: 1,
+							},
+						},
+						Signatory: testutils.RandomSignatory(),
+						Signature: testutils.RandomSignature(),
+					},
+				},
+			},
+		},
+
 		// (WaitForCommit) -> Proposed -> PreVoted (sig 1) -> PreCommitted (sig 1) -> PreCommitted (sig 2)
 		{
 
