@@ -116,8 +116,8 @@ func (faultyLeader *faultyLeader) AcceptPreCommit(shardHash sig.Hash, preCommit 
 
 }
 
-func (faultyLeader *faultyLeader) SyncCommit(shardHash sig.Hash, commit block.Commit) bool {
-	panic("unimplemented")
+func (faultyLeader *faultyLeader) Sync(shardHash sig.Hash, commit block.Commit) bool {
+	return false
 }
 
 func (faultyLeader *faultyLeader) BeginShard(shard, previousShard shard.Shard, head block.Commit, pool tx.Pool) {
