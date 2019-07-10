@@ -10,7 +10,7 @@ import (
 )
 
 // MaxTransactions defines the maximum number of transactions allowed in a block.
-const MaxTransactions = 8
+const MaxTransactions = 1
 
 // The Round in which a `Block` was proposed.
 type Round int64
