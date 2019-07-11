@@ -12,12 +12,13 @@ type Pool interface {
 	Enqueue(Transaction) error
 	Dequeue() (Transaction, bool)
 	Remove(tx Transaction) bool
+	Size() int
 }
 
 type fifoPool struct {
 	cap int
 
-	txsMu *sync.Mutex
+	txsMu *sync.RWMutex
 	txs   Transactions
 }
 
@@ -26,7 +27,7 @@ func FIFOPool(cap int) Pool {
 	return &fifoPool{
 		cap: cap,
 
-		txsMu: new(sync.Mutex),
+		txsMu: new(sync.RWMutex),
 		txs:   Transactions{},
 	}
 }
@@ -70,4 +71,11 @@ func (pool *fifoPool) Remove(tx Transaction) bool {
 		}
 	}
 	return false
+}
+
+func (pool *fifoPool) Size() int {
+	pool.txsMu.RLock()
+	defer pool.txsMu.RUnlock()
+
+	return len(pool.txs)
 }
