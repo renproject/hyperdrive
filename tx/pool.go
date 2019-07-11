@@ -3,7 +3,6 @@ package tx
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"sync"
 )
 
@@ -48,7 +47,6 @@ func (pool *fifoPool) Enqueue(tx Transaction) error {
 func (pool *fifoPool) Dequeue() (Transaction, bool) {
 	pool.txsMu.Lock()
 	defer pool.txsMu.Unlock()
-	defer fmt.Printf("Number of txs pending: %d\n", len(pool.txs))
 
 	if len(pool.txs) > 0 {
 		tx := pool.txs[0]
