@@ -2,6 +2,7 @@ package block
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/renproject/hyperdrive/sig"
 	"golang.org/x/crypto/sha3"
@@ -35,6 +36,14 @@ func (preCommit PreCommit) String() string {
 	return fmt.Sprintf("PreCommit(%s)", preCommit.Polka.String())
 }
 
+func (preCommit PreCommit) Write(w io.Writer) error {
+	return preCommit.Polka.Write(w)
+}
+
+func (preCommit *PreCommit) Read(r io.Reader) error {
+	return preCommit.Polka.Read(r)
+}
+
 type SignedPreCommit struct {
 	PreCommit
 	Signature sig.Signature
@@ -45,6 +54,32 @@ func (signedPreCommit SignedPreCommit) String() string {
 	return fmt.Sprintf("SignedPreCommit(%s,Signature=%v,Signatory=%v)", signedPreCommit.PreCommit.String(), signedPreCommit.Signature, signedPreCommit.Signatory)
 }
 
+func (signedPreCommit SignedPreCommit) Write(w io.Writer) error {
+	if err := signedPreCommit.PreCommit.Write(w); err != nil {
+		return err
+	}
+	if err := signedPreCommit.Signature.Write(w); err != nil {
+		return err
+	}
+	if err := signedPreCommit.Signatory.Write(w); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (signedPreCommit *SignedPreCommit) Read(r io.Reader) error {
+	if err := signedPreCommit.PreCommit.Read(r); err != nil {
+		return err
+	}
+	if err := signedPreCommit.Signature.Read(r); err != nil {
+		return err
+	}
+	if err := signedPreCommit.Signatory.Read(r); err != nil {
+		return err
+	}
+	return nil
+}
+
 type Commit struct {
 	Polka       Polka
 	Signatures  sig.Signatures
@@ -53,6 +88,32 @@ type Commit struct {
 
 func (commit Commit) String() string {
 	return fmt.Sprintf("Commit(%s)", commit.Polka.String())
+}
+
+func (commit Commit) Write(w io.Writer) error {
+	if err := commit.Polka.Write(w); err != nil {
+		return err
+	}
+	if err := commit.Signatures.Write(w); err != nil {
+		return err
+	}
+	if err := commit.Signatories.Write(w); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (commit *Commit) Read(r io.Reader) error {
+	if err := commit.Polka.Read(r); err != nil {
+		return err
+	}
+	if err := commit.Signatures.Read(r); err != nil {
+		return err
+	}
+	if err := commit.Signatories.Read(r); err != nil {
+		return err
+	}
+	return nil
 }
 
 // CommitBuilder is used to build up collections of SignedPreCommits at different Heights and Rounds and then build
