@@ -13,21 +13,9 @@ var _ = Describe("Actions", func() {
 		})
 	})
 
-	Context("when using PreVote", func() {
-		It("should implement the Action interface", func() {
-			state.PreVote{}.IsAction()
-		})
-	})
-
 	Context("when using SignedPreVote", func() {
 		It("should implement the Action interface", func() {
 			state.SignedPreVote{}.IsAction()
-		})
-	})
-
-	Context("when using PreCommit", func() {
-		It("should implement the Action interface", func() {
-			state.PreCommit{}.IsAction()
 		})
 	})
 
