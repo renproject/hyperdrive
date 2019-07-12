@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
+	"io"
 )
 
 // Hash is the result of Keccak256
@@ -19,13 +20,14 @@ func (hash Hash) String() string {
 	return base64.StdEncoding.EncodeToString(hash[:])
 }
 
-func (hash Hash) MarshalBinary() ([]byte, error) {
-	return hash[:], nil
+func (hash Hash) Write(w io.Writer) error {
+	_, err := w.Write(hash[:])
+	return err
 }
 
-func (hash *Hash) UnmarshalBinary(data []byte) error {
-	copy(hash[:], data[:32])
-	return nil
+func (hash *Hash) Read(r io.Reader) error {
+	_, err := r.Read((*hash)[:])
+	return err
 }
 
 // Signature produced by `Sign`
@@ -36,13 +38,14 @@ func (sig Signature) Equal(other Signature) bool {
 	return bytes.Equal(sig[:], other[:])
 }
 
-func (sig Signature) MarshalBinary() ([]byte, error) {
-	return sig[:], nil
+func (sig Signature) Write(w io.Writer) error {
+	_, err := w.Write(sig[:])
+	return err
 }
 
-func (sig *Signature) UnmarshalBinary(data []byte) error {
-	copy(sig[:], data[:65])
-	return nil
+func (sig *Signature) Read(r io.Reader) error {
+	_, err := r.Read((*sig)[:])
+	return err
 }
 
 // Signatures is an array of Signature
@@ -75,34 +78,27 @@ func (sigs Signatures) Equal(other Signatures) bool {
 	return false
 }
 
-func (sigs Signatures) MarshalBinary() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(sigs))); err != nil {
-		return nil, err
+func (sigs Signatures) Write(w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, uint64(len(sigs))); err != nil {
+		return err
 	}
 	for _, sig := range sigs {
-		data, err := sig.MarshalBinary()
-		if err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.LittleEndian, data); err != nil {
-			return nil, err
+		if err := sig.Write(w); err != nil {
+			return err
 		}
 	}
-	return buf.Bytes(), nil
+	return nil
 }
 
-func (sigs *Signatures) UnmarshalBinary(data []byte) error {
-	buf := bytes.NewBuffer(data)
-
+func (sigs *Signatures) Read(r io.Reader) error {
 	var n uint64
-	if err := binary.Read(buf, binary.LittleEndian, &n); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, &n); err != nil {
 		return err
 	}
 
 	*sigs = make(Signatures, n)
 	for i := range *sigs {
-		if err := (*sigs)[i].UnmarshalBinary(buf.Bytes()); err != nil {
+		if err := (*sigs)[i].Read(r); err != nil {
 			return err
 		}
 	}
@@ -122,13 +118,14 @@ func (signatory Signatory) String() string {
 	return base64.StdEncoding.EncodeToString(signatory[:])
 }
 
-func (signatory Signatory) MarshalBinary() ([]byte, error) {
-	return signatory[:], nil
+func (sig Signatory) Write(w io.Writer) error {
+	_, err := w.Write(sig[:])
+	return err
 }
 
-func (signatory *Signatory) UnmarshalBinary(data []byte) error {
-	copy(signatory[:], data[:20])
-	return nil
+func (sig *Signatory) Read(r io.Reader) error {
+	_, err := r.Read((*sig)[:])
+	return err
 }
 
 // Signatories is an array of Signatory
@@ -161,34 +158,27 @@ func (sig Signatories) Equal(other Signatories) bool {
 	return false
 }
 
-func (sigs Signatories) MarshalBinary() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(sigs))); err != nil {
-		return nil, err
+func (sigs Signatories) Write(w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, uint64(len(sigs))); err != nil {
+		return err
 	}
 	for _, sig := range sigs {
-		data, err := sig.MarshalBinary()
-		if err != nil {
-			return nil, err
-		}
-		if err := binary.Write(buf, binary.LittleEndian, data); err != nil {
-			return nil, err
+		if err := sig.Write(w); err != nil {
+			return err
 		}
 	}
-	return buf.Bytes(), nil
+	return nil
 }
 
-func (sigs *Signatories) UnmarshalBinary(data []byte) error {
-	buf := bytes.NewBuffer(data)
-
+func (sigs *Signatories) Read(r io.Reader) error {
 	var n uint64
-	if err := binary.Read(buf, binary.LittleEndian, &n); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, &n); err != nil {
 		return err
 	}
 
 	*sigs = make(Signatories, n)
 	for i := range *sigs {
-		if err := (*sigs)[i].UnmarshalBinary(buf.Bytes()); err != nil {
+		if err := (*sigs)[i].Read(r); err != nil {
 			return err
 		}
 	}
