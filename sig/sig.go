@@ -3,6 +3,7 @@ package sig
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 )
 
 // Hash is the result of Keccak256
@@ -18,25 +19,43 @@ func (hash Hash) String() string {
 	return base64.StdEncoding.EncodeToString(hash[:])
 }
 
+func (hash Hash) MarshalBinary() ([]byte, error) {
+	return hash[:], nil
+}
+
+func (hash *Hash) UnmarshalBinary(data []byte) error {
+	copy(hash[:], data[:32])
+	return nil
+}
+
 // Signature produced by `Sign`
 type Signature [65]byte
 
 // Equal compares two `Signatory`
-func (signature Signature) Equal(other Signature) bool {
-	return bytes.Equal(signature[:], other[:])
+func (sig Signature) Equal(other Signature) bool {
+	return bytes.Equal(sig[:], other[:])
+}
+
+func (sig Signature) MarshalBinary() ([]byte, error) {
+	return sig[:], nil
+}
+
+func (sig *Signature) UnmarshalBinary(data []byte) error {
+	copy(sig[:], data[:65])
+	return nil
 }
 
 // Signatures is an array of Signature
 type Signatures []Signature
 
 // Equal checks for set equality of Signatures, order does not matter
-func (sig Signatures) Equal(other Signatures) bool {
-	if len(sig) != len(other) {
+func (sigs Signatures) Equal(other Signatures) bool {
+	if len(sigs) != len(other) {
 		return false
 	}
 	// create a map of string -> int
-	diff := make(map[Signature]int, len(sig))
-	for _, _x := range sig {
+	diff := make(map[Signature]int, len(sigs))
+	for _, _x := range sigs {
 		// 0 value for int is 0, so just increment a counter for the string
 		diff[_x]++
 	}
@@ -56,6 +75,40 @@ func (sig Signatures) Equal(other Signatures) bool {
 	return false
 }
 
+func (sigs Signatures) MarshalBinary() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := binary.Write(buf, binary.LittleEndian, uint64(len(sigs))); err != nil {
+		return nil, err
+	}
+	for _, sig := range sigs {
+		data, err := sig.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		if err := binary.Write(buf, binary.LittleEndian, data); err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
+}
+
+func (sigs *Signatures) UnmarshalBinary(data []byte) error {
+	buf := bytes.NewBuffer(data)
+
+	var n uint64
+	if err := binary.Read(buf, binary.LittleEndian, &n); err != nil {
+		return err
+	}
+
+	*sigs = make(Signatures, n)
+	for i := range *sigs {
+		if err := (*sigs)[i].UnmarshalBinary(buf.Bytes()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Signatory is the last 20 bytes of a Public Key
 type Signatory [20]byte
 
@@ -67,6 +120,15 @@ func (signatory Signatory) Equal(other Signatory) bool {
 // String prints the Signatory in a Base64 encoding.
 func (signatory Signatory) String() string {
 	return base64.StdEncoding.EncodeToString(signatory[:])
+}
+
+func (signatory Signatory) MarshalBinary() ([]byte, error) {
+	return signatory[:], nil
+}
+
+func (signatory *Signatory) UnmarshalBinary(data []byte) error {
+	copy(signatory[:], data[:20])
+	return nil
 }
 
 // Signatories is an array of Signatory
@@ -97,6 +159,40 @@ func (sig Signatories) Equal(other Signatories) bool {
 		return true
 	}
 	return false
+}
+
+func (sigs Signatories) MarshalBinary() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := binary.Write(buf, binary.LittleEndian, uint64(len(sigs))); err != nil {
+		return nil, err
+	}
+	for _, sig := range sigs {
+		data, err := sig.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		if err := binary.Write(buf, binary.LittleEndian, data); err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
+}
+
+func (sigs *Signatories) UnmarshalBinary(data []byte) error {
+	buf := bytes.NewBuffer(data)
+
+	var n uint64
+	if err := binary.Read(buf, binary.LittleEndian, &n); err != nil {
+		return err
+	}
+
+	*sigs = make(Signatories, n)
+	for i := range *sigs {
+		if err := (*sigs)[i].UnmarshalBinary(buf.Bytes()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Signer signs the provided hash, returning a signature
