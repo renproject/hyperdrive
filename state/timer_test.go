@@ -12,9 +12,12 @@ var _ = Describe("Timer", func() {
 			timer := NewTimer(numTicksToExpiry)
 			timer.Activate()
 			for i := 0; i < numTicksToExpiry-1; i++ {
-				Expect(timer.Tick()).To(BeFalse())
+				ticks, timedout := timer.Tick()
+				Expect(timedout).To(BeFalse())
+				Expect(ticks).To(Equal(i + 1))
 			}
-			Expect(timer.Tick()).To(BeTrue())
+			_, timedout := timer.Tick()
+			Expect(timedout).To(BeTrue())
 			timer.Deactivate()
 			Expect(timer.IsActive()).To(BeFalse())
 		})

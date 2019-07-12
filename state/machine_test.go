@@ -102,7 +102,7 @@ func generateTestCases(signer sig.SignerVerifier) []TestCase {
 		{
 			startingState: WaitingForPropose{},
 			finalState:    WaitingForPropose{},
-			finalAction:   Propose{},
+			finalAction:   Commit{},
 			finalRound:    0,
 			finalHeight:   1,
 
@@ -182,7 +182,7 @@ func generateTestCases(signer sig.SignerVerifier) []TestCase {
 
 			startingState: WaitingForPolka{},
 			finalState:    WaitingForPropose{},
-			finalAction:   Propose{},
+			finalAction:   Commit{},
 			finalRound:    0,
 			finalHeight:   1,
 
@@ -255,7 +255,7 @@ func generateTestCases(signer sig.SignerVerifier) []TestCase {
 
 			startingState: WaitingForCommit{},
 			finalState:    WaitingForPropose{},
-			finalAction:   Propose{},
+			finalAction:   Commit{},
 			finalRound:    0,
 			finalHeight:   1,
 
@@ -328,7 +328,7 @@ func generateTestCases(signer sig.SignerVerifier) []TestCase {
 
 			startingState: WaitingForCommit{},
 			finalState:    WaitingForPropose{},
-			finalAction:   Propose{},
+			finalAction:   Commit{},
 			finalRound:    0,
 			finalHeight:   1,
 
