@@ -92,7 +92,7 @@ var _ = Describe("Hyperdrive", func() {
 
 		_, ok := os.LookupEnv("CI")
 		Context(fmt.Sprintf("when reaching consensus on a shard with %v replicas", entry.numHyperdrives), func() {
-			XIt("should commit blocks", func() {
+			It("should commit blocks", func() {
 				maxHeight := entry.maxHeight
 				if ok {
 					maxHeight /= 10
