@@ -423,14 +423,11 @@ func (machine *machine) shouldProposeBlock() bool {
 
 func (machine *machine) buildSignedBlock() block.SignedBlock {
 	transactions := make(tx.Transactions, 0, block.MaxTransactions)
-	transaction, ok := machine.txPool.Dequeue()
-	for ok {
+	var transaction tx.Transaction
+	ok := true
+	for ok && len(transactions) < block.MaxTransactions {
+		transaction, ok = machine.txPool.Dequeue()
 		transactions = append(transactions, transaction)
-		if len(transactions) < block.MaxTransactions {
-			transaction, ok = machine.txPool.Dequeue()
-			continue
-		}
-		break
 	}
 
 	header := block.Genesis().Header
