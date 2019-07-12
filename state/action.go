@@ -1,6 +1,10 @@
 package state
 
-import "github.com/renproject/hyperdrive/block"
+import (
+	"io"
+
+	"github.com/renproject/hyperdrive/block"
+)
 
 // An Action is emitted by the state Machine to signal to other packages that
 // some Action needs to be broadcast to other state Machines that are
@@ -25,12 +29,40 @@ type Propose struct {
 func (Propose) IsAction() {
 }
 
+func (propose Propose) Write(w io.Writer) error {
+	if err := propose.SignedPropose.Write(w); err != nil {
+		return err
+	}
+	if err := propose.LastCommit.Write(w); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (propose *Propose) Read(r io.Reader) error {
+	if err := propose.SignedPropose.Read(r); err != nil {
+		return err
+	}
+	if err := propose.LastCommit.Read(r); err != nil {
+		return err
+	}
+	return nil
+}
+
 type PreVote struct {
 	block.PreVote
 }
 
 // IsAction is a marker function that implements the Action interface for the PreVote type.
 func (PreVote) IsAction() {
+}
+
+func (preVote PreVote) Write(w io.Writer) error {
+	return preVote.PreVote.Write(w)
+}
+
+func (preVote *PreVote) Read(r io.Reader) error {
+	return preVote.PreVote.Read(r)
 }
 
 type SignedPreVote struct {
@@ -41,12 +73,28 @@ type SignedPreVote struct {
 func (SignedPreVote) IsAction() {
 }
 
+func (preVote SignedPreVote) Write(w io.Writer) error {
+	return preVote.SignedPreVote.Write(w)
+}
+
+func (preVote *SignedPreVote) Read(r io.Reader) error {
+	return preVote.SignedPreVote.Read(r)
+}
+
 type PreCommit struct {
 	block.PreCommit
 }
 
 // IsAction is a marker function that implements the Action interface for the PreCommit type.
 func (PreCommit) IsAction() {
+}
+
+func (preCommit PreCommit) Write(w io.Writer) error {
+	return preCommit.PreCommit.Write(w)
+}
+
+func (preCommit *PreCommit) Read(r io.Reader) error {
+	return preCommit.PreCommit.Read(r)
 }
 
 type SignedPreCommit struct {
@@ -57,10 +105,26 @@ type SignedPreCommit struct {
 func (SignedPreCommit) IsAction() {
 }
 
+func (signedPreCommit SignedPreCommit) Write(w io.Writer) error {
+	return signedPreCommit.SignedPreCommit.Write(w)
+}
+
+func (signedPreCommit *SignedPreCommit) Read(r io.Reader) error {
+	return signedPreCommit.SignedPreCommit.Read(r)
+}
+
 type Commit struct {
 	block.Commit
 }
 
 // IsAction is a marker function that implements the Action interface for the Commit type.
 func (Commit) IsAction() {
+}
+
+func (commit Commit) Write(w io.Writer) error {
+	return commit.Commit.Write(w)
+}
+
+func (commit *Commit) Read(r io.Reader) error {
+	return commit.Commit.Read(r)
 }
