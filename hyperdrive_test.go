@@ -95,7 +95,7 @@ var _ = Describe("Hyperdrive", func() {
 			It("should commit blocks", func() {
 				maxHeight := entry.maxHeight
 				if ok {
-					maxHeight /= 10
+					maxHeight /= 20
 				}
 				// The estimated number of messages a Replica will receive throughout the test
 				cap := 2 * (entry.numHyperdrives + 1) * int(maxHeight)
@@ -121,7 +121,7 @@ var _ = Describe("Hyperdrive", func() {
 					It("should commit blocks with new leader", func() {
 						maxHeight := entry.maxHeight / 4
 						if ok {
-							maxHeight = 4
+							maxHeight = 2
 						}
 						// The estimated number of messages a Replica will receive throughout the test
 						cap := 2 * (entry.numHyperdrives + 1) * int(maxHeight)
