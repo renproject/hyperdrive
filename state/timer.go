@@ -36,11 +36,11 @@ func (timer *timer) Deactivate() {
 
 // Tick increments `numTicks` if the timer is active. If number of ticks
 // exceeds `numTicksToExpiry`, this function returns true to indicate expiry.
-func (timer *timer) Tick() bool {
+func (timer *timer) Tick() (int, bool) {
 	if timer.active {
 		timer.numTicks++
 	}
-	return timer.numTicks >= timer.numTicksToExpiry
+	return timer.numTicks, timer.numTicks >= timer.numTicksToExpiry
 }
 
 // Reset resets the timer values and deactivates it.

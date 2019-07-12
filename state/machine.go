@@ -2,8 +2,6 @@ package state
 
 import (
 	"fmt"
-	"math/rand"
-	"time"
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/shard"
@@ -12,7 +10,8 @@ import (
 )
 
 // NumTicksToTriggerTimeOut specifies the maximum number of Ticks to wait before
-// triggering a TimedOut  transition.
+// triggering a TimedOut  transition. This value cannot be less than or equal to
+// one since new blocks are proposed after seeing the first tick.
 const NumTicksToTriggerTimeOut = 2
 
 type Machine interface {
@@ -125,39 +124,6 @@ func (machine *machine) StartRound(round block.Round, commit *block.Commit) Acti
 		machine.lastCommit = commit
 		committed = Commit{
 			Commit: *commit,
-		}
-	}
-
-	if machine.shouldProposeBlock() {
-		// Introduce an artificial random delay of maximum 5 seconds
-		time.Sleep(time.Duration(rand.Intn(5)) * time.Second)
-
-		signedBlock := block.SignedBlock{}
-		if machine.validValue != nil {
-			signedBlock = *machine.validValue
-		} else {
-			signedBlock = machine.buildSignedBlock()
-		}
-
-		if signedBlock.Height != machine.currentHeight {
-			panic("unexpected block")
-		}
-
-		propose := block.Propose{
-			Block:      signedBlock,
-			Round:      round,
-			ValidRound: machine.validRound,
-			LastCommit: machine.lastCommit,
-		}
-
-		signedPropose, err := propose.Sign(machine.signer)
-		if err != nil {
-			panic(err)
-		}
-
-		return Propose{
-			SignedPropose: signedPropose,
-			Commit:        committed,
 		}
 	}
 
@@ -423,10 +389,11 @@ func (machine *machine) shouldProposeBlock() bool {
 
 func (machine *machine) buildSignedBlock() block.SignedBlock {
 	transactions := make(tx.Transactions, 0, block.MaxTransactions)
-	var transaction tx.Transaction
-	ok := true
-	for ok && len(transactions) < block.MaxTransactions {
-		transaction, ok = machine.txPool.Dequeue()
+	for len(transactions) < block.MaxTransactions {
+		transaction, ok := machine.txPool.Dequeue()
+		if !ok {
+			break
+		}
 		transactions = append(transactions, transaction)
 	}
 
@@ -475,13 +442,45 @@ func (machine *machine) preconditionCheck() {
 func (machine *machine) handleTick(tick Ticked) Action {
 	// Check for preCommit timeouts first to ensure the machine
 	// doesn't have to progress rounds.
-	if machine.preCommitTimer.Tick() {
+	if _, timedOut := machine.preCommitTimer.Tick(); timedOut {
 		return machine.onTimeoutPrecommit()
 	}
-	if machine.proposeTimer.Tick() {
+	ticks, timedOut := machine.proposeTimer.Tick()
+	if ticks == 1 && machine.shouldProposeBlock() {
+		// Propose new blocks after the first tick. Since
+		// NumTicksToTriggerTimeOut = 2, an honest replica will wait for half of
+		// the timeout period before proposing a new block.
+		signedBlock := block.SignedBlock{}
+		if machine.validValue != nil {
+			signedBlock = *machine.validValue
+		} else {
+			signedBlock = machine.buildSignedBlock()
+		}
+
+		if signedBlock.Height != machine.currentHeight {
+			panic("unexpected block")
+		}
+
+		propose := block.Propose{
+			Block:      signedBlock,
+			Round:      machine.currentRound,
+			ValidRound: machine.validRound,
+			LastCommit: machine.lastCommit,
+		}
+
+		signedPropose, err := propose.Sign(machine.signer)
+		if err != nil {
+			panic(err)
+		}
+
+		return Propose{
+			SignedPropose: signedPropose,
+		}
+	}
+	if timedOut {
 		return machine.onTimeoutPropose()
 	}
-	if machine.preVoteTimer.Tick() {
+	if _, timedOut := machine.preVoteTimer.Tick(); timedOut {
 		return machine.onTimeoutPrevote()
 	}
 	return nil

@@ -73,12 +73,12 @@ var _ = Describe("Hyperdrive", func() {
 		numHyperdrives int
 		maxHeight      block.Height
 	}{
-		{2, 320},
-		{4, 160},
-		{8, 80},
-		{16, 40},
-		{32, 20},
-		{64, 10},
+		{2, 160},
+		{4, 80},
+		{8, 40},
+		{16, 20},
+		{32, 10},
+		{64, 5},
 
 		// Disabled so that the CI does not take too long.
 		// {128, 5},
@@ -92,7 +92,7 @@ var _ = Describe("Hyperdrive", func() {
 
 		_, ok := os.LookupEnv("CI")
 		Context(fmt.Sprintf("when reaching consensus on a shard with %v replicas", entry.numHyperdrives), func() {
-			It("should commit blocks", func() {
+			XIt("should commit blocks", func() {
 				maxHeight := entry.maxHeight
 				if ok {
 					maxHeight /= 10
