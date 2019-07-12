@@ -49,22 +49,6 @@ func (propose *Propose) Read(r io.Reader) error {
 	return nil
 }
 
-// type PreVote struct {
-// 	block.PreVote
-// }
-
-// // IsAction is a marker function that implements the Action interface for the PreVote type.
-// func (PreVote) IsAction() {
-// }
-
-// func (preVote PreVote) Write(w io.Writer) error {
-// 	return preVote.PreVote.Write(w)
-// }
-
-// func (preVote *PreVote) Read(r io.Reader) error {
-// 	return preVote.PreVote.Read(r)
-// }
-
 type SignedPreVote struct {
 	block.SignedPreVote
 }
@@ -80,22 +64,6 @@ func (preVote SignedPreVote) Write(w io.Writer) error {
 func (preVote *SignedPreVote) Read(r io.Reader) error {
 	return preVote.SignedPreVote.Read(r)
 }
-
-// type PreCommit struct {
-// 	block.PreCommit
-// }
-
-// // IsAction is a marker function that implements the Action interface for the PreCommit type.
-// func (PreCommit) IsAction() {
-// }
-
-// func (preCommit PreCommit) Write(w io.Writer) error {
-// 	return preCommit.PreCommit.Write(w)
-// }
-
-// func (preCommit *PreCommit) Read(r io.Reader) error {
-// 	return preCommit.PreCommit.Read(r)
-// }
 
 type SignedPreCommit struct {
 	block.SignedPreCommit
