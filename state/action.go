@@ -33,20 +33,14 @@ func (propose Propose) Write(w io.Writer) error {
 	if err := propose.SignedPropose.Write(w); err != nil {
 		return err
 	}
-	if err := propose.LastCommit.Write(w); err != nil {
-		return err
-	}
-	return nil
+	return propose.LastCommit.Write(w)
 }
 
 func (propose *Propose) Read(r io.Reader) error {
 	if err := propose.SignedPropose.Read(r); err != nil {
 		return err
 	}
-	if err := propose.LastCommit.Read(r); err != nil {
-		return err
-	}
-	return nil
+	return propose.LastCommit.Read(r)
 }
 
 type SignedPreVote struct {

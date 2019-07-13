@@ -2,10 +2,23 @@ package testutils
 
 import (
 	"fmt"
+	"math/rand"
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/sig/ecdsa"
+	"github.com/renproject/hyperdrive/tx"
 )
+
+func GenerateSignedBlock() (block.SignedBlock, sig.SignerVerifier, error) {
+	signer, err := ecdsa.NewFromRandom()
+	if err != nil {
+		return block.SignedBlock{}, nil, err
+	}
+
+	block := block.New(block.Height(rand.Int()), RandomHash(), []tx.Transaction{RandomTransaction()})
+	return *SignBlock(block, signer), signer, nil
+}
 
 func SignBlock(blk block.Block, signer sig.SignerVerifier) *block.SignedBlock {
 	signedBlock, err := blk.Sign(signer)
