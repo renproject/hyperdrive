@@ -26,7 +26,7 @@ var _ = Describe("Actions", func() {
 				SignedPropose: testutils.GenerateSignedPropose(signedBlock, block.Round(rand.Int()), signer),
 				LastCommit: state.Commit{
 					Commit: block.Commit{
-						Polka:       testutils.GeneratePolkaWithSignatures(signedBlock, []sig.SignerVerifier{signer}),
+						Polka:       testutils.GeneratePolkaWithSignatures(&signedBlock, []sig.SignerVerifier{signer}),
 						Signatories: testutils.RandomSignatories(2),
 						Signatures:  testutils.RandomSignatures(2),
 					},
@@ -53,7 +53,7 @@ var _ = Describe("Actions", func() {
 			signedBlock, signer, err := testutils.GenerateSignedBlock()
 			Expect(err).ShouldNot(HaveOccurred())
 			prevote := state.SignedPreVote{
-				SignedPreVote: testutils.GenerateSignedPreVote(signedBlock, signer),
+				SignedPreVote: testutils.GenerateSignedPreVote(&signedBlock, signer),
 			}
 
 			writer := new(bytes.Buffer)
