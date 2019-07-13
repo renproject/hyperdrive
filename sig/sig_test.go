@@ -1,16 +1,18 @@
 package sig_test
 
 import (
+	"bytes"
 	"crypto/rand"
+	mrand "math/rand"
 
 	"github.com/renproject/hyperdrive/sig"
+	"github.com/renproject/hyperdrive/testutils"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Signatures", func() {
-
 	Context("when testing equality of hashes", func() {
 		It("should return true for empty hashes", func() {
 			lhs := sig.Hash{}
@@ -45,6 +47,18 @@ var _ = Describe("Signatures", func() {
 
 			Expect(lhs.Equal(rhs)).To(BeFalse())
 			Expect(lhs.String()).ToNot(Equal(rhs.String()))
+		})
+
+		It("should marshal using Read/Write pattern", func() {
+			hash := testutils.RandomHash()
+			writer := new(bytes.Buffer)
+			Expect(hash.Write(writer)).ShouldNot(HaveOccurred())
+
+			hashClone := sig.Hash{}
+			reader := bytes.NewReader(writer.Bytes())
+			Expect(hashClone.Read(reader)).ShouldNot(HaveOccurred())
+
+			Expect(hashClone.String()).To(Equal(hash.String()))
 		})
 	})
 
@@ -127,6 +141,18 @@ var _ = Describe("Signatures", func() {
 			}
 
 			Expect(lhs.Equal(rhs)).To(BeTrue())
+		})
+
+		It("should marshal using Read/Write pattern", func() {
+			sigs := testutils.RandomSignatures(mrand.Intn(10) + 1)
+			writer := new(bytes.Buffer)
+			Expect(sigs.Write(writer)).ShouldNot(HaveOccurred())
+
+			sigsClone := sig.Signatures{}
+			reader := bytes.NewReader(writer.Bytes())
+			Expect(sigsClone.Read(reader)).ShouldNot(HaveOccurred())
+
+			Expect(sigsClone.Equal(sigs)).To(BeTrue())
 		})
 	})
 
@@ -212,6 +238,18 @@ var _ = Describe("Signatures", func() {
 			}
 
 			Expect(lhs.Equal(rhs)).To(BeTrue())
+		})
+
+		It("should marshal using Read/Write pattern", func() {
+			sigs := testutils.RandomSignatories(mrand.Intn(10) + 1)
+			writer := new(bytes.Buffer)
+			Expect(sigs.Write(writer)).ShouldNot(HaveOccurred())
+
+			sigsClone := sig.Signatories{}
+			reader := bytes.NewReader(writer.Bytes())
+			Expect(sigsClone.Read(reader)).ShouldNot(HaveOccurred())
+
+			Expect(sigsClone.Equal(sigs)).To(BeTrue())
 		})
 	})
 })
