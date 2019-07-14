@@ -39,14 +39,12 @@ func (faultyLeader *faultyLeader) AcceptTick(t time.Time) {
 }
 
 func (faultyLeader *faultyLeader) AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose) {
-	action := state.PreVote{
-		PreVote: block.PreVote{
-			Block:  &proposed.Block,
-			Round:  proposed.Round,
-			Height: proposed.Block.Height,
-		},
+	preVote := block.PreVote{
+		Block:  &proposed.Block,
+		Round:  proposed.Round,
+		Height: proposed.Block.Height,
 	}
-	signedPreVote, err := action.PreVote.Sign(faultyLeader.signer)
+	signedPreVote, err := preVote.Sign(faultyLeader.signer)
 	if err != nil {
 		panic(err)
 	}
@@ -81,18 +79,16 @@ func (faultyLeader *faultyLeader) AcceptPreVote(shardHash sig.Hash, preVote bloc
 			sigs = append(sigs, signature)
 			signatories = append(signatories, signatory)
 		}
-		action := state.PreCommit{
-			PreCommit: block.PreCommit{
-				Polka: block.Polka{
-					Block:       preVote.Block,
-					Round:       preVote.Round,
-					Height:      preVote.Height,
-					Signatures:  sigs,
-					Signatories: signatories,
-				},
+		preCommit := block.PreCommit{
+			Polka: block.Polka{
+				Block:       preVote.Block,
+				Round:       preVote.Round,
+				Height:      preVote.Height,
+				Signatures:  sigs,
+				Signatories: signatories,
 			},
 		}
-		signedPreCommit, err := action.PreCommit.Sign(faultyLeader.signer)
+		signedPreCommit, err := preCommit.Sign(faultyLeader.signer)
 		if err != nil {
 			panic(err)
 		}

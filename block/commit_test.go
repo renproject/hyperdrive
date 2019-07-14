@@ -1,8 +1,10 @@
 package block_test
 
 import (
+	"bytes"
 	mathRand "math/rand"
 
+	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"github.com/renproject/hyperdrive/testutils"
 
@@ -370,6 +372,44 @@ var _ = Describe("CommitBuilder", func() {
 			signedPreCommit, err := precommit.Sign(signer)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(signedPreCommit.String()).To(ContainSubstring("SignedPreCommit(PreCommit(Polka(Height=0,Round=0,BlockHeader=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=))"))
+		})
+	})
+
+	Context("when using Precommit", func() {
+		It("should marshal using Read/Write pattern", func() {
+			signedBlock, _, err := testutils.GenerateSignedBlock()
+			Expect(err).ShouldNot(HaveOccurred())
+			precommit := PreCommit{
+				Polka: Polka{
+					Block:  &signedBlock,
+					Height: Height(1),
+					Round:  Round(1),
+				},
+			}
+			writer := new(bytes.Buffer)
+			Expect(precommit.Write(writer)).ShouldNot(HaveOccurred())
+
+			precommitClone := PreCommit{}
+			reader := bytes.NewReader(writer.Bytes())
+			Expect(precommitClone.Read(reader)).ShouldNot(HaveOccurred())
+
+			Expect(precommitClone.String()).To(Equal(precommit.String()))
+		})
+	})
+
+	Context("when using SignedPrecommit", func() {
+		It("should marshal using Read/Write pattern", func() {
+			signedBlock, signer, err := testutils.GenerateSignedBlock()
+			Expect(err).ShouldNot(HaveOccurred())
+			precommit := testutils.GenerateSignedPreCommit(signedBlock, signer, []sig.SignerVerifier{signer})
+			writer := new(bytes.Buffer)
+			Expect(precommit.Write(writer)).ShouldNot(HaveOccurred())
+
+			precommitClone := SignedPreCommit{}
+			reader := bytes.NewReader(writer.Bytes())
+			Expect(precommitClone.Read(reader)).ShouldNot(HaveOccurred())
+
+			Expect(precommitClone.String()).To(Equal(precommit.String()))
 		})
 	})
 

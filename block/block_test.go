@@ -1,6 +1,7 @@
 package block_test
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -125,6 +126,8 @@ var _ = Describe("Block", func() {
 				Expect(len(blocks)).To(Equal(5))
 				blocks = blockchain.Blocks(10, 15)
 				Expect(len(blocks)).To(Equal(0))
+				blocks = blockchain.Blocks(15, 10)
+				Expect(len(blocks)).To(Equal(0))
 			})
 
 			Context("when nil commits are inserted", func() {
@@ -152,6 +155,42 @@ var _ = Describe("Block", func() {
 					head, ok := blockchain.Head()
 					Expect(ok).To(BeFalse())
 					Expect(head).To(Equal(genesisCommit))
+				})
+			})
+
+			Context("when older commits are inserted", func() {
+				It("should panic", func() {
+					blockchain := NewBlockchain(NewMockBlockStore())
+					for i := 0; i < 10; i++ {
+						block := Block{Height: Height(i), Header: testutils.RandomHash()}
+						signer, err := ecdsa.NewFromRandom()
+						Expect(err).ShouldNot(HaveOccurred())
+						signedBlock, err := block.Sign(signer)
+						Expect(err).ShouldNot(HaveOccurred())
+						commit := Commit{
+							Polka: Polka{
+								Block:       &signedBlock,
+								Round:       Round(i),
+								Height:      Height(i),
+								Signatures:  testutils.RandomSignatures(10),
+								Signatories: testutils.RandomSignatories(10),
+							},
+						}
+
+						blockchain.Extend(commit)
+					}
+
+					oldCommit := Commit{
+						Polka: Polka{
+							Block:       &SignedBlock{},
+							Round:       Round(2),
+							Height:      Height(2),
+							Signatures:  testutils.RandomSignatures(10),
+							Signatories: testutils.RandomSignatories(10),
+						},
+					}
+					Expect(func() { blockchain.Extend(oldCommit) }).To(Panic())
+
 				})
 			})
 		})
@@ -197,6 +236,54 @@ var _ = Describe("Block", func() {
 			signedPropose, err := propose.Sign(signer)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(signedPropose.Round).To(Equal(Round(1)))
+		})
+	})
+
+	Context("when using Propose", func() {
+		It("should marshal using Read/Write pattern", func() {
+			signedBlock, _, err := testutils.GenerateSignedBlock()
+			Expect(err).ShouldNot(HaveOccurred())
+			commit := Commit{
+				Polka: Polka{
+					Block:       &signedBlock,
+					Round:       Round(0),
+					Height:      Height(0),
+					Signatures:  testutils.RandomSignatures(10),
+					Signatories: testutils.RandomSignatories(10),
+				},
+			}
+			propose := Propose{
+				Block:      signedBlock,
+				Round:      1,
+				ValidRound: 1,
+				LastCommit: &commit,
+			}
+
+			writer := new(bytes.Buffer)
+			Expect(propose.Write(writer)).ShouldNot(HaveOccurred())
+
+			proposeClone := Propose{}
+			reader := bytes.NewReader(writer.Bytes())
+			Expect(proposeClone.Read(reader)).ShouldNot(HaveOccurred())
+
+			Expect(proposeClone.String()).To(Equal(propose.String()))
+		})
+	})
+
+	Context("when using SignedPropose", func() {
+		It("should marshal using Read/Write pattern", func() {
+			signedBlock, signer, err := testutils.GenerateSignedBlock()
+			Expect(err).ShouldNot(HaveOccurred())
+			propose := testutils.GenerateSignedPropose(signedBlock, Round(rand.Int()), signer)
+
+			writer := new(bytes.Buffer)
+			Expect(propose.Write(writer)).ShouldNot(HaveOccurred())
+
+			proposeClone := SignedPropose{}
+			reader := bytes.NewReader(writer.Bytes())
+			Expect(proposeClone.Read(reader)).ShouldNot(HaveOccurred())
+
+			Expect(proposeClone.String()).To(Equal(propose.String()))
 		})
 	})
 })

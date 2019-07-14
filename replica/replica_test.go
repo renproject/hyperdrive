@@ -322,7 +322,7 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 			finalState:    state.WaitingForPropose{},
 
 			transitions: []state.Transition{
-				state.PreVoted{SignedPreVote: testutils.GenerateSignedPreVote(*signedBlock, maliciousSigner)},
+				state.PreVoted{SignedPreVote: testutils.GenerateSignedPreVote(signedBlock, maliciousSigner)},
 			},
 		},
 
@@ -650,13 +650,13 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 					SignedPropose: testutils.GenerateSignedPropose(*signedFutureBlock, 1, signer),
 				},
 				state.PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(*signedFutureBlock, signer),
+					SignedPreVote: testutils.GenerateSignedPreVote(signedFutureBlock, signer),
 				},
 				state.PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(*signedFutureBlock, p1),
+					SignedPreVote: testutils.GenerateSignedPreVote(signedFutureBlock, p1),
 				},
 				state.PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(*signedFutureBlock, p2),
+					SignedPreVote: testutils.GenerateSignedPreVote(signedFutureBlock, p2),
 				},
 				state.PreCommitted{
 					SignedPreCommit: testutils.GenerateSignedPreCommit(*signedFutureBlock, signer, []sig.SignerVerifier{signer, p1, p2}),
@@ -671,13 +671,13 @@ func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
 					SignedPropose: testutils.GenerateSignedPropose(*signedBlock, 1, signer),
 				},
 				state.PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(*signedBlock, signer),
+					SignedPreVote: testutils.GenerateSignedPreVote(signedBlock, signer),
 				},
 				state.PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(*signedBlock, p1),
+					SignedPreVote: testutils.GenerateSignedPreVote(signedBlock, p1),
 				},
 				state.PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(*signedBlock, p2),
+					SignedPreVote: testutils.GenerateSignedPreVote(signedBlock, p2),
 				},
 				state.PreCommitted{
 					SignedPreCommit: testutils.GenerateSignedPreCommit(*signedBlock, signer, []sig.SignerVerifier{signer, p1, p2}),
