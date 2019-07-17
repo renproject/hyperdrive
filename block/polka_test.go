@@ -1,9 +1,11 @@
 package block_test
 
 import (
+	"bytes"
 	mathRand "math/rand"
 	"time"
 
+	"github.com/renproject/hyperdrive/sig"
 	"github.com/renproject/hyperdrive/sig/ecdsa"
 	"github.com/renproject/hyperdrive/testutils"
 
@@ -280,6 +282,66 @@ var _ = Describe("PolkaBuilder", func() {
 				Signatories: testutils.RandomSignatories(10),
 			}
 			Expect(polka.String()).Should(Equal("Polka(Height=0,Round=0,BlockHeader=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=)"))
+		})
+	})
+
+	Context("when using Prevote", func() {
+		It("should marshal a valid PreVote using Read/Write pattern", func() {
+			signedBlock, _, err := testutils.GenerateSignedBlock()
+			Expect(err).ShouldNot(HaveOccurred())
+			prevote := NewPreVote(&signedBlock, Round(1), 1)
+			writer := new(bytes.Buffer)
+			Expect(prevote.Write(writer)).ShouldNot(HaveOccurred())
+
+			prevoteClone := PreVote{}
+			reader := bytes.NewReader(writer.Bytes())
+			Expect(prevoteClone.Read(reader)).ShouldNot(HaveOccurred())
+
+			Expect(prevoteClone.String()).To(Equal(prevote.String()))
+		})
+
+		It("should marshal a nil PreVote using Read/Write pattern", func() {
+			prevote := NewPreVote(nil, Round(1), 1)
+			writer := new(bytes.Buffer)
+			Expect(prevote.Write(writer)).ShouldNot(HaveOccurred())
+
+			prevoteClone := PreVote{}
+			reader := bytes.NewReader(writer.Bytes())
+			Expect(prevoteClone.Read(reader)).ShouldNot(HaveOccurred())
+
+			Expect(prevoteClone.String()).To(Equal(prevote.String()))
+		})
+	})
+
+	Context("when using SignedPrevote", func() {
+		It("should marshal using Read/Write pattern", func() {
+			signedBlock, signer, err := testutils.GenerateSignedBlock()
+			Expect(err).ShouldNot(HaveOccurred())
+			prevote := testutils.GenerateSignedPreVote(&signedBlock, signer)
+			writer := new(bytes.Buffer)
+			Expect(prevote.Write(writer)).ShouldNot(HaveOccurred())
+
+			prevoteClone := SignedPreVote{}
+			reader := bytes.NewReader(writer.Bytes())
+			Expect(prevoteClone.Read(reader)).ShouldNot(HaveOccurred())
+
+			Expect(prevoteClone.String()).To(Equal(prevote.String()))
+		})
+	})
+
+	Context("when using Polka", func() {
+		It("should marshal using Read/Write pattern", func() {
+			signer, err := ecdsa.NewFromRandom()
+			Expect(err).ShouldNot(HaveOccurred())
+			prevote := testutils.GeneratePolkaWithSignatures(nil, []sig.SignerVerifier{signer})
+			writer := new(bytes.Buffer)
+			Expect(prevote.Write(writer)).ShouldNot(HaveOccurred())
+
+			prevoteClone := Polka{}
+			reader := bytes.NewReader(writer.Bytes())
+			Expect(prevoteClone.Read(reader)).ShouldNot(HaveOccurred())
+
+			Expect(prevoteClone.String()).To(Equal(prevote.String()))
 		})
 	})
 

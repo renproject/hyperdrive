@@ -676,10 +676,10 @@ func generateTestCases(signer sig.SignerVerifier) []TestCase {
 
 			transitions: []Transition{
 				PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(block.SignedBlock{}, signer),
+					SignedPreVote: testutils.GenerateSignedPreVote(&block.SignedBlock{}, signer),
 				},
 				PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(block.SignedBlock{}, signer),
+					SignedPreVote: testutils.GenerateSignedPreVote(&block.SignedBlock{}, signer),
 				},
 			},
 		},
@@ -695,7 +695,7 @@ func generateTestCases(signer sig.SignerVerifier) []TestCase {
 
 			transitions: []Transition{
 				PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(block.SignedBlock{}, signer),
+					SignedPreVote: testutils.GenerateSignedPreVote(&block.SignedBlock{}, signer),
 				},
 				PreVoted{
 					block.SignedPreVote{

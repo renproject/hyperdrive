@@ -3,6 +3,8 @@ package sig
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
+	"io"
 )
 
 // Hash is the result of Keccak256
@@ -18,25 +20,45 @@ func (hash Hash) String() string {
 	return base64.StdEncoding.EncodeToString(hash[:])
 }
 
+func (hash Hash) Write(w io.Writer) error {
+	_, err := w.Write(hash[:])
+	return err
+}
+
+func (hash *Hash) Read(r io.Reader) error {
+	_, err := r.Read((*hash)[:])
+	return err
+}
+
 // Signature produced by `Sign`
 type Signature [65]byte
 
 // Equal compares two `Signatory`
-func (signature Signature) Equal(other Signature) bool {
-	return bytes.Equal(signature[:], other[:])
+func (sig Signature) Equal(other Signature) bool {
+	return bytes.Equal(sig[:], other[:])
+}
+
+func (sig Signature) Write(w io.Writer) error {
+	_, err := w.Write(sig[:])
+	return err
+}
+
+func (sig *Signature) Read(r io.Reader) error {
+	_, err := r.Read((*sig)[:])
+	return err
 }
 
 // Signatures is an array of Signature
 type Signatures []Signature
 
 // Equal checks for set equality of Signatures, order does not matter
-func (sig Signatures) Equal(other Signatures) bool {
-	if len(sig) != len(other) {
+func (sigs Signatures) Equal(other Signatures) bool {
+	if len(sigs) != len(other) {
 		return false
 	}
 	// create a map of string -> int
-	diff := make(map[Signature]int, len(sig))
-	for _, _x := range sig {
+	diff := make(map[Signature]int, len(sigs))
+	for _, _x := range sigs {
 		// 0 value for int is 0, so just increment a counter for the string
 		diff[_x]++
 	}
@@ -56,6 +78,33 @@ func (sig Signatures) Equal(other Signatures) bool {
 	return false
 }
 
+func (sigs Signatures) Write(w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, uint64(len(sigs))); err != nil {
+		return err
+	}
+	for _, sig := range sigs {
+		if err := sig.Write(w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (sigs *Signatures) Read(r io.Reader) error {
+	var n uint64
+	if err := binary.Read(r, binary.LittleEndian, &n); err != nil {
+		return err
+	}
+
+	*sigs = make(Signatures, n)
+	for i := range *sigs {
+		if err := (*sigs)[i].Read(r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Signatory is the last 20 bytes of a Public Key
 type Signatory [20]byte
 
@@ -67,6 +116,16 @@ func (signatory Signatory) Equal(other Signatory) bool {
 // String prints the Signatory in a Base64 encoding.
 func (signatory Signatory) String() string {
 	return base64.StdEncoding.EncodeToString(signatory[:])
+}
+
+func (sig Signatory) Write(w io.Writer) error {
+	_, err := w.Write(sig[:])
+	return err
+}
+
+func (sig *Signatory) Read(r io.Reader) error {
+	_, err := r.Read((*sig)[:])
+	return err
 }
 
 // Signatories is an array of Signatory
@@ -97,6 +156,33 @@ func (sig Signatories) Equal(other Signatories) bool {
 		return true
 	}
 	return false
+}
+
+func (sigs Signatories) Write(w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, uint64(len(sigs))); err != nil {
+		return err
+	}
+	for _, sig := range sigs {
+		if err := sig.Write(w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (sigs *Signatories) Read(r io.Reader) error {
+	var n uint64
+	if err := binary.Read(r, binary.LittleEndian, &n); err != nil {
+		return err
+	}
+
+	*sigs = make(Signatories, n)
+	for i := range *sigs {
+		if err := (*sigs)[i].Read(r); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Signer signs the provided hash, returning a signature

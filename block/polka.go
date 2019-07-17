@@ -2,7 +2,9 @@ package block
 
 import (
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
+	"io"
 
 	"github.com/renproject/hyperdrive/sig"
 	"golang.org/x/crypto/sha3"
@@ -56,6 +58,48 @@ func (preVote PreVote) String() string {
 	return fmt.Sprintf("PreVote(Height=%d,Round=%d,%s)", preVote.Height, preVote.Round, block)
 }
 
+func (preVote PreVote) Write(w io.Writer) error {
+	if preVote.Block == nil {
+		if err := binary.Write(w, binary.LittleEndian, uint8(0)); err != nil {
+			return err
+		}
+	} else {
+		if err := binary.Write(w, binary.LittleEndian, uint8(1)); err != nil {
+			return err
+		}
+		if err := preVote.Block.Write(w); err != nil {
+			return err
+		}
+	}
+	if err := binary.Write(w, binary.LittleEndian, preVote.Round); err != nil {
+		return err
+	}
+	if err := binary.Write(w, binary.LittleEndian, preVote.Height); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (preVote *PreVote) Read(r io.Reader) error {
+	var hasBlock uint8
+	if err := binary.Read(r, binary.LittleEndian, &hasBlock); err != nil {
+		return err
+	}
+	if hasBlock == 1 {
+		preVote.Block = new(SignedBlock)
+		if err := preVote.Block.Read(r); err != nil {
+			return err
+		}
+	}
+	if err := binary.Read(r, binary.LittleEndian, &preVote.Round); err != nil {
+		return err
+	}
+	if err := binary.Read(r, binary.LittleEndian, &preVote.Height); err != nil {
+		return err
+	}
+	return nil
+}
+
 // SignedPreVote is the signed version of a PreVote
 type SignedPreVote struct {
 	PreVote
@@ -65,6 +109,32 @@ type SignedPreVote struct {
 
 func (signedPreVote SignedPreVote) String() string {
 	return fmt.Sprintf("SignedPreVote(%s,Signature=%v,Signatory=%v)", signedPreVote.PreVote.String(), signedPreVote.Signature, signedPreVote.Signatory)
+}
+
+func (signedPreVote SignedPreVote) Write(w io.Writer) error {
+	if err := signedPreVote.PreVote.Write(w); err != nil {
+		return err
+	}
+	if err := signedPreVote.Signature.Write(w); err != nil {
+		return err
+	}
+	if err := signedPreVote.Signatory.Write(w); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (signedPreVote *SignedPreVote) Read(r io.Reader) error {
+	if err := signedPreVote.PreVote.Read(r); err != nil {
+		return err
+	}
+	if err := signedPreVote.Signature.Read(r); err != nil {
+		return err
+	}
+	if err := signedPreVote.Signatory.Read(r); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Polka is created when 2/3 of the nodes have all PreVoted for a given block.
@@ -101,6 +171,62 @@ func (polka Polka) String() string {
 		blockHeader = base64.StdEncoding.EncodeToString(polka.Block.Header[:])
 	}
 	return fmt.Sprintf("Polka(Height=%d,Round=%d,BlockHeader=%s)", polka.Height, polka.Round, blockHeader)
+}
+
+func (polka Polka) Write(w io.Writer) error {
+	if polka.Block == nil {
+		if err := binary.Write(w, binary.LittleEndian, uint8(0)); err != nil {
+			return err
+		}
+	} else {
+		if err := binary.Write(w, binary.LittleEndian, uint8(1)); err != nil {
+			return err
+		}
+		if err := polka.Block.Write(w); err != nil {
+			return err
+		}
+	}
+	if err := binary.Write(w, binary.LittleEndian, polka.Round); err != nil {
+		return err
+	}
+	if err := binary.Write(w, binary.LittleEndian, polka.Height); err != nil {
+		return err
+	}
+	if err := polka.Signatures.Write(w); err != nil {
+		return err
+	}
+	if err := polka.Signatories.Write(w); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (polka *Polka) Read(r io.Reader) error {
+	var hasBlock uint8
+	if err := binary.Read(r, binary.LittleEndian, &hasBlock); err != nil {
+		return err
+	}
+	if hasBlock == 1 {
+		polka.Block = new(SignedBlock)
+		if err := polka.Block.Read(r); err != nil {
+			return err
+		}
+	}
+	if err := binary.Read(r, binary.LittleEndian, &polka.Round); err != nil {
+		return err
+	}
+	if err := binary.Read(r, binary.LittleEndian, &polka.Height); err != nil {
+		return err
+	}
+	polka.Signatures = sig.Signatures{}
+	if err := polka.Signatures.Read(r); err != nil {
+		return err
+	}
+	polka.Signatories = sig.Signatories{}
+	if err := polka.Signatories.Read(r); err != nil {
+		return err
+	}
+	return nil
 }
 
 // PolkaBuilder is used to build up collections of SignedPreVotes at different Heights and Rounds and then build Polkas
