@@ -411,8 +411,8 @@ func generateTestCases(signer sig.SignerVerifier) []TestCase {
 		// (WaitForCommit -> WaitForPropose -> Ticked -> Ticked -> (ProposeTimedOut) -> SignedPreVote)
 		{
 			startingState: WaitingForCommit{},
-			finalState:    WaitingForPolka{},
-			finalAction:   SignedPreVote{},
+			finalState:    WaitingForPropose{},
+			finalAction:   nil,
 			finalRound:    0,
 			finalHeight:   1,
 
