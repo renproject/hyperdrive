@@ -22,7 +22,7 @@ const (
 
 // A Proposer builds a `block.Block` for proposals.
 type Proposer interface {
-	Propose() block.Block
+	Propose(block.Height, block.Round) block.Block
 }
 
 // A Validator validates a `block.Block` that has been proposed.
@@ -137,7 +137,7 @@ func (p *Process) startRound(round block.Round) {
 		if p.state.ValidBlock.Hash() != block.InvalidHash {
 			proposal = p.state.ValidBlock
 		} else {
-			proposal = p.proposer.Propose()
+			proposal = p.proposer.Propose(p.state.CurrentHeight, p.state.CurrentRound)
 		}
 		p.broadcaster.Broadcast(message.NewPropose(
 			p.signatory,
