@@ -1,166 +1,65 @@
 package replica
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/shard"
-	"github.com/renproject/hyperdrive/sig"
-	"github.com/renproject/hyperdrive/state"
+	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/hyperdrive/process/block"
+	"github.com/renproject/hyperdrive/process/message"
+	"github.com/sirupsen/logrus"
 )
 
-type Dispatcher interface {
-	Dispatch(shardHash sig.Hash, action state.Action)
+type BlockchainStorage interface {
+	block.Blockchain
+
+	LatestBlock() block.Block
+	LatestBaseBlock() block.Block
 }
 
-type Replica interface {
-	Init()
-	Sync(commit block.Commit) bool
-	Transition(transition state.Transition)
+type ProcessStateStorage interface {
+	SaveProcessState(shard Shard, p process.Process)
+	RestoreProcessState(shard Shard, p *process.Process)
 }
 
-type replica struct {
-	dispatcher Dispatcher
+type Shard [32]byte
 
-	validator              Validator
-	previousShardValidator Validator
-	stateMachine           state.Machine
-	transitionBuffer       state.TransitionBuffer
-	shardHash              sig.Hash
+type Options struct {
+	// Logging
+	Logger logrus.FieldLogger
+
+	// Timeout options for proposing, prevoting, and precommiting
+	BackOffExp  float64
+	BackOffBase time.Duration
+	BackOffMax  time.Duration
 }
 
-func New(dispatcher Dispatcher, signer sig.SignerVerifier, stateMachine state.Machine, transitionBuffer state.TransitionBuffer, shard, previousShard shard.Shard) Replica {
-	replica := &replica{
-		dispatcher: dispatcher,
-
-		validator:              NewValidator(signer, shard),
-		previousShardValidator: NewValidator(signer, previousShard),
-		stateMachine:           stateMachine,
-		transitionBuffer:       transitionBuffer,
-		shardHash:              shard.Hash,
-	}
-	return replica
+type Replica struct {
+	shard    Shard
+	p        process.Process
+	pStorage ProcessStateStorage
 }
 
-func (replica *replica) Init() {
-	replica.dispatchAction(replica.stateMachine.StartRound(0, nil))
-}
-
-func (replica *replica) Sync(commit block.Commit) bool {
-	if replica.validator.ValidateCommit(commit) {
-		if replica.stateMachine.LastBlock().Height < commit.Polka.Height {
-			replica.stateMachine.Commit(commit)
-		}
-		return true
-	}
-	return replica.previousShardValidator.ValidateCommit(commit)
-}
-
-func (replica *replica) Transition(transition state.Transition) {
-	for ok := true; ok; transition, ok = replica.transitionBuffer.Dequeue(replica.stateMachine.Height()) {
-		if replica.shouldDropTransition(transition) {
-			continue
-		}
-
-		if !replica.isTransitionValid(transition) {
-			continue
-		}
-
-		// If a `Proposed` is seen for a higher round, buffer and return immediately
-		if replica.shouldBufferTransition(transition) {
-			replica.transitionBuffer.Enqueue(transition)
-			return
-		}
-
-		replica.dispatchAction(replica.transition(transition))
+func New(options Options, shard Shard, signatory block.Signatory, blockchain block.Blockchain, pStorage ProcessStateStorage) Replica {
+	p := process.New(
+		signatory,
+		blockchain,
+		process.DefaultState(),
+		nil,
+		nil,
+		RoundRobinScheduler(nil),
+		nil,
+		BackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
+		nil,
+	)
+	pStorage.RestoreProcessState(shard, &p)
+	return Replica{
+		shard:    shard,
+		p:        p,
+		pStorage: pStorage,
 	}
 }
 
-func (replica *replica) dispatchAction(action state.Action) {
-	if action == nil {
-		return
-	}
-
-	switch action := action.(type) {
-	case state.Propose:
-		// Dispatch the Propose
-		replica.dispatcher.Dispatch(replica.shardHash, state.Propose{
-			SignedPropose: action.SignedPropose,
-		})
-		// Dispatch commits (if any)
-		if len(action.LastCommit.Signatures) > 0 {
-			replica.dispatcher.Dispatch(replica.shardHash, action.LastCommit)
-		}
-		// Transition the stateMachine
-		replica.Transition(state.Proposed{
-			SignedPropose: action.SignedPropose,
-		})
-
-	case state.SignedPreVote:
-		replica.dispatcher.Dispatch(replica.shardHash, state.SignedPreVote{
-			SignedPreVote: action.SignedPreVote,
-		})
-	case state.SignedPreCommit:
-		replica.dispatcher.Dispatch(replica.shardHash, state.SignedPreCommit{
-			SignedPreCommit: action.SignedPreCommit,
-		})
-	case state.Commit:
-		if action.Commit.Polka.Block != nil {
-			replica.dispatcher.Dispatch(replica.shardHash, action)
-		}
-	default:
-		panic(fmt.Sprintf("unexpected message %T", action))
-	}
-}
-
-func (replica *replica) isTransitionValid(transition state.Transition) bool {
-	switch transition := transition.(type) {
-	case state.Proposed:
-		return replica.validator.ValidatePropose(transition.SignedPropose)
-	case state.PreVoted:
-		return replica.validator.ValidatePreVote(transition.SignedPreVote)
-	case state.PreCommitted:
-		return replica.validator.ValidatePreCommit(transition.SignedPreCommit)
-	case state.Ticked:
-		return transition.Time.Before(time.Now())
-	}
-	return false
-}
-
-func (replica *replica) shouldDropTransition(transition state.Transition) bool {
-	switch transition := transition.(type) {
-	case state.Proposed:
-		if transition.Block.Height < replica.stateMachine.Height() || transition.Round() < replica.stateMachine.Round() {
-			return true
-		}
-	case state.PreVoted:
-		if transition.Height < replica.stateMachine.Height() || transition.Round() < replica.stateMachine.Round() {
-			return true
-		}
-	case state.PreCommitted:
-		if transition.Polka.Height < replica.stateMachine.Height() || transition.Round() < replica.stateMachine.Round() {
-			return true
-		}
-	}
-	return false
-}
-
-func (replica *replica) shouldBufferTransition(transition state.Transition) bool {
-	switch transition := transition.(type) {
-	case state.Proposed:
-		// Only buffer Proposals for higher rounds of the current height
-		if transition.Block.Height == replica.stateMachine.Height() && transition.Round() > replica.stateMachine.Round() {
-			return true
-		}
-		return false
-	default:
-		return false
-	}
-}
-
-func (replica *replica) transition(transition state.Transition) state.Action {
-	action := replica.stateMachine.Transition(transition)
-	replica.transitionBuffer.Drop(replica.stateMachine.Height())
-	return action
+func (replica *Replica) HandleMessage(m message.Message) {
+	replica.p.HandleMessage(m)
+	replica.pStorage.SaveProcessState(replica.shard, replica.p)
 }
