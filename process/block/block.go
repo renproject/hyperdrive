@@ -2,6 +2,7 @@ package block
 
 import (
 	"bytes"
+	"encoding/json"
 )
 
 type (
@@ -25,14 +26,59 @@ func (hash Hash) Equal(other Hash) bool {
 	return bytes.Equal(hash[:], other[:])
 }
 
+// MarshalJSON implements the `json.Marshaler` interface for the Hash type.
+func (hash Hash) MarshalJSON() ([]byte, error) {
+	return json.Marshal(hash[:])
+}
+
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the Hash type.
+func (hash *Hash) UnmarshalJSON(data []byte) error {
+	v := []byte{}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	copy(hash[:], v)
+	return nil
+}
+
 // Equal compares one Signature with another.
 func (sig Signature) Equal(other Signature) bool {
 	return bytes.Equal(sig[:], other[:])
 }
 
+// MarshalJSON implements the `json.Marshaler` interface for the Signature type.
+func (sig Signature) MarshalJSON() ([]byte, error) {
+	return json.Marshal(sig[:])
+}
+
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the Signature type.
+func (sig *Signature) UnmarshalJSON(data []byte) error {
+	v := []byte{}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	copy(sig[:], v)
+	return nil
+}
+
 // Equal compares one Signatory with another.
 func (sig Signatory) Equal(other Signatory) bool {
 	return bytes.Equal(sig[:], other[:])
+}
+
+// MarshalJSON implements the `json.Marshaler` interface for the Signatory type.
+func (sig Signatory) MarshalJSON() ([]byte, error) {
+	return json.Marshal(sig[:])
+}
+
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the Signatory type.
+func (sig *Signatory) UnmarshalJSON(data []byte) error {
+	v := []byte{}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	copy(sig[:], v)
+	return nil
 }
 
 // Kind defines the different kinds of Block that exist.
@@ -70,6 +116,51 @@ type Header struct {
 	signatories Signatories
 }
 
+// MarshalJSON implements the `json.Marshaler` interface for the Header type.
+func (header Header) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Kind        Kind        `json:"kind"`
+		ParentHash  Hash        `json:"parentHash"`
+		BaseHash    Hash        `json:"baseHash"`
+		Height      Height      `json:"height"`
+		Round       Round       `json:"round"`
+		Timestamp   Timestamp   `json:"timestamp"`
+		Signatories Signatories `json:"signatories"`
+	}{
+		header.kind,
+		header.parentHash,
+		header.baseHash,
+		header.height,
+		header.round,
+		header.timestamp,
+		header.signatories,
+	})
+}
+
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the Header type.
+func (header *Header) UnmarshalJSON(data []byte) error {
+	tmp := struct {
+		Kind        Kind        `json:"kind"`
+		ParentHash  Hash        `json:"parentHash"`
+		BaseHash    Hash        `json:"baseHash"`
+		Height      Height      `json:"height"`
+		Round       Round       `json:"round"`
+		Timestamp   Timestamp   `json:"timestamp"`
+		Signatories Signatories `json:"signatories"`
+	}{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	header.kind = tmp.Kind
+	header.parentHash = tmp.ParentHash
+	header.baseHash = tmp.BaseHash
+	header.height = tmp.Height
+	header.round = tmp.Round
+	header.timestamp = tmp.Timestamp
+	header.signatories = tmp.Signatories
+	return nil
+}
+
 // Data stores application-specific information used in Blocks and Notes (must
 // be nil in Rebase Blocks and Base Blocks).
 type Data []byte
@@ -88,6 +179,31 @@ type Notes []Note
 type Note struct {
 	hash    Hash // Hash of the Note content
 	content Data // Application-specific data stored in the Note
+}
+
+// MarshalJSON implements the `json.Marshaler` interface for the Note type.
+func (note Note) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Hash    Hash `json:"hash"`
+		Content Data `json:"content"`
+	}{
+		note.hash,
+		note.content,
+	})
+}
+
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the Note type.
+func (note *Note) UnmarshalJSON(data []byte) error {
+	tmp := struct {
+		Hash    Hash `json:"hash"`
+		Content Data `json:"content"`
+	}{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	note.hash = tmp.Hash
+	note.content = tmp.Content
+	return nil
 }
 
 // Equal compares one Note with another by checking that their Hashes are the
@@ -118,6 +234,39 @@ func (block Block) Hash() Hash {
 // equal, and their Notes are equal.
 func (block Block) Equal(other Block) bool {
 	return block.hash.Equal(other.hash) && block.note.Equal(other.note)
+}
+
+// MarshalJSON implements the `json.Marshaler` interface for the Block type.
+func (block Block) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Hash    Hash   `json:"hash"`
+		Header  Header `json:"header"`
+		Content Data   `json:"content"`
+		Note    Note   `json:"note"`
+	}{
+		block.hash,
+		block.header,
+		block.content,
+		block.note,
+	})
+}
+
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the Block type.
+func (block *Block) UnmarshalJSON(data []byte) error {
+	tmp := struct {
+		Hash    Hash   `json:"hash"`
+		Header  Header `json:"header"`
+		Content Data   `json:"content"`
+		Note    Note   `json:"note"`
+	}{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	block.hash = tmp.Hash
+	block.header = tmp.Header
+	block.content = tmp.Content
+	block.note = tmp.Note
+	return nil
 }
 
 // Timestamp represents seconds since Unix Epoch.

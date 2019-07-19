@@ -1,6 +1,8 @@
 package message
 
 import (
+	"encoding/json"
+
 	"github.com/renproject/hyperdrive/process/block"
 )
 
@@ -57,6 +59,43 @@ func (propose Propose) ValidRound() block.Round {
 	return propose.validRound
 }
 
+// MarshalJSON implements the `json.Marshaler` interface for the Propose type.
+func (propose Propose) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Signatory  block.Signatory `json:"signatory"`
+		Height     block.Height    `json:"height"`
+		Round      block.Round     `json:"round"`
+		Block      block.Block     `json:"block"`
+		ValidRound block.Round     `json:"validRound"`
+	}{
+		propose.signatory,
+		propose.height,
+		propose.round,
+		propose.block,
+		propose.validRound,
+	})
+}
+
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the Propose type.
+func (propose *Propose) UnmarshalJSON(data []byte) error {
+	tmp := struct {
+		Signatory  block.Signatory `json:"signatory"`
+		Height     block.Height    `json:"height"`
+		Round      block.Round     `json:"round"`
+		Block      block.Block     `json:"block"`
+		ValidRound block.Round     `json:"validRound"`
+	}{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	propose.signatory = tmp.Signatory
+	propose.height = tmp.Height
+	propose.round = tmp.Round
+	propose.block = tmp.Block
+	propose.validRound = tmp.ValidRound
+	return nil
+}
+
 type Prevotes []Prevote
 
 type Prevote struct {
@@ -91,6 +130,39 @@ func (prevote Prevote) BlockHash() block.Hash {
 	return prevote.blockHash
 }
 
+// MarshalJSON implements the `json.Marshaler` interface for the Prevote type.
+func (prevote Prevote) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Signatory block.Signatory `json:"signatory"`
+		Height    block.Height    `json:"height"`
+		Round     block.Round     `json:"round"`
+		BlockHash block.Hash      `json:"blockHash"`
+	}{
+		prevote.signatory,
+		prevote.height,
+		prevote.round,
+		prevote.blockHash,
+	})
+}
+
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the Prevote type.
+func (prevote *Prevote) UnmarshalJSON(data []byte) error {
+	tmp := struct {
+		Signatory block.Signatory `json:"signatory"`
+		Height    block.Height    `json:"height"`
+		Round     block.Round     `json:"round"`
+		BlockHash block.Hash      `json:"blockHash"`
+	}{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	prevote.signatory = tmp.Signatory
+	prevote.height = tmp.Height
+	prevote.round = tmp.Round
+	prevote.blockHash = tmp.BlockHash
+	return nil
+}
+
 type Precommits []Precommit
 
 type Precommit struct {
@@ -123,6 +195,39 @@ func (precommit Precommit) Round() block.Round {
 
 func (precommit Precommit) BlockHash() block.Hash {
 	return precommit.blockHash
+}
+
+// MarshalJSON implements the `json.Marshaler` interface for the Precommit type.
+func (precommit Precommit) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Signatory block.Signatory `json:"signatory"`
+		Height    block.Height    `json:"height"`
+		Round     block.Round     `json:"round"`
+		BlockHash block.Hash      `json:"blockHash"`
+	}{
+		precommit.signatory,
+		precommit.height,
+		precommit.round,
+		precommit.blockHash,
+	})
+}
+
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the Precommit type.
+func (precommit *Precommit) UnmarshalJSON(data []byte) error {
+	tmp := struct {
+		Signatory block.Signatory `json:"signatory"`
+		Height    block.Height    `json:"height"`
+		Round     block.Round     `json:"round"`
+		BlockHash block.Hash      `json:"blockHash"`
+	}{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	precommit.signatory = tmp.Signatory
+	precommit.height = tmp.Height
+	precommit.round = tmp.Round
+	precommit.blockHash = tmp.BlockHash
+	return nil
 }
 
 type Inbox struct {
@@ -185,4 +290,29 @@ func (inbox *Inbox) QueryByHeightRound(height block.Height, round block.Round) (
 
 func (inbox *Inbox) F() int {
 	return inbox.f
+}
+
+// MarshalJSON implements the `json.Marshaler` interface for the Inbox type.
+func (inbox Inbox) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		F        int                                                          `json:"f"`
+		Messages map[block.Height]map[block.Round]map[block.Signatory]Message `json:"messages"`
+	}{
+		inbox.f,
+		inbox.messages,
+	})
+}
+
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the Inbox type.
+func (inbox *Inbox) UnmarshalJSON(data []byte) error {
+	tmp := struct {
+		F        int                                                          `json:"f"`
+		Messages map[block.Height]map[block.Round]map[block.Signatory]Message `json:"messages"`
+	}{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	inbox.f = tmp.F
+	inbox.messages = tmp.Messages
+	return nil
 }
