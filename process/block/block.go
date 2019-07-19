@@ -2,7 +2,12 @@ package block
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"time"
+
+	"golang.org/x/crypto/sha3"
 )
 
 type (
@@ -26,6 +31,11 @@ func (hash Hash) Equal(other Hash) bool {
 	return bytes.Equal(hash[:], other[:])
 }
 
+// String implements the `fmt.Stringer` interface for the Hash type.
+func (hash Hash) String() string {
+	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(hash[:])
+}
+
 // MarshalJSON implements the `json.Marshaler` interface for the Hash type.
 func (hash Hash) MarshalJSON() ([]byte, error) {
 	return json.Marshal(hash[:])
@@ -46,6 +56,11 @@ func (sig Signature) Equal(other Signature) bool {
 	return bytes.Equal(sig[:], other[:])
 }
 
+// String implements the `fmt.Stringer` interface for the Hash type.
+func (sig Signature) String() string {
+	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(sig[:])
+}
+
 // MarshalJSON implements the `json.Marshaler` interface for the Signature type.
 func (sig Signature) MarshalJSON() ([]byte, error) {
 	return json.Marshal(sig[:])
@@ -61,9 +76,28 @@ func (sig *Signature) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (sigs Signatures) Hash() Hash {
+	data := make([]byte, 0, 65*len(sigs))
+	for _, sig := range sigs {
+		data = append(data, sig[:]...)
+	}
+	return Hash(sha3.Sum256(data))
+}
+
+// String implements the `fmt.Stringer` interface for the Signatures type.
+func (sigs Signatures) String() string {
+	hash := sigs.Hash()
+	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(hash[:])
+}
+
 // Equal compares one Signatory with another.
 func (sig Signatory) Equal(other Signatory) bool {
 	return bytes.Equal(sig[:], other[:])
+}
+
+// String implements the `fmt.Stringer` interface for the Hash type.
+func (sig Signatory) String() string {
+	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(sig[:])
 }
 
 // MarshalJSON implements the `json.Marshaler` interface for the Signatory type.
@@ -81,25 +115,54 @@ func (sig *Signatory) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (sigs Signatories) Hash() Hash {
+	data := make([]byte, 0, 32*len(sigs))
+	for _, sig := range sigs {
+		data = append(data, sig[:]...)
+	}
+	return Hash(sha3.Sum256(data))
+}
+
+// String implements the `fmt.Stringer` interface for the Signatories type.
+func (sigs Signatories) String() string {
+	hash := sigs.Hash()
+	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(hash[:])
+}
+
 // Kind defines the different kinds of Block that exist.
 type Kind uint8
 
 const (
 	// Invalid define an invalid Kind that should not be used.
 	Invalid = iota
-	// Basic defines the Kind used for Blocks that represents the need for
+	// Standard defines the Kind used for Blocks that represents the need for
 	// consensus on application-specific Data. Blocks of this Kind must have nil
-	// Signatories in the Header. This is the most common Kind.
-	Basic
+	// Header Signatories. This is the most common Kind.
+	Standard
 	// Rebase defines the Kind used for Blocks that change the Signatories
 	// overseeing the consensus algorithm. Blocks of this Kind must have nil
-	// Data, and must not have nil Signatories in the Header.
+	// Data, and must not have nil Header Signatories.
 	Rebase
 	// Base defines the Kind used for Blocks that immediately proceed a Rebase.
 	// Blocks of this Kind are only used to reach finality on a Rebase; must
-	// have nil Data, nil Signatories in the Header, nil Note.
+	// have nil Data, and must have the same Header Signatories as their parent
+	// Block.
 	Base
 )
+
+// String implements the `fmt.Stringer` interface for the Kind type.
+func (kind Kind) String() string {
+	switch kind {
+	case Standard:
+		return "standard"
+	case Rebase:
+		return "rebase"
+	case Base:
+		return "base"
+	default:
+		panic(fmt.Errorf("invariant violation: unexpected kind=%d", uint8(kind)))
+	}
+}
 
 // A Header defines properties of a Block that are not application-specific.
 // These properties are required by, or produced by, the consensus algorithm.
@@ -114,6 +177,49 @@ type Header struct {
 	// Signatories oversee the consensus algorithm (must be nil unless the Block
 	// is a Rebase Block)
 	signatories Signatories
+}
+
+func NewHeader(kind Kind, parentHash Hash, baseHash Hash, height Height, round Round, timestamp Timestamp, signatories Signatories) Header {
+	if kind == Standard && signatories != nil {
+		panic("pre-condition violation: standard blocks must have nil signatories")
+	}
+	if Timestamp(time.Now().Unix()) > timestamp {
+		panic("pre-condition violation: now must be after timestamp")
+	}
+
+	return Header{
+		kind:        kind,
+		parentHash:  parentHash,
+		baseHash:    baseHash,
+		height:      height,
+		round:       round,
+		timestamp:   timestamp,
+		signatories: signatories,
+	}
+}
+
+// Kind of the Block.
+func (header Header) Kind() Kind {
+	return header.kind
+}
+
+// Signatories of the Block.
+func (header Header) Signatories() Signatories {
+	return header.signatories
+}
+
+// String implements the `fmt.Stringer` interface for the Header type.
+func (header Header) String() string {
+	return fmt.Sprintf(
+		"Header(Kind=%v,ParentHash=%v,BaseHash=%v,Height=%v,Round=%v,Timestamp=%v,Signatories=%v)",
+		header.kind,
+		header.parentHash,
+		header.baseHash,
+		header.height,
+		header.round,
+		header.timestamp,
+		header.signatories,
+	)
 }
 
 // MarshalJSON implements the `json.Marshaler` interface for the Header type.
@@ -164,6 +270,11 @@ func (header *Header) UnmarshalJSON(data []byte) error {
 // Data stores application-specific information used in Blocks and Notes (must
 // be nil in Rebase Blocks and Base Blocks).
 type Data []byte
+
+// String implements the `fmt.Stringer` interface for the Data type.
+func (data Data) String() string {
+	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(data)
+}
 
 // Notes defines a wrapper type around the []Note type.
 type Notes []Note
@@ -225,9 +336,37 @@ type Block struct {
 	note    Note // A valid Note is required before proceeding Blocks can proposed
 }
 
+func New(header Header, content Data) Block {
+	block := Block{
+		header:  header,
+		content: content,
+	}
+	block.hash = Hash(sha3.Sum256([]byte(block.String())))
+	return block
+}
+
+func (block *Block) AppendNote(note Note) {
+	block.note = note
+}
+
 // Hash of the Header and content.
 func (block Block) Hash() Hash {
 	return block.hash
+}
+
+// Header of the Block.
+func (block Block) Header() Header {
+	return block.header
+}
+
+// Note appended to the Block.
+func (block Block) Note() Note {
+	return block.note
+}
+
+// String implements the `fmt.Stringer` interface for the Block type.
+func (block Block) String() string {
+	return fmt.Sprintf("Block(Header=%v,Content=%v)", block.header, block.content)
 }
 
 // Equal compares one Block with another by checking that their Hashes are the
