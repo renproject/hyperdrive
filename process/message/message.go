@@ -1,45 +1,29 @@
 package message
 
 import (
-	"bytes"
-
-	"github.com/renproject/hyperdrive/automaton/block"
+	"github.com/renproject/hyperdrive/process/block"
 )
 
-type (
-	Digest    [32]byte
-	Signature [65]byte
-	Signatory [20]byte
-)
-
-func (digest Digest) Equal(other Digest) bool {
-	return bytes.Equal(digest[:], other[:])
-}
-
-func (sig Signature) Equal(other Signature) bool {
-	return bytes.Equal(sig[:], other[:])
-}
-
-func (sig Signatory) Equal(other Signatory) bool {
-	return bytes.Equal(sig[:], other[:])
-}
+type Messages []Message
 
 type Message interface {
-	Signatory() Signatory
+	Signatory() block.Signatory
 	Height() block.Height
 	Round() block.Round
 	BlockHash() block.Hash
 }
 
+type Proposes []Propose
+
 type Propose struct {
-	signatory  Signatory
+	signatory  block.Signatory
 	height     block.Height
 	round      block.Round
 	block      block.Block
 	validRound block.Round
 }
 
-func NewPropose(signatory Signatory, height block.Height, round block.Round, block block.Block, validRound block.Round) Propose {
+func NewPropose(signatory block.Signatory, height block.Height, round block.Round, block block.Block, validRound block.Round) Propose {
 	return Propose{
 		signatory:  signatory,
 		height:     height,
@@ -49,7 +33,7 @@ func NewPropose(signatory Signatory, height block.Height, round block.Round, blo
 	}
 }
 
-func (propose Propose) Signatory() Signatory {
+func (propose Propose) Signatory() block.Signatory {
 	return propose.signatory
 }
 
@@ -73,14 +57,16 @@ func (propose Propose) ValidRound() block.Round {
 	return propose.validRound
 }
 
+type Prevotes []Prevote
+
 type Prevote struct {
-	signatory Signatory
+	signatory block.Signatory
 	height    block.Height
 	round     block.Round
 	blockHash block.Hash
 }
 
-func NewPrevote(signatory Signatory, height block.Height, round block.Round, blockHash block.Hash) Prevote {
+func NewPrevote(signatory block.Signatory, height block.Height, round block.Round, blockHash block.Hash) Prevote {
 	return Prevote{
 		signatory: signatory,
 		height:    height,
@@ -89,7 +75,7 @@ func NewPrevote(signatory Signatory, height block.Height, round block.Round, blo
 	}
 }
 
-func (prevote Prevote) Signatory() Signatory {
+func (prevote Prevote) Signatory() block.Signatory {
 	return prevote.signatory
 }
 
@@ -105,14 +91,16 @@ func (prevote Prevote) BlockHash() block.Hash {
 	return prevote.blockHash
 }
 
+type Precommits []Precommit
+
 type Precommit struct {
-	signatory Signatory
+	signatory block.Signatory
 	height    block.Height
 	round     block.Round
 	blockHash block.Hash
 }
 
-func NewPrecommit(signatory Signatory, height block.Height, round block.Round, blockHash block.Hash) Precommit {
+func NewPrecommit(signatory block.Signatory, height block.Height, round block.Round, blockHash block.Hash) Precommit {
 	return Precommit{
 		signatory: signatory,
 		height:    height,
@@ -121,7 +109,7 @@ func NewPrecommit(signatory Signatory, height block.Height, round block.Round, b
 	}
 }
 
-func (precommit Precommit) Signatory() Signatory {
+func (precommit Precommit) Signatory() block.Signatory {
 	return precommit.signatory
 }
 
@@ -139,22 +127,23 @@ func (precommit Precommit) BlockHash() block.Hash {
 
 type Inbox struct {
 	f        int
-	messages map[block.Height]map[block.Round]map[Signatory]Message
+	messages map[block.Height]map[block.Round]map[block.Signatory]Message
 }
 
-func (inbox *Inbox) Insert(message Message) (n int, didExceedF bool, didExceed2F bool) {
+func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedingF bool, firstTimeExceeding2F bool) {
 	if _, ok := inbox.messages[message.Height()]; !ok {
-		inbox.messages[message.Height()] = map[block.Round]map[Signatory]Message{}
+		inbox.messages[message.Height()] = map[block.Round]map[block.Signatory]Message{}
 	}
 	if _, ok := inbox.messages[message.Height()][message.Round()]; !ok {
-		inbox.messages[message.Height()][message.Round()] = map[Signatory]Message{}
+		inbox.messages[message.Height()][message.Round()] = map[block.Signatory]Message{}
 	}
 
 	previousN := len(inbox.messages[message.Height()][message.Round()])
 	inbox.messages[message.Height()][message.Round()][message.Signatory()] = message
 	n = len(inbox.messages[message.Height()][message.Round()])
-	didExceedF = (previousN < inbox.f+1) && (n > inbox.f)
-	didExceed2F = (previousN < 2*inbox.f+1) && (n > 2*inbox.f)
+	firstTime = (previousN == 0) && (n == 1)
+	firstTimeExceedingF = (previousN < inbox.f+1) && (n > inbox.f)
+	firstTimeExceeding2F = (previousN < 2*inbox.f+1) && (n > 2*inbox.f)
 	return
 }
 
@@ -173,7 +162,7 @@ func (inbox *Inbox) QueryByHeightRoundBlockHash(height block.Height, round block
 	return
 }
 
-func (inbox *Inbox) QueryByHeightRoundSignatory(height block.Height, round block.Round, sig Signatory) Message {
+func (inbox *Inbox) QueryByHeightRoundSignatory(height block.Height, round block.Round, sig block.Signatory) Message {
 	if _, ok := inbox.messages[height]; !ok {
 		return nil
 	}
