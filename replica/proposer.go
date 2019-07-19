@@ -32,6 +32,8 @@ type blockProposer struct {
 }
 
 func (proposer *blockProposer) Propose(height block.Height, round block.Round) block.Block {
+	// FIXME: Support building a re-basing block.
+
 	parent := proposer.blockStorage.LatestBlock()
 	base := proposer.blockStorage.LatestBaseBlock()
 	if base.Header().Kind() != block.Base {
