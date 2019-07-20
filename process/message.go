@@ -1,4 +1,4 @@
-package message
+package process
 
 import (
 	"crypto/ecdsa"
@@ -7,24 +7,25 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/id"
 	"golang.org/x/crypto/sha3"
 )
 
 type Messages []Message
 
 type Message interface {
-	Signatory() block.Signatory
-	SigHash() block.Hash
-	Sig() block.Signature
+	Signatory() id.Signatory
+	SigHash() id.Hash
+	Sig() id.Signature
 
 	Height() block.Height
 	Round() block.Round
-	BlockHash() block.Hash
+	BlockHash() id.Hash
 }
 
 func Sign(m Message, privKey ecdsa.PrivateKey) error {
 	sigHash := m.SigHash()
-	signatory := block.NewSignatory(privKey.PublicKey)
+	signatory := id.NewSignatory(privKey.PublicKey)
 	sig, err := crypto.Sign(sigHash[:], &privKey)
 	if err != nil {
 		return fmt.Errorf("invariant violation: error signing message: %v", err)
@@ -52,7 +53,7 @@ func Verify(m Message) error {
 		return fmt.Errorf("error verifying message: %v", err)
 	}
 
-	signatory := block.NewSignatory(*pubKey)
+	signatory := id.NewSignatory(*pubKey)
 	if !m.Signatory().Equal(signatory) {
 		return fmt.Errorf("bad signatory: expected signatory=%v, got signatory=%v", m.Signatory, signatory)
 	}
@@ -62,8 +63,8 @@ func Verify(m Message) error {
 type Proposes []Propose
 
 type Propose struct {
-	signatory  block.Signatory
-	sig        block.Signature
+	signatory  id.Signatory
+	sig        id.Signature
 	height     block.Height
 	round      block.Round
 	block      block.Block
@@ -79,19 +80,19 @@ func NewPropose(height block.Height, round block.Round, block block.Block, valid
 	}
 }
 
-func (propose *Propose) Signatory() block.Signatory {
+func (propose *Propose) Signatory() id.Signatory {
 	return propose.signatory
 }
 
-func (propose *Propose) SigHash() block.Hash {
+func (propose *Propose) SigHash() id.Hash {
 	return sha3.Sum256([]byte(fmt.Sprintf("Propose(Height=%v,Round=%v,BlockHash=%v,ValidRound=%v)", propose.Height, propose.Round, propose.BlockHash, propose.ValidRound)))
 }
 
-func (propose *Propose) Sig() block.Signature {
+func (propose *Propose) Sig() id.Signature {
 	return propose.sig
 }
 
-func (propose *Propose) Sign(sig block.Signature, signatory block.Signatory) {
+func (propose *Propose) Sign(sig id.Signature, signatory id.Signatory) {
 	propose.sig = sig
 	propose.signatory = signatory
 }
@@ -104,7 +105,7 @@ func (propose *Propose) Round() block.Round {
 	return propose.round
 }
 
-func (propose *Propose) BlockHash() block.Hash {
+func (propose *Propose) BlockHash() id.Hash {
 	return propose.block.Hash()
 }
 
@@ -119,12 +120,12 @@ func (propose *Propose) ValidRound() block.Round {
 // MarshalJSON implements the `json.Marshaler` interface for the Propose type.
 func (propose *Propose) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Sig        block.Signature `json:"sig"`
-		Signatory  block.Signatory `json:"signatory"`
-		Height     block.Height    `json:"height"`
-		Round      block.Round     `json:"round"`
-		Block      block.Block     `json:"block"`
-		ValidRound block.Round     `json:"validRound"`
+		Sig        id.Signature `json:"sig"`
+		Signatory  id.Signatory `json:"signatory"`
+		Height     block.Height `json:"height"`
+		Round      block.Round  `json:"round"`
+		Block      block.Block  `json:"block"`
+		ValidRound block.Round  `json:"validRound"`
 	}{
 		propose.sig,
 		propose.signatory,
@@ -138,12 +139,12 @@ func (propose *Propose) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Propose type.
 func (propose *Propose) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		Sig        block.Signature `json:"sig"`
-		Signatory  block.Signatory `json:"signatory"`
-		Height     block.Height    `json:"height"`
-		Round      block.Round     `json:"round"`
-		Block      block.Block     `json:"block"`
-		ValidRound block.Round     `json:"validRound"`
+		Sig        id.Signature `json:"sig"`
+		Signatory  id.Signatory `json:"signatory"`
+		Height     block.Height `json:"height"`
+		Round      block.Round  `json:"round"`
+		Block      block.Block  `json:"block"`
+		ValidRound block.Round  `json:"validRound"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
@@ -160,14 +161,14 @@ func (propose *Propose) UnmarshalJSON(data []byte) error {
 type Prevotes []Prevote
 
 type Prevote struct {
-	signatory block.Signatory
-	sig       block.Signature
+	signatory id.Signatory
+	sig       id.Signature
 	height    block.Height
 	round     block.Round
-	blockHash block.Hash
+	blockHash id.Hash
 }
 
-func NewPrevote(height block.Height, round block.Round, blockHash block.Hash) *Prevote {
+func NewPrevote(height block.Height, round block.Round, blockHash id.Hash) *Prevote {
 	return &Prevote{
 		height:    height,
 		round:     round,
@@ -175,15 +176,15 @@ func NewPrevote(height block.Height, round block.Round, blockHash block.Hash) *P
 	}
 }
 
-func (prevote *Prevote) Signatory() block.Signatory {
+func (prevote *Prevote) Signatory() id.Signatory {
 	return prevote.signatory
 }
 
-func (prevote *Prevote) SigHash() block.Hash {
+func (prevote *Prevote) SigHash() id.Hash {
 	return sha3.Sum256([]byte(fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v)", prevote.Height, prevote.Round, prevote.BlockHash)))
 }
 
-func (prevote *Prevote) Sig() block.Signature {
+func (prevote *Prevote) Sig() id.Signature {
 	return prevote.sig
 }
 
@@ -195,18 +196,18 @@ func (prevote *Prevote) Round() block.Round {
 	return prevote.round
 }
 
-func (prevote *Prevote) BlockHash() block.Hash {
+func (prevote *Prevote) BlockHash() id.Hash {
 	return prevote.blockHash
 }
 
 // MarshalJSON implements the `json.Marshaler` interface for the Prevote type.
 func (prevote Prevote) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Sig       block.Signature `json:"sig"`
-		Signatory block.Signatory `json:"signatory"`
-		Height    block.Height    `json:"height"`
-		Round     block.Round     `json:"round"`
-		BlockHash block.Hash      `json:"blockHash"`
+		Sig       id.Signature `json:"sig"`
+		Signatory id.Signatory `json:"signatory"`
+		Height    block.Height `json:"height"`
+		Round     block.Round  `json:"round"`
+		BlockHash id.Hash      `json:"blockHash"`
 	}{
 		prevote.sig,
 		prevote.signatory,
@@ -219,11 +220,11 @@ func (prevote Prevote) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Prevote type.
 func (prevote *Prevote) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		Sig       block.Signature `json:"sig"`
-		Signatory block.Signatory `json:"signatory"`
-		Height    block.Height    `json:"height"`
-		Round     block.Round     `json:"round"`
-		BlockHash block.Hash      `json:"blockHash"`
+		Sig       id.Signature `json:"sig"`
+		Signatory id.Signatory `json:"signatory"`
+		Height    block.Height `json:"height"`
+		Round     block.Round  `json:"round"`
+		BlockHash id.Hash      `json:"blockHash"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
@@ -239,14 +240,14 @@ func (prevote *Prevote) UnmarshalJSON(data []byte) error {
 type Precommits []Precommit
 
 type Precommit struct {
-	signatory block.Signatory
-	sig       block.Signature
+	signatory id.Signatory
+	sig       id.Signature
 	height    block.Height
 	round     block.Round
-	blockHash block.Hash
+	blockHash id.Hash
 }
 
-func NewPrecommit(height block.Height, round block.Round, blockHash block.Hash) *Precommit {
+func NewPrecommit(height block.Height, round block.Round, blockHash id.Hash) *Precommit {
 	return &Precommit{
 		height:    height,
 		round:     round,
@@ -254,15 +255,15 @@ func NewPrecommit(height block.Height, round block.Round, blockHash block.Hash) 
 	}
 }
 
-func (precommit *Precommit) Signatory() block.Signatory {
+func (precommit *Precommit) Signatory() id.Signatory {
 	return precommit.signatory
 }
 
-func (precommit *Precommit) SigHash() block.Hash {
+func (precommit *Precommit) SigHash() id.Hash {
 	return sha3.Sum256([]byte(fmt.Sprintf("Precommit(Height=%v,Round=%v,BlockHash=%v)", precommit.Height, precommit.Round, precommit.BlockHash)))
 }
 
-func (precommit *Precommit) Sig() block.Signature {
+func (precommit *Precommit) Sig() id.Signature {
 	return precommit.sig
 }
 
@@ -274,18 +275,18 @@ func (precommit *Precommit) Round() block.Round {
 	return precommit.round
 }
 
-func (precommit *Precommit) BlockHash() block.Hash {
+func (precommit *Precommit) BlockHash() id.Hash {
 	return precommit.blockHash
 }
 
 // MarshalJSON implements the `json.Marshaler` interface for the Precommit type.
 func (precommit *Precommit) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Sig       block.Signature `json:"sig"`
-		Signatory block.Signatory `json:"signatory"`
-		Height    block.Height    `json:"height"`
-		Round     block.Round     `json:"round"`
-		BlockHash block.Hash      `json:"blockHash"`
+		Sig       id.Signature `json:"sig"`
+		Signatory id.Signatory `json:"signatory"`
+		Height    block.Height `json:"height"`
+		Round     block.Round  `json:"round"`
+		BlockHash id.Hash      `json:"blockHash"`
 	}{
 		precommit.sig,
 		precommit.signatory,
@@ -298,11 +299,11 @@ func (precommit *Precommit) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Precommit type.
 func (precommit *Precommit) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		Sig       block.Signature `json:"sig"`
-		Signatory block.Signatory `json:"signatory"`
-		Height    block.Height    `json:"height"`
-		Round     block.Round     `json:"round"`
-		BlockHash block.Hash      `json:"blockHash"`
+		Sig       id.Signature `json:"sig"`
+		Signatory id.Signatory `json:"signatory"`
+		Height    block.Height `json:"height"`
+		Round     block.Round  `json:"round"`
+		BlockHash id.Hash      `json:"blockHash"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
@@ -317,15 +318,15 @@ func (precommit *Precommit) UnmarshalJSON(data []byte) error {
 
 type Inbox struct {
 	f        int
-	messages map[block.Height]map[block.Round]map[block.Signatory]Message
+	messages map[block.Height]map[block.Round]map[id.Signatory]Message
 }
 
-func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedingF bool, firstTimeExceeding2F bool) {
+func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedingF, firstTimeExceeding2F bool) {
 	if _, ok := inbox.messages[message.Height()]; !ok {
-		inbox.messages[message.Height()] = map[block.Round]map[block.Signatory]Message{}
+		inbox.messages[message.Height()] = map[block.Round]map[id.Signatory]Message{}
 	}
 	if _, ok := inbox.messages[message.Height()][message.Round()]; !ok {
-		inbox.messages[message.Height()][message.Round()] = map[block.Signatory]Message{}
+		inbox.messages[message.Height()][message.Round()] = map[id.Signatory]Message{}
 	}
 
 	previousN := len(inbox.messages[message.Height()][message.Round()])
@@ -337,7 +338,7 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	return
 }
 
-func (inbox *Inbox) QueryByHeightRoundBlockHash(height block.Height, round block.Round, blockHash block.Hash) (n int) {
+func (inbox *Inbox) QueryByHeightRoundBlockHash(height block.Height, round block.Round, blockHash id.Hash) (n int) {
 	if _, ok := inbox.messages[height]; !ok {
 		return
 	}
@@ -352,7 +353,7 @@ func (inbox *Inbox) QueryByHeightRoundBlockHash(height block.Height, round block
 	return
 }
 
-func (inbox *Inbox) QueryByHeightRoundSignatory(height block.Height, round block.Round, sig block.Signatory) Message {
+func (inbox *Inbox) QueryByHeightRoundSignatory(height block.Height, round block.Round, sig id.Signatory) Message {
 	if _, ok := inbox.messages[height]; !ok {
 		return nil
 	}
@@ -380,8 +381,8 @@ func (inbox *Inbox) F() int {
 // MarshalJSON implements the `json.Marshaler` interface for the Inbox type.
 func (inbox Inbox) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		F        int                                                          `json:"f"`
-		Messages map[block.Height]map[block.Round]map[block.Signatory]Message `json:"messages"`
+		F        int                                                       `json:"f"`
+		Messages map[block.Height]map[block.Round]map[id.Signatory]Message `json:"messages"`
 	}{
 		inbox.f,
 		inbox.messages,
@@ -391,8 +392,8 @@ func (inbox Inbox) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Inbox type.
 func (inbox *Inbox) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		F        int                                                          `json:"f"`
-		Messages map[block.Height]map[block.Round]map[block.Signatory]Message `json:"messages"`
+		F        int                                                       `json:"f"`
+		Messages map[block.Height]map[block.Round]map[id.Signatory]Message `json:"messages"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err

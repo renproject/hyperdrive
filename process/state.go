@@ -2,7 +2,6 @@ package process
 
 import (
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/message"
 )
 
 // The State of a Process. It is isolated from the Process so that it can be
@@ -17,9 +16,9 @@ type State struct {
 	ValidBlock  block.Block `json:"validBlock"`
 	ValidRound  block.Round `json:"validRound"`
 
-	Proposals  message.Inbox `json:"proposals"`
-	Prevotes   message.Inbox `json:"prevotes"`
-	Precommits message.Inbox `json:"precommits"`
+	Proposals  Inbox `json:"proposals"`
+	Prevotes   Inbox `json:"prevotes"`
+	Precommits Inbox `json:"precommits"`
 }
 
 // DefaultState returns a State with all values set to the default. See
