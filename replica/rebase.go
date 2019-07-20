@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/id"
 	"github.com/renproject/hyperdrive/process"
 )
 
@@ -13,25 +14,38 @@ import (
 // functionality to load the last committed `block.Standard`, and the last
 // committed `block.Base`.
 type BlockStorage interface {
-	block.Blockchain
+	process.Blockchain
 
 	LatestBlock() block.Block
 	LatestBaseBlock() block.Block
 }
 
 type BlockDataIterator interface {
-	Next(block.Kind) block.Data
+	NextBlockData(block.Kind, Shard) block.Data
 }
 
-type ShardRebaser interface {
-	process.Proposer
-	process.Validator
-	process.Observer
-
-	Rebase(toSigs block.Signatories)
+type Validator interface {
+	IsBlockValid(block.Block, Shard) bool
 }
 
-func NewShardRebaser(blockStorage BlockStorage, blockDataIterator BlockDataIterator, validator process.Validator, observer process.Observer) ShardRebaser {
+type Observer interface {
+	DidCommitBlock(block.Height, Shard)
+}
+
+type shardRebaser struct {
+	mu *sync.Mutex
+
+	expectedKind       block.Kind
+	expectedRebaseSigs id.Signatories
+
+	blockStorage      BlockStorage
+	blockDataIterator BlockDataIterator
+	validator         Validator
+	observer          Observer
+	shard             Shard
+}
+
+func newShardRebaser(blockStorage BlockStorage, blockDataIterator BlockDataIterator, validator Validator, observer Observer, shard Shard) *shardRebaser {
 	return &shardRebaser{
 		mu: new(sync.Mutex),
 
@@ -45,23 +59,12 @@ func NewShardRebaser(blockStorage BlockStorage, blockDataIterator BlockDataItera
 	}
 }
 
-type shardRebaser struct {
-	mu *sync.Mutex
-
-	expectedKind       block.Kind
-	expectedRebaseSigs block.Signatories
-
-	blockStorage      BlockStorage
-	blockDataIterator BlockDataIterator
-	validator         process.Validator
-	observer          process.Observer
-}
-
-func (rebaser *shardRebaser) Rebase(sigs block.Signatories) {
+func (rebaser *shardRebaser) Rebase(sigs id.Signatories) {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
 	if rebaser.expectedKind != block.Standard {
+		// Handle duplicate rebase calls
 		if !sigs.Equal(rebaser.expectedRebaseSigs) {
 			panic("invariant violation: must not rebase while rebasing")
 		}
@@ -72,7 +75,7 @@ func (rebaser *shardRebaser) Rebase(sigs block.Signatories) {
 	rebaser.expectedRebaseSigs = sigs
 }
 
-func (rebaser *shardRebaser) Propose(height block.Height, round block.Round) block.Block {
+func (rebaser *shardRebaser) BlockProposal(height block.Height, round block.Round) block.Block {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
@@ -83,8 +86,8 @@ func (rebaser *shardRebaser) Propose(height block.Height, round block.Round) blo
 	if base.Header().Kind() != block.Base {
 		panic(fmt.Errorf("invariant violation: latest base block=%v has unexpected kind=%v", base.Hash(), base.Header().Kind()))
 	}
-	if base.Header().Signatories() == nil {
-		panic(fmt.Errorf("invariant violation: latest base block=%v has unexpected nil signatories", base.Hash()))
+	if base.Header().Signatories() == nil || len(base.Header().Signatories()) == 0 {
+		panic(fmt.Errorf("invariant violation: latest base block=%v has unexpected empty signatories", base.Hash()))
 	}
 
 	var header block.Header
@@ -100,10 +103,11 @@ func (rebaser *shardRebaser) Propose(height block.Height, round block.Round) blo
 			height,
 			round,
 			block.Timestamp(time.Now().Unix()),
-			base.Header().Signatories(),
+			nil,
 		)
-		data = rebaser.blockDataIterator.Next(
+		data = rebaser.blockDataIterator.NextBlockData(
 			rebaser.expectedKind,
+			rebaser.shard,
 		)
 
 	case block.Rebase:
@@ -118,8 +122,9 @@ func (rebaser *shardRebaser) Propose(height block.Height, round block.Round) blo
 			block.Timestamp(time.Now().Unix()),
 			rebaser.expectedRebaseSigs,
 		)
-		data = rebaser.blockDataIterator.Next(
+		data = rebaser.blockDataIterator.NextBlockData(
 			rebaser.expectedKind,
+			rebaser.shard,
 		)
 
 	case block.Base:
@@ -142,7 +147,7 @@ func (rebaser *shardRebaser) Propose(height block.Height, round block.Round) blo
 	return block.New(header, data)
 }
 
-func (rebaser *shardRebaser) Validate(proposedBlock block.Block) bool {
+func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block) bool {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
@@ -174,7 +179,7 @@ func (rebaser *shardRebaser) Validate(proposedBlock block.Block) bool {
 	}
 
 	// Check the expected `block.Hash`
-	if !proposedBlock.Hash().Equal(block.NewHash(proposedBlock.Header(), proposedBlock.Data())) {
+	if !proposedBlock.Hash().Equal(block.ComputeHash(proposedBlock.Header(), proposedBlock.Data())) {
 		return false
 	}
 
@@ -210,12 +215,12 @@ func (rebaser *shardRebaser) Validate(proposedBlock block.Block) bool {
 
 	// Pass to the next `process.Validator`
 	if rebaser.validator != nil {
-		return rebaser.validator.Validate(proposedBlock)
+		return rebaser.validator.IsBlockValid(proposedBlock, rebaser.shard)
 	}
 	return true
 }
 
-func (rebaser *shardRebaser) OnBlockCommitted(height block.Height) {
+func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
@@ -235,6 +240,6 @@ func (rebaser *shardRebaser) OnBlockCommitted(height block.Height) {
 	}
 
 	if rebaser.observer != nil {
-		rebaser.observer.OnBlockCommitted(height)
+		rebaser.observer.DidCommitBlock(height, rebaser.shard)
 	}
 }
