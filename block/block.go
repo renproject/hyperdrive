@@ -1,155 +1,14 @@
 package block
 
 import (
-	"bytes"
-	"crypto/ecdsa"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/renproject/hyperdrive/id"
 	"golang.org/x/crypto/sha3"
 )
-
-type (
-	// Hash defines the output of the 256-bit SHA3 hashing function.
-	Hash [32]byte
-	// Hashes defines a wrapper type around the []Hash type.
-	Hashes [32]byte
-	// Signature defines the ECDSA signature of a Hash. Encoded as R, S, V.
-	Signature [65]byte
-	// Signatures defines a wrapper type around the []Signature type.
-	Signatures []Signatory
-	// Signatory defines the Hash of the ECDSA pubkey that is recovered from a
-	// Signature.
-	Signatory [32]byte
-	// Signatories defines a wrapper type around the []Signatory type.
-	Signatories []Signatory
-)
-
-func NewHash(header Header, data Data) Hash {
-	return Hash(sha3.Sum256([]byte(fmt.Sprintf("BlockHash(Header=%v,Data=%v)", header, data))))
-}
-
-// Equal compares one Hash with another.
-func (hash Hash) Equal(other Hash) bool {
-	return bytes.Equal(hash[:], other[:])
-}
-
-// String implements the `fmt.Stringer` interface for the Hash type.
-func (hash Hash) String() string {
-	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(hash[:])
-}
-
-// MarshalJSON implements the `json.Marshaler` interface for the Hash type.
-func (hash Hash) MarshalJSON() ([]byte, error) {
-	return json.Marshal(hash[:])
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Hash type.
-func (hash *Hash) UnmarshalJSON(data []byte) error {
-	v := []byte{}
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
-	}
-	copy(hash[:], v)
-	return nil
-}
-
-// Equal compares one Signature with another.
-func (sig Signature) Equal(other Signature) bool {
-	return bytes.Equal(sig[:], other[:])
-}
-
-// String implements the `fmt.Stringer` interface for the Hash type.
-func (sig Signature) String() string {
-	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(sig[:])
-}
-
-// MarshalJSON implements the `json.Marshaler` interface for the Signature type.
-func (sig Signature) MarshalJSON() ([]byte, error) {
-	return json.Marshal(sig[:])
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Signature type.
-func (sig *Signature) UnmarshalJSON(data []byte) error {
-	v := []byte{}
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
-	}
-	copy(sig[:], v)
-	return nil
-}
-
-func (sigs Signatures) Hash() Hash {
-	data := make([]byte, 0, 64*len(sigs))
-	for _, sig := range sigs {
-		data = append(data, sig[:]...)
-	}
-	return Hash(sha3.Sum256(data))
-}
-
-// String implements the `fmt.Stringer` interface for the Signatures type.
-func (sigs Signatures) String() string {
-	hash := sigs.Hash()
-	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(hash[:])
-}
-
-func NewSignatory(pubKey ecdsa.PublicKey) Signatory {
-	pubKeyBytes := append(pubKey.X.Bytes(), pubKey.Y.Bytes()...)
-	return Signatory(sha3.Sum256(pubKeyBytes))
-}
-
-// Equal compares one Signatory with another.
-func (sig Signatory) Equal(other Signatory) bool {
-	return bytes.Equal(sig[:], other[:])
-}
-
-// String implements the `fmt.Stringer` interface for the Hash type.
-func (sig Signatory) String() string {
-	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(sig[:])
-}
-
-// MarshalJSON implements the `json.Marshaler` interface for the Signatory type.
-func (sig Signatory) MarshalJSON() ([]byte, error) {
-	return json.Marshal(sig[:])
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Signatory type.
-func (sig *Signatory) UnmarshalJSON(data []byte) error {
-	v := []byte{}
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
-	}
-	copy(sig[:], v)
-	return nil
-}
-
-func (sigs Signatories) Hash() Hash {
-	data := make([]byte, 0, 32*len(sigs))
-	for _, sig := range sigs {
-		data = append(data, sig[:]...)
-	}
-	return Hash(sha3.Sum256(data))
-}
-
-func (sigs Signatories) Equal(other Signatories) bool {
-	if len(sigs) != len(other) {
-		return false
-	}
-	for i := range sigs {
-		if !sigs[i].Equal(other[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-// String implements the `fmt.Stringer` interface for the Signatories type.
-func (sigs Signatories) String() string {
-	hash := sigs.Hash()
-	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(hash[:])
-}
 
 // Kind defines the different kinds of Block that exist.
 type Kind uint8
@@ -189,20 +48,20 @@ func (kind Kind) String() string {
 // These properties are required by, or produced by, the consensus algorithm.
 type Header struct {
 	kind       Kind      // Kind of Block
-	parentHash Hash      // Hash of the Block parent
-	baseHash   Hash      // Hash of the Block base
+	parentHash id.Hash   // Hash of the Note of the Block parent
+	baseHash   id.Hash   // Hash of the Note of the Block base
 	height     Height    // Height at which the Block was committed
 	round      Round     // Round at which the Block was committed
 	timestamp  Timestamp // Seconds since Unix Epoch
 
 	// Signatories oversee the consensus algorithm (must be nil unless the Block
 	// is a Rebase Block)
-	signatories Signatories
+	signatories id.Signatories
 }
 
 // NewHeader returns a Header. It will panic a pre-condition for Header validity
 // is violated.
-func NewHeader(kind Kind, parentHash Hash, baseHash Hash, height Height, round Round, timestamp Timestamp, signatories Signatories) Header {
+func NewHeader(kind Kind, parentHash, baseHash id.Hash, height Height, round Round, timestamp Timestamp, signatories id.Signatories) Header {
 	switch kind {
 	case Standard:
 		if signatories != nil {
@@ -251,12 +110,12 @@ func (header Header) Kind() Kind {
 }
 
 // ParentHash of the Block.
-func (header Header) ParentHash() Hash {
+func (header Header) ParentHash() id.Hash {
 	return header.parentHash
 }
 
 // BaseHash of the Block.
-func (header Header) BaseHash() Hash {
+func (header Header) BaseHash() id.Hash {
 	return header.baseHash
 }
 
@@ -276,7 +135,7 @@ func (header Header) Timestamp() Timestamp {
 }
 
 // Signatories of the Block.
-func (header Header) Signatories() Signatories {
+func (header Header) Signatories() id.Signatories {
 	return header.signatories
 }
 
@@ -297,13 +156,13 @@ func (header Header) String() string {
 // MarshalJSON implements the `json.Marshaler` interface for the Header type.
 func (header Header) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Kind        Kind        `json:"kind"`
-		ParentHash  Hash        `json:"parentHash"`
-		BaseHash    Hash        `json:"baseHash"`
-		Height      Height      `json:"height"`
-		Round       Round       `json:"round"`
-		Timestamp   Timestamp   `json:"timestamp"`
-		Signatories Signatories `json:"signatories"`
+		Kind        Kind           `json:"kind"`
+		ParentHash  id.Hash        `json:"parentHash"`
+		BaseHash    id.Hash        `json:"baseHash"`
+		Height      Height         `json:"height"`
+		Round       Round          `json:"round"`
+		Timestamp   Timestamp      `json:"timestamp"`
+		Signatories id.Signatories `json:"signatories"`
 	}{
 		header.kind,
 		header.parentHash,
@@ -318,13 +177,13 @@ func (header Header) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Header type.
 func (header *Header) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		Kind        Kind        `json:"kind"`
-		ParentHash  Hash        `json:"parentHash"`
-		BaseHash    Hash        `json:"baseHash"`
-		Height      Height      `json:"height"`
-		Round       Round       `json:"round"`
-		Timestamp   Timestamp   `json:"timestamp"`
-		Signatories Signatories `json:"signatories"`
+		Kind        Kind           `json:"kind"`
+		ParentHash  id.Hash        `json:"parentHash"`
+		BaseHash    id.Hash        `json:"baseHash"`
+		Height      Height         `json:"height"`
+		Round       Round          `json:"round"`
+		Timestamp   Timestamp      `json:"timestamp"`
+		Signatories id.Signatories `json:"signatories"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
@@ -360,15 +219,15 @@ type Notes []Note
 // the Note will contain application-specific state that has resulted from
 // execution (along with proofs of correctness of the transition).
 type Note struct {
-	hash Hash // Hash of the Block Hash and the Note Data.
-	data Data // Application-specific data stored in the Note
+	hash id.Hash // Hash of the Block Hash and the Note Data.
+	data Data    // Application-specific data stored in the Note
 }
 
 // MarshalJSON implements the `json.Marshaler` interface for the Note type.
 func (note Note) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Hash Hash `json:"hash"`
-		Data Data `json:"data"`
+		Hash id.Hash `json:"hash"`
+		Data Data    `json:"data"`
 	}{
 		note.hash,
 		note.data,
@@ -378,8 +237,8 @@ func (note Note) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Note type.
 func (note *Note) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		Hash Hash `json:"hash"`
-		Data Data `json:"data"`
+		Hash id.Hash `json:"hash"`
+		Data Data    `json:"data"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
@@ -396,7 +255,7 @@ func (note Note) Equal(other Note) bool {
 }
 
 // Hash of the Block Hash and the Note Data.
-func (note Note) Hash() Hash {
+func (note Note) Hash() id.Hash {
 	return note.hash
 }
 
@@ -407,7 +266,7 @@ type Blocks []Block
 // guarantees a consistent ordering of Blocks that is agreed upon by all members
 // in a distributed network, even when some of the members are malicious.
 type Block struct {
-	hash   Hash // Hash of the Header and Data
+	hash   id.Hash // Hash of the Header and Data
 	header Header
 	data   Data
 	note   Note // A valid Note is required before proceeding Blocks can proposed
@@ -418,7 +277,7 @@ func New(header Header, data Data) Block {
 	return Block{
 		header: header,
 		data:   data,
-		hash:   NewHash(header, data),
+		hash:   ComputeHash(header, data),
 	}
 }
 
@@ -427,7 +286,7 @@ func (block *Block) AppendNote(note Note) {
 }
 
 // Hash returns the 256-bit SHA3 Hash of the Header and Data.
-func (block Block) Hash() Hash {
+func (block Block) Hash() id.Hash {
 	return block.hash
 }
 
@@ -460,10 +319,10 @@ func (block Block) Equal(other Block) bool {
 // MarshalJSON implements the `json.Marshaler` interface for the Block type.
 func (block Block) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Hash   Hash   `json:"hash"`
-		Header Header `json:"header"`
-		Data   Data   `json:"data"`
-		Note   Note   `json:"note"`
+		Hash   id.Hash `json:"hash"`
+		Header Header  `json:"header"`
+		Data   Data    `json:"data"`
+		Note   Note    `json:"note"`
 	}{
 		block.hash,
 		block.header,
@@ -475,10 +334,10 @@ func (block Block) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Block type.
 func (block *Block) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		Hash   Hash   `json:"hash"`
-		Header Header `json:"header"`
-		Data   Data   `json:"data"`
-		Note   Note   `json:"note"`
+		Hash   id.Hash `json:"hash"`
+		Header Header  `json:"header"`
+		Data   Data    `json:"data"`
+		Note   Note    `json:"note"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
@@ -501,18 +360,14 @@ type Round int64
 
 // Define some default invalid values.
 var (
-	InvalidHash      = Hash{}
-	InvalidSignature = Signature{}
-	InvalidSignatory = Signatory{}
+	InvalidHash      = id.Hash{}
+	InvalidSignature = id.Signature{}
+	InvalidSignatory = id.Signatory{}
 	InvalidBlock     = Block{}
 	InvalidRound     = Round(-1)
 	InvalidHeight    = Height(-1)
 )
 
-// A Blockchain defines a storage interface for Blocks that is based around
-// Height.
-type Blockchain interface {
-	InsertBlockAtHeight(Height, Block)
-	BlockAtHeight(Height) (Block, bool)
-	BlockExistsAtHeight(Height) bool
+func ComputeHash(header Header, data Data) id.Hash {
+	return id.Hash(sha3.Sum256([]byte(fmt.Sprintf("BlockHash(Header=%v,Data=%v)", header, data))))
 }
