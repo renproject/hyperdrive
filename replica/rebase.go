@@ -23,7 +23,7 @@ type BlockDataIterator interface {
 	Next(block.Kind) block.Data
 }
 
-type BlockRebaser interface {
+type ShardRebaser interface {
 	process.Proposer
 	process.Validator
 	process.Observer
@@ -31,8 +31,8 @@ type BlockRebaser interface {
 	Rebase(toSigs block.Signatories)
 }
 
-func NewBlockRebaser(storage BlockStorage, dataIterator BlockDataIterator, validator process.Validator, observer process.Observer) BlockRebaser {
-	return &blockRebaser{
+func NewShardRebaser(storage BlockStorage, dataIterator BlockDataIterator, validator process.Validator, observer process.Observer) ShardRebaser {
+	return &shardRebaser{
 		mu: new(sync.Mutex),
 
 		expectedKind:       block.Standard,
@@ -45,7 +45,7 @@ func NewBlockRebaser(storage BlockStorage, dataIterator BlockDataIterator, valid
 	}
 }
 
-type blockRebaser struct {
+type shardRebaser struct {
 	mu *sync.Mutex
 
 	expectedKind       block.Kind
@@ -57,7 +57,7 @@ type blockRebaser struct {
 	observer     process.Observer
 }
 
-func (rebaser *blockRebaser) Rebase(sigs block.Signatories) {
+func (rebaser *shardRebaser) Rebase(sigs block.Signatories) {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
@@ -72,7 +72,7 @@ func (rebaser *blockRebaser) Rebase(sigs block.Signatories) {
 	rebaser.expectedRebaseSigs = sigs
 }
 
-func (rebaser *blockRebaser) Propose(height block.Height, round block.Round) block.Block {
+func (rebaser *shardRebaser) Propose(height block.Height, round block.Round) block.Block {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
@@ -142,7 +142,7 @@ func (rebaser *blockRebaser) Propose(height block.Height, round block.Round) blo
 	return block.New(header, data)
 }
 
-func (rebaser *blockRebaser) Validate(proposedBlock block.Block) bool {
+func (rebaser *shardRebaser) Validate(proposedBlock block.Block) bool {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
@@ -215,7 +215,7 @@ func (rebaser *blockRebaser) Validate(proposedBlock block.Block) bool {
 	return true
 }
 
-func (rebaser *blockRebaser) OnBlockCommitted(height block.Height) {
+func (rebaser *shardRebaser) OnBlockCommitted(height block.Height) {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 

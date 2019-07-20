@@ -48,18 +48,18 @@ type Replica struct {
 	blockStorage BlockStorage
 }
 
-func New(options Options, shard Shard, blockRebaser BlockRebaser, blockStorage BlockStorage, pStorage ProcessStorage, broadcaster process.Broadcaster, privKey ecdsa.PrivateKey) Replica {
+func New(options Options, shard Shard, shardRebaser ShardRebaser, blockStorage BlockStorage, pStorage ProcessStorage, broadcaster process.Broadcaster, privKey ecdsa.PrivateKey) Replica {
 	latestBase := blockStorage.LatestBaseBlock()
 	p := process.New(
 		block.NewSignatory(privKey.PublicKey),
 		blockStorage,
 		process.DefaultState(),
-		blockRebaser,
-		blockRebaser,
+		shardRebaser,
+		shardRebaser,
 		NewRoundRobinScheduler(latestBase.Header().Signatories()),
 		NewSignerBroadcaster(broadcaster, privKey),
 		NewBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
-		blockRebaser,
+		shardRebaser,
 	)
 	pStorage.RestoreProcess(shard, &p)
 	return Replica{
