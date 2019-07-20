@@ -4,11 +4,11 @@ import (
 	"math"
 	"time"
 
+	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
-	"github.com/renproject/hyperdrive/process/block"
 )
 
-func BackOffTimer(exp float64, base time.Duration, max time.Duration) process.Timer {
+func NewBackOffTimer(exp float64, base time.Duration, max time.Duration) process.Timer {
 	return &backOffTimer{
 		exp: exp,
 		max: max,
