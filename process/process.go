@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/message"
+	"github.com/renproject/hyperdrive/id"
 )
 
 // Step in the consensus algorithm.
@@ -20,36 +20,44 @@ const (
 	StepPrecommit = Step(3)
 )
 
+// A Blockchain defines a storage interface for Blocks that is based around
+// Height.
+type Blockchain interface {
+	InsertBlockAtHeight(block.Height, block.Block)
+	BlockAtHeight(block.Height) (block.Block, bool)
+	BlockExistsAtHeight(block.Height) bool
+}
+
 // A Proposer builds a `block.Block` for proposals.
 type Proposer interface {
-	Propose(block.Height, block.Round) block.Block
+	BlockProposal(block.Height, block.Round) block.Block
 }
 
 // A Validator validates a `block.Block` that has been proposed.
 type Validator interface {
-	Validate(block.Block) bool
+	IsBlockValid(block.Block) bool
 }
 
-// A Scheduler determines which `block.Signatory` should be broadcasting
+// An Observer is notified when note-worthy events happen for the first time.
+type Observer interface {
+	DidCommitBlock(block.Height)
+}
+
+// A Scheduler determines which `id.Signatory` should be broadcasting
 // proposals in at a given `block.Height` and `block.Round`.
 type Scheduler interface {
-	Schedule(block.Height, block.Round) block.Signatory
+	Schedule(block.Height, block.Round) id.Signatory
 }
 
-// A Broadcaster sends a `message.Message` to as many Processes in the network
-// as possible.
+// A Broadcaster sends a Message to as many Processes in the network as
+// possible.
 type Broadcaster interface {
-	Broadcast(message.Message)
+	Broadcast(Message)
 }
 
 // A Timer determines the timeout duration at a given Step and `block.Round`.
 type Timer interface {
 	Timeout(step Step, round block.Round) time.Duration
-}
-
-// An Observer is notified when note-worthy events happen for the first time.
-type Observer interface {
-	OnBlockCommitted(block.Height)
 }
 
 // Processes defines a wrapper type around the []Process type.
@@ -60,8 +68,8 @@ type Processes []Process
 type Process struct {
 	mu *sync.Mutex
 
-	signatory  block.Signatory
-	blockchain block.Blockchain
+	signatory  id.Signatory
+	blockchain Blockchain
 	state      State
 
 	proposer    Proposer
@@ -73,7 +81,7 @@ type Process struct {
 }
 
 // New Process initialised to the default state, starting in the first round.
-func New(signatory block.Signatory, blockchain block.Blockchain, state State, proposer Proposer, validator Validator, scheduler Scheduler, broadcaster Broadcaster, timer Timer, observer Observer) Process {
+func New(signatory id.Signatory, blockchain Blockchain, state State, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler Scheduler, timer Timer) Process {
 	p := Process{
 		mu: new(sync.Mutex),
 
@@ -83,10 +91,10 @@ func New(signatory block.Signatory, blockchain block.Blockchain, state State, pr
 
 		proposer:    proposer,
 		validator:   validator,
-		scheduler:   scheduler,
-		broadcaster: broadcaster,
-		timer:       timer,
 		observer:    observer,
+		broadcaster: broadcaster,
+		scheduler:   scheduler,
+		timer:       timer,
 	}
 	p.StartRound(0)
 	return p
@@ -115,16 +123,16 @@ func (p *Process) StartRound(round block.Round) {
 
 // HandleMessage is safe for concurrent use. See
 // https://arxiv.org/pdf/1807.04938.pdf for more information.
-func (p *Process) HandleMessage(m message.Message) {
+func (p *Process) HandleMessage(m Message) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	switch m := m.(type) {
-	case *message.Propose:
+	case *Propose:
 		p.handlePropose(m)
-	case *message.Prevote:
+	case *Prevote:
 		p.handlePrevote(m)
-	case *message.Precommit:
+	case *Precommit:
 		p.handlePrecommit(m)
 	}
 }
@@ -137,9 +145,9 @@ func (p *Process) startRound(round block.Round) {
 		if p.state.ValidBlock.Hash() != block.InvalidHash {
 			proposal = p.state.ValidBlock
 		} else {
-			proposal = p.proposer.Propose(p.state.CurrentHeight, p.state.CurrentRound)
+			proposal = p.proposer.BlockProposal(p.state.CurrentHeight, p.state.CurrentRound)
 		}
-		p.broadcaster.Broadcast(message.NewPropose(
+		p.broadcaster.Broadcast(NewPropose(
 			p.state.CurrentHeight,
 			p.state.CurrentRound,
 			proposal,
@@ -150,7 +158,7 @@ func (p *Process) startRound(round block.Round) {
 	}
 }
 
-func (p *Process) handlePropose(propose *message.Propose) {
+func (p *Process) handlePropose(propose *Propose) {
 	_, firstTime, _, _ := p.state.Proposals.Insert(propose)
 
 	// upon Propose{currentHeight, currentRound, block, -1}
@@ -159,14 +167,14 @@ func (p *Process) handlePropose(propose *message.Propose) {
 		if propose.Signatory().Equal(p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound)) {
 			// while step = StepPropose
 			if p.state.CurrentStep == StepPropose {
-				if p.validator.Validate(propose.Block()) && (p.state.LockedRound == block.InvalidRound || p.state.LockedBlock.Equal(propose.Block())) {
-					p.broadcaster.Broadcast(message.NewPrevote(
+				if p.validator.IsBlockValid(propose.Block()) && (p.state.LockedRound == block.InvalidRound || p.state.LockedBlock.Equal(propose.Block())) {
+					p.broadcaster.Broadcast(NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						propose.Block().Hash(),
 					))
 				} else {
-					p.broadcaster.Broadcast(message.NewPrevote(
+					p.broadcaster.Broadcast(NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						block.InvalidHash,
@@ -184,7 +192,7 @@ func (p *Process) handlePropose(propose *message.Propose) {
 	p.checkProposeInCurrentHeightWithPrecommits(propose.Round())
 }
 
-func (p *Process) handlePrevote(prevote *message.Prevote) {
+func (p *Process) handlePrevote(prevote *Prevote) {
 	n, _, _, firstTimeExceeding2F := p.state.Prevotes.Insert(prevote)
 	if firstTimeExceeding2F && prevote.Height() == p.state.CurrentHeight && prevote.Round() == p.state.CurrentRound && p.state.CurrentStep == StepPrevote {
 		// upon 2f+1 Prevote{currentHeight, currentRound, *} while step = StepPrevote for the first time
@@ -202,7 +210,7 @@ func (p *Process) handlePrevote(prevote *message.Prevote) {
 	}
 }
 
-func (p *Process) handlePrecommit(precommit *message.Precommit) {
+func (p *Process) handlePrecommit(precommit *Precommit) {
 	// upon 2f+1 Precommit{currentHeight, currentRound, *} for the first time
 	n, _, _, firstTimeExceeding2F := p.state.Precommits.Insert(precommit)
 	if firstTimeExceeding2F && precommit.Height() == p.state.CurrentHeight && precommit.Round() == p.state.CurrentRound {
@@ -219,7 +227,7 @@ func (p *Process) handlePrecommit(precommit *message.Precommit) {
 
 func (p *Process) timeoutPropose(height block.Height, round block.Round) {
 	if height == p.state.CurrentHeight && round == p.state.CurrentRound && p.state.CurrentStep == StepPropose {
-		p.broadcaster.Broadcast(message.NewPrevote(
+		p.broadcaster.Broadcast(NewPrevote(
 			p.state.CurrentHeight,
 			p.state.CurrentRound,
 			block.InvalidHash,
@@ -230,7 +238,7 @@ func (p *Process) timeoutPropose(height block.Height, round block.Round) {
 
 func (p *Process) timeoutPrevote(height block.Height, round block.Round) {
 	if height == p.state.CurrentHeight && round == p.state.CurrentRound && p.state.CurrentStep == StepPrevote {
-		p.broadcaster.Broadcast(message.NewPrecommit(
+		p.broadcaster.Broadcast(NewPrecommit(
 			p.state.CurrentHeight,
 			p.state.CurrentRound,
 			block.InvalidHash,
@@ -284,7 +292,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 	if m == nil {
 		return
 	}
-	propose := m.(*message.Propose)
+	propose := m.(*Propose)
 
 	if propose.ValidRound() > block.InvalidRound {
 		// and 2f+1 Prevote{currentHeight, validRound, blockHash}
@@ -292,14 +300,14 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 		if n > 2*p.state.Prevotes.F() {
 			// while step = StepPropose and validRound >= 0 and validRound < currentRound
 			if p.state.CurrentStep == StepPropose && propose.ValidRound() < p.state.CurrentRound {
-				if p.validator.Validate(propose.Block()) && (p.state.LockedRound <= propose.ValidRound() || p.state.LockedBlock.Equal(propose.Block())) {
-					p.broadcaster.Broadcast(message.NewPrevote(
+				if p.validator.IsBlockValid(propose.Block()) && (p.state.LockedRound <= propose.ValidRound() || p.state.LockedBlock.Equal(propose.Block())) {
+					p.broadcaster.Broadcast(NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						propose.Block().Hash(),
 					))
 				} else {
-					p.broadcaster.Broadcast(message.NewPrevote(
+					p.broadcaster.Broadcast(NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						block.InvalidHash,
@@ -312,27 +320,27 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 }
 
 // checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime must only be
-// called when a `message.Propose` and 2f+1 `message.Prevotes` has been seen for
-// the first time at the current `block.Height` and `block.Round`. This can
-// happen when a `message.Propose` is seen for the first time at the current
-// `block.Height` and `block.Round`, or, when a `message.Prevote` is seen for
-// the first time at the current `block.Height` and `block.Round`.
+// called when a Propose and 2f+1 Prevotes has been seen for the first time at
+// the current `block.Height` and `block.Round`. This can happen when a Propose
+// is seen for the first time at the current `block.Height` and `block.Round`,
+// or, when a Prevote is seen for the first time at the current `block.Height`
+// and `block.Round`.
 func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime() {
 	// upon Propose{currentHeight, currentRound, block, *} from Schedule(currentHeight, currentRound)
 	m := p.state.Proposals.QueryByHeightRoundSignatory(p.state.CurrentHeight, p.state.CurrentRound, p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound))
 	if m == nil {
 		return
 	}
-	propose := m.(*message.Propose)
+	propose := m.(*Propose)
 
 	// and 2f+1 Prevote{currentHeight, currentRound, blockHash} while Validate(block) and step >= StepPrevote for the first time
 	n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, p.state.CurrentRound, propose.BlockHash())
 	if n > 2*p.state.Prevotes.F() {
-		if p.state.CurrentStep >= StepPrevote && p.validator.Validate(propose.Block()) {
+		if p.state.CurrentStep >= StepPrevote && p.validator.IsBlockValid(propose.Block()) {
 			if p.state.CurrentStep == StepPrevote {
 				p.state.LockedBlock = propose.Block()
 				p.state.LockedRound = p.state.CurrentRound
-				p.broadcaster.Broadcast(message.NewPrecommit(
+				p.broadcaster.Broadcast(NewPrecommit(
 					p.state.CurrentHeight,
 					p.state.CurrentRound,
 					propose.Block().Hash(),
@@ -350,21 +358,21 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 	if m == nil {
 		return
 	}
-	propose := m.(*message.Propose)
+	propose := m.(*Propose)
 
 	// and 2f+1 Precommits{currentHeight, round, blockHash}
 	n := p.state.Precommits.QueryByHeightRoundBlockHash(p.state.CurrentHeight, round, propose.BlockHash())
 	if n > 2*p.state.Precommits.F() {
 		// while !BlockExistsAtHeight(currentHeight)
 		if p.blockchain.BlockExistsAtHeight(p.state.CurrentHeight) {
-			if p.validator.Validate(propose.Block()) {
+			if p.validator.IsBlockValid(propose.Block()) {
 				p.blockchain.InsertBlockAtHeight(p.state.CurrentHeight, propose.Block())
 				p.state.CurrentHeight++
 				p.state.Reset()
 				p.startRound(0)
 
 				if p.observer != nil {
-					p.observer.OnBlockCommitted(p.state.CurrentHeight - 1)
+					p.observer.DidCommitBlock(p.state.CurrentHeight - 1)
 				}
 			}
 		}
