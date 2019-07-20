@@ -8,19 +8,18 @@ import (
 	"github.com/renproject/hyperdrive/process"
 )
 
-func NewBackOffTimer(exp float64, base time.Duration, max time.Duration) process.Timer {
-	return &backOffTimer{
-		exp: exp,
-		max: max,
-	}
-}
-
 type backOffTimer struct {
 	exp  float64
 	base time.Duration
 	max  time.Duration
 }
 
+func newBackOffTimer(exp float64, base time.Duration, max time.Duration) process.Timer {
+	return &backOffTimer{
+		exp: exp,
+		max: max,
+	}
+}
 func (timer *backOffTimer) Timeout(step process.Step, round block.Round) time.Duration {
 	if round == 0 {
 		return timer.base
