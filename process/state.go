@@ -1,8 +1,8 @@
 package process
 
 import (
-	"github.com/renproject/hyperdrive/process/block"
-	"github.com/renproject/hyperdrive/process/message"
+	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/message"
 )
 
 // The State of a Process. It is isolated from the Process so that it can be
