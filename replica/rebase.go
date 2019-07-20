@@ -31,17 +31,17 @@ type ShardRebaser interface {
 	Rebase(toSigs block.Signatories)
 }
 
-func NewShardRebaser(storage BlockStorage, dataIterator BlockDataIterator, validator process.Validator, observer process.Observer) ShardRebaser {
+func NewShardRebaser(blockStorage BlockStorage, blockDataIterator BlockDataIterator, validator process.Validator, observer process.Observer) ShardRebaser {
 	return &shardRebaser{
 		mu: new(sync.Mutex),
 
 		expectedKind:       block.Standard,
 		expectedRebaseSigs: nil,
 
-		storage:      storage,
-		dataIterator: dataIterator,
-		validator:    validator,
-		observer:     observer,
+		blockStorage:      blockStorage,
+		blockDataIterator: blockDataIterator,
+		validator:         validator,
+		observer:          observer,
 	}
 }
 
@@ -51,10 +51,10 @@ type shardRebaser struct {
 	expectedKind       block.Kind
 	expectedRebaseSigs block.Signatories
 
-	storage      BlockStorage
-	dataIterator BlockDataIterator
-	validator    process.Validator
-	observer     process.Observer
+	blockStorage      BlockStorage
+	blockDataIterator BlockDataIterator
+	validator         process.Validator
+	observer          process.Observer
 }
 
 func (rebaser *shardRebaser) Rebase(sigs block.Signatories) {
@@ -76,8 +76,8 @@ func (rebaser *shardRebaser) Propose(height block.Height, round block.Round) blo
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
-	parent := rebaser.storage.LatestBlock()
-	base := rebaser.storage.LatestBaseBlock()
+	parent := rebaser.blockStorage.LatestBlock()
+	base := rebaser.blockStorage.LatestBaseBlock()
 
 	// Check that the base `block.Block` is a valid
 	if base.Header().Kind() != block.Base {
@@ -102,7 +102,7 @@ func (rebaser *shardRebaser) Propose(height block.Height, round block.Round) blo
 			block.Timestamp(time.Now().Unix()),
 			base.Header().Signatories(),
 		)
-		data = rebaser.dataIterator.Next(
+		data = rebaser.blockDataIterator.Next(
 			rebaser.expectedKind,
 		)
 
@@ -118,7 +118,7 @@ func (rebaser *shardRebaser) Propose(height block.Height, round block.Round) blo
 			block.Timestamp(time.Now().Unix()),
 			rebaser.expectedRebaseSigs,
 		)
-		data = rebaser.dataIterator.Next(
+		data = rebaser.blockDataIterator.Next(
 			rebaser.expectedKind,
 		)
 
@@ -179,7 +179,7 @@ func (rebaser *shardRebaser) Validate(proposedBlock block.Block) bool {
 	}
 
 	// Check against the parent `block.Block`
-	parentBlock, ok := rebaser.storage.BlockAtHeight(proposedBlock.Header().Height() - 1)
+	parentBlock, ok := rebaser.blockStorage.BlockAtHeight(proposedBlock.Header().Height() - 1)
 	if !ok {
 		return false
 	}
@@ -194,13 +194,13 @@ func (rebaser *shardRebaser) Validate(proposedBlock block.Block) bool {
 	}
 
 	// Check against the base `block.Block`
-	baseBlock := rebaser.storage.LatestBaseBlock()
+	baseBlock := rebaser.blockStorage.LatestBaseBlock()
 	if !proposedBlock.Header().BaseHash().Equal(baseBlock.Note().Hash()) {
 		return false
 	}
 
 	// Check that the parent is the most recently finalised
-	latestBlock := rebaser.storage.LatestBlock()
+	latestBlock := rebaser.blockStorage.LatestBlock()
 	if !parentBlock.Note().Hash().Equal(latestBlock.Note().Hash()) {
 		return false
 	}
@@ -219,7 +219,7 @@ func (rebaser *shardRebaser) OnBlockCommitted(height block.Height) {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
-	committedBlock, ok := rebaser.storage.BlockAtHeight(height)
+	committedBlock, ok := rebaser.blockStorage.BlockAtHeight(height)
 	if !ok {
 		panic(fmt.Errorf("invariant violatoin: missing block at height=%v", height))
 	}
