@@ -12,6 +12,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type Shards []Shard
+
 // Shard uniquely identifies the Shard being maintained by the Replica.
 type Shard [32]byte
 
@@ -24,6 +26,8 @@ func (shard Shard) Equal(other Shard) bool {
 func (shard Shard) String() string {
 	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(shard[:])
 }
+
+type Messages []Message
 
 // A Message sent/received by a Replica is composed of a Shard and the
 // underlying `process.Message` data. It is expected that a Replica will sign
@@ -52,6 +56,8 @@ type Options struct {
 	BackOffBase time.Duration
 	BackOffMax  time.Duration
 }
+
+type Replicas []Replica
 
 // A Replica represents one Process in a replicated state machine that is bound
 // to a specific Shard. It signs Messages before sending them to other Replicas,
