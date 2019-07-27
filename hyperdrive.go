@@ -7,20 +7,26 @@ import (
 )
 
 type (
-	Hashes      = id.Hashes
-	Hash        = id.Hash
-	Signatures  = id.Signatures
-	Signature   = id.Signature
-	Signatories = id.Signatories
-	Signatory   = id.Signatory
-	Blocks      = block.Blocks
-	Block       = block.Block
-	Messages    = replica.Messages
-	Message     = replica.Message
-	Shards      = replica.Shards
-	Shard       = replica.Shard
-	Replicas    = replica.Replicas
-	Replica     = replica.Replica
+	Hashes            = id.Hashes
+	Hash              = id.Hash
+	Signatures        = id.Signatures
+	Signature         = id.Signature
+	Signatories       = id.Signatories
+	Signatory         = id.Signatory
+	Blocks            = block.Blocks
+	Block             = block.Block
+	Messages          = replica.Messages
+	Message           = replica.Message
+	Shards            = replica.Shards
+	Shard             = replica.Shard
+	Replicas          = replica.Replicas
+	Replica           = replica.Replica
+	ProcessStorage    = replica.ProcessStorage
+	BlockStorage      = replica.BlockStorage
+	BlockDataIterator = replica.BlockDataIterator
+	Validator         = replica.Validator
+	Observer          = replica.Observer
+	Broadcaster       = replica.Broadcaster
 )
 
 // Hyperdrive manages multiple `replica.Replicas` from different

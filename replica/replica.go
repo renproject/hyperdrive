@@ -71,7 +71,7 @@ type Replica struct {
 	cache        baseBlockCache
 }
 
-func New(options Options, blockDataIterator BlockDataIterator, blockStorage BlockStorage, pStorage ProcessStorage, validator Validator, observer Observer, broadcaster Broadcaster, shard Shard, privKey ecdsa.PrivateKey) Replica {
+func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockDataIterator BlockDataIterator, validator Validator, observer Observer, broadcaster Broadcaster, shard Shard, privKey ecdsa.PrivateKey) Replica {
 	shardRebaser := newShardRebaser(blockStorage, blockDataIterator, validator, observer, shard)
 	latestBase := blockStorage.LatestBaseBlock()
 	p := process.New(
