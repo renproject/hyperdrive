@@ -55,7 +55,7 @@ func Verify(m Message) error {
 
 	signatory := id.NewSignatory(*pubKey)
 	if !m.Signatory().Equal(signatory) {
-		return fmt.Errorf("bad signatory: expected signatory=%v, got signatory=%v", m.Signatory, signatory)
+		return fmt.Errorf("bad signatory: expected signatory=%v, got signatory=%v", m.Signatory(), signatory)
 	}
 	return nil
 }
@@ -85,7 +85,7 @@ func (propose *Propose) Signatory() id.Signatory {
 }
 
 func (propose *Propose) SigHash() id.Hash {
-	return sha3.Sum256([]byte(fmt.Sprintf("Propose(Height=%v,Round=%v,BlockHash=%v,ValidRound=%v)", propose.Height, propose.Round, propose.BlockHash, propose.ValidRound)))
+	return sha3.Sum256([]byte(fmt.Sprintf("Propose(Height=%v,Round=%v,BlockHash=%v,ValidRound=%v)", propose.Height(), propose.Round(), propose.BlockHash(), propose.ValidRound())))
 }
 
 func (propose *Propose) Sig() id.Signature {
@@ -181,7 +181,7 @@ func (prevote *Prevote) Signatory() id.Signatory {
 }
 
 func (prevote *Prevote) SigHash() id.Hash {
-	return sha3.Sum256([]byte(fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v)", prevote.Height, prevote.Round, prevote.BlockHash)))
+	return sha3.Sum256([]byte(fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash())))
 }
 
 func (prevote *Prevote) Sig() id.Signature {
@@ -260,7 +260,7 @@ func (precommit *Precommit) Signatory() id.Signatory {
 }
 
 func (precommit *Precommit) SigHash() id.Hash {
-	return sha3.Sum256([]byte(fmt.Sprintf("Precommit(Height=%v,Round=%v,BlockHash=%v)", precommit.Height, precommit.Round, precommit.BlockHash)))
+	return sha3.Sum256([]byte(fmt.Sprintf("Precommit(Height=%v,Round=%v,BlockHash=%v)", precommit.Height(), precommit.Round(), precommit.BlockHash())))
 }
 
 func (precommit *Precommit) Sig() id.Signature {
