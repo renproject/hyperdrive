@@ -44,3 +44,14 @@ func (state *State) Reset() {
 	state.ValidBlock = block.InvalidBlock
 	state.ValidRound = block.InvalidRound
 }
+
+// Equal compares one State with another.
+func (state *State) Equal(other State) bool {
+	return state.CurrentHeight == other.CurrentHeight &&
+		state.CurrentRound == other.CurrentRound &&
+		state.CurrentStep == other.CurrentStep &&
+		state.LockedBlock.Equal(other.LockedBlock) &&
+		state.LockedRound == other.LockedRound &&
+		state.ValidBlock.Equal(other.ValidBlock) &&
+		state.ValidRound == other.ValidRound
+}

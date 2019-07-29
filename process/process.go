@@ -96,7 +96,12 @@ func New(signatory id.Signatory, blockchain Blockchain, state State, proposer Pr
 		scheduler:   scheduler,
 		timer:       timer,
 	}
-	p.StartRound(0)
+	if state.Equal(DefaultState()) {
+		// Only call StartRound when the State has not been initialised, to
+		// prevent resetting a State that has been restored from persistent
+		// storage
+		p.StartRound(0)
+	}
 	return p
 }
 
