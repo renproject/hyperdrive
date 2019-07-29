@@ -340,6 +340,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime
 			if p.state.CurrentStep == StepPrevote {
 				p.state.LockedBlock = propose.Block()
 				p.state.LockedRound = p.state.CurrentRound
+				p.state.CurrentStep = StepPrecommit
 				p.broadcaster.Broadcast(NewPrecommit(
 					p.state.CurrentHeight,
 					p.state.CurrentRound,
