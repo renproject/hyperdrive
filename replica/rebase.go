@@ -20,8 +20,10 @@ type BlockStorage interface {
 	LatestBaseBlock() block.Block
 }
 
-type BlockDataIterator interface {
-	NextBlockData(block.Kind, Shard) block.Data
+type BlockIterator interface {
+	// NextBlock returns the `block.Data` and the parent `block.State` for the
+	// given `block.Height`.
+	NextBlock(block.Kind, block.Height, Shard) (block.Data, block.State)
 }
 
 type Validator interface {
@@ -38,24 +40,24 @@ type shardRebaser struct {
 	expectedKind       block.Kind
 	expectedRebaseSigs id.Signatories
 
-	blockStorage      BlockStorage
-	blockDataIterator BlockDataIterator
-	validator         Validator
-	observer          Observer
-	shard             Shard
+	blockStorage  BlockStorage
+	blockIterator BlockIterator
+	validator     Validator
+	observer      Observer
+	shard         Shard
 }
 
-func newShardRebaser(blockStorage BlockStorage, blockDataIterator BlockDataIterator, validator Validator, observer Observer, shard Shard) *shardRebaser {
+func newShardRebaser(blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, shard Shard) *shardRebaser {
 	return &shardRebaser{
 		mu: new(sync.Mutex),
 
 		expectedKind:       block.Standard,
 		expectedRebaseSigs: nil,
 
-		blockStorage:      blockStorage,
-		blockDataIterator: blockDataIterator,
-		validator:         validator,
-		observer:          observer,
+		blockStorage:  blockStorage,
+		blockIterator: blockIterator,
+		validator:     validator,
+		observer:      observer,
 	}
 }
 
@@ -90,61 +92,39 @@ func (rebaser *shardRebaser) BlockProposal(height block.Height, round block.Roun
 		panic(fmt.Errorf("invariant violation: latest base block=%v has unexpected empty signatories", base.Hash()))
 	}
 
-	var header block.Header
-	var data block.Data
+	var expectedSigs id.Signatories
 
 	switch rebaser.expectedKind {
 	case block.Standard:
-		// Propose a standard `block.Block`
-		header = block.NewHeader(
-			rebaser.expectedKind,
-			parent.Hash(),
-			base.Hash(),
-			height,
-			round,
-			block.Timestamp(time.Now().Unix()),
-			nil,
-		)
-		data = rebaser.blockDataIterator.NextBlockData(
-			rebaser.expectedKind,
-			rebaser.shard,
-		)
-
-	case block.Rebase:
-		// Propose a rebase `block.Block` with the expected rebase
-		// `block.Signatories`
-		header = block.NewHeader(
-			rebaser.expectedKind,
-			parent.Hash(),
-			base.Hash(),
-			height,
-			round,
-			block.Timestamp(time.Now().Unix()),
-			rebaser.expectedRebaseSigs,
-		)
-		data = rebaser.blockDataIterator.NextBlockData(
-			rebaser.expectedKind,
-			rebaser.shard,
-		)
-
-	case block.Base:
-		// Propose a base `block.Block` with nil `block.Data` the expected
-		// rebase `block.Signatories`
-		header = block.NewHeader(
-			rebaser.expectedKind,
-			parent.Hash(),
-			base.Hash(),
-			height,
-			round,
-			block.Timestamp(time.Now().Unix()),
-			rebaser.expectedRebaseSigs,
-		)
+		// Standard `block.Blocks` must not propose any `id.Signatories` in
+		// their `block.Header`
+		expectedSigs = nil
+	case block.Rebase, block.Base:
+		// Rebase/base `block.Blocks` must propose new `id.Signatories` in their
+		// `block.Header`
+		expectedSigs = make(id.Signatories, len(rebaser.expectedRebaseSigs))
+		copy(expectedSigs, rebaser.expectedRebaseSigs)
 
 	default:
 		panic(fmt.Errorf("invariant violation: must not propose block kind=%v", rebaser.expectedKind))
 	}
 
-	return block.New(header, data)
+	header := block.NewHeader(
+		rebaser.expectedKind,
+		parent.Hash(),
+		base.Hash(),
+		height,
+		round,
+		block.Timestamp(time.Now().Unix()),
+		expectedSigs,
+	)
+	data, prevState := rebaser.blockIterator.NextBlock(
+		rebaser.expectedKind,
+		height,
+		rebaser.shard,
+	)
+
+	return block.New(header, data, prevState)
 }
 
 func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block) bool {
@@ -179,7 +159,7 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block) bool {
 	}
 
 	// Check the expected `block.Hash`
-	if !proposedBlock.Hash().Equal(block.ComputeHash(proposedBlock.Header(), proposedBlock.Data())) {
+	if !proposedBlock.Hash().Equal(block.ComputeHash(proposedBlock.Header(), proposedBlock.Data(), proposedBlock.PreviousState())) {
 		return false
 	}
 
@@ -194,22 +174,22 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block) bool {
 	if proposedBlock.Header().Timestamp() < block.Timestamp(time.Now().Unix()) {
 		return false
 	}
-	if !proposedBlock.Header().ParentHash().Equal(parentBlock.Note().Hash()) {
+	if !proposedBlock.Header().ParentHash().Equal(parentBlock.Hash()) {
 		return false
 	}
 
 	// Check against the base `block.Block`
 	baseBlock := rebaser.blockStorage.LatestBaseBlock()
-	if !proposedBlock.Header().BaseHash().Equal(baseBlock.Note().Hash()) {
+	if !proposedBlock.Header().BaseHash().Equal(baseBlock.Hash()) {
 		return false
 	}
 
 	// Check that the parent is the most recently finalised
 	latestBlock := rebaser.blockStorage.LatestBlock()
-	if !parentBlock.Note().Hash().Equal(latestBlock.Note().Hash()) {
+	if !parentBlock.Hash().Equal(latestBlock.Hash()) {
 		return false
 	}
-	if parentBlock.Note().Hash().Equal(block.InvalidHash) {
+	if parentBlock.Hash().Equal(block.InvalidHash) {
 		return false
 	}
 
