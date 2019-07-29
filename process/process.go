@@ -380,7 +380,7 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 	n := p.state.Precommits.QueryByHeightRoundBlockHash(p.state.CurrentHeight, round, propose.BlockHash())
 	if n > 2*p.state.Precommits.F() {
 		// while !BlockExistsAtHeight(currentHeight)
-		if p.blockchain.BlockExistsAtHeight(p.state.CurrentHeight) {
+		if !p.blockchain.BlockExistsAtHeight(p.state.CurrentHeight) {
 			if p.validator.IsBlockValid(propose.Block()) {
 				p.blockchain.InsertBlockAtHeight(p.state.CurrentHeight, propose.Block())
 				p.state.CurrentHeight++
