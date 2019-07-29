@@ -48,8 +48,8 @@ func (kind Kind) String() string {
 // These properties are required by, or produced by, the consensus algorithm.
 type Header struct {
 	kind       Kind      // Kind of Block
-	parentHash id.Hash   // Hash of the Note of the Block parent
-	baseHash   id.Hash   // Hash of the Note of the Block base
+	parentHash id.Hash   // Hash of the Block parent
+	baseHash   id.Hash   // Hash of the Block base
 	height     Height    // Height at which the Block was committed
 	round      Round     // Round at which the Block was committed
 	timestamp  Timestamp // Seconds since Unix Epoch
@@ -207,56 +207,12 @@ func (data Data) String() string {
 	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(data)
 }
 
-// Notes defines a wrapper type around the []Note type.
-type Notes []Note
+// State stores application-specific state after the execution of a Block.
+type State []byte
 
-// A Note is used as a finality mechanism for committed Blocks, after the Block
-// has been executed. This is useful in scenarios where the execution of a Block
-// happens independently from the committment of a Block (common in sMPC where
-// execution requires long-running interactive processes). A Block is proposed
-// and committed without a Note. A Block is only finalised once it has a valid
-// Note. A Block is only valid if its parent is finalised. It is expected that
-// the Note will contain application-specific state that has resulted from
-// execution (along with proofs of correctness of the transition).
-type Note struct {
-	hash id.Hash // Hash of the Block Hash and the Note Data.
-	data Data    // Application-specific data stored in the Note
-}
-
-// MarshalJSON implements the `json.Marshaler` interface for the Note type.
-func (note Note) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Hash id.Hash `json:"hash"`
-		Data Data    `json:"data"`
-	}{
-		note.hash,
-		note.data,
-	})
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Note type.
-func (note *Note) UnmarshalJSON(data []byte) error {
-	tmp := struct {
-		Hash id.Hash `json:"hash"`
-		Data Data    `json:"data"`
-	}{}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-	note.hash = tmp.Hash
-	note.data = tmp.Data
-	return nil
-}
-
-// Equal compares one Note with another by checking that their Hashes are the
-// equal.
-func (note Note) Equal(other Note) bool {
-	return note.hash.Equal(other.hash)
-}
-
-// Hash of the Block Hash and the Note Data.
-func (note Note) Hash() id.Hash {
-	return note.hash
+// String implements the `fmt.Stringer` interface for the State type.
+func (state State) String() string {
+	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(state)
 }
 
 // Blocks defines a wrapper type around the []Block type.
@@ -266,23 +222,21 @@ type Blocks []Block
 // guarantees a consistent ordering of Blocks that is agreed upon by all members
 // in a distributed network, even when some of the members are malicious.
 type Block struct {
-	hash   id.Hash // Hash of the Header and Data
-	header Header
-	data   Data
-	note   Note // A valid Note is required before proceeding Blocks can proposed
+	hash      id.Hash // Hash of the Header, Data, and State
+	header    Header
+	data      Data
+	prevState State
 }
 
-// New Block with the Header and Data used to compute its 256-bit SHA3 hash.
-func New(header Header, data Data) Block {
+// New Block with the Header, Data, and State of the Block parent. The Block
+// Hash will automatically be computed and set.
+func New(header Header, data Data, prevState State) Block {
 	return Block{
-		header: header,
-		data:   data,
-		hash:   ComputeHash(header, data),
+		hash:      ComputeHash(header, data, prevState),
+		header:    header,
+		data:      data,
+		prevState: prevState,
 	}
-}
-
-func (block *Block) AppendNote(note Note) {
-	block.note = note
 }
 
 // Hash returns the 256-bit SHA3 Hash of the Header and Data.
@@ -300,44 +254,45 @@ func (block Block) Data() Data {
 	return block.data
 }
 
-// Note appended to the Block.
-func (block Block) Note() Note {
-	return block.note
+// PreviousState embedded in the Block for application-specific state after the
+// execution of the Block parent.
+func (block Block) PreviousState() State {
+	return block.prevState
 }
 
 // String implements the `fmt.Stringer` interface for the Block type.
 func (block Block) String() string {
-	return fmt.Sprintf("Block(Hash=%v,Header=%v,Data=%v)", block.hash, block.header, block.data)
+	return fmt.Sprintf("Block(Hash=%v,Header=%v,Data=%v,PreviousState=%v)", block.hash, block.header, block.data, block.prevState)
 }
 
 // Equal compares one Block with another by checking that their Hashes are the
 // equal, and their Notes are equal.
 func (block Block) Equal(other Block) bool {
-	return block.hash.Equal(other.hash) && block.note.Equal(other.note)
+	return block.hash.Equal(other.hash)
 }
 
 // MarshalJSON implements the `json.Marshaler` interface for the Block type.
 func (block Block) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Hash   id.Hash `json:"hash"`
-		Header Header  `json:"header"`
-		Data   Data    `json:"data"`
-		Note   Note    `json:"note"`
+		Hash      id.Hash `json:"hash"`
+		Header    Header  `json:"header"`
+		Data      Data    `json:"data"`
+		PrevState State   `json:"prevState"`
 	}{
 		block.hash,
 		block.header,
 		block.data,
-		block.note,
+		block.prevState,
 	})
 }
 
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Block type.
 func (block *Block) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		Hash   id.Hash `json:"hash"`
-		Header Header  `json:"header"`
-		Data   Data    `json:"data"`
-		Note   Note    `json:"note"`
+		Hash      id.Hash `json:"hash"`
+		Header    Header  `json:"header"`
+		Data      Data    `json:"data"`
+		PrevState State   `json:"prevState"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
@@ -345,7 +300,7 @@ func (block *Block) UnmarshalJSON(data []byte) error {
 	block.hash = tmp.Hash
 	block.header = tmp.Header
 	block.data = tmp.Data
-	block.note = tmp.Note
+	block.prevState = tmp.PrevState
 	return nil
 }
 
@@ -368,6 +323,6 @@ var (
 	InvalidHeight    = Height(-1)
 )
 
-func ComputeHash(header Header, data Data) id.Hash {
-	return id.Hash(sha3.Sum256([]byte(fmt.Sprintf("BlockHash(Header=%v,Data=%v)", header, data))))
+func ComputeHash(header Header, data Data, prevState State) id.Hash {
+	return id.Hash(sha3.Sum256([]byte(fmt.Sprintf("BlockHash(Header=%v,Data=%v,PreviousState=%v)", header, data, prevState))))
 }
