@@ -170,7 +170,7 @@ func (p *Process) handlePropose(propose *Propose) {
 	if propose.Height() == p.state.CurrentHeight && propose.Round() == p.state.CurrentRound && propose.ValidRound() == block.InvalidRound {
 		// from Schedule{currentHeight, currentRound}
 		if propose.Signatory().Equal(p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound)) {
-			// while step = StepPropose
+			// while currentStep = StepPropose
 			if p.state.CurrentStep == StepPropose {
 				if p.validator.IsBlockValid(propose.Block()) && (p.state.LockedRound == block.InvalidRound || p.state.LockedBlock.Equal(propose.Block())) {
 					p.broadcaster.Broadcast(NewPrevote(
@@ -202,6 +202,16 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 	if firstTimeExceeding2F && prevote.Height() == p.state.CurrentHeight && prevote.Round() == p.state.CurrentRound && p.state.CurrentStep == StepPrevote {
 		// upon 2f+1 Prevote{currentHeight, currentRound, *} while step = StepPrevote for the first time
 		p.scheduleTimeoutPrevote(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrevote, p.state.CurrentRound))
+	}
+
+	// upon 2f+1 Prevote{currentHeight, currentRound, nil} while currentStep = StepPrevote
+	if n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, p.state.CurrentRound, block.InvalidHash); n > 2*p.state.Prevotes.F() && p.state.CurrentStep == StepPrevote {
+		p.broadcaster.Broadcast(NewPrecommit(
+			p.state.CurrentHeight,
+			p.state.CurrentRound,
+			block.InvalidHash,
+		))
+		p.state.CurrentStep = StepPrecommit
 	}
 
 	// upon f+1 *{currentHeight, round, *, *} and round > currentRound
