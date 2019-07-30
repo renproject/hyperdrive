@@ -152,12 +152,14 @@ func (p *Process) startRound(round block.Round) {
 		} else {
 			proposal = p.proposer.BlockProposal(p.state.CurrentHeight, p.state.CurrentRound)
 		}
-		p.broadcaster.Broadcast(NewPropose(
+		propose := NewPropose(
 			p.state.CurrentHeight,
 			p.state.CurrentRound,
 			proposal,
 			p.state.ValidRound,
-		))
+		)
+		p.handlePropose(propose)
+		p.broadcaster.Broadcast(propose)
 	} else {
 		p.scheduleTimeoutPropose(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPropose, p.state.CurrentRound))
 	}
@@ -172,19 +174,22 @@ func (p *Process) handlePropose(propose *Propose) {
 		if propose.Signatory().Equal(p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound)) {
 			// while currentStep = StepPropose
 			if p.state.CurrentStep == StepPropose {
+				var prevote *Prevote
 				if p.validator.IsBlockValid(propose.Block()) && (p.state.LockedRound == block.InvalidRound || p.state.LockedBlock.Equal(propose.Block())) {
-					p.broadcaster.Broadcast(NewPrevote(
+					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						propose.Block().Hash(),
-					))
+					)
 				} else {
-					p.broadcaster.Broadcast(NewPrevote(
+					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						block.InvalidHash,
-					))
+					)
 				}
+				p.handlePrevote(prevote)
+				p.broadcaster.Broadcast(prevote)
 				p.state.CurrentStep = StepPrevote
 			}
 		}
@@ -206,11 +211,13 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 
 	// upon 2f+1 Prevote{currentHeight, currentRound, nil} while currentStep = StepPrevote
 	if n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, p.state.CurrentRound, block.InvalidHash); n > 2*p.state.Prevotes.F() && p.state.CurrentStep == StepPrevote {
-		p.broadcaster.Broadcast(NewPrecommit(
+		precommit := NewPrecommit(
 			p.state.CurrentHeight,
 			p.state.CurrentRound,
 			block.InvalidHash,
-		))
+		)
+		p.handlePrecommit(precommit)
+		p.broadcaster.Broadcast(precommit)
 		p.state.CurrentStep = StepPrecommit
 	}
 
@@ -242,22 +249,26 @@ func (p *Process) handlePrecommit(precommit *Precommit) {
 
 func (p *Process) timeoutPropose(height block.Height, round block.Round) {
 	if height == p.state.CurrentHeight && round == p.state.CurrentRound && p.state.CurrentStep == StepPropose {
-		p.broadcaster.Broadcast(NewPrevote(
+		prrevote := NewPrevote(
 			p.state.CurrentHeight,
 			p.state.CurrentRound,
 			block.InvalidHash,
-		))
+		)
+		p.handlePrevote(prrevote)
+		p.broadcaster.Broadcast(prrevote)
 		p.state.CurrentStep = StepPrevote
 	}
 }
 
 func (p *Process) timeoutPrevote(height block.Height, round block.Round) {
 	if height == p.state.CurrentHeight && round == p.state.CurrentRound && p.state.CurrentStep == StepPrevote {
-		p.broadcaster.Broadcast(NewPrecommit(
+		precommit := NewPrecommit(
 			p.state.CurrentHeight,
 			p.state.CurrentRound,
 			block.InvalidHash,
-		))
+		)
+		p.handlePrecommit(precommit)
+		p.broadcaster.Broadcast(precommit)
 		p.state.CurrentStep = StepPrecommit
 	}
 }
@@ -315,19 +326,22 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 		if n > 2*p.state.Prevotes.F() {
 			// while step = StepPropose and validRound >= 0 and validRound < currentRound
 			if p.state.CurrentStep == StepPropose && propose.ValidRound() < p.state.CurrentRound {
+				var prevote *Prevote
 				if p.validator.IsBlockValid(propose.Block()) && (p.state.LockedRound <= propose.ValidRound() || p.state.LockedBlock.Equal(propose.Block())) {
-					p.broadcaster.Broadcast(NewPrevote(
+					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						propose.Block().Hash(),
-					))
+					)
 				} else {
-					p.broadcaster.Broadcast(NewPrevote(
+					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						block.InvalidHash,
-					))
+					)
 				}
+				p.handlePrevote(prevote)
+				p.broadcaster.Broadcast(prevote)
 				p.state.CurrentStep = StepPrevote
 			}
 		}
@@ -356,11 +370,13 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime
 				p.state.LockedBlock = propose.Block()
 				p.state.LockedRound = p.state.CurrentRound
 				p.state.CurrentStep = StepPrecommit
-				p.broadcaster.Broadcast(NewPrecommit(
+				precommit := NewPrecommit(
 					p.state.CurrentHeight,
 					p.state.CurrentRound,
 					propose.Block().Hash(),
-				))
+				)
+				p.handlePrecommit(precommit)
+				p.broadcaster.Broadcast(precommit)
 			}
 			p.state.ValidBlock = propose.Block()
 			p.state.ValidRound = p.state.CurrentRound
