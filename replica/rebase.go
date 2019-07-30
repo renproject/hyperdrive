@@ -58,6 +58,7 @@ func newShardRebaser(blockStorage BlockStorage, blockIterator BlockIterator, val
 		blockIterator: blockIterator,
 		validator:     validator,
 		observer:      observer,
+		shard:         shard,
 	}
 }
 
