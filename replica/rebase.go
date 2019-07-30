@@ -172,7 +172,7 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block) bool {
 	if proposedBlock.Header().Timestamp() > parentBlock.Header().Timestamp() {
 		return false
 	}
-	if proposedBlock.Header().Timestamp() < block.Timestamp(time.Now().Unix()) {
+	if proposedBlock.Header().Timestamp() > block.Timestamp(time.Now().Unix()) {
 		return false
 	}
 	if !proposedBlock.Header().ParentHash().Equal(parentBlock.Hash()) {

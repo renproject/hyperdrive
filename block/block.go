@@ -90,7 +90,7 @@ func NewHeader(kind Kind, parentHash, baseHash id.Hash, height Height, round Rou
 	if round <= InvalidRound {
 		panic(fmt.Errorf("pre-condition violation: invalid round=%v", round))
 	}
-	if Timestamp(time.Now().Unix()) > timestamp {
+	if Timestamp(time.Now().Unix()) < timestamp {
 		panic("pre-condition violation: timestamp has not passed")
 	}
 	return Header{
