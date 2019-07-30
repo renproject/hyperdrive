@@ -87,11 +87,12 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	)
 	pStorage.RestoreProcess(&p, shard)
 	return Replica{
-		options:  options,
-		shard:    shard,
-		p:        p,
-		pStorage: pStorage,
-		cache:    newBaseBlockCache(latestBase),
+		options:      options,
+		shard:        shard,
+		p:            p,
+		pStorage:     pStorage,
+		blockStorage: blockStorage,
+		cache:        newBaseBlockCache(latestBase),
 	}
 }
 
