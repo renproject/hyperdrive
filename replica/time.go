@@ -16,8 +16,9 @@ type backOffTimer struct {
 
 func newBackOffTimer(exp float64, base time.Duration, max time.Duration) process.Timer {
 	return &backOffTimer{
-		exp: exp,
-		max: max,
+		exp:  exp,
+		base: base,
+		max:  max,
 	}
 }
 func (timer *backOffTimer) Timeout(step process.Step, round block.Round) time.Duration {
