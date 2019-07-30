@@ -20,7 +20,7 @@ type signer struct {
 }
 
 // newSigner returns a `process.Broadcaster` that accepts `process.Messages`,
-// signs them, sssociated them with a Shard, and re-broadcasts them.
+// signs them, associates them with a Shard, and re-broadcasts them.
 func newSigner(broadcaster Broadcaster, shard Shard, privKey ecdsa.PrivateKey) process.Broadcaster {
 	return &signer{
 		broadcaster: broadcaster,
