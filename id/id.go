@@ -41,7 +41,7 @@ func (hash *Hash) UnmarshalJSON(data []byte) error {
 }
 
 // Signatures defines a wrapper type around the []Signature type.
-type Signatures []Signatory
+type Signatures []Signature
 
 func (sigs Signatures) Hash() Hash {
 	data := make([]byte, 0, 64*len(sigs))
