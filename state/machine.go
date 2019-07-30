@@ -456,10 +456,13 @@ func (machine *machine) shouldProposeBlock() bool {
 
 func (machine *machine) buildSignedBlock() block.SignedBlock {
 	transactions := make(tx.Transactions, 0, block.MaxTransactions)
-	transaction, ok := machine.txPool.Dequeue()
-	for ok && len(transactions) < block.MaxTransactions {
-		transactions = append(transactions, transaction)
-		transaction, ok = machine.txPool.Dequeue()
+	for len(transactions) < block.MaxTransactions {
+		transaction, ok := machine.txPool.Dequeue()
+		if ok {
+			transactions = append(transactions, transaction)
+			continue
+		}
+		break
 	}
 
 	parentHeader := machine.LastBlock().Header
