@@ -19,7 +19,7 @@ var _ = Describe("Block", func() {
 			})
 		})
 
-		Context("when stringifying block headers", func() {
+		Context("when stringifying random block headers", func() {
 			Context("when block headers are equal", func() {
 				It("should return equal strings", func() {
 					Expect(true).To(BeFalse())
@@ -33,7 +33,7 @@ var _ = Describe("Block", func() {
 			})
 		})
 
-		Context("when stringifying block data", func() {
+		Context("when stringifying random block data", func() {
 			Context("when block data is equal", func() {
 				It("should return equal strings", func() {
 					Expect(true).To(BeFalse())
@@ -47,7 +47,7 @@ var _ = Describe("Block", func() {
 			})
 		})
 
-		Context("when stringifying block states", func() {
+		Context("when stringifying random block states", func() {
 			Context("when block states are equal", func() {
 				It("should return equal strings", func() {
 					Expect(true).To(BeFalse())
@@ -61,7 +61,7 @@ var _ = Describe("Block", func() {
 			})
 		})
 
-		Context("when stringifying blocks", func() {
+		Context("when stringifying random blocks", func() {
 			Context("when blocks are equal", func() {
 				It("should return equal strings", func() {
 					Expect(true).To(BeFalse())
