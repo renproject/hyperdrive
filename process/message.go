@@ -14,6 +14,8 @@ import (
 type Messages []Message
 
 type Message interface {
+	fmt.Stringer
+
 	Signatory() id.Signatory
 	SigHash() id.Hash
 	Sig() id.Signature
@@ -85,16 +87,11 @@ func (propose *Propose) Signatory() id.Signatory {
 }
 
 func (propose *Propose) SigHash() id.Hash {
-	return sha3.Sum256([]byte(fmt.Sprintf("Propose(Height=%v,Round=%v,BlockHash=%v,ValidRound=%v)", propose.Height(), propose.Round(), propose.BlockHash(), propose.ValidRound())))
+	return sha3.Sum256([]byte(propose.String()))
 }
 
 func (propose *Propose) Sig() id.Signature {
 	return propose.sig
-}
-
-func (propose *Propose) Sign(sig id.Signature, signatory id.Signatory) {
-	propose.sig = sig
-	propose.signatory = signatory
 }
 
 func (propose *Propose) Height() block.Height {
@@ -115,6 +112,10 @@ func (propose *Propose) Block() block.Block {
 
 func (propose *Propose) ValidRound() block.Round {
 	return propose.validRound
+}
+
+func (propose *Propose) String() string {
+	return fmt.Sprintf("Propose(Height=%v,Round=%v,BlockHash=%v,ValidRound=%v)", propose.Height(), propose.Round(), propose.BlockHash(), propose.ValidRound())
 }
 
 // MarshalJSON implements the `json.Marshaler` interface for the Propose type.
@@ -181,7 +182,7 @@ func (prevote *Prevote) Signatory() id.Signatory {
 }
 
 func (prevote *Prevote) SigHash() id.Hash {
-	return sha3.Sum256([]byte(fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash())))
+	return sha3.Sum256([]byte(prevote.String()))
 }
 
 func (prevote *Prevote) Sig() id.Signature {
@@ -198,6 +199,10 @@ func (prevote *Prevote) Round() block.Round {
 
 func (prevote *Prevote) BlockHash() id.Hash {
 	return prevote.blockHash
+}
+
+func (prevote *Prevote) String() string {
+	return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash())
 }
 
 // MarshalJSON implements the `json.Marshaler` interface for the Prevote type.
@@ -260,7 +265,7 @@ func (precommit *Precommit) Signatory() id.Signatory {
 }
 
 func (precommit *Precommit) SigHash() id.Hash {
-	return sha3.Sum256([]byte(fmt.Sprintf("Precommit(Height=%v,Round=%v,BlockHash=%v)", precommit.Height(), precommit.Round(), precommit.BlockHash())))
+	return sha3.Sum256([]byte(precommit.String()))
 }
 
 func (precommit *Precommit) Sig() id.Signature {
@@ -316,6 +321,10 @@ func (precommit *Precommit) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (precommit *Precommit) String() string {
+	return fmt.Sprintf("Precommit(Height=%v,Round=%v,BlockHash=%v)", precommit.Height(), precommit.Round(), precommit.BlockHash())
+}
+
 type Inbox struct {
 	f        int
 	messages map[block.Height]map[block.Round]map[id.Signatory]Message
@@ -333,8 +342,8 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	inbox.messages[message.Height()][message.Round()][message.Signatory()] = message
 	n = len(inbox.messages[message.Height()][message.Round()])
 	firstTime = (previousN == 0) && (n == 1)
-	firstTimeExceedingF = (previousN < inbox.f+1) && (n > inbox.f)
-	firstTimeExceeding2F = (previousN < 2*inbox.f+1) && (n > 2*inbox.f)
+	firstTimeExceedingF = (previousN < inbox.F()+1) && (n > inbox.F())
+	firstTimeExceeding2F = (previousN < 2*inbox.F()+1) && (n > 2*inbox.F())
 	return
 }
 
