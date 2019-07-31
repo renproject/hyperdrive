@@ -157,6 +157,10 @@ var _ = Describe("Block", func() {
 			Expect(true).To(BeFalse())
 		})
 
+		It("should return a block with fields equal to those passed during creation", func() {
+			Expect(true).To(BeFalse())
+		})
+
 		Context("when the header, data, and previous state are equal", func() {
 			It("should return a block with computed hashes that are equal", func() {
 				Expect(true).To(BeFalse())
