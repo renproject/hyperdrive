@@ -368,7 +368,7 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 
 		var polkaRound *block.Round
 		polka, polkaRound = machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
-		if polka != nil && polkaRound != nil && *polkaRound == machine.currentRound && !machine.preVoteTimer.IsActive() {
+		if polkaRound != nil && *polkaRound == machine.currentRound && !machine.preVoteTimer.IsActive() {
 			machine.activateTimerWithExpiry(&machine.preVoteTimer)
 		}
 
