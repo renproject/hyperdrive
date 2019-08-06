@@ -313,7 +313,7 @@ func (machine *machine) waitForPropose(transition Transition) Action {
 				return machine.broadcastPreVote(nil)
 			}
 			if polka, polkaRound := machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold()); polkaRound != nil {
-				if polka.Block != nil && polka.Block.Block.Equal(transition.Block.Block) && transition.ValidRound < machine.currentRound {
+				if polka != nil && polka.Block != nil && polka.Block.Block.Equal(transition.Block.Block) && transition.ValidRound < machine.currentRound {
 					// Reset propose timer and update state
 					machine.proposeTimer.Reset()
 
@@ -368,7 +368,7 @@ func (machine *machine) waitForPolka(transition Transition) Action {
 
 		var polkaRound *block.Round
 		polka, polkaRound = machine.polkaBuilder.Polka(machine.currentHeight, machine.shard.ConsensusThreshold())
-		if polkaRound != nil && *polkaRound == machine.currentRound && !machine.preVoteTimer.IsActive() {
+		if polka != nil && polkaRound != nil && *polkaRound == machine.currentRound && !machine.preVoteTimer.IsActive() {
 			machine.activateTimerWithExpiry(&machine.preVoteTimer)
 		}
 
