@@ -14,7 +14,7 @@ import (
 	"github.com/renproject/hyperdrive/state"
 	"github.com/renproject/hyperdrive/testutils"
 	"github.com/renproject/hyperdrive/tx"
-	co "github.com/republicprotocol/co-go"
+	"github.com/renproject/phi/co"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

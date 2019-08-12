@@ -15,12 +15,16 @@ jobs:
       - restore_cache:
           key: go-mod-v3-{{ checksum "go.sum" }}
       - run:
+          name: Install tools
+          command: |
+            go get -u github.com/onsi/ginkgo/ginkgo
+            go get -u golang.org/x/lint/golint
+            go get -u github.com/loongy/covermerge
+            go get -u github.com/mattn/goveralls
+      - run:
           name: Building and testing
           command: |
             go build ./...
-            go get -u github.com/onsi/ginkgo/ginkgo
-            go get -u github.com/loongy/covermerge
-            go get -u github.com/mattn/goveralls
             go test -v -timeout 20m ./... 
             CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out ./...
             /go/bin/covermerge           \
@@ -38,6 +42,9 @@ jobs:
           key: go-mod-v3-{{ checksum "go.sum" }}
           paths:
             - "~/go"
+      - run:
+          name: Run linter
+          command: golint ./...
 
 workflows:
   version: 2.1
