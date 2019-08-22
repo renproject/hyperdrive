@@ -68,21 +68,25 @@ type Replica struct {
 	p            process.Process
 	pStorage     ProcessStorage
 	blockStorage BlockStorage
-	cache        baseBlockCache
+
+	scheduler *roundRobinScheduler
+	rebaser   *shardRebaser
+	cache     baseBlockCache
 }
 
 func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shard Shard, privKey ecdsa.PrivateKey) Replica {
+	latestBase := blockStorage.LatestBaseBlock(shard)
+	scheduler := newRoundRobinScheduler(latestBase.Header().Signatories())
 	shardRebaser := newShardRebaser(blockStorage, blockIterator, validator, observer, shard)
-	latestBase := blockStorage.LatestBaseBlock()
 	p := process.New(
 		id.NewSignatory(privKey.PublicKey),
-		blockStorage,
+		blockStorage.Blockchain(shard),
 		process.DefaultState(),
 		shardRebaser,
 		shardRebaser,
 		shardRebaser,
 		newSigner(broadcaster, shard, privKey),
-		newRoundRobinScheduler(latestBase.Header().Signatories()),
+		scheduler,
 		newBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
 	)
 	pStorage.RestoreProcess(&p, shard)
@@ -92,7 +96,10 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		p:            p,
 		pStorage:     pStorage,
 		blockStorage: blockStorage,
-		cache:        newBaseBlockCache(latestBase),
+
+		scheduler: scheduler,
+		rebaser:   shardRebaser,
+		cache:     newBaseBlockCache(latestBase),
 	}
 }
 
@@ -106,7 +113,7 @@ func (replica *Replica) HandleMessage(m Message) {
 	// Check that the Message sender is from our Shard (this can be a moderately
 	// expensive operation, so we cache the result until a new `block.Base` is
 	// detected)
-	replica.cache.fillBaseBlock(replica.blockStorage.LatestBaseBlock())
+	replica.cache.fillBaseBlock(replica.blockStorage.LatestBaseBlock(replica.shard))
 	if !replica.cache.signatoryInBaseBlock(m.Message.Signatory()) {
 		return
 	}
@@ -121,6 +128,11 @@ func (replica *Replica) HandleMessage(m Message) {
 	// `process.Process` afterwards to proected against unexpected crashes
 	replica.p.HandleMessage(m.Message)
 	replica.pStorage.SaveProcess(replica.p, replica.shard)
+}
+
+func (replica *Replica) Rebase(sigs id.Signatories) {
+	replica.scheduler.rebase(sigs)
+	replica.rebaser.rebase(sigs)
 }
 
 type baseBlockCache struct {

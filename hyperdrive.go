@@ -1,6 +1,8 @@
 package hyperdrive
 
 import (
+	"crypto/ecdsa"
+
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/id"
 	"github.com/renproject/hyperdrive/replica"
@@ -19,6 +21,7 @@ type (
 	Message        = replica.Message
 	Shards         = replica.Shards
 	Shard          = replica.Shard
+	Options        = replica.Options
 	Replicas       = replica.Replicas
 	Replica        = replica.Replica
 	ProcessStorage = replica.ProcessStorage
@@ -29,26 +32,42 @@ type (
 	Broadcaster    = replica.Broadcaster
 )
 
-// Hyperdrive manages multiple `replica.Replicas` from different
-// `replica.Shards`.
+// Hyperdrive manages multiple `Replicas` from different
+// `Shards`.
 type Hyperdrive interface {
-	Rebase(sigs id.Signatories, shard replica.Shard)
-	HandleMessage(message replica.Message)
+	Rebase(sigs Signatories)
+	HandleMessage(message Message)
 }
 
 type hyperdrive struct {
-	replicas map[replica.Shard]replica.Replica
+	replicas map[Shard]Replica
 }
 
 // New Hyperdrive.
-func New() Hyperdrive {
+func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shards Shards, privKey ecdsa.PrivateKey) Hyperdrive {
+	replicas := make(map[Shard]Replica, len(shards))
+	for _, shard := range shards {
+		replicas[shard] = replica.New(options, pStorage, blockStorage, blockIterator, validator, observer, broadcaster, shard, privKey)
+	}
 	return &hyperdrive{
-		replicas: map[replica.Shard]replica.Replica{},
+		replicas: replicas,
 	}
 }
 
-func (hyper *hyperdrive) Rebase(sigs id.Signatories, shard replica.Shard) {
+func (hyper *hyperdrive) Rebase(sigs Signatories) {
+	for shard, replica := range hyper.replicas {
+		replica.Rebase(sigs)
+		hyper.replicas[shard] = replica
+	}
 }
 
-func (hyper *hyperdrive) HandleMessage(message replica.Message) {
+func (hyper *hyperdrive) HandleMessage(message Message) {
+	replica, ok := hyper.replicas[message.Shard]
+	if !ok {
+		return
+	}
+	defer func() {
+		hyper.replicas[message.Shard] = replica
+	}()
+	replica.HandleMessage(message)
 }
