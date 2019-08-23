@@ -15,19 +15,19 @@ type Kind uint8
 
 const (
 	// Invalid defines an invalid Kind that must not be used.
-	Invalid = iota
+	Invalid = Kind(0)
 	// Standard Blocks are used when reaching consensus on the ordering of
 	// application-specific data. Standard Blocks must have nil Header
 	// Signatories. This is the most common Block Kind.
-	Standard
+	Standard = Kind(1)
 	// Rebase Blocks are used when reaching consensus about a change to the
 	// Header Signatories that oversee the consensus algorithm. Rebase Blocks
 	// must include non-empty Header Signatories.
-	Rebase
+	Rebase = Kind(2)
 	// Base Blocks are used to finalise Rebase Blocks. Base Blocks must come
 	// immediately after a Rebase Block, must have no Content, and must have the
 	// same Header Signatories as their parent.
-	Base
+	Base = Kind(3)
 )
 
 // String implements the `fmt.Stringer` interface for the Kind type.
