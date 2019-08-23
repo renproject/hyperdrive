@@ -17,18 +17,21 @@ jobs:
       - run:
           name: Building and testing
           command: |
-            go build ./...
+            go vet ./...
             go get -u github.com/onsi/ginkgo/ginkgo
+            go get -u github.com/onsi/gomega/...
             go get -u github.com/loongy/covermerge
             go get -u github.com/mattn/goveralls
+            go get -u golang.org/x/lint/golint
+            golint ./...
             CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out ./...
-            /go/bin/covermerge           \
-              id/coverprofile.out     \
-#              block/coverprofile.out     \
-#              process/coverprofile.out   \
-#              replica/coverprofile.out \
-              coverprofile.out           > coverprofile.out
-            goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
+            /go/bin/covermerge              \
+              id/coverprofile.out    \
+              block/coverprofile.out    \
+              process/coverprofile.out      \
+              replica/coverprofile.out     \
+              coverprofile.out > coverprofile.out
+            /go/bin/goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
           no_output_timeout: 40m
       - save_cache:
           key: go-mod-v3-{{ checksum "go.sum" }}
