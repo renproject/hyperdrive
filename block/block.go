@@ -15,7 +15,7 @@ type Kind uint8
 
 const (
 	// Invalid defines an invalid Kind that must not be used.
-	Invalid = iota
+	Invalid Kind= iota
 	// Standard Blocks are used when reaching consensus on the ordering of
 	// application-specific data. Standard Blocks must have nil Header
 	// Signatories. This is the most common Block Kind.
