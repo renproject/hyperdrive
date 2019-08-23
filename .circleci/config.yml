@@ -23,7 +23,7 @@ jobs:
             go get -u golang.org/x/crypto/...
             go get -u github.com/loongy/covermerge
             go get -u github.com/mattn/goveralls
-            CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out ./...
+            CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out id block
             /go/bin/covermerge          \
               id/coverprofile.out       \
               block/coverprofile.out    \
