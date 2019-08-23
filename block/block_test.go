@@ -24,7 +24,7 @@ var _ = Describe("Block", func() {
 		Context("when stringifying", func() {
 			It("should return correct string for each Kind", func() {
 				Expect(func() {
-					Invalid.String()
+					_ = Invalid.String()
 				}).Should(Panic())
 
 				Expect(fmt.Sprintf("%v", Standard)).Should(Equal("standard"))
@@ -35,7 +35,7 @@ var _ = Describe("Block", func() {
 					kind := rand.Intn(math.MaxUint8 - 4)
 					invalidKind := Kind(kind + 4) // skip the valid kinds
 					Expect(func() {
-						invalidKind.String()
+						_ = invalidKind.String()
 					}).Should(Panic())
 					return true
 				}
