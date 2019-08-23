@@ -18,6 +18,8 @@ type (
 	Signatory      = id.Signatory
 	Blocks         = block.Blocks
 	Block          = block.Block
+	Height         = block.Height
+	Round          = block.Round
 	Messages       = replica.Messages
 	Message        = replica.Message
 	Shards         = replica.Shards
