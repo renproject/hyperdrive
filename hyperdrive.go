@@ -9,6 +9,7 @@ import (
 	"github.com/renproject/hyperdrive/replica"
 )
 
+// Re-export types.
 type (
 	Hashes         = id.Hashes
 	Hash           = id.Hash
@@ -20,6 +21,8 @@ type (
 	Block          = block.Block
 	Height         = block.Height
 	Round          = block.Round
+	BlockData      = block.Data
+	BlockState     = block.State
 	Messages       = replica.Messages
 	Message        = replica.Message
 	Shards         = replica.Shards
@@ -38,11 +41,15 @@ type (
 	ProcessState   = process.State
 )
 
+// Re-export variables.
 var (
+	NewSignatory = id.NewSignatory
+
 	StandardBlockKind = block.Standard
 	RebaseBlockKind   = block.Rebase
 	BaseBlockKind     = block.Base
-	NewSignatory      = id.NewSignatory
+	NewBlock          = block.New
+	NewBlockHeader    = block.NewHeader
 )
 
 // Hyperdrive manages multiple `Replicas` from different
