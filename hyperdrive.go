@@ -42,6 +42,7 @@ var (
 	StandardBlockKind = block.Standard
 	RebaseBlockKind   = block.Rebase
 	BaseBlockKind     = block.Base
+	NewSignatory      = id.NewSignatory
 )
 
 // Hyperdrive manages multiple `Replicas` from different
