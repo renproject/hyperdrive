@@ -24,7 +24,7 @@ func (shard Shard) Equal(other Shard) bool {
 
 // String implements the `fmt.Stringer` interface.
 func (shard Shard) String() string {
-	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(shard[:])
+	return base64.RawStdEncoding.EncodeToString(shard[:])
 }
 
 type Messages []Message

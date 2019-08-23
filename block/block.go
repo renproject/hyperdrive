@@ -14,8 +14,8 @@ import (
 type Kind uint8
 
 const (
-	// Invalid defines an invalid Kind that must not be used.
-	Invalid Kind= iota
+	// Invalid defines an invalid Block that must not be used.
+	Invalid Kind = iota
 	// Standard Blocks are used when reaching consensus on the ordering of
 	// application-specific data. Standard Blocks must have nil Header
 	// Signatories. This is the most common Block Kind.
@@ -59,21 +59,17 @@ type Header struct {
 	signatories id.Signatories
 }
 
-// NewHeader returns a Header. It will panic a pre-condition for Header validity
-// is violated.
+// NewHeader returns a Header. It will panic if a pre-condition for Header
+// validity is violated.
 func NewHeader(kind Kind, parentHash, baseHash id.Hash, height Height, round Round, timestamp Timestamp, signatories id.Signatories) Header {
 	switch kind {
 	case Standard:
 		if signatories != nil {
 			panic("pre-condition violation: standard blocks must not declare signatories")
 		}
-	case Rebase:
-		if signatories == nil || len(signatories) == 0 {
-			panic("pre-condition violation: rebase blocks must declare signatories")
-		}
-	case Base:
-		if signatories == nil || len(signatories) == 0 {
-			panic("pre-condition violation: base blocks must declare signatories")
+	case Rebase, Base:
+		if len(signatories) == 0 {
+			panic(fmt.Sprintf("pre-condition violation: %v blocks must declare signatories", kind))
 		}
 	default:
 		panic(fmt.Errorf("pre-condition violation: unexpected block kind=%v", kind))
@@ -204,7 +200,7 @@ type Data []byte
 
 // String implements the `fmt.Stringer` interface for the Data type.
 func (data Data) String() string {
-	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(data)
+	return base64.RawStdEncoding.EncodeToString(data)
 }
 
 // State stores application-specific state after the execution of a Block.
@@ -212,7 +208,7 @@ type State []byte
 
 // String implements the `fmt.Stringer` interface for the State type.
 func (state State) String() string {
-	return base64.StdEncoding.WithPadding(base64.NoPadding).EncodeToString(state)
+	return base64.RawStdEncoding.EncodeToString(state)
 }
 
 // Blocks defines a wrapper type around the []Block type.
@@ -323,6 +319,7 @@ var (
 	InvalidHeight    = Height(-1)
 )
 
+// ComputeHash of a block basing on its header, data and previous state.
 func ComputeHash(header Header, data Data, prevState State) id.Hash {
-	return id.Hash(sha3.Sum256([]byte(fmt.Sprintf("BlockHash(Header=%v,Data=%v,PreviousState=%v)", header, data, prevState))))
+	return sha3.Sum256([]byte(fmt.Sprintf("BlockHash(Header=%v,Data=%v,PreviousState=%v)", header, data, prevState)))
 }
