@@ -38,6 +38,12 @@ type (
 	ProcessState   = process.State
 )
 
+var (
+	StandardBlockKind = block.Standard
+	RebaseBlockKind   = block.Rebase
+	BaseBlockKind     = block.Base
+)
+
 // Hyperdrive manages multiple `Replicas` from different
 // `Shards`.
 type Hyperdrive interface {
