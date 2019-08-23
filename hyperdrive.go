@@ -3,6 +3,7 @@ package hyperdrive
 import (
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/id"
+	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/replica"
 )
 
@@ -27,6 +28,9 @@ type (
 	Validator      = replica.Validator
 	Observer       = replica.Observer
 	Broadcaster    = replica.Broadcaster
+	Blockchain     = process.Blockchain
+	Process        = process.Process
+	ProcessState   = process.State
 )
 
 // Hyperdrive manages multiple `replica.Replicas` from different
