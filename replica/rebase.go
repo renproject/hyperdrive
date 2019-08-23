@@ -214,7 +214,7 @@ func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
 	case block.Standard:
 	case block.Rebase:
 		rebaser.expectedKind = block.Base
-		rebaser.expectedRebaseSigs = committedBlock.Header().Signatories()
+		rebaser.expectedRebaseSigs = committedBlock.Header().Signatories() // TODO: Should this be an invariant check?
 	case block.Base:
 		rebaser.expectedKind = block.Standard
 		rebaser.expectedRebaseSigs = nil

@@ -55,7 +55,7 @@ type Header struct {
 	timestamp  Timestamp // Seconds since Unix Epoch
 
 	// Signatories oversee the consensus algorithm (must be nil unless the Block
-	// is a Rebase Block)
+	// is a Rebase/Base Block)
 	signatories id.Signatories
 }
 

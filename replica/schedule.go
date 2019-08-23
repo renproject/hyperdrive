@@ -14,6 +14,8 @@ type roundRobinScheduler struct {
 // robin schedule that weights the `block.Height` and the `block.Round` equally.
 func newRoundRobinScheduler(signatories id.Signatories) process.Scheduler {
 	return &roundRobinScheduler{
+		// FIXME: Add a private `rebaseToNewSigs` method to allow the scheduler
+		// to work with a new sig set.
 		signatories: signatories,
 	}
 }
