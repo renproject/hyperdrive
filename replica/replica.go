@@ -57,6 +57,21 @@ type Options struct {
 	BackOffMax  time.Duration
 }
 
+func (options *Options) setZerosToDefaults() {
+	if options.Logger == nil {
+		options.Logger = logrus.StandardLogger()
+	}
+	if options.BackOffExp == 0 {
+		options.BackOffExp = 1.6
+	}
+	if options.BackOffBase == time.Duration(0) {
+		options.BackOffBase = 5 * time.Second
+	}
+	if options.BackOffMax == time.Duration(0) {
+		options.BackOffMax = time.Minute
+	}
+}
+
 type Replicas []Replica
 
 // A Replica represents one Process in a replicated state machine that is bound
@@ -75,6 +90,7 @@ type Replica struct {
 }
 
 func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shard Shard, privKey ecdsa.PrivateKey) Replica {
+	options.setZerosToDefaults()
 	latestBase := blockStorage.LatestBaseBlock(shard)
 	scheduler := newRoundRobinScheduler(latestBase.Header().Signatories())
 	shardRebaser := newShardRebaser(blockStorage, blockIterator, validator, observer, shard)
