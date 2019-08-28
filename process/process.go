@@ -162,7 +162,6 @@ func (p *Process) startRound(round block.Round) {
 		)
 		// Always broadcast at the end
 		p.broadcaster.Broadcast(propose)
-		p.handlePropose(propose)
 	} else {
 		p.scheduleTimeoutPropose(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPropose, p.state.CurrentRound))
 	}
@@ -190,10 +189,8 @@ func (p *Process) handlePropose(propose *Propose) {
 						block.InvalidHash,
 					)
 				}
-
 				p.state.CurrentStep = StepPrevote
 				p.broadcaster.Broadcast(prevote)
-				p.handlePrevote(prevote)
 			}
 		}
 	}
@@ -222,7 +219,6 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 		p.state.CurrentStep = StepPrecommit
 		// Always broadcast at the end
 		p.broadcaster.Broadcast(precommit)
-		p.handlePrecommit(precommit)
 	}
 
 	// upon f+1 *{currentHeight, round, *, *} and round > currentRound
@@ -264,7 +260,6 @@ func (p *Process) timeoutPropose(height block.Height, round block.Round) {
 		p.state.CurrentStep = StepPrevote
 		// Always broadcast at the end
 		p.broadcaster.Broadcast(prevote)
-		p.handlePrevote(prevote)
 	}
 }
 
@@ -278,7 +273,6 @@ func (p *Process) timeoutPrevote(height block.Height, round block.Round) {
 		p.state.CurrentStep = StepPrecommit
 		// Always broadcast at the end
 		p.broadcaster.Broadcast(precommit)
-		p.handlePrecommit(precommit)
 	}
 }
 
@@ -352,7 +346,6 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 				p.state.CurrentStep = StepPrevote
 				// Always broadcast at the end
 				p.broadcaster.Broadcast(prevote)
-				p.handlePrevote(prevote)
 			}
 		}
 	}
@@ -389,7 +382,6 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime
 				)
 				// Always broadcast at the end
 				p.broadcaster.Broadcast(precommit)
-				p.handlePrecommit(precommit)
 			}
 		}
 	}

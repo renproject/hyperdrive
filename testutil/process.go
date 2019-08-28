@@ -3,6 +3,7 @@ package testutil
 import (
 	"crypto/ecdsa"
 	cRand "crypto/rand"
+	"encoding/json"
 	"math/rand"
 	"reflect"
 	"sync"
@@ -283,4 +284,16 @@ func NewMockTimer(timeout time.Duration) process.Timer {
 
 func (timer *MockTimer) Timeout(step process.Step, round block.Round) time.Duration {
 	return timer.timeout
+}
+
+func GetStateFromProcess(p process.Process, f int) process.State {
+	data, err := json.Marshal(p)
+	if err != nil {
+		panic(err)
+	}
+	state := process.DefaultState(f)
+	if err := json.Unmarshal(data, &state); err != nil {
+		panic(err)
+	}
+	return state
 }
