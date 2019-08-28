@@ -343,6 +343,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 						block.InvalidHash,
 					)
 				}
+
 				p.state.CurrentStep = StepPrevote
 				// Always broadcast at the end
 				p.broadcaster.Broadcast(prevote)

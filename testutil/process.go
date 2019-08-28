@@ -133,6 +133,7 @@ func RandomInbox(f int, t reflect.Type) *process.Inbox {
 }
 
 type ProcessOrigin struct {
+	PrivateKey        *ecdsa.PrivateKey
 	Signatory         id.Signatory
 	Blockchain        process.Blockchain
 	State             process.State
@@ -155,6 +156,7 @@ func NewProcessOrigin(f int) ProcessOrigin {
 	messages := make(chan process.Message, 128)
 
 	return ProcessOrigin{
+		PrivateKey:        privateKey,
 		Signatory:         sig,
 		Blockchain:        NewMockBlockchain(),
 		State:             process.DefaultState(f),
