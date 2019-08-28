@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
@@ -32,6 +33,9 @@ func Sign(m Message, privKey ecdsa.PrivateKey) error {
 	if err != nil {
 		return fmt.Errorf("invariant violation: error signing message: %v", err)
 	}
+	if len(sig) != id.SignatureLength {
+		return fmt.Errorf("invariant violation: invalid signed message, expected = %v, got = %v", id.SignatureLength, len(sig))
+	}
 
 	switch m := m.(type) {
 	case *Propose:
@@ -43,6 +47,8 @@ func Sign(m Message, privKey ecdsa.PrivateKey) error {
 	case *Precommit:
 		m.signatory = signatory
 		copy(m.sig[:], sig)
+	default:
+		panic(fmt.Errorf("invariant violation: unexpected message type=%T", m))
 	}
 	return nil
 }
@@ -119,7 +125,7 @@ func (propose *Propose) String() string {
 }
 
 // MarshalJSON implements the `json.Marshaler` interface for the Propose type.
-func (propose *Propose) MarshalJSON() ([]byte, error) {
+func (propose Propose) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Sig        id.Signature `json:"sig"`
 		Signatory  id.Signatory `json:"signatory"`
@@ -285,7 +291,7 @@ func (precommit *Precommit) BlockHash() id.Hash {
 }
 
 // MarshalJSON implements the `json.Marshaler` interface for the Precommit type.
-func (precommit *Precommit) MarshalJSON() ([]byte, error) {
+func (precommit Precommit) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Sig       id.Signature `json:"sig"`
 		Signatory id.Signatory `json:"signatory"`
@@ -326,25 +332,54 @@ func (precommit *Precommit) String() string {
 }
 
 type Inbox struct {
-	f        int
-	messages map[block.Height]map[block.Round]map[id.Signatory]Message
+	f           int
+	messages    map[block.Height]map[block.Round]map[id.Signatory]Message
+	messageType reflect.Type
+}
+
+func NewInbox(f int, messageType reflect.Type) *Inbox {
+	if f <= 0 {
+		panic(fmt.Sprintf("invariant violation: f = %v needs to be a positive number", f))
+	}
+	if messageType == nil {
+		panic("invariant violation: message type cannot be nil")
+	}
+	return &Inbox{
+		f:           f,
+		messages:    map[block.Height]map[block.Round]map[id.Signatory]Message{},
+		messageType: messageType,
+	}
 }
 
 func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedingF, firstTimeExceeding2F bool) {
-	if _, ok := inbox.messages[message.Height()]; !ok {
-		inbox.messages[message.Height()] = map[block.Round]map[id.Signatory]Message{}
-	}
-	if _, ok := inbox.messages[message.Height()][message.Round()]; !ok {
-		inbox.messages[message.Height()][message.Round()] = map[id.Signatory]Message{}
+	if reflect.TypeOf(message) != reflect.PtrTo(inbox.messageType) {
+		panic(fmt.Sprintf("pre-condition violation: expected type %v, got type %T", inbox.messageType, message))
 	}
 
-	previousN := len(inbox.messages[message.Height()][message.Round()])
-	inbox.messages[message.Height()][message.Round()][message.Signatory()] = message
-	n = len(inbox.messages[message.Height()][message.Round()])
+	height, round, signatory := message.Height(), message.Round(), message.Signatory()
+	if _, ok := inbox.messages[height]; !ok {
+		inbox.messages[height] = map[block.Round]map[id.Signatory]Message{}
+	}
+	if _, ok := inbox.messages[height][round]; !ok {
+		inbox.messages[height][round] = map[id.Signatory]Message{}
+	}
+
+	previousN := len(inbox.messages[height][round])
+	inbox.messages[height][round][signatory] = message
+	n = len(inbox.messages[height][round])
+
 	firstTime = (previousN == 0) && (n == 1)
 	firstTimeExceedingF = (previousN < inbox.F()+1) && (n > inbox.F())
 	firstTimeExceeding2F = (previousN < 2*inbox.F()+1) && (n > 2*inbox.F())
 	return
+
+	// n = inbox.QueryByHeightRoundBlockHash(message.Height(), message.Round(), message.BlockHash())
+	// if _, ok := inbox.messages[height][round][signatory]; ok {
+	// 	// todo : what should we do if they vote something different
+	// 	return
+	// }
+	// inbox.messages[height][round][signatory] = message
+	// return n + 1, n == 1, n == inbox.F()+1, n == 2*inbox.F()+1
 }
 
 func (inbox *Inbox) QueryByHeightRoundBlockHash(height block.Height, round block.Round, blockHash id.Hash) (n int) {
@@ -387,6 +422,10 @@ func (inbox *Inbox) F() int {
 	return inbox.f
 }
 
+func (inbox *Inbox) MessageType() reflect.Type {
+	return inbox.messageType
+}
+
 // MarshalJSON implements the `json.Marshaler` interface for the Inbox type.
 func (inbox Inbox) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
@@ -401,13 +440,33 @@ func (inbox Inbox) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Inbox type.
 func (inbox *Inbox) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		F        int                                                       `json:"f"`
-		Messages map[block.Height]map[block.Round]map[id.Signatory]Message `json:"messages"`
+		F        int                                                               `json:"f"`
+		Messages map[block.Height]map[block.Round]map[id.Signatory]json.RawMessage `json:"messages"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
 	}
 	inbox.f = tmp.F
-	inbox.messages = tmp.Messages
+	inbox.messages = map[block.Height]map[block.Round]map[id.Signatory]Message{}
+
+	for height, roundMap := range tmp.Messages {
+		if roundMap != nil {
+			inbox.messages[height] = map[block.Round]map[id.Signatory]Message{}
+		}
+		for round, sigMap := range roundMap {
+			if sigMap != nil {
+				inbox.messages[height][round] = map[id.Signatory]Message{}
+			}
+			for sig, raw := range sigMap {
+				message := reflect.New(inbox.messageType).Interface()
+				if err := json.Unmarshal(raw, message); err != nil {
+					return err
+				}
+				msg := message.(Message)
+				inbox.messages[height][round][sig] = msg
+			}
+		}
+	}
+
 	return nil
 }

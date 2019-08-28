@@ -77,7 +77,8 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	p := process.New(
 		id.NewSignatory(privKey.PublicKey),
 		blockStorage,
-		process.DefaultState(),
+		// todo : fix f
+		process.DefaultState(1),
 		shardRebaser,
 		shardRebaser,
 		shardRebaser,

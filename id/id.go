@@ -158,23 +158,57 @@ func (sig Signatory) String() string {
 	return base64.RawStdEncoding.EncodeToString(sig[:])
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the Signatory type.
-func (sig Signatory) MarshalJSON() ([]byte, error) {
-	return json.Marshal(sig[:])
+// MarshalText implements `encoding.TextMarshaler` so that it can be used as
+// key of a map when marshaling/unmarshaling.
+func (sig Signatory) MarshalText() (text []byte, err error) {
+	return []byte(base64.RawStdEncoding.EncodeToString(sig[:])), nil
 }
 
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Signatory type.
-func (sig *Signatory) UnmarshalJSON(data []byte) error {
-	v := []byte{}
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
+// MarshalText implements `encoding.TextUnmarshaler` so that it can be used as
+// key of a map when marshaling/unmarshaling.
+func (sig *Signatory) UnmarshalText(text []byte) error {
+	data, err := base64.RawStdEncoding.DecodeString(string(text))
+	if err != nil {
+		return fmt.Errorf("error decoding signatory text: %v", err)
 	}
-	if len(v) != SignatoryLength {
-		return ErrInvalidJsonBytes(*sig, SignatoryLength, len(v))
+	if len(data) != SignatoryLength {
+		return ErrInvalidJsonBytes(sig, SignatoryLength, len(sig))
 	}
-	copy(sig[:], v)
+
+	copy(sig[:], data)
 	return nil
 }
+
+// MarshalJSON implements the `json.Marshaler` interface for the Signatory type.
+// func (sig Signatory) MarshalJSON() ([]byte, error) {
+// 	println("CALLED")
+// 	return json.Marshal(sig[:])
+// }
+
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the Signatory type.
+// func (sig *Signatory) UnmarshalJSON(data []byte) error {
+// 	v := []byte{}
+// 	if err := json.Unmarshal(data, &v); err != nil {
+// 		return err
+// 	}
+// 	if len(v) != SignatoryLength {
+// 		return ErrInvalidJsonBytes(*sig, SignatoryLength, len(v))
+// 	}
+// 	copy(sig[:], v)
+// 	return nil
+// text, err := hex.DecodeString(string(data))
+// if err != nil {
+// 	return err
+// }
+//
+// // if len(data) != SignatoryLength {
+// // 	return ErrInvalidJsonBytes(sig, SignatoryLength, len(sig))
+// // }
+//
+// copy(sig[:], text)
+//
+// return nil
+// }
 
 // Hash returns a 256-bit SHA3 hash of the Signatories by converting them into
 // bytes and concatenating them to each other.

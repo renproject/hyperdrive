@@ -1,264 +1,532 @@
 package process_test
 
 import (
-	"fmt"
+	"crypto/ecdsa"
+	cRand "crypto/rand"
+	"encoding/json"
+	"math/rand"
+	"reflect"
+	"testing/quick"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "github.com/renproject/hyperdrive/process"
+	. "github.com/renproject/hyperdrive/testutil"
+
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/id"
 )
 
 var _ = Describe("Messages", func() {
 
-	table := []string{"propose", "prevote", "precommit"}
+	Context("Propose", func() {
+		Context("when initializing", func() {
+			It("should return a message with fields equal to those passed during creation", func() {
+				test := func() bool {
+					height := block.Height(rand.Int63())
+					round := block.Round(rand.Int63())
+					validRound := block.Round(rand.Int63())
+					block := RandomBlock(RandomBlockKind())
 
-	for _, entry := range table {
-		entry := entry
+					propose := NewPropose(height, round, block, validRound)
 
-		Context(fmt.Sprintf("when stringifying random %vs", entry), func() {
-			Context("when equal", func() {
-				It("should return equal strings", func() {
-					Expect(true).To(BeFalse())
-				})
+					Expect(propose.Height()).Should(Equal(height))
+					Expect(propose.Round()).Should(Equal(round))
+					Expect(propose.ValidRound()).Should(Equal(validRound))
+					Expect(propose.Block().Equal(block)).Should(BeTrue())
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+
+		Context("when stringifying", func() {
+			It("should return equal strings", func() {
+				test := func() bool {
+					msg := RandomPropose()
+					newMsg := msg
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
 			})
 
 			Context("when unequal", func() {
 				It("should return unequal strings", func() {
-					Expect(true).To(BeFalse())
+					test := func() bool {
+						msg1, msg2 := RandomPropose(), RandomPropose()
+						return msg1.String() != msg2.String()
+					}
+
+					Expect(quick.Check(test, nil)).Should(Succeed())
 				})
 			})
 		})
 
-		Context(fmt.Sprintf("when marshaling random %vs", entry), func() {
+		Context("when marshaling random", func() {
 			It("should equal itself after marshaling and then unmarshaling", func() {
-				Expect(true).To(BeFalse())
+				test := func() bool {
+					msg := RandomPropose()
+					data, err := json.Marshal(msg)
+					Expect(err).NotTo(HaveOccurred())
+
+					var newMsg Propose
+					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
 			})
 		})
 
-		Context(fmt.Sprintf("when creating %v messages", entry), func() {
+		Context("when signing and verifying", func() {
+			It("should verify if a message if has been signed properly", func() {
+				test := func() bool {
+					propose := RandomPropose()
+					Expect(Verify(propose)).ShouldNot(Succeed())
+
+					privateKey, err := ecdsa.GenerateKey(crypto.S256(), cRand.Reader)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(Sign(propose, *privateKey)).Should(Succeed())
+					Expect(Verify(propose)).Should(Succeed())
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+	})
+
+	Context("Prevote", func() {
+		Context("when initializing", func() {
 			It("should return a message with fields equal to those passed during creation", func() {
-				Expect(true).To(BeFalse())
+				test := func() bool {
+					height := block.Height(rand.Int63())
+					round := block.Round(rand.Int63())
+					blockHash := RandomHash()
+
+					prevote := NewPrevote(height, round, blockHash)
+
+					Expect(prevote.Height()).Should(Equal(height))
+					Expect(prevote.Round()).Should(Equal(round))
+					Expect(prevote.BlockHash().Equal(blockHash)).Should(BeTrue())
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
 			})
 		})
 
-		Context(fmt.Sprintf("when signing and then verifying random %vs", entry), func() {
-			It("should return no errors", func() {
-				Expect(true).To(BeFalse())
+		Context("when stringifying", func() {
+			It("should return equal strings", func() {
+				test := func() bool {
+					msg := RandomPrevote()
+					newMsg := msg
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
 			})
 
-			Context("when randomly changing the signatory after signing", func() {
-				It("should return an error", func() {
-					Expect(true).To(BeFalse())
-				})
-			})
+			Context("when unequal", func() {
+				It("should return unequal strings", func() {
+					test := func() bool {
+						msg1, msg2 := RandomPrevote(), RandomPrevote()
+						return msg1.String() != msg2.String()
+					}
 
-			Context("when randomly changing the signature after signing", func() {
-				It("should return an error", func() {
-					Expect(true).To(BeFalse())
-				})
-			})
-
-			Context("when randomly changing the sighash after signing", func() {
-				It("should return an error", func() {
-					Expect(true).To(BeFalse())
+					Expect(quick.Check(test, nil)).Should(Succeed())
 				})
 			})
 		})
-	}
+
+		Context("when marshaling random", func() {
+			It("should equal itself after marshaling and then unmarshaling", func() {
+				test := func() bool {
+					msg := RandomPrevote()
+					data, err := json.Marshal(msg)
+					Expect(err).NotTo(HaveOccurred())
+
+					var newMsg Prevote
+					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+
+		Context("when signing and verifying", func() {
+			It("should verify if a message if has been signed properly", func() {
+				test := func() bool {
+					prevote := RandomPrevote()
+					Expect(Verify(prevote)).ShouldNot(Succeed())
+
+					privateKey, err := ecdsa.GenerateKey(crypto.S256(), cRand.Reader)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(Sign(prevote, *privateKey)).Should(Succeed())
+					Expect(Verify(prevote)).Should(Succeed())
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+	})
+
+	Context("Precommit", func() {
+		Context("when initializing", func() {
+			It("should return a message with fields equal to those passed during creation", func() {
+				test := func() bool {
+					height := block.Height(rand.Int63())
+					round := block.Round(rand.Int63())
+					blockHash := RandomHash()
+
+					precommit := NewPrecommit(height, round, blockHash)
+
+					Expect(precommit.Height()).Should(Equal(height))
+					Expect(precommit.Round()).Should(Equal(round))
+					Expect(precommit.BlockHash().Equal(blockHash)).Should(BeTrue())
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+
+		Context("when stringifying", func() {
+			It("should return equal strings", func() {
+				test := func() bool {
+					msg := RandomPrecommit()
+					newMsg := msg
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			Context("when unequal", func() {
+				It("should return unequal strings", func() {
+					test := func() bool {
+						msg1, msg2 := RandomPrecommit(), RandomPrecommit()
+						return msg1.String() != msg2.String()
+					}
+
+					Expect(quick.Check(test, nil)).Should(Succeed())
+				})
+			})
+		})
+
+		Context("when marshaling random", func() {
+			It("should equal itself after marshaling and then unmarshaling", func() {
+				test := func() bool {
+					msg := RandomPrecommit()
+					data, err := json.Marshal(msg)
+					Expect(err).NotTo(HaveOccurred())
+
+					var newMsg Precommit
+					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+
+		Context("when signing and verifying", func() {
+			It("should verify if a message if has been signed properly", func() {
+				test := func() bool {
+					precommit := RandomPrecommit()
+					Expect(Verify(precommit)).ShouldNot(Succeed())
+
+					privateKey, err := ecdsa.GenerateKey(crypto.S256(), cRand.Reader)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(Sign(precommit, *privateKey)).Should(Succeed())
+					Expect(Verify(precommit)).Should(Succeed())
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+	})
+
+	Context("when initializing a new inbox", func() {
+		It("should have the given f and message type", func() {
+			test := func() bool {
+				messageType := RandomMessageType()
+				f := rand.Int() + 1
+				inbox := RandomInbox(f, messageType)
+				Expect(inbox.F()).Should(Equal(f))
+				Expect(messageType).Should(Equal(inbox.MessageType()))
+				return true
+			}
+			Expect(quick.Check(test, nil)).Should(Succeed())
+		})
+
+		It("should panic when passing a invalid f", func() {
+			test := func() bool {
+				messageType := RandomMessageType()
+
+				// Should panic when passing 0
+				Expect(func() {
+					_ = RandomInbox(0, messageType)
+				}).Should(Panic())
+
+				// Should panic when passing negative number
+				Expect(func() {
+					_ = RandomInbox(-1*rand.Int(), messageType)
+				}).Should(Panic())
+				return true
+			}
+			Expect(quick.Check(test, nil)).Should(Succeed())
+		})
+
+		It("should panic when passing a nil message type", func() {
+			test := func() bool {
+				f := rand.Int() + 1
+				Expect(func() {
+					_ = RandomInbox(f, nil)
+				}).Should(Panic())
+				return true
+			}
+			Expect(quick.Check(test, nil)).Should(Succeed())
+		})
+	})
 
 	Context("when marshaling a random inbox", func() {
 		It("should equal itself after marshaling and then unmarshaling", func() {
-			Expect(true).To(BeFalse())
+			test := func() bool {
+				messageType := RandomMessageType()
+				f := rand.Int() + 1
+				inbox := RandomInbox(f, messageType)
+				Expect(inbox.F()).Should(Equal(f))
+				data, err := json.Marshal(inbox)
+				Expect(err).NotTo(HaveOccurred())
+
+				newInbox := NewInbox(1, messageType)
+				Expect(json.Unmarshal(data, &newInbox)).Should(Succeed())
+				return reflect.DeepEqual(inbox, newInbox)
+			}
+			Expect(quick.Check(test, nil)).Should(Succeed())
 		})
 	})
 
 	Context("when inserting messages into an inbox", func() {
-		Context("when 1 message is inserted", func() {
-			Context("when F=1", func() {
-				It("should return n=1, firstTime=true, firstTimeExceedingF=false, and firstTimeExceeding2F=false", func() {
-					Expect(true).To(BeFalse())
-				})
-			})
+		Context("when we first insert message to an inbox", func() {
+			It("should return n=1, firstTime=true, firstTimeExceedingF=false, and firstTimeExceeding2F=false", func() {
+				test := func() bool {
+					f := rand.Intn(100) + 1
+					messageType := RandomMessageType()
+					inbox := NewInbox(f, messageType)
+					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F := inbox.Insert(RandomMessage(messageType))
+					Expect(n).Should(Equal(1))
+					Expect(firstTime).Should(BeTrue())
+					Expect(firstTimeExceedingF).Should(BeFalse())
+					Expect(firstTimeExceeding2F).Should(BeFalse())
 
-			Context("when F>1", func() {
-				It("should return n=1, firstTime=true, firstTimeExceedingF=false, and firstTimeExceeding2F=false", func() {
-					Expect(true).To(BeFalse())
-				})
-			})
-		})
-
-		Context("when F messages are inserted", func() {
-			Context("when F>1", func() {
-				It("should return n=F, firstTime=false, firstTimeExceedingF=false, and firstTimeExceeding2F=false", func() {
-					Expect(true).To(BeFalse())
-				})
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
 			})
 		})
 
-		Context("when F+1 messages are inserted", func() {
-			Context("when F=1", func() {
-				It("should return n=F+1, firstTime=false, firstTimeExceedingF=true, and firstTimeExceeding2F=false", func() {
-					Expect(true).To(BeFalse())
-				})
-			})
+		Context("when F + 1 messages are inserted", func() {
+			It("should return n=F+1, firstTime=false, firstTimeExceedingF=true, and firstTimeExceeding2F=false", func() {
+				test := func(height block.Height, round block.Round) bool {
+					f := rand.Intn(100) + 1
+					messageType := RandomMessageType()
+					inbox := NewInbox(f, messageType)
 
-			Context("when F>1", func() {
-				It("should return n=F+1, firstTime=false, firstTimeExceedingF=true, and firstTimeExceeding2F=false", func() {
-					Expect(true).To(BeFalse())
-				})
-			})
-		})
+					// Expect n, false, false, false when inserting no more than F messages
+					for i := 1; i <= f; i++ {
+						msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
+						n, firstTime, firstTimeExceedingF, firstTimeExceeding2F := inbox.Insert(msg)
+						Expect(n).Should(Equal(i))
+						if i == 1 {
+							Expect(firstTime).Should(BeTrue())
+						} else {
+							Expect(firstTime).Should(BeFalse())
+						}
+						Expect(firstTimeExceedingF).Should(BeFalse())
+						Expect(firstTimeExceeding2F).Should(BeFalse())
+					}
 
-		Context("when 2F messages are inserted", func() {
-			Context("when F=1", func() {
-				It("should return n=2F, firstTime=false, firstTimeExceedingF=true, and firstTimeExceeding2F=false", func() {
-					Expect(true).To(BeFalse())
-				})
-			})
+					// Expect F+1, false, true, false when inserting F+1 message
+					msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
+					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F := inbox.Insert(msg)
 
-			Context("when F>1", func() {
-				It("should return n=2F, firstTime=false, firstTimeExceedingF=false, and firstTimeExceeding2F=false", func() {
-					Expect(true).To(BeFalse())
-				})
-			})
-		})
+					Expect(n).Should(Equal(f + 1))
+					Expect(firstTime).Should(BeFalse())
+					Expect(firstTimeExceedingF).Should(BeTrue())
+					Expect(firstTimeExceeding2F).Should(BeFalse())
 
-		Context("when 2F+1 messages are inserted", func() {
-			Context("when F=1", func() {
-				It("should return n=3, firstTime=false, firstTimeExceedingF=false, and firstTimeExceeding2F=true", func() {
-					Expect(true).To(BeFalse())
-				})
-			})
-
-			Context("when F>1", func() {
-				It("should return n=2F+1, firstTime=false, firstTimeExceedingF=false, and firstTimeExceeding2F=true", func() {
-					Expect(true).To(BeFalse())
-				})
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
 			})
 		})
 
-		Context("when 3F messages are inserted", func() {
-			Context("when F=1", func() {
-				It("should return n=3F, firstTime=false, firstTimeExceedingF=false, and firstTimeExceeding2F=true", func() {
-					Expect(true).To(BeFalse())
-				})
-			})
+		Context("when 2F + 1  messages are inserted", func() {
+			It("should return n=2F+1, firstTime=false, firstTimeExceedingF=false, and firstTimeExceeding2F=true", func() {
+				test := func(height block.Height, round block.Round) bool {
+					f := rand.Intn(100) + 1
+					messageType := RandomMessageType()
+					inbox := NewInbox(f, messageType)
 
-			Context("when F>1", func() {
-				It("should return n=3F, firstTime=false, firstTimeExceedingF=false, and firstTimeExceeding2F=false", func() {
-					Expect(true).To(BeFalse())
-				})
+					// Expect n, false, false,false when inserting no more than F messages
+					for i := 1; i <= 2*f; i++ {
+						msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
+						n, _, _, firstTimeExceeding2F := inbox.Insert(msg)
+						Expect(n).Should(Equal(i))
+						Expect(firstTimeExceeding2F).Should(BeFalse())
+					}
+
+					// Expect 2F+1, false, true, false when inserting F+1 message
+					msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
+					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F := inbox.Insert(msg)
+
+					Expect(n).Should(Equal(2*f + 1))
+					Expect(firstTime).Should(BeFalse())
+					Expect(firstTimeExceedingF).Should(BeFalse())
+					Expect(firstTimeExceeding2F).Should(BeTrue())
+
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
 			})
 		})
 
-		Context("when 3F+1 messages are inserted", func() {
-			Context("when F=1", func() {
-				It("should return n=4, firstTime=false, firstTimeExceedingF=false, and firstTimeExceeding2F=false", func() {
-					Expect(true).To(BeFalse())
-				})
-			})
+		Context("after 2F + 1  messages are inserted", func() {
+			It("should return n=i, firstTime=false, firstTimeExceedingF=false, and firstTimeExceeding2F=false", func() {
+				test := func(height block.Height, round block.Round) bool {
+					f := rand.Intn(100) + 1
+					messageType := RandomMessageType()
+					inbox := NewInbox(f, messageType)
 
-			Context("when F>1", func() {
-				It("should return n=3F+1, firstTime=false, firstTimeExceedingF=false, and firstTimeExceeding2F=false", func() {
-					Expect(true).To(BeFalse())
-				})
+					// Expect n, false, false,false when inserting no more than F messages
+					for i := 1; i <= 2*f+1; i++ {
+						msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
+						n, _, _, _ := inbox.Insert(msg)
+						Expect(n).Should(Equal(i))
+					}
+
+					// Expect 3F+1, false, true, false when inserting F+1 message
+					for i := 1; i < rand.Intn(100); i++ {
+						msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
+						n, firstTime, firstTimeExceedingF, firstTimeExceeding2F := inbox.Insert(msg)
+
+						Expect(n).Should(Equal(2*f + 1 + i))
+						Expect(firstTime).Should(BeFalse())
+						Expect(firstTimeExceedingF).Should(BeFalse())
+						Expect(firstTimeExceeding2F).Should(BeFalse())
+					}
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
 			})
 		})
 
-		Context("when inserting N messages at the same height", func() {
-			Context("when all rounds are equal", func() {
-				Context("when all block hashes are equal", func() {
-					Context("when querying by height, round, and block hash", func() {
-						Context("when the queried height, round, and block hash is the same as the inserted height, round, and block hash", func() {
-							Context("when the signatories are all equal", func() {
-								It("should return 1", func() {
-									Expect(true).To(BeFalse())
-								})
-							})
+		Context("when querying by height, round and block hash", func() {
+			It("should return the number of votes", func() {
+				test := func(height block.Height, round block.Round) bool {
+					f := rand.Intn(100) + 1
+					messageType := RandomMessageType()
+					inbox := NewInbox(f, messageType)
 
-							Context("when the signatories are all unequal", func() {
-								It("should return N", func() {
-									Expect(true).To(BeFalse())
-								})
-							})
-						})
+					source := map[block.Height]map[block.Round]map[id.Hash]int{}
+					noMessages := rand.Intn(100)
+					for i := 0; i < noMessages; i++ {
+						msg := RandomSignedMessage(messageType)
 
-						Context("when the queried height is different from the inserted height", func() {
-							It("should return 0", func() {
-								Expect(true).To(BeFalse())
-							})
-						})
+						// Inserting the same msg twice should not affect anything
+						_, _, _, _ = inbox.Insert(msg)
+						_, _, _, _ = inbox.Insert(msg)
 
-						Context("when the queried round is different from the inserted round", func() {
-							It("should return 0", func() {
-								Expect(true).To(BeFalse())
-							})
-						})
+						if _, ok := source[msg.Height()]; !ok {
+							source[msg.Height()] = map[block.Round]map[id.Hash]int{}
+						}
+						if _, ok := source[msg.Height()][msg.Round()]; !ok {
+							source[msg.Height()][msg.Round()] = map[id.Hash]int{}
+						}
+						source[msg.Height()][msg.Round()][msg.BlockHash()]++
+					}
 
-						Context("when the queried block hash is different from the inserted block hash", func() {
-							It("should return 0", func() {
-								Expect(true).To(BeFalse())
-							})
-						})
-					})
-				})
+					// Expect the query function gives us the same result as the source.
+					for height, roundMap := range source {
+						for round, hashMap := range roundMap {
+							for hash, num := range hashMap {
+								Expect(inbox.QueryByHeightRoundBlockHash(height, round, hash)).Should(Equal(num))
+							}
+						}
+					}
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
 			})
+		})
 
-			Context("when all rounds are unequal", func() {
-				Context("when querying by height and round", func() {
-					Context("when the queried height and round are same as the inserted height and round", func() {
-						Context("when the signatories are all equal", func() {
-							It("should return 1", func() {
-								Expect(true).To(BeFalse())
-							})
-						})
+		Context("when querying by height, round and signatory", func() {
+			It("should return the message if exist", func() {
+				test := func(height block.Height, round block.Round) bool {
+					f := rand.Intn(100) + 1
+					messageType := RandomMessageType()
+					inbox := NewInbox(f, messageType)
 
-						Context("when the signatories are all unequal", func() {
-							It("should return N", func() {
-								Expect(true).To(BeFalse())
-							})
-						})
+					noMessages := rand.Intn(100)
+					for i := 0; i < noMessages; i++ {
+						msg := RandomSignedMessage(messageType)
 
-						Context("when the queried height is different from the inserted height", func() {
-							It("should return 0", func() {
-								Expect(true).To(BeFalse())
-							})
-						})
+						// It should return nil before inserting into the inbox.
+						nilMessage := inbox.QueryByHeightRoundSignatory(msg.Height(), msg.Round(), msg.Signatory())
+						Expect(nilMessage).Should(BeNil())
 
-						Context("when the queried round is different from the inserted round", func() {
-							It("should return 0", func() {
-								Expect(true).To(BeFalse())
-							})
-						})
-					})
-				})
+						// Inserting the same msg twice should not affect anything
+						_, _, _, _ = inbox.Insert(msg)
+						_, _, _, _ = inbox.Insert(msg)
 
-				Context("when querying by height, round, and signatory", func() {
-					Context("when the queried height and round is the same as the inserted height and round", func() {
-						Context("when the queried signatory is one of the inserted signatories", func() {
-							It("should return the inserted message", func() {
-								Expect(true).To(BeFalse())
-							})
-						})
+						// It return the same message we inserted
+						storedMsg := inbox.QueryByHeightRoundSignatory(msg.Height(), msg.Round(), msg.Signatory())
+						Expect(reflect.DeepEqual(msg, storedMsg)).Should(BeTrue())
+					}
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
 
-						Context("when the queried signatory is not one of the inserted signatories", func() {
-							It("should return nil", func() {
-								Expect(true).To(BeFalse())
-							})
-						})
-					})
+		Context("when querying by height, round ", func() {
+			It("should return correct number of message of that round", func() {
+				test := func(height block.Height, round block.Round) bool {
+					f := rand.Intn(100) + 1
+					messageType := RandomMessageType()
+					inbox := NewInbox(f, messageType)
 
-					Context("when the queried height is different from the inserted height", func() {
-						It("should return nil", func() {
-							Expect(true).To(BeFalse())
-						})
-					})
+					source := map[block.Height]map[block.Round]int{}
+					noMessages := rand.Intn(100)
+					for i := 0; i < noMessages; i++ {
+						msg := RandomSignedMessage(messageType)
 
-					Context("when the queried round is different from the inserted round", func() {
-						It("should return nil", func() {
-							Expect(true).To(BeFalse())
-						})
-					})
-				})
+						// Inserting the same msg twice should not affect anything
+						_, _, _, _ = inbox.Insert(msg)
+						_, _, _, _ = inbox.Insert(msg)
+
+						if _, ok := source[msg.Height()]; !ok {
+							source[msg.Height()] = map[block.Round]int{}
+						}
+						source[msg.Height()][msg.Round()]++
+					}
+					// Expect the query function gives us the same result as the source.
+					for height, roundMap := range source {
+						for round, num := range roundMap {
+							Expect(inbox.QueryByHeightRound(height, round)).Should(Equal(num))
+						}
+					}
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
 			})
 		})
 	})

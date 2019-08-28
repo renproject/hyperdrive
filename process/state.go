@@ -1,6 +1,8 @@
 package process
 
 import (
+	"reflect"
+
 	"github.com/renproject/hyperdrive/block"
 )
 
@@ -11,28 +13,30 @@ type State struct {
 	CurrentRound  block.Round  `json:"currentRound"`
 	CurrentStep   Step         `json:"currentStep"`
 
-	LockedBlock block.Block `json:"lockedBlock"`
-	LockedRound block.Round `json:"lockedRound"`
-	ValidBlock  block.Block `json:"validBlock"`
-	ValidRound  block.Round `json:"validRound"`
+	LockedBlock block.Block `json:"lockedBlock"` // the most recent block for which a PRECOMMIT message has been sent
+	LockedRound block.Round `json:"lockedRound"` // the last round in which the process sent a PRECOMMIT message that is not nil.
+	ValidBlock  block.Block `json:"validBlock"`  // store the most recent possible decision value
+	ValidRound  block.Round `json:"validRound"`  // is the last round in which valid value is updated
 
-	Proposals  Inbox `json:"proposals"`
-	Prevotes   Inbox `json:"prevotes"`
-	Precommits Inbox `json:"precommits"`
+	Proposals  *Inbox `json:"proposals"`
+	Prevotes   *Inbox `json:"prevotes"`
+	Precommits *Inbox `json:"precommits"`
 }
 
 // DefaultState returns a State with all values set to the default. See
 // https://arxiv.org/pdf/1807.04938.pdf for more information.
-func DefaultState() State {
+func DefaultState(f int) State {
 	return State{
 		CurrentHeight: 0,
 		CurrentRound:  0,
 		CurrentStep:   StepPropose,
-
-		LockedBlock: block.InvalidBlock,
-		LockedRound: block.InvalidRound,
-		ValidBlock:  block.InvalidBlock,
-		ValidRound:  block.InvalidRound,
+		LockedBlock:   block.InvalidBlock,
+		LockedRound:   block.InvalidRound,
+		ValidBlock:    block.InvalidBlock,
+		ValidRound:    block.InvalidRound,
+		Proposals:     NewInbox(f, reflect.TypeOf(Propose{})),
+		Prevotes:      NewInbox(f, reflect.TypeOf(Prevote{})),
+		Precommits:    NewInbox(f, reflect.TypeOf(Precommit{})),
 	}
 }
 
@@ -43,6 +47,8 @@ func (state *State) Reset() {
 	state.LockedRound = block.InvalidRound
 	state.ValidBlock = block.InvalidBlock
 	state.ValidRound = block.InvalidRound
+	// TODO : DO WE NEED TO RESET THOSE INBOXES ?
+	// clean all inboxes , below the new height
 }
 
 // Equal compares one State with another.
