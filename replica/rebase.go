@@ -14,10 +14,9 @@ import (
 // functionality to load the last committed `block.Standard`, and the last
 // committed `block.Base`.
 type BlockStorage interface {
-	process.Blockchain
-
-	LatestBlock() block.Block
-	LatestBaseBlock() block.Block
+	Blockchain(shard Shard) process.Blockchain
+	LatestBlock(shard Shard) block.Block
+	LatestBaseBlock(shard Shard) block.Block
 }
 
 type BlockIterator interface {
@@ -62,28 +61,12 @@ func newShardRebaser(blockStorage BlockStorage, blockIterator BlockIterator, val
 	}
 }
 
-func (rebaser *shardRebaser) Rebase(sigs id.Signatories) {
-	rebaser.mu.Lock()
-	defer rebaser.mu.Unlock()
-
-	if rebaser.expectedKind != block.Standard {
-		// Handle duplicate rebase calls
-		if !sigs.Equal(rebaser.expectedRebaseSigs) {
-			panic("invariant violation: must not rebase while rebasing")
-		}
-		return
-	}
-
-	rebaser.expectedKind = block.Rebase
-	rebaser.expectedRebaseSigs = sigs
-}
-
 func (rebaser *shardRebaser) BlockProposal(height block.Height, round block.Round) block.Block {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
-	parent := rebaser.blockStorage.LatestBlock()
-	base := rebaser.blockStorage.LatestBaseBlock()
+	parent := rebaser.blockStorage.LatestBlock(rebaser.shard)
+	base := rebaser.blockStorage.LatestBaseBlock(rebaser.shard)
 
 	// Check that the base `block.Block` is a valid
 	if base.Header().Kind() != block.Base {
@@ -165,7 +148,7 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block) bool {
 	}
 
 	// Check against the parent `block.Block`
-	parentBlock, ok := rebaser.blockStorage.BlockAtHeight(proposedBlock.Header().Height() - 1)
+	parentBlock, ok := rebaser.blockStorage.Blockchain(rebaser.shard).BlockAtHeight(proposedBlock.Header().Height() - 1)
 	if !ok {
 		return false
 	}
@@ -180,13 +163,13 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block) bool {
 	}
 
 	// Check against the base `block.Block`
-	baseBlock := rebaser.blockStorage.LatestBaseBlock()
+	baseBlock := rebaser.blockStorage.LatestBaseBlock(rebaser.shard)
 	if !proposedBlock.Header().BaseHash().Equal(baseBlock.Hash()) {
 		return false
 	}
 
 	// Check that the parent is the most recently finalised
-	latestBlock := rebaser.blockStorage.LatestBlock()
+	latestBlock := rebaser.blockStorage.LatestBlock(rebaser.shard)
 	if !parentBlock.Hash().Equal(latestBlock.Hash()) {
 		return false
 	}
@@ -205,7 +188,7 @@ func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
-	committedBlock, ok := rebaser.blockStorage.BlockAtHeight(height)
+	committedBlock, ok := rebaser.blockStorage.Blockchain(rebaser.shard).BlockAtHeight(height)
 	if !ok {
 		panic(fmt.Errorf("invariant violatoin: missing block at height=%v", height))
 	}
@@ -223,4 +206,20 @@ func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
 	if rebaser.observer != nil {
 		rebaser.observer.DidCommitBlock(height, rebaser.shard)
 	}
+}
+
+func (rebaser *shardRebaser) rebase(sigs id.Signatories) {
+	rebaser.mu.Lock()
+	defer rebaser.mu.Unlock()
+
+	if rebaser.expectedKind != block.Standard {
+		// Handle duplicate rebase calls
+		if !sigs.Equal(rebaser.expectedRebaseSigs) {
+			panic("invariant violation: must not rebase while rebasing")
+		}
+		return
+	}
+
+	rebaser.expectedKind = block.Rebase
+	rebaser.expectedRebaseSigs = sigs
 }

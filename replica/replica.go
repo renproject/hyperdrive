@@ -57,6 +57,21 @@ type Options struct {
 	BackOffMax  time.Duration
 }
 
+func (options *Options) setZerosToDefaults() {
+	if options.Logger == nil {
+		options.Logger = logrus.StandardLogger()
+	}
+	if options.BackOffExp == 0 {
+		options.BackOffExp = 1.6
+	}
+	if options.BackOffBase == time.Duration(0) {
+		options.BackOffBase = 5 * time.Second
+	}
+	if options.BackOffMax == time.Duration(0) {
+		options.BackOffMax = time.Minute
+	}
+}
+
 type Replicas []Replica
 
 // A Replica represents one Process in a replicated state machine that is bound
@@ -68,23 +83,28 @@ type Replica struct {
 	p            process.Process
 	pStorage     ProcessStorage
 	blockStorage BlockStorage
-	cache        baseBlockCache
+
+	scheduler *roundRobinScheduler
+	rebaser   *shardRebaser
+	cache     baseBlockCache
 }
 
 func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shard Shard, privKey ecdsa.PrivateKey) Replica {
+	options.setZerosToDefaults()
+	latestBase := blockStorage.LatestBaseBlock(shard)
+	scheduler := newRoundRobinScheduler(latestBase.Header().Signatories())
 	shardRebaser := newShardRebaser(blockStorage, blockIterator, validator, observer, shard)
-	latestBase := blockStorage.LatestBaseBlock()
 	p := process.New(
 		id.NewSignatory(privKey.PublicKey),
-		blockStorage,
+		blockStorage.Blockchain(shard),
 		// todo : fix f
 		process.DefaultState(1),
 		shardRebaser,
 		shardRebaser,
 		shardRebaser,
 		newSigner(broadcaster, shard, privKey),
-		NewRoundRobinScheduler(latestBase.Header().Signatories()),
-		NewBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
+		scheduler,
+		newBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
 	)
 	pStorage.RestoreProcess(&p, shard)
 	return Replica{
@@ -93,7 +113,10 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		p:            p,
 		pStorage:     pStorage,
 		blockStorage: blockStorage,
-		cache:        newBaseBlockCache(latestBase),
+
+		scheduler: scheduler,
+		rebaser:   shardRebaser,
+		cache:     newBaseBlockCache(latestBase),
 	}
 }
 
@@ -107,7 +130,7 @@ func (replica *Replica) HandleMessage(m Message) {
 	// Check that the Message sender is from our Shard (this can be a moderately
 	// expensive operation, so we cache the result until a new `block.Base` is
 	// detected)
-	replica.cache.fillBaseBlock(replica.blockStorage.LatestBaseBlock())
+	replica.cache.fillBaseBlock(replica.blockStorage.LatestBaseBlock(replica.shard))
 	if !replica.cache.signatoryInBaseBlock(m.Message.Signatory()) {
 		return
 	}
@@ -122,6 +145,11 @@ func (replica *Replica) HandleMessage(m Message) {
 	// `process.Process` afterwards to proected against unexpected crashes
 	replica.p.HandleMessage(m.Message)
 	replica.pStorage.SaveProcess(replica.p, replica.shard)
+}
+
+func (replica *Replica) Rebase(sigs id.Signatories) {
+	replica.scheduler.rebase(sigs)
+	replica.rebaser.rebase(sigs)
 }
 
 type baseBlockCache struct {

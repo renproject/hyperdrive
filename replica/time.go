@@ -14,7 +14,7 @@ type backOffTimer struct {
 	max  time.Duration
 }
 
-func NewBackOffTimer(exp float64, base time.Duration, max time.Duration) process.Timer {
+func newBackOffTimer(exp float64, base time.Duration, max time.Duration) process.Timer {
 	return &backOffTimer{
 		exp:  exp,
 		base: base,
