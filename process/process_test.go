@@ -165,7 +165,7 @@ var _ = Describe("Process", func() {
 	Context("when receive 2f + 1 prevote of a proposal at current height and round for the first time", func() {
 		Context("when the process is in prevote", func() {
 			It("should lock the proposal and round, and broadcast a precommit for it.", func() {
-				f := rand.Intn(100)
+				f := rand.Intn(100) +1
 				processOrigin := NewProcessOrigin(f)
 
 				height, round := block.Height(rand.Int()), block.Round(rand.Int())
@@ -211,7 +211,7 @@ var _ = Describe("Process", func() {
 
 		Context("when the process is in precommit", func() {
 			It("should put the proposal in the validBlock", func() {
-				f := rand.Intn(100)
+				f := rand.Intn(100) +1
 				processOrigin := NewProcessOrigin(f)
 
 				height, round := block.Height(rand.Int()), block.Round(rand.Int())
@@ -250,7 +250,7 @@ var _ = Describe("Process", func() {
 	Context("when the process is in prevote step", func() {
 		Context("when receive 2*f +1 prevote of any proposal for the first time", func() {
 			It("should send a nil precommit when nothing changes after the timeout", func() {
-				f := rand.Intn(100)
+				f := rand.Intn(100) +1
 				height, round := block.Height(rand.Int()), block.Round(rand.Int())
 				processOrigin := NewProcessOrigin(f)
 				processOrigin.State.CurrentStep = StepPrevote
@@ -309,7 +309,7 @@ var _ = Describe("Process", func() {
 		Context("when starting a timer before executing the OnTimeoutPrecommit function", func() {
 			It("should start a round when nothing changes after the timeout", func() {
 				for _, step := range []Step{StepPropose, StepPrevote, StepPrecommit} {
-					f := rand.Intn(100)
+					f := rand.Intn(100) +1
 					height, round := block.Height(rand.Int()), block.Round(rand.Int())
 					processOrigin := NewProcessOrigin(f)
 					processOrigin.State.CurrentStep = step
