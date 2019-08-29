@@ -109,11 +109,11 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		scheduler,
 		newBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
 	)
-	pStorage.RestoreProcess(&p, shard)
+	pStorage.RestoreProcess(p, shard)
 	return Replica{
 		options:      options,
 		shard:        shard,
-		p:            p,
+		p:            *p,
 		pStorage:     pStorage,
 		blockStorage: blockStorage,
 
