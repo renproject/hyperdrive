@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"encoding/base64"
+	"fmt"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
@@ -93,12 +94,14 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	options.setZerosToDefaults()
 	latestBase := blockStorage.LatestBaseBlock(shard)
 	scheduler := newRoundRobinScheduler(latestBase.Header().Signatories())
+	if len(latestBase.Header().Signatories())%3 != 1 {
+		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", len(latestBase.Header().Signatories())))
+	}
 	shardRebaser := newShardRebaser(blockStorage, blockIterator, validator, observer, shard)
 	p := process.New(
 		id.NewSignatory(privKey.PublicKey),
 		blockStorage.Blockchain(shard),
-		// todo : fix f
-		process.DefaultState(1),
+		process.DefaultState((len(latestBase.Header().Signatories())-1)/3),
 		shardRebaser,
 		shardRebaser,
 		shardRebaser,

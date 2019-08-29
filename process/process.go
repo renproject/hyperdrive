@@ -2,6 +2,7 @@ package process
 
 import (
 	"encoding/json"
+	"log"
 	"sync"
 	"time"
 
@@ -121,8 +122,9 @@ func (p *Process) UnmarshalJSON(data []byte) error {
 // https://arxiv.org/pdf/1807.04938.pdf for more information.
 func (p *Process) StartRound(round block.Round) {
 	p.mu.Lock()
+	log.Print("startround require lock")
+	defer log.Print("startround release lock")
 	defer p.mu.Unlock()
-
 	p.startRound(round)
 }
 
@@ -287,6 +289,8 @@ func (p *Process) scheduleTimeoutPropose(height block.Height, round block.Round,
 		time.Sleep(duration)
 
 		p.mu.Lock()
+		log.Print("timeout require lock")
+		defer log.Print("timeout release lock")
 		defer p.mu.Unlock()
 
 		p.timeoutPropose(height, round)
