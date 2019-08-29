@@ -13,13 +13,14 @@ type roundRobinScheduler struct {
 // robin schedule that weights the `block.Height` and the `block.Round` equally.
 func newRoundRobinScheduler(signatories id.Signatories) *roundRobinScheduler {
 	return &roundRobinScheduler{
-		// FIXME: Add a private `rebaseToNewSigs` method to allow the scheduler
-		// to work with a new sig set.
 		signatories: signatories,
 	}
 }
 
 func (scheduler *roundRobinScheduler) Schedule(height block.Height, round block.Round) id.Signatory {
+	if len(scheduler.signatories) == 0 {
+		return block.InvalidSignatory
+	}
 	return scheduler.signatories[(uint64(height)+uint64(round))%uint64(len(scheduler.signatories))]
 }
 

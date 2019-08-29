@@ -27,7 +27,16 @@ func (timer *backOffTimer) Timeout(step process.Step, round block.Round) time.Du
 		return timer.base
 	}
 	multiplier := math.Pow(timer.exp, float64(round))
-	duration := time.Duration(float64(timer.base) * multiplier)
+	var duration time.Duration
+
+	// Make sure it doesn't overflow
+	durationFloat := float64(timer.base) * multiplier
+	if durationFloat > math.MaxInt64 {
+		duration = time.Duration(math.MaxInt64)
+	} else {
+		duration = time.Duration(durationFloat)
+	}
+
 	if duration > timer.max {
 		return timer.max
 	}
