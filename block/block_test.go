@@ -15,7 +15,7 @@ import (
 	. "github.com/renproject/hyperdrive/block"
 	. "github.com/renproject/hyperdrive/testutil"
 
-	"github.com/renproject/hyperdrive/id"
+	"github.com/renproject/id"
 )
 
 var _ = Describe("Block", func() {

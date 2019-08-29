@@ -2,8 +2,8 @@ package hyperdrive
 
 import (
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/id"
 	"github.com/renproject/hyperdrive/replica"
+	"github.com/renproject/id"
 )
 
 type (

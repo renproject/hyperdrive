@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/renproject/hyperdrive/id"
+	"github.com/renproject/id"
 	"golang.org/x/crypto/sha3"
 )
 

@@ -7,12 +7,13 @@ require (
 	github.com/ethereum/go-ethereum v1.8.27
 	github.com/golang/protobuf v1.3.1 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
-	github.com/onsi/ginkgo v1.8.0
-	github.com/onsi/gomega v1.5.0
+	github.com/onsi/ginkgo v1.9.0
+	github.com/onsi/gomega v1.7.0
+	github.com/renproject/id v0.1.0
 	github.com/renproject/phi v0.1.0 // indirect
 	github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80
 	github.com/sirupsen/logrus v1.4.2
-	golang.org/x/crypto v0.0.0-20190618222545-ea8f1a30c443
+	golang.org/x/crypto v0.0.0-20190820162420-60c769a6c586
 	golang.org/x/net v0.0.0-20190619014844-b5b0513f8c1b // indirect
 	golang.org/x/sys v0.0.0-20190619223125-e40ef342dc56 // indirect
 	golang.org/x/text v0.3.2 // indirect

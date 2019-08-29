@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/id"
 	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/id"
 	"github.com/sirupsen/logrus"
 )
 
@@ -83,8 +83,8 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		shardRebaser,
 		shardRebaser,
 		newSigner(broadcaster, shard, privKey),
-		newRoundRobinScheduler(latestBase.Header().Signatories()),
-		newBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
+		NewRoundRobinScheduler(latestBase.Header().Signatories()),
+		NewBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
 	)
 	pStorage.RestoreProcess(&p, shard)
 	return Replica{

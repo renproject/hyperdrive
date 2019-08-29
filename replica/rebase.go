@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/id"
 	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/id"
 )
 
 // BlockStorage extends the `process.Blockchain` interface with the

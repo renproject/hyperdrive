@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/id"
+	"github.com/renproject/id"
 )
 
 var r *rand.Rand
@@ -102,4 +102,12 @@ type BlockJSON struct {
 func RandomBlock(kind block.Kind) block.Block {
 	header := RandomBlockHeader(kind)
 	return block.New(header, RandomBytesSlice(), RandomBytesSlice())
+}
+
+func RandomHeight() block.Height {
+	return block.Height(rand.Int())
+}
+
+func RandomRound() block.Round {
+	return block.Round(rand.Int())
 }

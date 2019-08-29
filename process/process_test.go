@@ -16,7 +16,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/id"
+	"github.com/renproject/id"
 )
 
 var _ = Describe("Process", func() {

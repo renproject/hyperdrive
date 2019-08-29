@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/id"
+	"github.com/renproject/id"
 )
 
 // Step in the consensus algorithm.

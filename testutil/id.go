@@ -6,7 +6,7 @@ import (
 	mrand "math/rand"
 	"time"
 
-	"github.com/renproject/hyperdrive/id"
+	"github.com/renproject/id"
 )
 
 func init() {
