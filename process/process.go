@@ -2,7 +2,6 @@ package process
 
 import (
 	"encoding/json"
-	"log"
 	"sync"
 	"time"
 
@@ -82,8 +81,8 @@ type Process struct {
 }
 
 // New Process initialised to the default state, starting in the first round.
-func New(signatory id.Signatory, blockchain Blockchain, state State, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler Scheduler, timer Timer) Process {
-	p := Process{
+func New(signatory id.Signatory, blockchain Blockchain, state State, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler Scheduler, timer Timer) *Process {
+	p := &Process{
 		mu: new(sync.Mutex),
 
 		signatory:  signatory,
@@ -122,8 +121,6 @@ func (p *Process) UnmarshalJSON(data []byte) error {
 // https://arxiv.org/pdf/1807.04938.pdf for more information.
 func (p *Process) StartRound(round block.Round) {
 	p.mu.Lock()
-	log.Print("startround require lock")
-	defer log.Print("startround release lock")
 	defer p.mu.Unlock()
 	p.startRound(round)
 }
@@ -169,7 +166,7 @@ func (p *Process) startRound(round block.Round) {
 	}
 }
 func (p *Process) handlePropose(propose *Propose) {
-	_, firstTime, _, _ := p.state.Proposals.Insert(propose)
+	n, firstTime, _, _ := p.state.Proposals.Insert(propose)
 
 	// upon Propose{currentHeight, currentRound, block, -1}
 	if propose.Height() == p.state.CurrentHeight && propose.Round() == p.state.CurrentRound && propose.ValidRound() == block.InvalidRound {
@@ -195,6 +192,11 @@ func (p *Process) handlePropose(propose *Propose) {
 				p.broadcaster.Broadcast(prevote)
 			}
 		}
+	}
+
+	// upon f+1 *{currentHeight, round, *, *} and round > currentRound
+	if n > p.state.Prevotes.F() && propose.Height() == p.state.CurrentHeight && propose.Round() > p.state.CurrentRound {
+		p.startRound(propose.Round())
 	}
 
 	p.checkProposeInCurrentHeightAndRoundWithPrevotes()
@@ -289,8 +291,6 @@ func (p *Process) scheduleTimeoutPropose(height block.Height, round block.Round,
 		time.Sleep(duration)
 
 		p.mu.Lock()
-		log.Print("timeout require lock")
-		defer log.Print("timeout release lock")
 		defer p.mu.Unlock()
 
 		p.timeoutPropose(height, round)

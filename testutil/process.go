@@ -15,6 +15,10 @@ import (
 	"github.com/renproject/id"
 )
 
+func RandomStep() process.Step {
+	return process.Step(rand.Intn(3) + 1)
+}
+
 // RandomState returns a random `process.State`.
 func RandomState() process.State {
 	step := rand.Intn(3) + 1
@@ -162,7 +166,7 @@ func NewProcessOrigin(f int) ProcessOrigin {
 		State:             process.DefaultState(f),
 		BroadcastMessages: messages,
 
-		Proposer:    MockProposer{Key: privateKey},
+		Proposer:    NewMockProposer(privateKey),
 		Validator:   NewMockValidator(true),
 		Scheduler:   NewMockScheduler(sig),
 		Broadcaster: NewMockBroadcaster(messages),
@@ -171,7 +175,7 @@ func NewProcessOrigin(f int) ProcessOrigin {
 	}
 }
 
-func (p ProcessOrigin) ToProcess() process.Process {
+func (p ProcessOrigin) ToProcess() *process.Process {
 	return process.New(
 		p.Signatory,
 		p.Blockchain,
@@ -181,7 +185,8 @@ func (p ProcessOrigin) ToProcess() process.Process {
 		p.Observer,
 		p.Broadcaster,
 		p.Scheduler,
-		p.Timer)
+		p.Timer,
+	)
 }
 
 type MockBlockchain struct {
@@ -219,11 +224,32 @@ func (bc *MockBlockchain) BlockExistsAtHeight(height block.Height) bool {
 	return ok
 }
 
+func (bc *MockBlockchain) LatestBlock(kind block.Kind) block.Block {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+
+	h, b := block.Height(0), block.Block{}
+	for height, blk := range bc.blocks {
+		if height > h {
+			if blk.Header().Kind() == kind || kind == block.Invalid {
+				b = blk
+			}
+			h = height
+		}
+	}
+
+	return b
+}
+
 type MockProposer struct {
 	Key *ecdsa.PrivateKey
 }
 
-func (m MockProposer) BlockProposal(height block.Height, round block.Round) block.Block {
+func NewMockProposer(key *ecdsa.PrivateKey) process.Proposer {
+	return &MockProposer{Key: key}
+}
+
+func (m *MockProposer) BlockProposal(height block.Height, round block.Round) block.Block {
 	header := RandomBlockHeaderJSON(RandomBlockKind())
 	header.Height = height
 	header.Round = round
@@ -288,7 +314,7 @@ func (timer *MockTimer) Timeout(step process.Step, round block.Round) time.Durat
 	return timer.timeout
 }
 
-func GetStateFromProcess(p process.Process, f int) process.State {
+func GetStateFromProcess(p *process.Process, f int) process.State {
 	data, err := json.Marshal(p)
 	if err != nil {
 		panic(err)

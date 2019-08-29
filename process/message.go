@@ -368,18 +368,11 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	inbox.messages[height][round][signatory] = message
 	n = len(inbox.messages[height][round])
 
+	// todo : what should we do if they vote something different
 	firstTime = (previousN == 0) && (n == 1)
 	firstTimeExceedingF = (previousN < inbox.F()+1) && (n > inbox.F())
 	firstTimeExceeding2F = (previousN < 2*inbox.F()+1) && (n > 2*inbox.F())
 	return
-
-	// n = inbox.QueryByHeightRoundBlockHash(message.Height(), message.Round(), message.BlockHash())
-	// if _, ok := inbox.messages[height][round][signatory]; ok {
-	// 	// todo : what should we do if they vote something different
-	// 	return
-	// }
-	// inbox.messages[height][round][signatory] = message
-	// return n + 1, n == 1, n == inbox.F()+1, n == 2*inbox.F()+1
 }
 
 func (inbox *Inbox) QueryByHeightRoundBlockHash(height block.Height, round block.Round, blockHash id.Hash) (n int) {

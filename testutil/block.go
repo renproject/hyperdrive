@@ -101,7 +101,14 @@ type BlockJSON struct {
 
 func RandomBlock(kind block.Kind) block.Block {
 	header := RandomBlockHeader(kind)
-	return block.New(header, RandomBytesSlice(), RandomBytesSlice())
+	var data block.Data
+	switch kind {
+	case block.Standard:
+		data = RandomBytesSlice()
+	case block.Rebase, block.Base:
+		data = nil
+	}
+	return block.New(header, data, RandomBytesSlice())
 }
 
 func RandomHeight() block.Height {
