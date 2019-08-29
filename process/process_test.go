@@ -278,7 +278,7 @@ var _ = Describe("Process", func() {
 
 		Context("when receive 2*f +1 nil prevote of current height and round", func() {
 			It("should broadcast a nl precommit and move to precommit state", func() {
-				f := rand.Intn(100)
+				f := rand.Intn(100) +1
 				height, round := block.Height(rand.Int()), block.Round(rand.Int())
 				processOrigin := NewProcessOrigin(f)
 				processOrigin.State.CurrentStep = StepPrevote
