@@ -431,6 +431,8 @@ func (inbox Inbox) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Inbox type.
+// Note : you need to be really careful when doing unmarshaling, specifically you need
+// to initialize the inbox with the expected messageType. Otherwise it would panic.
 func (inbox *Inbox) UnmarshalJSON(data []byte) error {
 	tmp := struct {
 		F        int                                                               `json:"f"`

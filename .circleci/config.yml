@@ -23,10 +23,11 @@ jobs:
             go get -u golang.org/x/crypto/...
             go get -u github.com/loongy/covermerge
             go get -u github.com/mattn/goveralls
-            CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out block process
+            CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out ./...
             /go/bin/covermerge            \
               block/coverprofile.out      \
               process/coverprofile.out    \
+              replica/coverprofile.out    \
               coverprofile.out > coverprofile.out
             /go/bin/goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
           no_output_timeout: 40m

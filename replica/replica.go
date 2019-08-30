@@ -99,7 +99,7 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	}
 	shardRebaser := newShardRebaser(blockStorage, blockIterator, validator, observer, shard)
 
-	// Restore process state from storager if possible
+	// Restore process state from storage if possible
 	var p *process.Process
 	pStorage.RestoreProcess(p, shard)
 	if p == nil {
