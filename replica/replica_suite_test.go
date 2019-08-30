@@ -1,13 +1,104 @@
-package replica_test
+package replica
 
 import (
+	"sync"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "github.com/renproject/hyperdrive/testutil"
+
+	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/process"
 )
 
 func TestReplica(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Replica Suite")
+}
+
+type mockBlockStorage struct {
+	mu     *sync.RWMutex
+	shards map[Shard]*MockBlockchain
+}
+
+func newMockBlockStorage() BlockStorage {
+	return &mockBlockStorage{
+		mu:     new(sync.RWMutex),
+		shards: map[Shard]*MockBlockchain{},
+	}
+}
+
+func (m *mockBlockStorage) Blockchain(shard Shard) process.Blockchain {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	blockchain, ok := m.shards[shard]
+	if !ok {
+		m.shards[shard] = NewMockBlockchain()
+		return m.shards[shard]
+	}
+	return blockchain
+}
+
+func (m *mockBlockStorage) LatestBlock(shard Shard) block.Block {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	blockchain, ok := m.shards[shard]
+	if !ok {
+		return block.InvalidBlock
+	}
+
+	return blockchain.LatestBlock(block.Invalid)
+}
+
+func (m *mockBlockStorage) LatestBaseBlock(shard Shard) block.Block {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	blockchain, ok := m.shards[shard]
+	if !ok {
+		return block.InvalidBlock
+	}
+
+	return blockchain.LatestBlock(block.Base)
+}
+
+type mockBlockIterator struct {
+}
+
+func (m mockBlockIterator) NextBlock(kind block.Kind, height block.Height, shard Shard) (block.Data, block.State) {
+	return RandomBytesSlice(), RandomBytesSlice()
+}
+
+type mockValidator struct {
+	valid bool
+}
+
+func (m mockValidator) IsBlockValid(block.Block, Shard) bool {
+	return m.valid
+}
+
+func newMockValidator(valid bool) Validator {
+	return mockValidator{valid: valid}
+}
+
+type mockObserver struct {
+}
+
+func newMockObserver() Observer {
+	return mockObserver{}
+}
+
+func (m mockObserver) DidCommitBlock(block.Height, Shard) {
+}
+
+type mockProcessStorage struct {
+}
+
+func (m mockProcessStorage) SaveProcess(p *process.Process, shard Shard) {
+}
+
+func (m mockProcessStorage) RestoreProcess(p *process.Process, shard Shard) {
 }

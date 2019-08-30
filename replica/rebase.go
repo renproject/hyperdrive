@@ -88,7 +88,6 @@ func (rebaser *shardRebaser) BlockProposal(height block.Height, round block.Roun
 		// `block.Header`
 		expectedSigs = make(id.Signatories, len(rebaser.expectedRebaseSigs))
 		copy(expectedSigs, rebaser.expectedRebaseSigs)
-
 	default:
 		panic(fmt.Errorf("invariant violation: must not propose block kind=%v", rebaser.expectedKind))
 	}
@@ -152,7 +151,7 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block) bool {
 	if !ok {
 		return false
 	}
-	if proposedBlock.Header().Timestamp() > parentBlock.Header().Timestamp() {
+	if proposedBlock.Header().Timestamp() < parentBlock.Header().Timestamp() {
 		return false
 	}
 	if proposedBlock.Header().Timestamp() > block.Timestamp(time.Now().Unix()) {

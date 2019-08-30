@@ -194,7 +194,7 @@ type MockBlockchain struct {
 	blocks map[block.Height]block.Block
 }
 
-func NewMockBlockchain() process.Blockchain {
+func NewMockBlockchain() *MockBlockchain {
 	return &MockBlockchain{
 		mu:     new(sync.RWMutex),
 		blocks: map[block.Height]block.Block{},
@@ -228,13 +228,13 @@ func (bc *MockBlockchain) LatestBlock(kind block.Kind) block.Block {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
 
-	h, b := block.Height(0), block.Block{}
+	h, b := block.Height(-1), block.Block{}
 	for height, blk := range bc.blocks {
 		if height > h {
 			if blk.Header().Kind() == kind || kind == block.Invalid {
 				b = blk
+				h = height
 			}
-			h = height
 		}
 	}
 

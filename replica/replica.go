@@ -42,7 +42,7 @@ type Message struct {
 // guarantess that in the event of an unexpected shutdown, the Replica will only
 // drop the `process.Message` that was currently being handling.
 type ProcessStorage interface {
-	SaveProcess(p process.Process, shard Shard)
+	SaveProcess(p *process.Process, shard Shard)
 	RestoreProcess(p *process.Process, shard Shard)
 }
 
@@ -81,7 +81,7 @@ type Replicas []Replica
 type Replica struct {
 	options      Options
 	shard        Shard
-	p            process.Process
+	p            *process.Process
 	pStorage     ProcessStorage
 	blockStorage BlockStorage
 
@@ -98,22 +98,28 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", len(latestBase.Header().Signatories())))
 	}
 	shardRebaser := newShardRebaser(blockStorage, blockIterator, validator, observer, shard)
-	p := process.New(
-		id.NewSignatory(privKey.PublicKey),
-		blockStorage.Blockchain(shard),
-		process.DefaultState((len(latestBase.Header().Signatories())-1)/3),
-		shardRebaser,
-		shardRebaser,
-		shardRebaser,
-		newSigner(broadcaster, shard, privKey),
-		scheduler,
-		newBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
-	)
+
+	// Restore process state from storager if possible
+	var p *process.Process
 	pStorage.RestoreProcess(p, shard)
+	if p == nil {
+		p = process.New(
+			id.NewSignatory(privKey.PublicKey),
+			blockStorage.Blockchain(shard),
+			process.DefaultState((len(latestBase.Header().Signatories())-1)/3),
+			shardRebaser,
+			shardRebaser,
+			shardRebaser,
+			newSigner(broadcaster, shard, privKey),
+			scheduler,
+			newBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
+		)
+	}
+
 	return Replica{
 		options:      options,
 		shard:        shard,
-		p:            *p,
+		p:            p,
 		pStorage:     pStorage,
 		blockStorage: blockStorage,
 
@@ -145,7 +151,7 @@ func (replica *Replica) HandleMessage(m Message) {
 	}
 
 	// Handle the underlying `process.Message` and immediately save the
-	// `process.Process` afterwards to proected against unexpected crashes
+	// `process.Process` afterwards to protect against unexpected crashes
 	replica.p.HandleMessage(m.Message)
 	replica.pStorage.SaveProcess(replica.p, replica.shard)
 }
@@ -163,7 +169,10 @@ type baseBlockCache struct {
 }
 
 func newBaseBlockCache(baseBlock block.Block) baseBlockCache {
-	cache := baseBlockCache{}
+	cache := baseBlockCache{
+		lastBaseBlockHeight: -1,
+		sigsCache:           map[id.Signatory]bool{},
+	}
 	cache.fillBaseBlock(baseBlock)
 	return cache
 }
