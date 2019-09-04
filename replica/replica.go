@@ -82,6 +82,7 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 		}
 		m.Message = precommit
 	}
+	m.Shard = tmp.Shard
 
 	return nil
 }
