@@ -16,6 +16,7 @@ type Messages []Message
 
 type Message interface {
 	fmt.Stringer
+	json.Marshaler
 
 	Signatory() id.Signatory
 	SigHash() id.Hash
