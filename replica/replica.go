@@ -44,7 +44,11 @@ func (m Message) MarshalJSON() ([]byte, error) {
 		MessageType process.Type    `json:"type"`
 		Message     process.Message `json:"message"`
 		Shard       Shard           `json:"shard"`
-	}{}
+	}{
+		MessageType: m.Message.Type(),
+		Message:     m.Message,
+		Shard:       m.Shard,
+	}
 	return json.Marshal(tmp)
 }
 
