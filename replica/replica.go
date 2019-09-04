@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -34,8 +35,51 @@ type Messages []Message
 // underlying `process.Message` data. It is expected that a Replica will sign
 // the underlying `process.Message` data before sending the Message.
 type Message struct {
-	Message process.Message `json:"message"`
-	Shard   Shard           `json:"shard"`
+	Message process.Message
+	Shard   Shard
+}
+
+func (m Message) MarshalJSON() ([]byte, error) {
+	tmp := struct {
+		MessageType process.Type    `json:"type"`
+		Message     process.Message `json:"message"`
+		Shard       Shard           `json:"shard"`
+	}{}
+	return json.Marshal(tmp)
+}
+
+func (m *Message) UnmarshalJSON(data []byte) error {
+	tmp := struct {
+		MessageType process.Type    `json:"type"`
+		Message     json.RawMessage `json:"message"`
+		Shard       Shard           `json:"shard"`
+	}{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+
+	switch tmp.MessageType {
+	case process.TypePropose:
+		propose := new(process.Propose)
+		if err := propose.UnmarshalJSON(tmp.Message); err != nil {
+			return err
+		}
+		m.Message = propose
+	case process.TypePrevote:
+		prevote := new(process.Prevote)
+		if err := prevote.UnmarshalJSON(tmp.Message); err != nil {
+			return err
+		}
+		m.Message = prevote
+	case process.TypePrecommit:
+		precommit := new(process.Precommit)
+		if err := precommit.UnmarshalJSON(tmp.Message); err != nil {
+			return err
+		}
+		m.Message = precommit
+	}
+
+	return nil
 }
 
 // ProcessStorage saves and restores `process.State` to persistent memory. This
