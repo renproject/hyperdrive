@@ -12,13 +12,13 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-type Type uint64
+type MessageType uint64
 
 const (
-	TypeNil       = 0
-	TypePropose   = 1
-	TypePrevote   = 2
-	TypePrecommit = 3
+	NilMessageType       = 0
+	ProposeMessageType   = 1
+	PrevoteMessageType   = 2
+	PrecommitMessageType = 3
 )
 
 type Messages []Message
@@ -36,7 +36,7 @@ type Message interface {
 	Round() block.Round
 	BlockHash() id.Hash
 
-	Type() Type
+	Type() MessageType
 }
 
 func Sign(m Message, privKey ecdsa.PrivateKey) error {
@@ -125,8 +125,8 @@ func (propose *Propose) BlockHash() id.Hash {
 	return propose.block.Hash()
 }
 
-func (propose *Propose) Type() Type {
-	return TypePropose
+func (propose *Propose) Type() MessageType {
+	return ProposeMessageType
 }
 
 func (propose *Propose) Block() block.Block {
@@ -224,8 +224,8 @@ func (prevote *Prevote) BlockHash() id.Hash {
 	return prevote.blockHash
 }
 
-func (prevote *Prevote) Type() Type {
-	return TypePrevote
+func (prevote *Prevote) Type() MessageType {
+	return PrevoteMessageType
 }
 
 func (prevote *Prevote) String() string {
@@ -311,8 +311,8 @@ func (precommit *Precommit) BlockHash() id.Hash {
 	return precommit.blockHash
 }
 
-func (precommit *Precommit) Type() Type {
-	return TypePrecommit
+func (precommit *Precommit) Type() MessageType {
+	return PrecommitMessageType
 }
 
 // MarshalJSON implements the `json.Marshaler` interface for the Precommit type.

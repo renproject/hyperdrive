@@ -41,9 +41,9 @@ type Message struct {
 
 func (m Message) MarshalJSON() ([]byte, error) {
 	tmp := struct {
-		MessageType process.Type    `json:"type"`
-		Message     process.Message `json:"message"`
-		Shard       Shard           `json:"shard"`
+		MessageType process.MessageType `json:"type"`
+		Message     process.Message     `json:"message"`
+		Shard       Shard               `json:"shard"`
 	}{
 		MessageType: m.Message.Type(),
 		Message:     m.Message,
@@ -54,28 +54,28 @@ func (m Message) MarshalJSON() ([]byte, error) {
 
 func (m *Message) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		MessageType process.Type    `json:"type"`
-		Message     json.RawMessage `json:"message"`
-		Shard       Shard           `json:"shard"`
+		MessageType process.MessageType `json:"type"`
+		Message     json.RawMessage     `json:"message"`
+		Shard       Shard               `json:"shard"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
 	}
 
 	switch tmp.MessageType {
-	case process.TypePropose:
+	case process.ProposeMessageType:
 		propose := new(process.Propose)
 		if err := propose.UnmarshalJSON(tmp.Message); err != nil {
 			return err
 		}
 		m.Message = propose
-	case process.TypePrevote:
+	case process.PrevoteMessageType:
 		prevote := new(process.Prevote)
 		if err := prevote.UnmarshalJSON(tmp.Message); err != nil {
 			return err
 		}
 		m.Message = prevote
-	case process.TypePrecommit:
+	case process.PrecommitMessageType:
 		precommit := new(process.Precommit)
 		if err := precommit.UnmarshalJSON(tmp.Message); err != nil {
 			return err
