@@ -201,7 +201,6 @@ func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
 		rebaser.expectedKind = block.Standard
 		rebaser.expectedRebaseSigs = nil
 	}
-
 	if rebaser.observer != nil {
 		rebaser.observer.DidCommitBlock(height, rebaser.shard)
 	}

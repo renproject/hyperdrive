@@ -7,6 +7,7 @@ import (
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/id"
+	"github.com/sirupsen/logrus"
 )
 
 // Step in the consensus algorithm.
@@ -66,7 +67,8 @@ type Processes []Process
 // A Process defines a state machine in the distributed replicated state
 // machine. See https://arxiv.org/pdf/1807.04938.pdf for more information.
 type Process struct {
-	mu *sync.Mutex
+	logger logrus.FieldLogger
+	mu     *sync.Mutex
 
 	signatory  id.Signatory
 	blockchain Blockchain
@@ -81,9 +83,10 @@ type Process struct {
 }
 
 // New Process initialised to the default state, starting in the first round.
-func New(signatory id.Signatory, blockchain Blockchain, state State, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler Scheduler, timer Timer) *Process {
+func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler Scheduler, timer Timer) *Process {
 	p := &Process{
-		mu: new(sync.Mutex),
+		logger: logger,
+		mu:     new(sync.Mutex),
 
 		signatory:  signatory,
 		blockchain: blockchain,
@@ -409,11 +412,10 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 				p.blockchain.InsertBlockAtHeight(p.state.CurrentHeight, propose.Block())
 				p.state.CurrentHeight++
 				p.state.Reset()
-				p.startRound(0)
-
 				if p.observer != nil {
 					p.observer.DidCommitBlock(p.state.CurrentHeight - 1)
 				}
+				p.startRound(0)
 			}
 		}
 	}

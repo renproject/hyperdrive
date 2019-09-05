@@ -27,7 +27,7 @@ type State struct {
 // https://arxiv.org/pdf/1807.04938.pdf for more information.
 func DefaultState(f int) State {
 	return State{
-		CurrentHeight: 0,
+		CurrentHeight: 1, // Skip the genesis block
 		CurrentRound:  0,
 		CurrentStep:   StepPropose,
 		LockedBlock:   block.InvalidBlock,

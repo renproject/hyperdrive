@@ -13,6 +13,7 @@ import (
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/id"
+	"github.com/sirupsen/logrus"
 )
 
 func RandomStep() process.Step {
@@ -177,6 +178,7 @@ func NewProcessOrigin(f int) ProcessOrigin {
 
 func (p ProcessOrigin) ToProcess() *process.Process {
 	return process.New(
+		logrus.StandardLogger(),
 		p.Signatory,
 		p.Blockchain,
 		p.State,

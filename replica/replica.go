@@ -153,6 +153,7 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	pStorage.RestoreProcess(p, shard)
 	if p == nil {
 		p = process.New(
+			options.Logger,
 			id.NewSignatory(privKey.PublicKey),
 			blockStorage.Blockchain(shard),
 			process.DefaultState((len(latestBase.Header().Signatories())-1)/3),
