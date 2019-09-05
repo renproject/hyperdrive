@@ -35,7 +35,7 @@ var _ = Describe("Process", func() {
 
 			data, err := json.Marshal(process)
 			Expect(err).NotTo(HaveOccurred())
-			var newProcess Process
+			newProcess := processOrigin.ToProcess()
 			Expect(json.Unmarshal(data, &newProcess)).Should(Succeed())
 
 			// Since state cannot be accessed from the process. We try to compared the
@@ -59,7 +59,7 @@ var _ = Describe("Process", func() {
 					Eventually(processOrigin.BroadcastMessages).Should(Receive(&message))
 					proposal, ok := message.(*Propose)
 					Expect(ok).Should(BeTrue())
-					Expect(proposal.Height()).Should(BeZero())
+					Expect(proposal.Height()).Should(Equal(block.Height(1)))
 					Expect(proposal.Round()).Should(BeZero())
 				})
 			})
@@ -90,14 +90,14 @@ var _ = Describe("Process", func() {
 						// Init a default process to be modified
 						processOrigin := NewProcessOrigin(100)
 
-						// Replace the broadcaster and start the process
+						// Replace the scheduler and start the process
 						privateKey := newEcdsaKey()
 						scheduler := NewMockScheduler(id.NewSignatory(privateKey.PublicKey))
 						processOrigin.Scheduler = scheduler
 						process := processOrigin.ToProcess()
 
 						// Generate a valid proposal
-						message := NewPropose(0, 0, RandomBlock(block.Standard), block.InvalidRound)
+						message := NewPropose(1, 0, RandomBlock(block.Standard), block.InvalidRound)
 						Expect(Sign(message, *privateKey)).NotTo(HaveOccurred())
 						process.HandleMessage(message)
 
@@ -106,7 +106,7 @@ var _ = Describe("Process", func() {
 						Eventually(processOrigin.BroadcastMessages).Should(Receive(&propose))
 						proposal, ok := propose.(*Prevote)
 						Expect(ok).Should(BeTrue())
-						Expect(proposal.Height()).Should(BeZero())
+						Expect(proposal.Height()).Should(Equal(block.Height(1)))
 						Expect(proposal.Round()).Should(BeZero())
 					})
 				})
@@ -124,7 +124,7 @@ var _ = Describe("Process", func() {
 						process := processOrigin.ToProcess()
 
 						// Generate a invalid proposal
-						message := NewPropose(0, 0, RandomBlock(block.Standard), block.InvalidRound)
+						message := NewPropose(1, 0, RandomBlock(block.Standard), block.InvalidRound)
 						Expect(Sign(message, *privateKey)).NotTo(HaveOccurred())
 						process.HandleMessage(message)
 
@@ -133,7 +133,7 @@ var _ = Describe("Process", func() {
 						Eventually(processOrigin.BroadcastMessages).Should(Receive(&propose))
 						proposal, ok := propose.(*Prevote)
 						Expect(ok).Should(BeTrue())
-						Expect(proposal.Height()).Should(BeZero())
+						Expect(proposal.Height()).Should(Equal(block.Height(1)))
 						Expect(proposal.Round()).Should(BeZero())
 					})
 				})
@@ -154,7 +154,7 @@ var _ = Describe("Process", func() {
 					Eventually(processOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
 					prevote, ok := message.(*Prevote)
 					Expect(ok).Should(BeTrue())
-					Expect(prevote.Height()).Should(BeZero())
+					Expect(prevote.Height()).Should(Equal(block.Height(1)))
 					Expect(prevote.Round()).Should(BeZero())
 					Expect(prevote.BlockHash().Equal(block.InvalidHash)).Should(BeTrue())
 				})

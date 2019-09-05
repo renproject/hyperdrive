@@ -148,23 +148,20 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	}
 	shardRebaser := newShardRebaser(blockStorage, blockIterator, validator, observer, shard)
 
-	// Restore process state from storage if possible
-	var p *process.Process
+	// Create a Process in the default state and then restore it
+	p := process.New(
+		options.Logger,
+		id.NewSignatory(privKey.PublicKey),
+		blockStorage.Blockchain(shard),
+		process.DefaultState((len(latestBase.Header().Signatories())-1)/3),
+		shardRebaser,
+		shardRebaser,
+		shardRebaser,
+		newSigner(broadcaster, shard, privKey),
+		scheduler,
+		newBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
+	)
 	pStorage.RestoreProcess(p, shard)
-	if p == nil {
-		p = process.New(
-			options.Logger,
-			id.NewSignatory(privKey.PublicKey),
-			blockStorage.Blockchain(shard),
-			process.DefaultState((len(latestBase.Header().Signatories())-1)/3),
-			shardRebaser,
-			shardRebaser,
-			shardRebaser,
-			newSigner(broadcaster, shard, privKey),
-			scheduler,
-			newBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
-		)
-	}
 
 	return Replica{
 		options:      options,
