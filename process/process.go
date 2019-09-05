@@ -111,12 +111,16 @@ func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchai
 // MarshalJSON implements the `json.Marshaler` interface for the Process type,
 // by marshaling its isolated State.
 func (p Process) MarshalJSON() ([]byte, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	return json.Marshal(p.state)
 }
 
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Process
 // type, by unmarshaling its isolated State.
 func (p *Process) UnmarshalJSON(data []byte) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	return json.Unmarshal(data, &p.state)
 }
 
