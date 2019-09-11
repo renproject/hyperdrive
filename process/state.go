@@ -47,8 +47,9 @@ func (state *State) Reset() {
 	state.LockedRound = block.InvalidRound
 	state.ValidBlock = block.InvalidBlock
 	state.ValidRound = block.InvalidRound
-	// TODO : DO WE NEED TO RESET THOSE INBOXES ?
-	// clean all inboxes , below the new height
+	state.Proposals.Reset(state.CurrentHeight - 1)
+	state.Prevotes.Reset(state.CurrentHeight - 1)
+	state.Precommits.Reset(state.CurrentHeight - 1)
 }
 
 // Equal compares one State with another.

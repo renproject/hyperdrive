@@ -99,12 +99,6 @@ func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchai
 		scheduler:   scheduler,
 		timer:       timer,
 	}
-	if state.Equal(DefaultState(1)) {
-		// Only call StartRound when the State has not been initialised, to
-		// prevent resetting a State that has been restored from persistent
-		// storage
-		p.StartRound(0)
-	}
 	return p
 }
 
@@ -122,6 +116,11 @@ func (p *Process) UnmarshalJSON(data []byte) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return json.Unmarshal(data, &p.state)
+}
+
+// Start the process
+func (p *Process) Start() {
+	p.startRound(p.state.CurrentRound)
 }
 
 // StartRound is safe for concurrent use. See
@@ -167,12 +166,14 @@ func (p *Process) startRound(round block.Round) {
 			p.state.ValidRound,
 		)
 		// Always broadcast at the end
+		p.logger.Infof("[🔊] Proposing a new block of height %v, round = %v", propose.Height(), propose.Round())
 		p.broadcaster.Broadcast(propose)
 	} else {
 		p.scheduleTimeoutPropose(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPropose, p.state.CurrentRound))
 	}
 }
 func (p *Process) handlePropose(propose *Propose) {
+	p.logger.Debugf("Receive new propose of height %v", propose.height)
 	n, firstTime, _, _ := p.state.Proposals.Insert(propose)
 
 	// upon Propose{currentHeight, currentRound, block, -1}
@@ -214,6 +215,7 @@ func (p *Process) handlePropose(propose *Propose) {
 }
 
 func (p *Process) handlePrevote(prevote *Prevote) {
+	p.logger.Debugf("Receive new prevote of height = %v , IsNil= %v", prevote.height, prevote.blockHash.Equal(block.InvalidHash))
 	n, _, _, firstTimeExceeding2F := p.state.Prevotes.Insert(prevote)
 	if firstTimeExceeding2F && prevote.Height() == p.state.CurrentHeight && prevote.Round() == p.state.CurrentRound && p.state.CurrentStep == StepPrevote {
 		// upon 2f+1 Prevote{currentHeight, currentRound, *} while step = StepPrevote for the first time
@@ -244,6 +246,7 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 }
 
 func (p *Process) handlePrecommit(precommit *Precommit) {
+	p.logger.Debugf("Receive new precommit of height = %v, IsNil= %v", precommit.height, precommit.blockHash.Equal(block.InvalidHash))
 	// upon 2f+1 Precommit{currentHeight, currentRound, *} for the first time
 	n, _, _, firstTimeExceeding2F := p.state.Precommits.Insert(precommit)
 	if firstTimeExceeding2F && precommit.Height() == p.state.CurrentHeight && precommit.Round() == p.state.CurrentRound {
@@ -419,6 +422,8 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 				if p.observer != nil {
 					p.observer.DidCommitBlock(p.state.CurrentHeight - 1)
 				}
+				p.logger.Infof("[✅] block of height %v is finalized", propose.height)
+				time.Sleep(100 * time.Millisecond)
 				p.startRound(0)
 			}
 		}

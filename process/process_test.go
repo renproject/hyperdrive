@@ -516,9 +516,9 @@ var _ = Describe("Process", func() {
 		})
 	})
 
-	Context("when current block doesn't exist in the blockchain", func() {
+	Context("when current block does not exist in the blockchain", func() {
 		Context("when receive 2f + 1 precommit of a proposal,", func() {
-			It("should finalize the block in blockchain, reset the state and start from round 0 in height +1 ", func() {
+			It("should finalize the block in blockchain, reset the state, and start from round 0 in height +1 ", func() {
 				for _, step := range []Step{StepPropose, StepPrevote, StepPrecommit} {
 					// Init a default process to be modified
 					f := rand.Intn(100) + 1

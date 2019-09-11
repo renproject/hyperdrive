@@ -176,6 +176,10 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	}
 }
 
+func (replica *Replica) Start() {
+	replica.p.Start()
+}
+
 func (replica *Replica) HandleMessage(m Message) {
 	// Check that Message is from our Shard
 	if !replica.shard.Equal(m.Shard) {

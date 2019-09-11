@@ -10,7 +10,7 @@ require (
 	github.com/onsi/ginkgo v1.9.0
 	github.com/onsi/gomega v1.7.0
 	github.com/renproject/id v0.1.0
-	github.com/renproject/phi v0.1.0 // indirect
+	github.com/renproject/phi v0.1.0
 	github.com/republicprotocol/co-go v0.0.0-20180723052914-4e299fdb0e80
 	github.com/sirupsen/logrus v1.4.2
 	golang.org/x/crypto v0.0.0-20190820162420-60c769a6c586

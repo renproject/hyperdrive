@@ -23,9 +23,10 @@ func RandomStep() process.Step {
 // RandomState returns a random `process.State`.
 func RandomState() process.State {
 	step := rand.Intn(3) + 1
+	f := rand.Intn(100) + 1
 
 	return process.State{
-		CurrentHeight: block.Height(rand.Int63()),
+		CurrentHeight: block.Height(rand.Int63() + 1),
 		CurrentRound:  block.Round(rand.Int63()),
 		CurrentStep:   process.Step(step),
 
@@ -33,6 +34,10 @@ func RandomState() process.State {
 		LockedRound: block.Round(rand.Int63()),
 		ValidBlock:  RandomBlock(RandomBlockKind()),
 		ValidRound:  block.Round(rand.Int63()),
+
+		Proposals:  process.NewInbox(f, reflect.TypeOf(process.Propose{})),
+		Prevotes:   process.NewInbox(f, reflect.TypeOf(process.Prevote{})),
+		Precommits: process.NewInbox(f, reflect.TypeOf(process.Precommit{})),
 	}
 }
 
@@ -194,12 +199,14 @@ func (p ProcessOrigin) ToProcess() *process.Process {
 type MockBlockchain struct {
 	mu     *sync.RWMutex
 	blocks map[block.Height]block.Block
+	states map[block.Height]block.State
 }
 
 func NewMockBlockchain() *MockBlockchain {
 	return &MockBlockchain{
 		mu:     new(sync.RWMutex),
 		blocks: map[block.Height]block.Block{},
+		states: map[block.Height]block.State{},
 	}
 }
 
@@ -210,12 +217,27 @@ func (bc *MockBlockchain) InsertBlockAtHeight(height block.Height, block block.B
 	bc.blocks[height] = block
 }
 
+func (bc *MockBlockchain) InsertBlockStatAtHeight(height block.Height, state block.State) {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	bc.states[height] = state
+}
+
 func (bc *MockBlockchain) BlockAtHeight(height block.Height) (block.Block, bool) {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
 
 	block, ok := bc.blocks[height]
 	return block, ok
+}
+
+func (bc *MockBlockchain) StateAtHeight(height block.Height) (block.State, bool) {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+
+	state, ok := bc.states[height]
+	return state, ok
 }
 
 func (bc *MockBlockchain) BlockExistsAtHeight(height block.Height) bool {

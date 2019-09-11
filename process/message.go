@@ -393,7 +393,6 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	inbox.messages[height][round][signatory] = message
 	n = len(inbox.messages[height][round])
 
-	// todo : what should we do if they vote something different
 	firstTime = (previousN == 0) && (n == 1)
 	firstTimeExceedingF = (previousN < inbox.F()+1) && (n > inbox.F())
 	firstTimeExceeding2F = (previousN < 2*inbox.F()+1) && (n > 2*inbox.F())
@@ -442,6 +441,14 @@ func (inbox *Inbox) F() int {
 
 func (inbox *Inbox) MessageType() reflect.Type {
 	return inbox.messageType
+}
+
+func (inbox *Inbox) Reset(height block.Height) {
+	for blockHeight := range inbox.messages {
+		if blockHeight <= height {
+			delete(inbox.messages, blockHeight)
+		}
+	}
 }
 
 // MarshalJSON implements the `json.Marshaler` interface for the Inbox type.
