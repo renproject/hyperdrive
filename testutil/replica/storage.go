@@ -3,6 +3,7 @@ package testutil_replica
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -138,11 +139,16 @@ func NewMockValidator(store *MockPersistentStorage) replica.Validator {
 	}
 }
 
-func (m *MockValidator) IsBlockValid(b block.Block, shard replica.Shard) bool {
+func (m *MockValidator) IsBlockValid(b block.Block, checkHistory bool, shard replica.Shard) bool {
 	height := b.Header().Height()
 	prevState := b.PreviousState()
 
 	blockchain := m.store.MockBlockchain(shard)
+	if !checkHistory {
+		blockchain.InsertBlockStatAtHeight(height-1, b.PreviousState())
+		return true
+	}
+
 	state, ok := blockchain.StateAtHeight(height - 1)
 	if !ok {
 		return false
@@ -171,6 +177,13 @@ func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
 	}
 	digest := sha3.Sum256(block.Data())
 	blockchain.InsertBlockStatAtHeight(height, digest[:])
+
+	// Insert executed state of the previous height
+	prevBlock, ok := blockchain.BlockAtHeight(height - 1)
+	if !ok {
+		panic(fmt.Sprintf("cannot find block of height %v, %v", height-1, prevBlock))
+	}
+	blockchain.InsertBlockStatAtHeight(height-1, prevBlock.PreviousState())
 }
 
 type MockBroadcaster struct {

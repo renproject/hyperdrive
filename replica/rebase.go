@@ -26,7 +26,7 @@ type BlockIterator interface {
 }
 
 type Validator interface {
-	IsBlockValid(block.Block, Shard) bool
+	IsBlockValid(block block.Block, checkHistroy bool, shard Shard) bool
 }
 
 type Observer interface {
@@ -110,7 +110,7 @@ func (rebaser *shardRebaser) BlockProposal(height block.Height, round block.Roun
 	return block.New(header, data, prevState)
 }
 
-func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block) bool {
+func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistory bool) bool {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
@@ -147,38 +147,41 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block) bool {
 	}
 
 	// Check against the parent `block.Block`
-	parentBlock, ok := rebaser.blockStorage.Blockchain(rebaser.shard).BlockAtHeight(proposedBlock.Header().Height() - 1)
-	if !ok {
-		return false
-	}
-	if proposedBlock.Header().Timestamp() < parentBlock.Header().Timestamp() {
-		return false
-	}
-	if proposedBlock.Header().Timestamp() > block.Timestamp(time.Now().Unix()) {
-		return false
-	}
-	if !proposedBlock.Header().ParentHash().Equal(parentBlock.Hash()) {
-		return false
+	if checkHistory == true {
+		parentBlock, ok := rebaser.blockStorage.Blockchain(rebaser.shard).BlockAtHeight(proposedBlock.Header().Height() - 1)
+		if !ok {
+			return false
+		}
+		if proposedBlock.Header().Timestamp() < parentBlock.Header().Timestamp() {
+			return false
+		}
+		if proposedBlock.Header().Timestamp() > block.Timestamp(time.Now().Unix()) {
+			return false
+		}
+		if !proposedBlock.Header().ParentHash().Equal(parentBlock.Hash()) {
+			return false
+		}
+
+		// Check that the parent is the most recently finalised
+		latestBlock := rebaser.blockStorage.LatestBlock(rebaser.shard)
+		if !parentBlock.Hash().Equal(latestBlock.Hash()) {
+			return false
+		}
+		if parentBlock.Hash().Equal(block.InvalidHash) {
+			return false
+		}
 	}
 
 	// Check against the base `block.Block`
+	// TODO : THIS NEEDS TO BE FIXED
 	baseBlock := rebaser.blockStorage.LatestBaseBlock(rebaser.shard)
 	if !proposedBlock.Header().BaseHash().Equal(baseBlock.Hash()) {
 		return false
 	}
 
-	// Check that the parent is the most recently finalised
-	latestBlock := rebaser.blockStorage.LatestBlock(rebaser.shard)
-	if !parentBlock.Hash().Equal(latestBlock.Hash()) {
-		return false
-	}
-	if parentBlock.Hash().Equal(block.InvalidHash) {
-		return false
-	}
-
 	// Pass to the next `process.Validator`
 	if rebaser.validator != nil {
-		return rebaser.validator.IsBlockValid(proposedBlock, rebaser.shard)
+		return rebaser.validator.IsBlockValid(proposedBlock, checkHistory, rebaser.shard)
 	}
 	return true
 }
@@ -202,6 +205,7 @@ func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
 		rebaser.expectedRebaseSigs = nil
 	}
 	if rebaser.observer != nil {
+		// TODO : external observer needs to take the previous state in the committedBlock and store in the storage
 		rebaser.observer.DidCommitBlock(height, rebaser.shard)
 	}
 }

@@ -42,14 +42,14 @@ func DefaultState(f int) State {
 
 // Reset the State (not all values are reset). See
 // https://arxiv.org/pdf/1807.04938.pdf for more information.
-func (state *State) Reset() {
+func (state *State) Reset(height block.Height) {
 	state.LockedBlock = block.InvalidBlock
 	state.LockedRound = block.InvalidRound
 	state.ValidBlock = block.InvalidBlock
 	state.ValidRound = block.InvalidRound
-	state.Proposals.Reset(state.CurrentHeight - 1)
-	state.Prevotes.Reset(state.CurrentHeight - 1)
-	state.Precommits.Reset(state.CurrentHeight - 1)
+	state.Proposals.Reset(height)
+	state.Prevotes.Reset(height)
+	state.Precommits.Reset(height)
 }
 
 // Equal compares one State with another.

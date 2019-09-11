@@ -76,7 +76,7 @@ type mockValidator struct {
 	valid bool
 }
 
-func (m mockValidator) IsBlockValid(block.Block, Shard) bool {
+func (m mockValidator) IsBlockValid(block.Block, bool, Shard) bool {
 	return m.valid
 }
 

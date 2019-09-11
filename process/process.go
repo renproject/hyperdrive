@@ -36,7 +36,7 @@ type Proposer interface {
 
 // A Validator validates a `block.Block` that has been proposed.
 type Validator interface {
-	IsBlockValid(block.Block) bool
+	IsBlockValid(block block.Block, checkHistory bool) bool
 }
 
 // An Observer is notified when note-worthy events happen for the first time.
@@ -165,6 +165,25 @@ func (p *Process) startRound(round block.Round) {
 			proposal,
 			p.state.ValidRound,
 		)
+
+		// Include the previous block for nodes to catch up
+		previousBlock, ok := p.blockchain.BlockAtHeight(p.state.CurrentHeight - 1)
+		if !ok {
+			panic("fail to get previous block from storage")
+		}
+		messages := p.state.Precommits.QueryMessagesByHeightWithHigestRound(p.state.CurrentHeight - 1)
+		commits := make([]Precommit, 0, len(messages))
+		for _, message := range messages {
+			commit := message.(*Precommit)
+			if commit.blockHash.Equal(previousBlock.Hash()) {
+				commits = append(commits, *commit)
+			}
+		}
+		propose.latestCommit = LatestCommit{
+			Block:      previousBlock,
+			Precommits: commits,
+		}
+
 		// Always broadcast at the end
 		p.logger.Infof("[🔊] Proposing a new block of height %v, round = %v", propose.Height(), propose.Round())
 		p.broadcaster.Broadcast(propose)
@@ -172,9 +191,16 @@ func (p *Process) startRound(round block.Round) {
 		p.scheduleTimeoutPropose(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPropose, p.state.CurrentRound))
 	}
 }
+
 func (p *Process) handlePropose(propose *Propose) {
 	p.logger.Debugf("Receive new propose of height %v", propose.height)
 	n, firstTime, _, _ := p.state.Proposals.Insert(propose)
+
+	// Catch up to the latest commit
+	if propose.Height() > p.state.CurrentHeight+1 {
+		p.logger.Infof("detect a higher height")
+		p.syncLatestCommit(propose)
+	}
 
 	// upon Propose{currentHeight, currentRound, block, -1}
 	if propose.Height() == p.state.CurrentHeight && propose.Round() == p.state.CurrentRound && propose.ValidRound() == block.InvalidRound {
@@ -183,7 +209,7 @@ func (p *Process) handlePropose(propose *Propose) {
 			// while currentStep = StepPropose
 			if p.state.CurrentStep == StepPropose {
 				var prevote *Prevote
-				if p.validator.IsBlockValid(propose.Block()) && (p.state.LockedRound == block.InvalidRound || p.state.LockedBlock.Equal(propose.Block())) {
+				if p.validator.IsBlockValid(propose.Block(), true) && (p.state.LockedRound == block.InvalidRound || p.state.LockedBlock.Equal(propose.Block())) {
 					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
@@ -344,7 +370,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 			// while step = StepPropose and validRound >= 0 and validRound < currentRound
 			if p.state.CurrentStep == StepPropose && propose.ValidRound() < p.state.CurrentRound {
 				var prevote *Prevote
-				if p.validator.IsBlockValid(propose.Block()) && (p.state.LockedRound <= propose.ValidRound() || p.state.LockedBlock.Equal(propose.Block())) {
+				if p.validator.IsBlockValid(propose.Block(), true) && (p.state.LockedRound <= propose.ValidRound() || p.state.LockedBlock.Equal(propose.Block())) {
 					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
@@ -383,7 +409,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime
 	// and 2f+1 Prevote{currentHeight, currentRound, blockHash} while Validate(block) and step >= StepPrevote for the first time
 	n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, p.state.CurrentRound, propose.BlockHash())
 	if n > 2*p.state.Prevotes.F() {
-		if p.state.CurrentStep >= StepPrevote && p.validator.IsBlockValid(propose.Block()) {
+		if p.state.CurrentStep >= StepPrevote && p.validator.IsBlockValid(propose.Block(), true) {
 			p.state.ValidBlock = propose.Block()
 			p.state.ValidRound = p.state.CurrentRound
 			if p.state.CurrentStep == StepPrevote {
@@ -395,6 +421,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime
 					p.state.CurrentRound,
 					propose.Block().Hash(),
 				)
+
 				// Always broadcast at the end
 				p.broadcaster.Broadcast(precommit)
 			}
@@ -415,17 +442,68 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 	if n > 2*p.state.Precommits.F() {
 		// while !BlockExistsAtHeight(currentHeight)
 		if !p.blockchain.BlockExistsAtHeight(p.state.CurrentHeight) {
-			if p.validator.IsBlockValid(propose.Block()) {
+			if p.validator.IsBlockValid(propose.Block(), true) {
 				p.blockchain.InsertBlockAtHeight(p.state.CurrentHeight, propose.Block())
 				p.state.CurrentHeight++
-				p.state.Reset()
+				p.state.Reset(p.state.CurrentHeight - 1)
 				if p.observer != nil {
 					p.observer.DidCommitBlock(p.state.CurrentHeight - 1)
 				}
 				p.logger.Infof("[✅] block of height %v is finalized", propose.height)
-				time.Sleep(100 * time.Millisecond)
 				p.startRound(0)
 			}
 		}
 	}
+}
+
+func (p *Process) syncLatestCommit(propose *Propose) {
+
+	// Check the proposed block and previous block with checking historical data..
+	// It needs the validator to store the previous execute state.
+	if !p.validator.IsBlockValid(propose.Block(), false) {
+		return
+	}
+	if !p.validator.IsBlockValid(propose.latestCommit.Block, false) {
+		return
+	}
+
+	// Check the latestCommit is previous block and has more than 2f+2 commits provided
+	if propose.Height() != propose.latestCommit.Block.Header().Height()+1 {
+		return
+	}
+	if len(propose.latestCommit.Precommits) < 2*p.state.Proposals.f+1 {
+		return
+	}
+
+	// Check the pre-commits are signed by known signatories and has the same
+	// block hash as the provided previous block
+	signatories := map[id.Signatory]struct{}{}
+	// FIXME : NEED TO CONSIDER HOW TO DO WHEN A REBASE HAPPENDS
+	baseBlock, ok := p.blockchain.BlockAtHeight(0)
+	if !ok {
+		panic("no genesis block")
+	}
+	for _, sig := range baseBlock.Header().Signatories() {
+		signatories[sig] = struct{}{}
+	}
+	for _, commit := range propose.latestCommit.Precommits {
+		if err := Verify(&commit); err != nil {
+			return
+		}
+		if _, ok := signatories[commit.signatory]; !ok {
+			return
+		}
+		if !commit.blockHash.Equal(propose.latestCommit.Block.Hash()) {
+			return
+		}
+	}
+
+	// if the commits are valid, store the block if we don't have one
+	if !p.blockchain.BlockExistsAtHeight(propose.height - 1) {
+		p.blockchain.InsertBlockAtHeight(propose.height-1, propose.latestCommit.Block)
+	}
+	p.state.CurrentHeight = propose.Height()
+	p.state.CurrentRound = propose.Round()
+	p.state.Reset(propose.Height() - 1)
+	p.startRound(propose.Round())
 }

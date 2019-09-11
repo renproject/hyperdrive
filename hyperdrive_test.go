@@ -23,7 +23,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var FirstLoggerOnly = map[int]bool{3: true}
+var FirstLoggerOnly = map[int]bool{
+	// 0: true,
+	// 1: true,
+	// 2 : true,
+	3: true,
+	// 4 :true,
+	// 5 : true,
+	// 6 : true,
+}
 
 func init() {
 	mrand.Seed(time.Now().Unix())
@@ -53,14 +61,14 @@ var _ = Describe("Hyperdrive", func() {
 
 				Context(fmt.Sprintf("when f = %v (network have %v nodes)", f, 3*f+1), func() {
 					Context("when all nodes have 100% live time", func() {
-						FIt("should keep producing new blocks", func() {
+						It("should keep producing new blocks", func() {
 							ctx, cancel := context.WithCancel(context.Background())
 							defer cancel()
 							network := NewNetwork(f, shards, FirstLoggerOnly, 100, 200)
-							go network.Run(ctx)
+							go network.Run(ctx, nil)
 
 							// Expect all nodes reach block height 30 after 30 seconds
-							time.Sleep(30 * time.Second)
+							time.Sleep(100 * time.Second)
 							for _, shard := range shards {
 								for _, node := range network.Nodes {
 									block := node.Storage.LatestBlock(shard)
@@ -72,24 +80,24 @@ var _ = Describe("Hyperdrive", func() {
 
 					Context("when less than one third nodes are offline at the beginning", func() {
 						It("should keep producing new blocks", func() {
-							for offlineNum := 1; offlineNum <= f; offlineNum++ {
+							for offlineNum := f; offlineNum <= f; offlineNum++ {
 								log.Printf("when there is %v node offline in the network", offlineNum)
 								ctx, cancel := context.WithCancel(context.Background())
 								defer cancel()
-								network := NewNetwork(f, shards, nil, 100, 200)
+								network := NewNetwork(f, shards, FirstLoggerOnly, 100, 200)
 
 								// Start the network with certain number of nodes offline
 								shuffledIndex := mrand.Perm(3*f + 1)
-								offlineNodes := shuffledIndex[:offlineNum]
-								for _, index := range offlineNodes {
-									log.Print("shutting down node ", index)
-									network.DropNode(index)
+								offlineNodes := map[int]bool{}
+								for i := 0; i < offlineNum; i++ {
+									offlineNodes[shuffledIndex[i]] = true
+									log.Print("shutting down node ", shuffledIndex[i])
 								}
 
-								go network.Run(ctx)
+								go network.Run(ctx, offlineNodes)
 
 								// Expect all nodes reach block height 30 after 30 seconds
-								time.Sleep(time.Duration(offlineNum*30) * time.Second)
+								time.Sleep(time.Duration(offlineNum*300) * time.Second)
 								for _, shard := range shards {
 									// Only check the nodes which are not online
 									onlineNodes := shuffledIndex[offlineNum:]
@@ -103,37 +111,34 @@ var _ = Describe("Hyperdrive", func() {
 						})
 					})
 
-					// Context("when less than one third nodes are offline at the beginning", func() {
-					// 	It("should keep producing new blocks", func() {
-					// 		ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
-					// 		defer cancel()
-					// 		network := NewNetwork(f, shards, nil, 100, 200)
-					//
-					// 		// Start the network with [0,f] number of nodes offline
-					// 		offlineNum := mrand.Intn(f) + 1 // Making sure at least one node is offline
-					// 		shuffledIndex := mrand.Perm(3*f + 1)
-					// 		offlineNodes := shuffledIndex[:offlineNum]
-					// 		for _, index := range offlineNodes {
-					// 			log.Print("shutting down node ", index)
-					// 			network.DropNode(index)
-					// 		}
-					//
-					// 		go network.Run(ctx)
-					//
-					// 		// Expect all nodes reach block height 30 after 30 seconds
-					// 		time.Sleep(time.Minute)
-					// 		for _, shard := range shards {
-					// 			// Only check the nodes which are not online
-					// 			onlineNodes := shuffledIndex[offlineNum:]
-					// 			for _, index := range onlineNodes {
-					// 				node := network.Nodes[index]
-					// 				block := node.Storage.LatestBlock(shard)
-					// 				Expect(block.Header().Height()).Should(BeNumerically(">=", 10))
-					// 			}
-					// 		}
-					// 	})
-					// })
+					Context("when some nodes go offline for a while and come back", func() {
+						It("should keep producing new blocks", func() {
+							ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+							defer cancel()
+							network := NewNetwork(f, shards, nil, 100, 200)
+							go network.Run(ctx, nil)
 
+							time.Sleep(15 * time.Second)
+
+							for i := 0; i < 3; i++ {
+								offlineNum := mrand.Intn(f) + 1 // Making sure at least one node is offline
+								shuffledIndex := mrand.Perm(3*f + 1)
+								offlineNodes := shuffledIndex[:offlineNum]
+
+								// Stop some nodes for 10 seconds and go back online
+								phi.ParForAll(offlineNodes, func(i int) {
+									index := offlineNodes[i]
+									log.Print("shutting down node ", index)
+									network.DropNode(index)
+									defer network.StartNode(index)
+									time.Sleep(10 * time.Second)
+								})
+
+								// Give them 100 seconds to catch up
+								time.Sleep(1 * time.Minute)
+							}
+						})
+					})
 				})
 			}
 		})
@@ -176,7 +181,7 @@ func NewNetwork(f int, shards replica.Shards, debugNodes map[int]bool, minDelay,
 	nodes := make([]*Node, total)
 	for i := range nodes {
 		logger := logrus.New()
-		if debugNodes == nil || debugNodes[i] {
+		if debugNodes[i] {
 			logger.SetLevel(logrus.DebugLevel)
 		}
 		nodes[i] = NewNode(logger.WithField("node", i), shards, keys[i], broadcaster, genesisBlock)
@@ -191,17 +196,16 @@ func NewNetwork(f int, shards replica.Shards, debugNodes map[int]bool, minDelay,
 	}
 }
 
-func (network Network) Run(ctx context.Context) {
+func (network Network) Run(ctx context.Context, disableNodes map[int]bool) {
 	phi.ParForAll(network.Nodes, func(i int) {
 		node := network.Nodes[i]
-
-		// // Add random delay before running the nodes.
-		// delay := time.Duration(mrand.Intn(10))
-		// log.Printf("starting node %v in %v seconds", i, delay)
-		// time.Sleep(delay * time.Second)
-		if i == 3 {
-			time.Sleep(10 * time.Second)
+		if disableNodes != nil && disableNodes[i] {
+			return
 		}
+
+		// Add random delay before running the nodes.
+		delay := time.Duration(mrand.Intn(10))
+		time.Sleep(delay * time.Second)
 
 		log.Printf("starting node %v", i)
 		network.Broadcaster.EnablePeer(node.Sig)

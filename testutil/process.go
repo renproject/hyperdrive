@@ -288,7 +288,7 @@ func NewMockValidator(valid bool) process.Validator {
 	return MockValidator{valid: valid}
 }
 
-func (m MockValidator) IsBlockValid(block.Block) bool {
+func (m MockValidator) IsBlockValid(block.Block, bool) bool {
 	return m.valid
 }
 

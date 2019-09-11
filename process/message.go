@@ -90,6 +90,13 @@ type Propose struct {
 	round      block.Round
 	block      block.Block
 	validRound block.Round
+
+	latestCommit LatestCommit
+}
+
+type LatestCommit struct {
+	Block      block.Block
+	Precommits []Precommit
 }
 
 func NewPropose(height block.Height, round block.Round, block block.Block, validRound block.Round) *Propose {
@@ -399,6 +406,29 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	return
 }
 
+func (inbox *Inbox) QueryMessagesByHeightWithHigestRound(height block.Height) []Message {
+	if _, ok := inbox.messages[height]; !ok {
+		return nil
+	}
+	highestRound := block.Round(-1)
+	for round := range inbox.messages[height] {
+		if round > highestRound {
+			highestRound = round
+		}
+	}
+	if highestRound == -1 {
+		return nil
+	}
+	if _, ok := inbox.messages[height][highestRound]; !ok {
+		return nil
+	}
+	messages := make([]Message, 0, len(inbox.messages[height][highestRound]))
+	for _, message := range inbox.messages[height][highestRound] {
+		messages = append(messages, message)
+	}
+	return messages
+}
+
 func (inbox *Inbox) QueryByHeightRoundBlockHash(height block.Height, round block.Round, blockHash id.Hash) (n int) {
 	if _, ok := inbox.messages[height]; !ok {
 		return
@@ -445,7 +475,7 @@ func (inbox *Inbox) MessageType() reflect.Type {
 
 func (inbox *Inbox) Reset(height block.Height) {
 	for blockHeight := range inbox.messages {
-		if blockHeight <= height {
+		if blockHeight < height {
 			delete(inbox.messages, blockHeight)
 		}
 	}

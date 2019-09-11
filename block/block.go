@@ -265,7 +265,7 @@ func (block Block) String() string {
 // Equal compares one Block with another by checking that their Hashes are the
 // equal, and their Notes are equal.
 func (block Block) Equal(other Block) bool {
-	return block.hash.Equal(other.hash)
+	return block.String() == other.String()
 }
 
 // MarshalJSON implements the `json.Marshaler` interface for the Block type.
