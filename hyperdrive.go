@@ -1,7 +1,6 @@
 package hyperdrive
 
 import (
-	"context"
 	"crypto/ecdsa"
 
 	"github.com/renproject/hyperdrive/block"
@@ -58,7 +57,7 @@ var (
 // Hyperdrive manages multiple `Replicas` from different
 // `Shards`.
 type Hyperdrive interface {
-	Run(ctx context.Context)
+	Run()
 	Rebase(sigs Signatories)
 	HandleMessage(message Message)
 }
@@ -78,7 +77,7 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	}
 }
 
-func (hyper *hyperdrive) Run(ctx context.Context) {
+func (hyper *hyperdrive) Run() {
 	phi.ParForAll(hyper.replicas, func(shard Shard) {
 		replica := hyper.replicas[shard]
 		replica.Start()
