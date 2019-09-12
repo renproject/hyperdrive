@@ -26,7 +26,7 @@ type BlockIterator interface {
 }
 
 type Validator interface {
-	IsBlockValid(block block.Block, checkHistroy bool, shard Shard) bool
+	IsBlockValid(block block.Block, checkHistory bool, shard Shard) bool
 }
 
 type Observer interface {

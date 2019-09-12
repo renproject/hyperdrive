@@ -52,9 +52,10 @@ var _ = Describe("Process", func() {
 				It("should propose a block generated proposer and broadcast it", func() {
 					// Init a default process to be modified
 					processOrigin := NewProcessOrigin(100)
-					_ = processOrigin.ToProcess()
+					process := processOrigin.ToProcess()
+					process.Start()
 
-					// Expect the proposer broadcast a propose message with zero height and round
+					// Expect the proposer broadcast a propose message with height 1 and round 0
 					var message Message
 					Eventually(processOrigin.BroadcastMessages).Should(Receive(&message))
 					proposal, ok := message.(*Propose)
@@ -147,7 +148,8 @@ var _ = Describe("Process", func() {
 					// Replace the broadcaster and start the process
 					scheduler := NewMockScheduler(RandomSignatory())
 					processOrigin.Scheduler = scheduler
-					_ = processOrigin.ToProcess()
+					process := processOrigin.ToProcess()
+					process.Start()
 
 					// Expect the proposer broadcast a propose message with zero height and round
 					var message Message
@@ -315,6 +317,7 @@ var _ = Describe("Process", func() {
 					processOrigin.State.CurrentStep = step
 					processOrigin.State.CurrentHeight = height
 					processOrigin.State.CurrentRound = round
+					processOrigin.Blockchain.InsertBlockAtHeight(height-1, RandomBlock(block.Standard))
 					process := processOrigin.ToProcess()
 
 					for i := 0; i < 2*f+1; i++ {

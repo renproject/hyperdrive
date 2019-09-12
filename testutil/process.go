@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/renproject/hyperdrive"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/id"
@@ -164,11 +165,20 @@ func NewProcessOrigin(f int) ProcessOrigin {
 	}
 	sig := id.NewSignatory(privateKey.PublicKey)
 	messages := make(chan process.Message, 128)
+	signatories := make(id.Signatories, f)
+	for i := range signatories {
+		key, err := ecdsa.GenerateKey(crypto.S256(), cRand.Reader)
+		if err != nil {
+			panic(err)
+		}
+		signatories[i] = id.NewSignatory(key.PublicKey)
+	}
+	signatories[0] = sig
 
 	return ProcessOrigin{
 		PrivateKey:        privateKey,
 		Signatory:         sig,
-		Blockchain:        NewMockBlockchain(),
+		Blockchain:        NewMockBlockchain(signatories),
 		State:             process.DefaultState(f),
 		BroadcastMessages: messages,
 
@@ -202,11 +212,16 @@ type MockBlockchain struct {
 	states map[block.Height]block.State
 }
 
-func NewMockBlockchain() *MockBlockchain {
+func NewMockBlockchain(signatories id.Signatories) *MockBlockchain {
+	blocks := map[block.Height]block.Block{}
+	genesisblock := GenesisBlock(signatories)
+	blocks[0] = genesisblock
+	states := map[block.Height]block.State{}
+	states[0] = block.State{}
 	return &MockBlockchain{
 		mu:     new(sync.RWMutex),
-		blocks: map[block.Height]block.Block{},
-		states: map[block.Height]block.State{},
+		blocks: blocks,
+		states: states,
 	}
 }
 
@@ -348,4 +363,14 @@ func GetStateFromProcess(p *process.Process, f int) process.State {
 		panic(err)
 	}
 	return state
+}
+
+func GenesisBlock(signatories id.Signatories) block.Block {
+	header := block.NewHeader(
+		hyperdrive.BaseBlockKind,
+		id.Hash{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+		id.Hash{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+		0, 0, 0, signatories,
+	)
+	return block.New(header, nil, nil)
 }

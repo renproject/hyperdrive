@@ -193,14 +193,10 @@ func (p *Process) startRound(round block.Round) {
 }
 
 func (p *Process) handlePropose(propose *Propose) {
+	p.syncLatestCommit(propose.latestCommit)
+
 	p.logger.Debugf("Receive new propose of height %v", propose.height)
 	n, firstTime, _, _ := p.state.Proposals.Insert(propose)
-
-	// Catch up to the latest commit
-	if propose.Height() > p.state.CurrentHeight+1 {
-		p.logger.Infof("detect a higher height")
-		p.syncLatestCommit(propose)
-	}
 
 	// upon Propose{currentHeight, currentRound, block, -1}
 	if propose.Height() == p.state.CurrentHeight && propose.Round() == p.state.CurrentRound && propose.ValidRound() == block.InvalidRound {
@@ -456,17 +452,15 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 	}
 }
 
-func (p *Process) syncLatestCommit(propose *Propose) {
+func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
+	// Check that the latest commit is from the future
+	if latestCommit.Block.Header().Height() > p.state.CurrentHeight {
+		return
+	}
+
 	// Check the proposed block and previous block with checking historical data..
 	// It needs the validator to store the previous execute state.
-	if !p.validator.IsBlockValid(propose.Block(), false) {
-		return
-	}
-	if !p.validator.IsBlockValid(propose.latestCommit.Block, false) {
-		return
-	}
-	// Check the latestCommit is previous block
-	if propose.Height() != propose.latestCommit.Block.Header().Height()+1 {
+	if !p.validator.IsBlockValid(latestCommit.Block, false) {
 		return
 	}
 
@@ -479,27 +473,27 @@ func (p *Process) syncLatestCommit(propose *Propose) {
 	for _, sig := range baseBlock.Header().Signatories() {
 		signatories[sig] = struct{}{}
 	}
-	for _, commit := range propose.latestCommit.Precommits {
+	for _, commit := range latestCommit.Precommits {
 		if err := Verify(&commit); err != nil {
 			return
 		}
 		if _, ok := signatories[commit.signatory]; !ok {
 			return
 		}
-		if !commit.blockHash.Equal(propose.latestCommit.Block.Hash()) {
+		if !commit.blockHash.Equal(latestCommit.Block.Hash()) {
 			return
 		}
-		if commit.height != propose.latestCommit.Block.Header().Height() {
+		if commit.height != latestCommit.Block.Header().Height() {
 			return
 		}
-		if commit.round != propose.latestCommit.Block.Header().Round() {
+		if commit.round != latestCommit.Block.Header().Round() {
 			return
 		}
 	}
 
 	// Check we have 2f+1 distinct commits
 	signatories = map[id.Signatory]struct{}{}
-	for _, commit := range propose.latestCommit.Precommits {
+	for _, commit := range latestCommit.Precommits {
 		signatories[commit.Signatory()] = struct{}{}
 	}
 	if len(signatories) < 2*p.state.Proposals.f+1 {
@@ -507,11 +501,11 @@ func (p *Process) syncLatestCommit(propose *Propose) {
 	}
 
 	// if the commits are valid, store the block if we don't have one
-	if !p.blockchain.BlockExistsAtHeight(propose.height - 1) {
-		p.blockchain.InsertBlockAtHeight(propose.height-1, propose.latestCommit.Block)
+	if !p.blockchain.BlockExistsAtHeight(latestCommit.Block.Header().Height()) {
+		p.blockchain.InsertBlockAtHeight(latestCommit.Block.Header().Height(), latestCommit.Block)
 	}
-	p.state.CurrentHeight = propose.Height()
-	p.state.CurrentRound = propose.Round()
-	p.state.Reset(propose.Height() - 1)
-	p.startRound(propose.Round())
+	p.state.CurrentHeight = latestCommit.Block.Header().Height() + 1
+	p.state.CurrentRound = 0
+	p.state.Reset(latestCommit.Block.Header().Height())
+	p.startRound(p.state.CurrentRound)
 }
