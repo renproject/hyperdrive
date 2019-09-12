@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/hyperdrive/testutil"
+	"github.com/renproject/id"
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
@@ -19,12 +20,14 @@ func TestReplica(t *testing.T) {
 
 type mockBlockStorage struct {
 	mu     *sync.RWMutex
+	sigs   id.Signatories
 	shards map[Shard]*MockBlockchain
 }
 
-func newMockBlockStorage() BlockStorage {
+func newMockBlockStorage(sigs id.Signatories) BlockStorage {
 	return &mockBlockStorage{
 		mu:     new(sync.RWMutex),
+		sigs:   sigs,
 		shards: map[Shard]*MockBlockchain{},
 	}
 }
@@ -35,7 +38,7 @@ func (m *mockBlockStorage) Blockchain(shard Shard) process.Blockchain {
 
 	blockchain, ok := m.shards[shard]
 	if !ok {
-		m.shards[shard] = NewMockBlockchain()
+		m.shards[shard] = NewMockBlockchain(m.sigs)
 		return m.shards[shard]
 	}
 	return blockchain
