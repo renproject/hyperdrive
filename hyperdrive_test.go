@@ -118,7 +118,6 @@ var _ = Describe("Hyperdrive", func() {
 					Context("when some nodes are having network connection issue", func() {
 						Context("when they go back online after certain amount of time", func() {
 							It("should keep producing new blocks", func() {
-								//todo : this sometimes still can fail and don't know why
 								ctx, cancel := context.WithCancel(context.Background())
 								defer cancel()
 								network := NewNetwork(f, shards, nil, 100, 200)
@@ -174,7 +173,7 @@ var _ = Describe("Hyperdrive", func() {
 						})
 					})
 
-					FContext("when nodes are completely offline", func() {
+					Context("when nodes are completely offline", func() {
 						Context("when they go back online after some time", func() {
 							It("should keep producing new blocks", func() {
 								ctx, cancel := context.WithCancel(context.Background())
