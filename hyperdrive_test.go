@@ -109,7 +109,6 @@ var _ = Describe("Hyperdrive", func() {
 							go network.Run(ctx, offlineNodes, false)
 
 							// Only check the nodes which are online are progressing after certain amount time
-							time.Sleep(time.Duration(f*30) * time.Second)
 							Eventually(func() bool {
 								return network.HealthCheck(shuffledIndex[f:])
 							}, time.Duration(f*30)*time.Second).Should(BeTrue())
@@ -119,6 +118,7 @@ var _ = Describe("Hyperdrive", func() {
 					Context("when some nodes are having network connection issue", func() {
 						Context("when they go back online after certain amount of time", func() {
 							It("should keep producing new blocks", func() {
+								//todo : this sometimes still can fail and don't know why
 								ctx, cancel := context.WithCancel(context.Background())
 								defer cancel()
 								network := NewNetwork(f, shards, nil, 100, 200)
@@ -174,7 +174,7 @@ var _ = Describe("Hyperdrive", func() {
 						})
 					})
 
-					Context("when nodes are completely offline", func() {
+					FContext("when nodes are completely offline", func() {
 						Context("when they go back online after some time", func() {
 							It("should keep producing new blocks", func() {
 								ctx, cancel := context.WithCancel(context.Background())
@@ -317,7 +317,11 @@ func (network *Network) StartNode(i int) {
 		logger.SetLevel(logrus.DebugLevel)
 	}
 	store := network.Nodes[i].Storage
+
+	network.mu.Lock()
 	network.Nodes[i] = NewNode(logger.WithField("node", i), network.Shards, network.Nodes[i].Key, network.Broadcaster, store)
+	network.mu.Unlock()
+
 	network.startNode(i)
 }
 
@@ -336,7 +340,7 @@ func (network *Network) startNode(i int) {
 
 	node.Logger.Infof("[💡] starting hyperdrive...")
 	node.Hyperdrive.Start()
-	defer node.Logger.Info("[⚠️] shutting down hyperdrive...")
+	defer node.Logger.Info("[❌️] shutting down hyperdrive...")
 
 	messages := network.Broadcaster.Messages(node.Sig)
 	for {
@@ -402,7 +406,7 @@ func (network *Network) HealthCheck(indexes []int) bool {
 		for i, node := range nodes {
 			block := node.Storage.LatestBlock(shard)
 			if block.Header().Height() <= currentBlockHeights[i] {
-				log.Printf("❌ node %v didn't progress ,old height = %v, new height = %v", i, currentBlockHeights[i], block.Header().Height())
+				log.Printf("[⚠] node %v didn't progress ,old height = %v, new height = %v", i, currentBlockHeights[i], block.Header().Height())
 				return false
 			}
 		}
