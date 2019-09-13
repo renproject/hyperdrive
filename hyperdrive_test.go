@@ -204,7 +204,7 @@ var _ = Describe("Hyperdrive", func() {
 						})
 					})
 
-					Context("when nodes are completely offline", func() {
+					FContext("when nodes are completely offline", func() {
 						Context("when they go back online after some time", func() {
 							It("should keep producing new blocks", func() {
 								ctx, cancel := context.WithCancel(context.Background())
@@ -384,6 +384,8 @@ func (network *Network) StopNode(i int) {
 		return
 	}
 	network.Cancels[i]()
+	sig := network.Nodes[i].Sig
+	network.Broadcaster.DisablePeer(sig)
 }
 
 // EnableNode enable the network connection to the node
