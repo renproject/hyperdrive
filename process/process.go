@@ -1,10 +1,7 @@
 package process
 
 import (
-	"bytes"
-	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -105,10 +102,6 @@ func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchai
 	return p
 }
 
-func (p Process) State() State {
-	return p.state
-}
-
 // MarshalJSON implements the `json.Marshaler` interface for the Process type,
 // by marshaling its isolated State.
 func (p Process) MarshalJSON() ([]byte, error) {
@@ -130,74 +123,7 @@ func (p *Process) UnmarshalJSON(data []byte) error {
 func (p Process) MarshalBinary() ([]byte, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
-	buf := new(bytes.Buffer)
-	if err := binary.Write(buf, binary.LittleEndian, p.state.CurrentHeight); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.CurrentHeight: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, p.state.CurrentRound); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.CurrentRound: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, p.state.CurrentStep); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.CurrentStep: %v", err)
-	}
-	lockedBlockData, err := p.state.LockedBlock.MarshalBinary()
-	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal p.state.LockedBlock: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(lockedBlockData))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.LockedBlock len: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, lockedBlockData); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.LockedBlock data: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, p.state.LockedRound); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.LockedRound: %v", err)
-	}
-	validBlockData, err := p.state.ValidBlock.MarshalBinary()
-	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal p.state.ValidBlock: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(validBlockData))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.ValidBlock len: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, validBlockData); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.ValidBlock data: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, p.state.ValidRound); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.ValidRound: %v", err)
-	}
-	proposalsData, err := p.state.Proposals.MarshalBinary()
-	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal p.state.Proposals: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(proposalsData))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.Proposals len: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, proposalsData); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.Proposals data: %v", err)
-	}
-	prevotesData, err := p.state.Prevotes.MarshalBinary()
-	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal p.state.Prevotes: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(prevotesData))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.Prevotes len: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, prevotesData); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.Prevotes data: %v", err)
-	}
-	precommitsData, err := p.state.Precommits.MarshalBinary()
-	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal p.state.Precommits: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(precommitsData))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.Precommits len: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, precommitsData); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write p.state.Precommits data: %v", err)
-	}
-	return buf.Bytes(), nil
+	return p.state.MarshalBinary()
 }
 
 // UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
@@ -205,75 +131,7 @@ func (p Process) MarshalBinary() ([]byte, error) {
 func (p *Process) UnmarshalBinary(data []byte) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
-	buf := bytes.NewBuffer(data)
-	if err := binary.Read(buf, binary.LittleEndian, &p.state.CurrentHeight); err != nil {
-		return fmt.Errorf("cannot read p.state.CurrentHeight: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &p.state.CurrentRound); err != nil {
-		return fmt.Errorf("cannot read p.state.CurrentRound: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &p.state.CurrentStep); err != nil {
-		return fmt.Errorf("cannot read p.state.CurrentStep: %v", err)
-	}
-	var numBytes uint64
-	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read p.state.LockedBlock len: %v", err)
-	}
-	lockedBlockBytes := make([]byte, numBytes)
-	if _, err := buf.Read(lockedBlockBytes); err != nil {
-		return fmt.Errorf("cannot read p.state.LockedBlock data: %v", err)
-	}
-	if err := p.state.LockedBlock.UnmarshalBinary(lockedBlockBytes); err != nil {
-		return fmt.Errorf("cannot unmarshal p.state.LockedBlock: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &p.state.LockedRound); err != nil {
-		return fmt.Errorf("cannot read p.state.LockedRound: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read p.state.ValidBlock len: %v", err)
-	}
-	validBlockBytes := make([]byte, numBytes)
-	if _, err := buf.Read(validBlockBytes); err != nil {
-		return fmt.Errorf("cannot read p.state.ValidBlock data: %v", err)
-	}
-	if err := p.state.ValidBlock.UnmarshalBinary(validBlockBytes); err != nil {
-		return fmt.Errorf("cannot unmarshal p.state.ValidBlock: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &p.state.ValidRound); err != nil {
-		return fmt.Errorf("cannot read p.state.ValidRound: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read p.state.Proposals len: %v", err)
-	}
-	proposalsBytes := make([]byte, numBytes)
-	if _, err := buf.Read(proposalsBytes); err != nil {
-		return fmt.Errorf("cannot read p.state.Proposals data: %v", err)
-	}
-	if err := p.state.Proposals.UnmarshalBinary(proposalsBytes); err != nil {
-		return fmt.Errorf("cannot unmarshal p.state.Proposals: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read p.state.Prevotes len: %v", err)
-	}
-	prevotesBytes := make([]byte, numBytes)
-	if _, err := buf.Read(prevotesBytes); err != nil {
-		return fmt.Errorf("cannot read p.state.Prevotes data: %v", err)
-	}
-	if err := p.state.Prevotes.UnmarshalBinary(prevotesBytes); err != nil {
-		return fmt.Errorf("cannot unmarshal p.state.Prevotes: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read p.state.Precommits len: %v", err)
-	}
-	precommitsBytes := make([]byte, numBytes)
-	if _, err := buf.Read(precommitsBytes); err != nil {
-		return fmt.Errorf("cannot read p.state.Precommits data: %v", err)
-	}
-	if err := p.state.Precommits.UnmarshalBinary(precommitsBytes); err != nil {
-		return fmt.Errorf("cannot unmarshal p.state.Precommits: %v", err)
-	}
-	return nil
+	return p.state.UnmarshalBinary(data)
 }
 
 // Start the process

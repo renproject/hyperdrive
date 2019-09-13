@@ -353,6 +353,18 @@ func (timer *MockTimer) Timeout(step process.Step, round block.Round) time.Durat
 	return timer.timeout
 }
 
+func GetStateFromProcess(p *process.Process, f int) process.State {
+	data, err := p.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	state := process.DefaultState(f)
+	if err := state.UnmarshalBinary(data); err != nil {
+		panic(err)
+	}
+	return state
+}
+
 func GenesisBlock(signatories id.Signatories) block.Block {
 	header := block.NewHeader(
 		block.Base,

@@ -9,11 +9,12 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/hyperdrive/process"
 	. "github.com/renproject/hyperdrive/testutil"
-	"github.com/sirupsen/logrus"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/hyperdrive/testutil"
+	"github.com/sirupsen/logrus"
 )
 
 var _ = Describe("Replica", func() {
@@ -64,7 +65,7 @@ var _ = Describe("Replica", func() {
 
 					// Expect the message not been inserted into the specific inbox,
 					// which indicating the message not passed to the process.
-					state := replica.p.State()
+					state := testutil.GetStateFromProcess(replica.p, 2)
 					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
 					Expect(reflect.DeepEqual(stored, pMessage)).Should(BeTrue())
 
@@ -93,7 +94,7 @@ var _ = Describe("Replica", func() {
 
 					// Expect the message not been inserted into the specific inbox,
 					// which indicating the message not passed to the process.
-					state := replica.p.State()
+					state := testutil.GetStateFromProcess(replica.p, 2)
 					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
 					Expect(stored).Should(BeNil())
 
@@ -119,7 +120,7 @@ var _ = Describe("Replica", func() {
 
 					// Expect the message not been inserted into the specific inbox,
 					// which indicating the message not passed to the process.
-					state := replica.p.State()
+					state := testutil.GetStateFromProcess(replica.p, 2)
 					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
 					Expect(stored).Should(BeNil())
 

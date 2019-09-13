@@ -15,6 +15,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/id"
 )
 
@@ -219,7 +220,7 @@ var _ = Describe("Process", func() {
 				Expect(precommit.BlockHash().Equal(propose.BlockHash())).Should(BeTrue())
 
 				// Expect the block is locked in the state
-				state := process.State()
+				state := testutil.GetStateFromProcess(process, f)
 				Expect(state.LockedBlock.Equal(propose.Block())).Should(BeTrue())
 				Expect(state.LockedRound).Should(Equal(round))
 				Expect(state.ValidBlock.Equal(propose.Block())).Should(BeTrue())
@@ -256,7 +257,7 @@ var _ = Describe("Process", func() {
 				}
 
 				// Expect the block is locked in the state
-				state := process.State()
+				state := testutil.GetStateFromProcess(process, f)
 				Expect(state.LockedBlock.Equal(processOrigin.State.LockedBlock)).Should(BeTrue())
 				Expect(state.LockedRound).Should(Equal(processOrigin.State.LockedRound))
 				Expect(state.ValidBlock.Equal(propose.Block())).Should(BeTrue())
@@ -351,7 +352,7 @@ var _ = Describe("Process", func() {
 					Expect(proposal.Height()).Should(Equal(height))
 					Expect(proposal.Round()).Should(Equal(round + 1))
 
-					state := process.State()
+					state := testutil.GetStateFromProcess(process, f)
 					Expect(state.CurrentRound).Should(Equal(round + 1))
 					Expect(state.CurrentStep).Should(Equal(StepPropose))
 				}
@@ -441,7 +442,7 @@ var _ = Describe("Process", func() {
 							Expect(prevote.BlockHash().Equal(propose.BlockHash())).Should(BeTrue())
 
 							// Step should be moved to prevote
-							state := process.State()
+							state := testutil.GetStateFromProcess(process, f)
 							Expect(state.CurrentStep).Should(Equal(StepPrevote))
 						})
 					})
@@ -485,7 +486,7 @@ var _ = Describe("Process", func() {
 							Expect(prevote.BlockHash().Equal(propose.BlockHash())).Should(BeTrue())
 
 							// Step should be moved to prevote
-							state := process.State()
+							state := testutil.GetStateFromProcess(process, f)
 							Expect(state.CurrentStep).Should(Equal(StepPrevote))
 						})
 					})
@@ -527,7 +528,7 @@ var _ = Describe("Process", func() {
 						Expect(prevote.BlockHash().Equal(block.InvalidHash)).Should(BeTrue())
 
 						// Step should be moved to prevote
-						state := process.State()
+						state := testutil.GetStateFromProcess(process, f)
 						Expect(state.CurrentStep).Should(Equal(StepPrevote))
 					})
 				})
@@ -578,7 +579,7 @@ var _ = Describe("Process", func() {
 					Expect(processOrigin.Blockchain.BlockExistsAtHeight(height)).Should(BeTrue())
 
 					// Step should be reset and new height and 0 round
-					state := process.State()
+					state := testutil.GetStateFromProcess(process, f)
 					Expect(state.CurrentHeight).Should(Equal(height + 1))
 					Expect(state.CurrentRound).Should(BeZero())
 					Expect(state.CurrentStep).Should(Equal(StepPropose))
