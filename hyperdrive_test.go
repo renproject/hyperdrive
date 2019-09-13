@@ -61,7 +61,7 @@ var _ = Describe("Hyperdrive", func() {
 			for i, node := range nodes {
 				block := node.Storage.LatestBlock(shard)
 				if block.Header().Height() <= currentBlockHeights[i] {
-					log.Printf("❌ node %v didn't progress ,old height = %v, new height = %v", i ,currentBlockHeights[i], block.Header().Height())
+					log.Printf("❌ node %v didn't progress ,old height = %v, new height = %v", i, currentBlockHeights[i], block.Header().Height())
 					return false
 				}
 			}
@@ -103,21 +103,6 @@ var _ = Describe("Hyperdrive", func() {
 								ctx, cancel := context.WithCancel(context.Background())
 								defer cancel()
 
-								network := NewNetwork(f, shards, FirstLoggerOnly, 100, 200)
-								go network.Run(ctx, nil, true)
-
-								// Expect the network should be handle nodes starting with different delays and
-								Eventually(func() bool {
-									return checkProgressing(shards, network.Nodes)
-								}, time.Minute).Should(BeTrue())
-							})
-						})
-
-						Context("when each node has a random delay when starting", func() {
-							It("special case ", func() {
-								ctx, cancel := context.WithCancel(context.Background())
-								defer cancel()
-
 								network := NewNetwork(f, shards, nil, 100, 200)
 								go network.Run(ctx, nil, true)
 
@@ -150,7 +135,7 @@ var _ = Describe("Hyperdrive", func() {
 							for _, index := range shuffledIndex[f:] {
 								nodes = append(nodes, network.Nodes[index])
 							}
-							Eventually(func()bool {
+							Eventually(func() bool {
 								return checkProgressing(shards, nodes)
 							}, time.Duration(f*30)*time.Second).Should(BeTrue())
 						})
@@ -163,6 +148,7 @@ var _ = Describe("Hyperdrive", func() {
 								defer cancel()
 								network := NewNetwork(f, shards, nil, 100, 200)
 								go network.Run(ctx, nil, false)
+								time.Sleep(5 * time.Second)
 
 								for i := 0; i < 3; i++ {
 									offlineNum := mrand.Intn(f) + 1 // Making sure at least one node is offline
@@ -205,9 +191,14 @@ var _ = Describe("Hyperdrive", func() {
 									network.DisableNode(index)
 								})
 
+								nodes := make([]*Node, 0, 3*f+1)
+								for _, index := range shuffledIndex[f:] {
+									nodes = append(nodes, network.Nodes[index])
+								}
+
 								// Give them seconds to catch up
 								Eventually(func() bool {
-									return checkProgressing(shards, network.Nodes)
+									return checkProgressing(shards, nodes)
 								}, time.Minute).Should(BeTrue())
 							})
 						})
@@ -215,7 +206,7 @@ var _ = Describe("Hyperdrive", func() {
 
 					Context("when nodes are completely offline", func() {
 						Context("when they go back online after some time", func() {
-							FIt("should keep producing new blocks", func() {
+							It("should keep producing new blocks", func() {
 								ctx, cancel := context.WithCancel(context.Background())
 								defer cancel()
 								network := NewNetwork(f, shards, nil, 100, 200)
@@ -239,6 +230,36 @@ var _ = Describe("Hyperdrive", func() {
 									return checkProgressing(shards, network.Nodes)
 								}, 30*time.Second).Should(BeTrue())
 
+							})
+						})
+
+						Context("when they fail to reconnect to the network", func() {
+							It("should keep producing new blocks", func() {
+								ctx, cancel := context.WithCancel(context.Background())
+								defer cancel()
+								network := NewNetwork(f, shards, nil, 100, 200)
+								go network.Run(ctx, nil, false)
+								time.Sleep(5 * time.Second)
+
+								shuffledIndex := mrand.Perm(3*f + 1)
+								offlineNodes := shuffledIndex[:f]
+
+								// Simulate connection issue for less than 1/3 nodes
+								phi.ParForAll(offlineNodes, func(i int) {
+									index := offlineNodes[i]
+									network.StopNode(index)
+
+									time.Sleep(10 * time.Second)
+								})
+
+								nodes := make([]*Node, 0, 3*f+1)
+								for _, index := range shuffledIndex[f:] {
+									nodes = append(nodes, network.Nodes[index])
+								}
+
+								Eventually(func() bool {
+									return checkProgressing(shards, nodes)
+								}, 30*time.Second).Should(BeTrue())
 							})
 						})
 					})
@@ -332,10 +353,10 @@ func (network *Network) StartNode(i int) {
 	network.startNode(i)
 }
 
-func(network *Network) startNode(i int) {
+func (network *Network) startNode(i int) {
 	time.Sleep(time.Second) // waiting for previous test clean up
 	node := network.Nodes[i]
-	innerCtx, cancel:= context.WithCancel(network.Context)
+	innerCtx, cancel := context.WithCancel(network.Context)
 	network.Cancels[i] = cancel
 	network.Broadcaster.EnablePeer(node.Sig)
 	node.Logger.Infof("[💡] starting hyperdrive...")
@@ -348,7 +369,7 @@ func(network *Network) startNode(i int) {
 		case message := <-messages:
 			node.Hyperdrive.HandleMessage(message)
 			select {
-			case <- innerCtx.Done():
+			case <-innerCtx.Done():
 				return
 			default:
 			}
@@ -367,12 +388,14 @@ func (network *Network) StopNode(i int) {
 
 // EnableNode enable the network connection to the node
 func (network *Network) EnableNode(i int) {
+	network.Nodes[i].Logger.Infof("[💡] enable network connection... ")
 	sig := network.Nodes[i].Sig
 	network.Broadcaster.EnablePeer(sig)
 }
 
 // DisableNode block network connection to the node
 func (network *Network) DisableNode(i int) {
+	network.Nodes[i].Logger.Infof("[⚠️] block network connection...")
 	sig := network.Nodes[i].Sig
 	network.Broadcaster.DisablePeer(sig)
 }
@@ -396,7 +419,7 @@ func NewNode(logger logrus.FieldLogger, shards Shards, pk *ecdsa.PrivateKey, bro
 		Logger:      logger,
 		BackOffExp:  1,
 		BackOffBase: 3 * time.Second,
-		BackOffMax: 3 * time.Second,
+		BackOffMax:  3 * time.Second,
 	}
 	iter := NewMockBlockIterator(store)
 	validator := NewMockValidator(store)

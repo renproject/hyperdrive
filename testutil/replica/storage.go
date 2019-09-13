@@ -3,6 +3,7 @@ package testutil_replica
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -19,7 +20,7 @@ import (
 
 type MockPersistentStorage struct {
 	mu          *sync.RWMutex
-	processes   map[replica.Shard]process.Process
+	processes   map[replica.Shard][]byte
 	blockchains map[replica.Shard]*testutil.MockBlockchain
 }
 
@@ -30,7 +31,7 @@ func NewMockPersistentStorage(shards replica.Shards) *MockPersistentStorage {
 	}
 	return &MockPersistentStorage{
 		mu:          new(sync.RWMutex),
-		processes:   map[replica.Shard]process.Process{},
+		processes:   map[replica.Shard][]byte{},
 		blockchains: blockchains,
 	}
 }
@@ -39,18 +40,25 @@ func (store *MockPersistentStorage) SaveProcess(p *process.Process, shard replic
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
-	store.processes[shard] = *p
+	data, err := json.Marshal(p)
+	if err != nil {
+		panic(fmt.Sprintf("fail to marshal the process, err = %v", err))
+	}
+	store.processes[shard] = data
 }
 
 func (store *MockPersistentStorage) RestoreProcess(p *process.Process, shard replica.Shard) {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
 
-	process, ok := store.processes[shard]
+	data, ok := store.processes[shard]
 	if !ok {
 		return
 	}
-	*p = process
+	err := json.Unmarshal(data, p)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (store *MockPersistentStorage) Blockchain(shard replica.Shard) process.Blockchain {
@@ -245,9 +253,9 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 		} else {
 			// Retry sending the message three times if the node is offline
 			go func() {
-				for i := 0 ; i < 3 ; i ++ {
+				for i := 0; i < 3; i++ {
 					m.mu.RLock()
-					if m.active[sig]{
+					if m.active[sig] {
 						messages := m.cons[sig]
 						// Simulate the network latency
 						time.Sleep(time.Duration(rand.Intn(m.max-m.min)+m.min) * time.Millisecond)
