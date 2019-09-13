@@ -18,7 +18,7 @@ import (
 )
 
 type MockPersistentStorage struct {
-	mu          *sync.Mutex
+	mu          *sync.RWMutex
 	processes   map[replica.Shard]process.Process
 	blockchains map[replica.Shard]*testutil.MockBlockchain
 }
@@ -26,10 +26,10 @@ type MockPersistentStorage struct {
 func NewMockPersistentStorage(shards replica.Shards) *MockPersistentStorage {
 	blockchains := map[replica.Shard]*testutil.MockBlockchain{}
 	for _, shard := range shards {
-		blockchains[shard] = testutil.NewMockBlockchain()
+		blockchains[shard] = testutil.NewMockBlockchain(nil)
 	}
 	return &MockPersistentStorage{
-		mu:          new(sync.Mutex),
+		mu:          new(sync.RWMutex),
 		processes:   map[replica.Shard]process.Process{},
 		blockchains: blockchains,
 	}
@@ -43,8 +43,8 @@ func (store *MockPersistentStorage) SaveProcess(p *process.Process, shard replic
 }
 
 func (store *MockPersistentStorage) RestoreProcess(p *process.Process, shard replica.Shard) {
-	store.mu.Lock()
-	defer store.mu.Unlock()
+	store.mu.RLock()
+	defer store.mu.RUnlock()
 
 	process, ok := store.processes[shard]
 	if !ok {
@@ -59,7 +59,7 @@ func (store *MockPersistentStorage) Blockchain(shard replica.Shard) process.Bloc
 
 	_, ok := store.blockchains[shard]
 	if !ok {
-		store.blockchains[shard] = testutil.NewMockBlockchain()
+		store.blockchains[shard] = testutil.NewMockBlockchain(nil)
 	}
 	return store.blockchains[shard]
 }
@@ -70,14 +70,14 @@ func (store *MockPersistentStorage) MockBlockchain(shard replica.Shard) *testuti
 
 	_, ok := store.blockchains[shard]
 	if !ok {
-		store.blockchains[shard] = testutil.NewMockBlockchain()
+		store.blockchains[shard] = testutil.NewMockBlockchain(nil)
 	}
 	return store.blockchains[shard]
 }
 
 func (store *MockPersistentStorage) LatestBlock(shard replica.Shard) block.Block {
-	store.mu.Lock()
-	defer store.mu.Unlock()
+	store.mu.RLock()
+	defer store.mu.RUnlock()
 
 	blockchain := store.blockchains[shard]
 	return blockchain.LatestBlock(block.Invalid)
@@ -145,7 +145,6 @@ func (m *MockValidator) IsBlockValid(b block.Block, checkHistory bool, shard rep
 
 	blockchain := m.store.MockBlockchain(shard)
 	if !checkHistory {
-		blockchain.InsertBlockStatAtHeight(height-1, b.PreviousState())
 		return true
 	}
 
@@ -230,7 +229,7 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 		return
 	}
 
-	// If the receiver is offline, it cannot receive any message form other nodes.
+	// If the receiver is offline, it cannot receive any message from other nodes.
 	phi.ParForAll(m.cons, func(sig id.Signatory) {
 		if m.active[sig] {
 			messages := m.cons[sig]
@@ -243,6 +242,27 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 			default:
 				return
 			}
+		} else {
+			// Retry sending the message three times if the node is offline
+			go func() {
+				for i := 0 ; i < 3 ; i ++ {
+					m.mu.RLock()
+					if m.active[sig]{
+						messages := m.cons[sig]
+						// Simulate the network latency
+						time.Sleep(time.Duration(rand.Intn(m.max-m.min)+m.min) * time.Millisecond)
+
+						// Drop the message if the node is not online
+						select {
+						case messages <- message:
+						default:
+							return
+						}
+					}
+					m.mu.RUnlock()
+					time.Sleep(3 * time.Second)
+				}
+			}()
 		}
 	})
 }

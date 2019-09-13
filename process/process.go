@@ -120,6 +120,8 @@ func (p *Process) UnmarshalJSON(data []byte) error {
 
 // Start the process
 func (p *Process) Start() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.startRound(p.state.CurrentRound)
 }
 
@@ -211,12 +213,14 @@ func (p *Process) handlePropose(propose *Propose) {
 						p.state.CurrentRound,
 						propose.Block().Hash(),
 					)
+					p.logger.Debugf("Prevote YES for height = %v, round = %v", propose.height, propose.round)
 				} else {
 					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						block.InvalidHash,
 					)
+					p.logger.Debugf("Prevote NIL for height = %v, round = %v", propose.height, propose.round)
 				}
 				p.state.CurrentStep = StepPrevote
 				p.broadcaster.Broadcast(prevote)
@@ -251,6 +255,7 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 			p.state.CurrentRound,
 			block.InvalidHash,
 		)
+		p.logger.Debugf("Precommit nil for height = %v, round = %v due to 2f+1 nil prevote", precommit.height, precommit.round)
 		p.state.CurrentStep = StepPrecommit
 		// Always broadcast at the end
 		p.broadcaster.Broadcast(precommit)
@@ -293,6 +298,7 @@ func (p *Process) timeoutPropose(height block.Height, round block.Round) {
 			p.state.CurrentRound,
 			block.InvalidHash,
 		)
+		p.logger.Debugf("Prevote nil for height = %v, round = %v due to timeout", prevote.height, prevote.round)
 		p.state.CurrentStep = StepPrevote
 		// Always broadcast at the end
 		p.broadcaster.Broadcast(prevote)
@@ -306,6 +312,7 @@ func (p *Process) timeoutPrevote(height block.Height, round block.Round) {
 			p.state.CurrentRound,
 			block.InvalidHash,
 		)
+		p.logger.Debugf("Precommit nil for height = %v, round = %v due to timeout", precommit.height, precommit.round)
 		p.state.CurrentStep = StepPrecommit
 		// Always broadcast at the end
 		p.broadcaster.Broadcast(precommit)
@@ -372,12 +379,14 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 						p.state.CurrentRound,
 						propose.Block().Hash(),
 					)
+					p.logger.Debugf("Prevote YES for height = %v, round = %v due to 2f+1 valid prevote", prevote.height, prevote.round)
 				} else {
 					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						block.InvalidHash,
 					)
+					p.logger.Debugf("Prevote NIL for height = %v, round = %v due to the propose is invalid to us", prevote.height, prevote.round)
 				}
 
 				p.state.CurrentStep = StepPrevote
@@ -438,7 +447,7 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 	if n > 2*p.state.Precommits.F() {
 		// while !BlockExistsAtHeight(currentHeight)
 		if !p.blockchain.BlockExistsAtHeight(p.state.CurrentHeight) {
-			if p.validator.IsBlockValid(propose.Block(), true) {
+			if p.validator.IsBlockValid(propose.Block(), false) {
 				p.blockchain.InsertBlockAtHeight(p.state.CurrentHeight, propose.Block())
 				p.state.CurrentHeight++
 				p.state.Reset(p.state.CurrentHeight - 1)
@@ -454,7 +463,7 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 
 func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
 	// Check that the latest commit is from the future
-	if latestCommit.Block.Header().Height() > p.state.CurrentHeight {
+	if latestCommit.Block.Header().Height() <= p.state.CurrentHeight {
 		return
 	}
 
