@@ -211,10 +211,13 @@ type MockBlockchain struct {
 
 func NewMockBlockchain(signatories id.Signatories) *MockBlockchain {
 	blocks := map[block.Height]block.Block{}
-	genesisblock := GenesisBlock(signatories)
-	blocks[0] = genesisblock
 	states := map[block.Height]block.State{}
-	states[0] = block.State{}
+	if signatories != nil {
+		genesisblock := GenesisBlock(signatories)
+		blocks[0] = genesisblock
+		states[0] = block.State{}
+	}
+
 	return &MockBlockchain{
 		mu:     new(sync.RWMutex),
 		blocks: blocks,
