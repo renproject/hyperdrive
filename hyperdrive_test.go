@@ -204,7 +204,7 @@ var _ = Describe("Hyperdrive", func() {
 						})
 					})
 
-					FContext("when nodes are completely offline", func() {
+					Context("when nodes are completely offline", func() {
 						Context("when they go back online after some time", func() {
 							It("should keep producing new blocks", func() {
 								ctx, cancel := context.WithCancel(context.Background())
