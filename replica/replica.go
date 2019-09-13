@@ -137,6 +137,8 @@ type Replica struct {
 	scheduler *roundRobinScheduler
 	rebaser   *shardRebaser
 	cache     baseBlockCache
+
+	messagesSinceLastSave int
 }
 
 func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shard Shard, privKey ecdsa.PrivateKey) Replica {
@@ -173,6 +175,8 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		scheduler: scheduler,
 		rebaser:   shardRebaser,
 		cache:     newBaseBlockCache(latestBase),
+
+		messagesSinceLastSave: 0,
 	}
 }
 
@@ -204,7 +208,13 @@ func (replica *Replica) HandleMessage(m Message) {
 	// Handle the underlying `process.Message` and immediately save the
 	// `process.Process` afterwards to protect against unexpected crashes
 	replica.p.HandleMessage(m.Message)
-	replica.pStorage.SaveProcess(replica.p, replica.shard)
+
+	// Save process to storage every 10 messages
+	replica.messagesSinceLastSave++
+	if replica.messagesSinceLastSave >= 10 {
+		replica.pStorage.SaveProcess(replica.p, replica.shard)
+		replica.messagesSinceLastSave = 0
+	}
 }
 
 func (replica *Replica) Rebase(sigs id.Signatories) {
