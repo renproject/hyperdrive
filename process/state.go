@@ -1,8 +1,6 @@
 package process
 
 import (
-	"reflect"
-
 	"github.com/renproject/hyperdrive/block"
 )
 
@@ -34,9 +32,9 @@ func DefaultState(f int) State {
 		LockedRound:   block.InvalidRound,
 		ValidBlock:    block.InvalidBlock,
 		ValidRound:    block.InvalidRound,
-		Proposals:     NewInbox(f, reflect.TypeOf(Propose{})),
-		Prevotes:      NewInbox(f, reflect.TypeOf(Prevote{})),
-		Precommits:    NewInbox(f, reflect.TypeOf(Precommit{})),
+		Proposals:     NewInbox(f, ProposeMessageType),
+		Prevotes:      NewInbox(f, PrevoteMessageType),
+		Precommits:    NewInbox(f, PrecommitMessageType),
 	}
 }
 

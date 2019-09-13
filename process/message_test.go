@@ -65,7 +65,7 @@ var _ = Describe("Messages", func() {
 		})
 
 		Context("when marshaling random", func() {
-			It("should equal itself after marshaling and then unmarshaling", func() {
+			It("should equal itself after json marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomPropose()
 					data, err := json.Marshal(msg)
@@ -73,6 +73,20 @@ var _ = Describe("Messages", func() {
 
 					var newMsg Propose
 					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			It("should equal itself after binary marshaling and then unmarshaling", func() {
+				test := func() bool {
+					msg := RandomPropose()
+					data, err := msg.MarshalBinary()
+					Expect(err).NotTo(HaveOccurred())
+
+					var newMsg Propose
+					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 
@@ -142,7 +156,7 @@ var _ = Describe("Messages", func() {
 		})
 
 		Context("when marshaling random", func() {
-			It("should equal itself after marshaling and then unmarshaling", func() {
+			It("should equal itself after json marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomPrevote()
 					data, err := json.Marshal(msg)
@@ -150,6 +164,20 @@ var _ = Describe("Messages", func() {
 
 					var newMsg Prevote
 					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			It("should equal itself after binary marshaling and then unmarshaling", func() {
+				test := func() bool {
+					msg := RandomPrevote()
+					data, err := msg.MarshalBinary()
+					Expect(err).NotTo(HaveOccurred())
+
+					var newMsg Prevote
+					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 
@@ -219,7 +247,7 @@ var _ = Describe("Messages", func() {
 		})
 
 		Context("when marshaling random", func() {
-			It("should equal itself after marshaling and then unmarshaling", func() {
+			It("should equal itself after json marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomPrecommit()
 					data, err := json.Marshal(msg)
@@ -227,6 +255,20 @@ var _ = Describe("Messages", func() {
 
 					var newMsg Precommit
 					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			It("should equal itself after binary marshaling and then unmarshaling", func() {
+				test := func() bool {
+					msg := RandomPrecommit()
+					data, err := msg.MarshalBinary()
+					Expect(err).NotTo(HaveOccurred())
+
+					var newMsg Precommit
+					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 
@@ -288,7 +330,7 @@ var _ = Describe("Messages", func() {
 			test := func() bool {
 				f := rand.Int() + 1
 				Expect(func() {
-					_ = RandomInbox(f, nil)
+					_ = RandomInbox(f, NilMessageType)
 				}).Should(Panic())
 				return true
 			}
@@ -297,7 +339,7 @@ var _ = Describe("Messages", func() {
 	})
 
 	Context("when marshaling a random inbox", func() {
-		It("should equal itself after marshaling and then unmarshaling", func() {
+		It("should equal itself after json marshaling and then unmarshaling", func() {
 			test := func() bool {
 				messageType := RandomMessageType()
 				f := rand.Int() + 1
@@ -308,6 +350,22 @@ var _ = Describe("Messages", func() {
 
 				newInbox := NewInbox(1, messageType)
 				Expect(json.Unmarshal(data, &newInbox)).Should(Succeed())
+				return reflect.DeepEqual(inbox, newInbox)
+			}
+			Expect(quick.Check(test, nil)).Should(Succeed())
+		})
+
+		It("should equal itself after binary marshaling and then unmarshaling", func() {
+			test := func() bool {
+				messageType := RandomMessageType()
+				f := rand.Int() + 1
+				inbox := RandomInbox(f, messageType)
+				Expect(inbox.F()).Should(Equal(f))
+				data, err := inbox.MarshalBinary()
+				Expect(err).NotTo(HaveOccurred())
+
+				newInbox := NewInbox(1, messageType)
+				Expect(newInbox.UnmarshalBinary(data)).Should(Succeed())
 				return reflect.DeepEqual(inbox, newInbox)
 			}
 			Expect(quick.Check(test, nil)).Should(Succeed())

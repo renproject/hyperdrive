@@ -3,9 +3,7 @@ package testutil
 import (
 	"crypto/ecdsa"
 	cRand "crypto/rand"
-	"encoding/json"
 	"math/rand"
-	"reflect"
 	"sync"
 	"time"
 
@@ -35,13 +33,13 @@ func RandomState() process.State {
 		ValidBlock:  RandomBlock(RandomBlockKind()),
 		ValidRound:  block.Round(rand.Int63()),
 
-		Proposals:  process.NewInbox(f, reflect.TypeOf(process.Propose{})),
-		Prevotes:   process.NewInbox(f, reflect.TypeOf(process.Prevote{})),
-		Precommits: process.NewInbox(f, reflect.TypeOf(process.Precommit{})),
+		Proposals:  process.NewInbox(f, process.ProposeMessageType),
+		Prevotes:   process.NewInbox(f, process.PrevoteMessageType),
+		Precommits: process.NewInbox(f, process.PrecommitMessageType),
 	}
 }
 
-func RandomSignedMessage(t reflect.Type) process.Message {
+func RandomSignedMessage(t process.MessageType) process.Message {
 	message := RandomMessage(t)
 	privateKey, err := ecdsa.GenerateKey(crypto.S256(), cRand.Reader)
 	if err != nil {
@@ -54,30 +52,30 @@ func RandomSignedMessage(t reflect.Type) process.Message {
 	return message
 }
 
-func RandomMessage(t reflect.Type) process.Message {
+func RandomMessage(t process.MessageType) process.Message {
 	switch t {
-	case reflect.TypeOf(process.Propose{}):
+	case process.ProposeMessageType:
 		return RandomPropose()
-	case reflect.TypeOf(process.Prevote{}):
+	case process.PrevoteMessageType:
 		return RandomPrevote()
-	case reflect.TypeOf(process.Precommit{}):
+	case process.PrecommitMessageType:
 		return RandomPrecommit()
 	default:
 		panic("unknown message type")
 	}
 }
 
-func RandomMessageWithHeightAndRound(height block.Height, round block.Round, t reflect.Type) process.Message {
+func RandomMessageWithHeightAndRound(height block.Height, round block.Round, t process.MessageType) process.Message {
 	var msg process.Message
 	switch t {
-	case reflect.TypeOf(process.Propose{}):
+	case process.ProposeMessageType:
 		validRound := block.Round(rand.Int63())
 		block := RandomBlock(RandomBlockKind())
 		msg = process.NewPropose(height, round, block, validRound)
-	case reflect.TypeOf(process.Prevote{}):
+	case process.PrevoteMessageType:
 		hash := RandomHash()
 		msg = process.NewPrevote(height, round, hash)
-	case reflect.TypeOf(process.Precommit{}):
+	case process.PrecommitMessageType:
 		hash := RandomHash()
 		msg = process.NewPrecommit(height, round, hash)
 	default:
@@ -86,7 +84,7 @@ func RandomMessageWithHeightAndRound(height block.Height, round block.Round, t r
 	return msg
 }
 
-func RandomSingedMessageWithHeightAndRound(height block.Height, round block.Round, t reflect.Type) process.Message {
+func RandomSingedMessageWithHeightAndRound(height block.Height, round block.Round, t process.MessageType) process.Message {
 	privateKey, err := ecdsa.GenerateKey(crypto.S256(), cRand.Reader)
 	if err != nil {
 		panic(err)
@@ -119,21 +117,21 @@ func RandomPrecommit() *process.Precommit {
 	return process.NewPrecommit(height, round, hash)
 }
 
-func RandomMessageType() reflect.Type {
+func RandomMessageType() process.MessageType {
 	index := rand.Intn(3)
 	switch index {
 	case 0:
-		return reflect.TypeOf(process.Propose{})
+		return process.ProposeMessageType
 	case 1:
-		return reflect.TypeOf(process.Prevote{})
+		return process.PrevoteMessageType
 	case 2:
-		return reflect.TypeOf(process.Precommit{})
+		return process.PrecommitMessageType
 	default:
 		panic("unexpect message type")
 	}
 }
 
-func RandomInbox(f int, t reflect.Type) *process.Inbox {
+func RandomInbox(f int, t process.MessageType) *process.Inbox {
 	inbox := process.NewInbox(f, t)
 	numMsgs := rand.Intn(100)
 	for i := 0; i < numMsgs; i++ {
@@ -350,18 +348,6 @@ func NewMockTimer(timeout time.Duration) process.Timer {
 
 func (timer *MockTimer) Timeout(step process.Step, round block.Round) time.Duration {
 	return timer.timeout
-}
-
-func GetStateFromProcess(p *process.Process, f int) process.State {
-	data, err := json.Marshal(p)
-	if err != nil {
-		panic(err)
-	}
-	state := process.DefaultState(f)
-	if err := json.Unmarshal(data, &state); err != nil {
-		panic(err)
-	}
-	return state
 }
 
 func GenesisBlock(signatories id.Signatories) block.Block {

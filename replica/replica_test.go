@@ -53,7 +53,7 @@ var _ = Describe("Replica", func() {
 					broadcaster, _ := newMockBroadcaster()
 					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
 
-					pMessage := RandomMessage(reflect.TypeOf(process.Propose{}))
+					pMessage := RandomMessage(process.ProposeMessageType)
 					key := keys[0]
 					Expect(process.Sign(pMessage, *key)).Should(Succeed())
 					message := Message{
@@ -64,7 +64,7 @@ var _ = Describe("Replica", func() {
 
 					// Expect the message not been inserted into the specific inbox,
 					// which indicating the message not passed to the process.
-					state := GetStateFromProcess(replica.p, 2)
+					state := replica.p.State()
 					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
 					Expect(reflect.DeepEqual(stored, pMessage)).Should(BeTrue())
 
@@ -84,7 +84,7 @@ var _ = Describe("Replica", func() {
 					logger.SetOutput(ioutil.Discard)
 					replica.options.Logger = logger
 
-					pMessage := RandomSignedMessage(reflect.TypeOf(process.Propose{}))
+					pMessage := RandomSignedMessage(process.ProposeMessageType)
 					message := Message{
 						Shard:   wrongShard,
 						Message: pMessage,
@@ -93,7 +93,7 @@ var _ = Describe("Replica", func() {
 
 					// Expect the message not been inserted into the specific inbox,
 					// which indicating the message not passed to the process.
-					state := GetStateFromProcess(replica.p, 2)
+					state := replica.p.State()
 					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
 					Expect(stored).Should(BeNil())
 
@@ -110,7 +110,7 @@ var _ = Describe("Replica", func() {
 					broadcaster, _ := newMockBroadcaster()
 					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
 
-					pMessage := RandomSignedMessage(reflect.TypeOf(process.Propose{}))
+					pMessage := RandomSignedMessage(process.ProposeMessageType)
 					message := Message{
 						Shard:   shard,
 						Message: pMessage,
@@ -119,7 +119,7 @@ var _ = Describe("Replica", func() {
 
 					// Expect the message not been inserted into the specific inbox,
 					// which indicating the message not passed to the process.
-					state := GetStateFromProcess(replica.p, 2)
+					state := replica.p.State()
 					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
 					Expect(stored).Should(BeNil())
 

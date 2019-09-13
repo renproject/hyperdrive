@@ -105,10 +105,17 @@ func RandomBlock(kind block.Kind) block.Block {
 	switch kind {
 	case block.Standard:
 		data = RandomBytesSlice()
+		if data.String() == "" {
+			data = nil
+		}
 	case block.Rebase, block.Base:
 		data = nil
 	}
-	return block.New(header, data, RandomBytesSlice())
+	var prevState block.State = RandomBytesSlice()
+	if prevState.String() == "" {
+		prevState = nil
+	}
+	return block.New(header, data, prevState)
 }
 
 func RandomHeight() block.Height {
