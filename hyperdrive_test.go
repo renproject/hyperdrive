@@ -387,9 +387,9 @@ func (network *Network) startNode(i int) {
 	network.Cancels[i] = cancel
 	network.Broadcaster.EnablePeer(node.Sig)
 
-	node.Logger.Infof("[💡] starting hyperdrive...")
+	node.Logger.Infof("💡 starting hyperdrive...")
 	node.Hyperdrive.Start()
-	defer node.Logger.Info("[❌️] shutting down hyperdrive...")
+	defer node.Logger.Info("❌️ shutting down hyperdrive...")
 
 	messages := network.Broadcaster.Messages(node.Sig)
 	for {
