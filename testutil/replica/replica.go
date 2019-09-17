@@ -107,10 +107,11 @@ func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
 	}
 	blockchain.InsertBlockStatAtHeight(height-1, prevBlock.PreviousState())
 }
+
 type latestMessages struct {
 	Height    block.Height
-	Propose  replica.Message
-	Prevote  replica.Message
+	Propose   replica.Message
+	Prevote   replica.Message
 	Precommit replica.Message
 }
 
@@ -121,7 +122,7 @@ type MockBroadcaster struct {
 	cons   map[id.Signatory]chan replica.Message
 	active map[id.Signatory]bool
 
-	cacheMu  *sync.Mutex
+	cacheMu        *sync.Mutex
 	cachedMessages map[id.Signatory]*latestMessages // keep tracking of the messages of latest height
 }
 
@@ -137,15 +138,15 @@ func NewMockBroadcaster(keys []*ecdsa.PrivateKey, min, max int) *MockBroadcaster
 	}
 
 	return &MockBroadcaster{
-		min:            min,
-		max:            max,
+		min: min,
+		max: max,
 
-		mu:             new(sync.RWMutex),
-		cons:           cons,
-		active:         map[id.Signatory]bool{},
+		mu:     new(sync.RWMutex),
+		cons:   cons,
+		active: map[id.Signatory]bool{},
 
-		cacheMu:         new(sync.Mutex),
-		cachedMessages:  cachedMessages,
+		cacheMu:        new(sync.Mutex),
+		cachedMessages: cachedMessages,
 	}
 }
 
@@ -157,7 +158,7 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 		sender = msg.Signatory()
 
 		latest := m.cachedMessages[sender]
-		if msg.Height() >= latest.Height{
+		if msg.Height() >= latest.Height {
 			latest.Height = msg.Height()
 			latest.Propose = message
 		}
@@ -165,7 +166,7 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 		sender = msg.Signatory()
 
 		latest := m.cachedMessages[sender]
-		if msg.Height() >= latest.Height{
+		if msg.Height() >= latest.Height {
 			latest.Height = msg.Height()
 			latest.Prevote = message
 		}
@@ -173,7 +174,7 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 		sender = msg.Signatory()
 
 		latest := m.cachedMessages[sender]
-		if msg.Height() >= latest.Height{
+		if msg.Height() >= latest.Height {
 			latest.Height = msg.Height()
 			latest.Precommit = message
 		}
@@ -207,7 +208,7 @@ func (m *MockBroadcaster) sendMessage(receiver id.Signatory, message replica.Mes
 	messages <- message
 }
 
-func (m *MockBroadcaster) saveMessage (receiver id.Signatory, message replica.Message) {
+func (m *MockBroadcaster) saveMessage(receiver id.Signatory, message replica.Message) {
 
 }
 
@@ -225,8 +226,8 @@ func (m *MockBroadcaster) EnablePeer(sig id.Signatory) {
 
 	m.cacheMu.Lock()
 	defer m.cacheMu.Unlock()
-	for signatory, latest := range m.cachedMessages{
-		if signatory.Equal(sig) || !m.active[sig]{
+	for signatory, latest := range m.cachedMessages {
+		if signatory.Equal(sig) || !m.active[sig] {
 			continue
 		}
 		if latest.Propose.Message != nil {

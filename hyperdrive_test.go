@@ -45,7 +45,7 @@ var _ = Describe("Hyperdrive", func() {
 		1,
 	}
 	fs := []int{
-		3,
+		2,
 	}
 
 	// Test cases
@@ -237,7 +237,7 @@ var _ = Describe("Hyperdrive", func() {
 								// Start the network with more than f nodes offline
 								shuffledIndex := mrand.Perm(3*f + 1)
 								offlineNodes := map[int]bool{}
-								for i := 0; i < f + 1; i++ {
+								for i := 0; i < f+1; i++ {
 									offlineNodes[shuffledIndex[i]] = true
 								}
 
@@ -250,7 +250,7 @@ var _ = Describe("Hyperdrive", func() {
 						})
 
 						Context("when the failed node come back online", func() {
-							FIt("should start produce blocks", func() {
+							It("should start produce blocks", func() {
 								ctx, cancel := context.WithCancel(context.Background())
 								defer cancel()
 								network := NewNetwork(f, shards, nil, 100, 200)
@@ -258,7 +258,7 @@ var _ = Describe("Hyperdrive", func() {
 								// Start the network with more than f nodes offline
 								shuffledIndex := mrand.Perm(3*f + 1)
 								offlineNodes := map[int]bool{}
-								for i := 0; i < f + 1; i++ {
+								for i := 0; i < f+1; i++ {
 									offlineNodes[shuffledIndex[i]] = true
 								}
 
@@ -389,7 +389,7 @@ func (network *Network) startNode(i int) {
 
 	node.Logger.Infof("💡 starting hyperdrive...")
 	node.Hyperdrive.Start()
-	defer node.Logger.Info("❌️ shutting down hyperdrive...")
+	defer node.Logger.Info("❌ shutting down hyperdrive...")
 
 	messages := network.Broadcaster.Messages(node.Sig)
 	for {

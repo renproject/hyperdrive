@@ -203,7 +203,7 @@ func (p *Process) startRound(round block.Round) {
 		}
 
 		// Always broadcast at the end
-		p.logger.Infof("🔊 proposing a new block of height %v, round = %v", propose.Height(), propose.Round())
+		p.logger.Infof("🔊proposing a new block of height %v, round = %v", propose.Height(), propose.Round())
 		p.broadcaster.Broadcast(propose)
 	} else {
 		p.scheduleTimeoutPropose(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPropose, p.state.CurrentRound))
