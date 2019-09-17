@@ -542,7 +542,7 @@ func NewInbox(f int, messageType MessageType) *Inbox {
 	}
 }
 
-func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedingF, firstTimeExceeding2F bool) {
+func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedingF, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash bool) {
 	if message.Type() != inbox.messageType {
 		panic(fmt.Sprintf("pre-condition violation: expected type %v, got type %T", inbox.messageType, message))
 	}
@@ -556,12 +556,20 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	}
 
 	previousN := len(inbox.messages[height][round])
+	_, ok := inbox.messages[height][round][signatory]
+
 	inbox.messages[height][round][signatory] = message
+
 	n = len(inbox.messages[height][round])
+	nOnBlockHash := 0
+	if !ok {
+		nOnBlockHash = inbox.QueryByHeightRoundBlockHash(height, round, message.BlockHash())
+	}
 
 	firstTime = (previousN == 0) && (n == 1)
 	firstTimeExceedingF = (previousN < inbox.F()+1) && (n > inbox.F())
 	firstTimeExceeding2F = (previousN < 2*inbox.F()+1) && (n > 2*inbox.F())
+	firstTimeExceeding2FOnBlockHash = !ok && (nOnBlockHash > 2*inbox.F())
 	return
 }
 

@@ -73,7 +73,7 @@ var _ = Describe("Block", func() {
 		Context("when marshaling a random block header", func() {
 			It("should equal itself after json marshaling and then unmarshaling", func() {
 				test := func() bool {
-					header := RandomBlockHeader(RandomBlockKind()) 
+					header := RandomBlockHeader(RandomBlockKind())
 					data, err := json.Marshal(header)
 					Expect(err).NotTo(HaveOccurred())
 

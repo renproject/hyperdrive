@@ -159,10 +159,13 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 		} else {
 			// Retry sending the message three times if the node is offline
 			go func() {
-				for i := 0; i < 3; i++ {
+				for i := 0; i < 2; i++ {
 					m.mu.RLock()
 					if m.active[sig] {
-						m.sendMessage(sig, message)
+						if m.sendMessage(sig, message) {
+							m.mu.RUnlock()
+							return
+						}
 					}
 					m.mu.RUnlock()
 					time.Sleep(3 * time.Second)
@@ -172,7 +175,7 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 	})
 }
 
-func (m *MockBroadcaster) sendMessage(receiver id.Signatory, message replica.Message) {
+func (m *MockBroadcaster) sendMessage(receiver id.Signatory, message replica.Message) bool {
 	messages := m.cons[receiver]
 	// Simulate the network latency
 	time.Sleep(time.Duration(mrand.Intn(m.max-m.min)+m.min) * time.Millisecond)
@@ -180,8 +183,9 @@ func (m *MockBroadcaster) sendMessage(receiver id.Signatory, message replica.Mes
 	// Drop the message if the node is not online
 	select {
 	case messages <- message:
+		return true
 	default:
-		return
+		return false
 	}
 }
 
@@ -201,5 +205,6 @@ func (m *MockBroadcaster) EnablePeer(sig id.Signatory) {
 func (m *MockBroadcaster) DisablePeer(sig id.Signatory) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.active[sig] = false
 }
