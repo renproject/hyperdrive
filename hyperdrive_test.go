@@ -24,7 +24,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var FirstLoggerOnly = map[int]bool{
+var AllLoggers = map[int]bool{
 	0: true,
 	1: true,
 	2: true,
@@ -133,9 +133,7 @@ var _ = Describe("Hyperdrive", func() {
 									phi.ParForAll(offlineNodes, func(i int) {
 										index := offlineNodes[i]
 										network.DisableNode(index)
-
 										time.Sleep(10 * time.Second)
-
 										network.EnableNode(index)
 									})
 
@@ -150,6 +148,7 @@ var _ = Describe("Hyperdrive", func() {
 							It("should keep producing blocks with the rest of the networks", func() {
 								ctx, cancel := context.WithCancel(context.Background())
 								defer cancel()
+								time.Sleep(5 * time.Second)
 
 								network := NewNetwork(f, shards, nil, 100, 200)
 								go network.Run(ctx, nil, false)
