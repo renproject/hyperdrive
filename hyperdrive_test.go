@@ -93,7 +93,7 @@ var _ = Describe("Hyperdrive", func() {
 						})
 					})
 
-					Context("when one third nodes are offline at the beginning", func() {
+					Context("when no more than one third nodes are offline at the beginning", func() {
 						It("should keep producing new blocks", func() {
 							ctx, cancel := context.WithCancel(context.Background())
 							defer cancel()
@@ -226,6 +226,57 @@ var _ = Describe("Hyperdrive", func() {
 							})
 						})
 					})
+
+					Context("when more than f nodes fail to boot", func() {
+						Context("when the failed node never come back", func() {
+							It("should not process any blocks", func() {
+								ctx, cancel := context.WithCancel(context.Background())
+								defer cancel()
+								network := NewNetwork(f, shards, nil, 100, 200)
+
+								// Start the network with more than f nodes offline
+								shuffledIndex := mrand.Perm(3*f + 1)
+								offlineNodes := map[int]bool{}
+								for i := 0; i < f+1; i++ {
+									offlineNodes[shuffledIndex[i]] = true
+								}
+
+								go network.Run(ctx, offlineNodes, false)
+
+								// expect all nodes only have the genesis block
+								time.Sleep(30 * time.Second)
+								Expect(network.HealthCheck(shuffledIndex[f:])).Should(BeFalse())
+							})
+						})
+
+						Context("when the failed node come back online", func() {
+							It("should start produce blocks", func() {
+								ctx, cancel := context.WithCancel(context.Background())
+								defer cancel()
+								network := NewNetwork(f, shards, nil, 100, 200)
+
+								// Start the network with more than f nodes offline
+								shuffledIndex := mrand.Perm(3*f + 1)
+								offlineNodes := map[int]bool{}
+								for i := 0; i < f+1; i++ {
+									offlineNodes[shuffledIndex[i]] = true
+								}
+
+								go network.Run(ctx, offlineNodes, false)
+
+								time.Sleep(3 * time.Second)
+
+								// Simulate connection issue for less than 1/3 nodes
+								go phi.ParForAll(offlineNodes, func(i int) {
+									network.StartNode(i)
+								})
+
+								Eventually(func() bool {
+									return network.HealthCheck(nil)
+								}, 300*time.Second).Should(BeTrue())
+							})
+						})
+					})
 				})
 			}
 		})
@@ -338,7 +389,7 @@ func (network *Network) startNode(i int) {
 
 	node.Logger.Infof("💡 starting hyperdrive...")
 	node.Hyperdrive.Start()
-	defer node.Logger.Info("❌️ shutting down hyperdrive...")
+	defer node.Logger.Info("❌ shutting down hyperdrive...")
 
 	messages := network.Broadcaster.Messages(node.Sig)
 	for {
@@ -404,7 +455,7 @@ func (network *Network) HealthCheck(indexes []int) bool {
 		for i, node := range nodes {
 			block := node.Storage.LatestBlock(shard)
 			if block.Header().Height() <= currentBlockHeights[i] {
-				log.Printf("⚠️ node %v didn't progress, old height = %v, new height = %v", i, currentBlockHeights[i], block.Header().Height())
+				log.Printf("⚠️ node %v didn't progress ,old height = %v, new height = %v", i, currentBlockHeights[i], block.Header().Height())
 				return false
 			}
 		}
