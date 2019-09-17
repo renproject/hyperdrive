@@ -118,6 +118,22 @@ func (p *Process) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, &p.state)
 }
 
+// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
+// Process type, by marshaling its isolated State.
+func (p Process) MarshalBinary() ([]byte, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.state.MarshalBinary()
+}
+
+// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
+// Process type, by unmarshaling its isolated State.
+func (p *Process) UnmarshalBinary(data []byte) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.state.UnmarshalBinary(data)
+}
+
 // Start the process
 func (p *Process) Start() {
 	p.mu.Lock()

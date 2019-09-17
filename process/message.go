@@ -1,10 +1,12 @@
 package process
 
 import (
+	"bytes"
 	"crypto/ecdsa"
+	"encoding"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"reflect"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
@@ -27,6 +29,8 @@ type Message interface {
 	fmt.Stringer
 	json.Marshaler
 	json.Unmarshaler
+	encoding.BinaryMarshaler
+	encoding.BinaryUnmarshaler
 
 	Signatory() id.Signatory
 	SigHash() id.Hash
@@ -167,7 +171,8 @@ func (propose Propose) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Propose type.
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the Propose
+// type.
 func (propose *Propose) UnmarshalJSON(data []byte) error {
 	tmp := struct {
 		Sig        id.Signature `json:"sig"`
@@ -186,6 +191,71 @@ func (propose *Propose) UnmarshalJSON(data []byte) error {
 	propose.round = tmp.Round
 	propose.block = tmp.Block
 	propose.validRound = tmp.ValidRound
+	return nil
+}
+
+// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
+// Propose type.
+func (propose Propose) MarshalBinary() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := binary.Write(buf, binary.LittleEndian, propose.sig); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write propose.sig: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, propose.signatory); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write propose.signatory: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, propose.height); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write propose.height: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, propose.round); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write propose.round: %v", err)
+	}
+	blockData, err := propose.block.MarshalBinary()
+	if err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot marshal propose.block: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, uint64(len(blockData))); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write propose.block len: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, blockData); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write propose.block data: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, propose.validRound); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write propose.validRound: %v", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
+// Propose type.
+func (propose *Propose) UnmarshalBinary(data []byte) error {
+	buf := bytes.NewBuffer(data)
+	if err := binary.Read(buf, binary.LittleEndian, &propose.sig); err != nil {
+		return fmt.Errorf("cannot read propose.sig: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &propose.signatory); err != nil {
+		return fmt.Errorf("cannot read propose.signatory: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &propose.height); err != nil {
+		return fmt.Errorf("cannot read propose.height: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &propose.round); err != nil {
+		return fmt.Errorf("cannot read propose.round: %v", err)
+	}
+	var numBytes uint64
+	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
+		return fmt.Errorf("cannot read propose.block len: %v", err)
+	}
+	blockBytes := make([]byte, numBytes)
+	if _, err := buf.Read(blockBytes); err != nil {
+		return fmt.Errorf("cannot read propose.block data: %v", err)
+	}
+	if err := propose.block.UnmarshalBinary(blockBytes); err != nil {
+		return fmt.Errorf("cannot unmarshal propose.block: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &propose.validRound); err != nil {
+		return fmt.Errorf("cannot read propose.validRound: %v", err)
+	}
 	return nil
 }
 
@@ -276,6 +346,50 @@ func (prevote *Prevote) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
+// Prevote type.
+func (prevote Prevote) MarshalBinary() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := binary.Write(buf, binary.LittleEndian, prevote.sig); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write prevote.sig: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, prevote.signatory); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write prevote.signatory len: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, prevote.height); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write prevote.height data: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, prevote.round); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write prevote.round data: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, prevote.blockHash); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write prevote.blockHash data: %v", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
+// Prevote type.
+func (prevote *Prevote) UnmarshalBinary(data []byte) error {
+	buf := bytes.NewBuffer(data)
+	if err := binary.Read(buf, binary.LittleEndian, &prevote.sig); err != nil {
+		return fmt.Errorf("cannot read prevote.sig: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &prevote.signatory); err != nil {
+		return fmt.Errorf("cannot read prevote.signatory: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &prevote.height); err != nil {
+		return fmt.Errorf("cannot read prevote.height: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &prevote.round); err != nil {
+		return fmt.Errorf("cannot read prevote.round: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &prevote.blockHash); err != nil {
+		return fmt.Errorf("cannot read prevote.blockHash: %v", err)
+	}
+	return nil
+}
+
 type Precommits []Precommit
 
 type Precommit struct {
@@ -359,6 +473,51 @@ func (precommit *Precommit) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
+// Precommit type.
+func (precommit Precommit) MarshalBinary() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := binary.Write(buf, binary.LittleEndian, precommit.sig); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write precommit.sig: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, precommit.signatory); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write precommit.signatory len: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, precommit.height); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write precommit.height data: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, precommit.round); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write precommit.round data: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, precommit.blockHash); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write precommit.blockHash data: %v", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
+// Precommit type.
+func (precommit *Precommit) UnmarshalBinary(data []byte) error {
+	buf := bytes.NewBuffer(data)
+	if err := binary.Read(buf, binary.LittleEndian, &precommit.sig); err != nil {
+		return fmt.Errorf("cannot read precommit.sig: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &precommit.signatory); err != nil {
+		return fmt.Errorf("cannot read precommit.signatory: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &precommit.height); err != nil {
+		return fmt.Errorf("cannot read precommit.height: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &precommit.round); err != nil {
+		return fmt.Errorf("cannot read precommit.round: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &precommit.blockHash); err != nil {
+		return fmt.Errorf("cannot read precommit.blockHash: %v", err)
+	}
+
+	return nil
+}
+
 func (precommit *Precommit) String() string {
 	return fmt.Sprintf("Precommit(Height=%v,Round=%v,BlockHash=%v)", precommit.Height(), precommit.Round(), precommit.BlockHash())
 }
@@ -366,14 +525,14 @@ func (precommit *Precommit) String() string {
 type Inbox struct {
 	f           int
 	messages    map[block.Height]map[block.Round]map[id.Signatory]Message
-	messageType reflect.Type
+	messageType MessageType
 }
 
-func NewInbox(f int, messageType reflect.Type) *Inbox {
+func NewInbox(f int, messageType MessageType) *Inbox {
 	if f <= 0 {
 		panic(fmt.Sprintf("invariant violation: f = %v needs to be a positive number", f))
 	}
-	if messageType == nil {
+	if messageType == NilMessageType {
 		panic("invariant violation: message type cannot be nil")
 	}
 	return &Inbox{
@@ -384,7 +543,7 @@ func NewInbox(f int, messageType reflect.Type) *Inbox {
 }
 
 func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedingF, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash bool) {
-	if reflect.TypeOf(message) != reflect.PtrTo(inbox.messageType) {
+	if message.Type() != inbox.messageType {
 		panic(fmt.Sprintf("pre-condition violation: expected type %v, got type %T", inbox.messageType, message))
 	}
 
@@ -477,7 +636,7 @@ func (inbox *Inbox) F() int {
 	return inbox.f
 }
 
-func (inbox *Inbox) MessageType() reflect.Type {
+func (inbox *Inbox) MessageType() MessageType {
 	return inbox.messageType
 }
 
@@ -523,15 +682,146 @@ func (inbox *Inbox) UnmarshalJSON(data []byte) error {
 				inbox.messages[height][round] = map[id.Signatory]Message{}
 			}
 			for sig, raw := range sigMap {
-				message := reflect.New(inbox.messageType).Interface()
-				if err := json.Unmarshal(raw, message); err != nil {
+				var err error
+				switch inbox.messageType {
+				case ProposeMessageType:
+					msg := new(Propose)
+					err = json.Unmarshal(raw, msg)
+					inbox.messages[height][round][sig] = msg
+				case PrevoteMessageType:
+					msg := new(Prevote)
+					err = json.Unmarshal(raw, msg)
+					inbox.messages[height][round][sig] = msg
+				case PrecommitMessageType:
+					msg := new(Precommit)
+					err = json.Unmarshal(raw, msg)
+					inbox.messages[height][round][sig] = msg
+				}
+				if err != nil {
 					return err
 				}
-				msg := message.(Message)
-				inbox.messages[height][round][sig] = msg
 			}
 		}
 	}
 
+	return nil
+}
+
+// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
+// Inbox type.
+func (inbox Inbox) MarshalBinary() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := binary.Write(buf, binary.LittleEndian, uint64(inbox.f)); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write inbox.f: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, uint64(len(inbox.messages))); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write inbox.messages len: %v", err)
+	}
+	for height, roundMap := range inbox.messages {
+		if err := binary.Write(buf, binary.LittleEndian, height); err != nil {
+			return buf.Bytes(), fmt.Errorf("cannot write inbox.messages height: %v", err)
+		}
+		if err := binary.Write(buf, binary.LittleEndian, uint64(len(roundMap))); err != nil {
+			return buf.Bytes(), fmt.Errorf("cannot write inbox.messages roundMap len: %v", err)
+		}
+		for round, sigMap := range roundMap {
+			if err := binary.Write(buf, binary.LittleEndian, round); err != nil {
+				return buf.Bytes(), fmt.Errorf("cannot write inbox.messages round: %v", err)
+			}
+			if err := binary.Write(buf, binary.LittleEndian, uint64(len(sigMap))); err != nil {
+				return buf.Bytes(), fmt.Errorf("cannot write inbox.messages sigMap len: %v", err)
+			}
+			for sig, message := range sigMap {
+				if err := binary.Write(buf, binary.LittleEndian, sig); err != nil {
+					return buf.Bytes(), fmt.Errorf("cannot write inbox.messages sig: %v", err)
+				}
+				messageData, err := message.MarshalBinary()
+				if err != nil {
+					return buf.Bytes(), fmt.Errorf("cannot marshal message: %v", err)
+				}
+				if err := binary.Write(buf, binary.LittleEndian, uint64(len(messageData))); err != nil {
+					return buf.Bytes(), fmt.Errorf("cannot write message len: %v", err)
+				}
+				if err := binary.Write(buf, binary.LittleEndian, messageData); err != nil {
+					return buf.Bytes(), fmt.Errorf("cannot write message data: %v", err)
+				}
+			}
+		}
+	}
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
+// Inbox type.
+func (inbox *Inbox) UnmarshalBinary(data []byte) error {
+	buf := bytes.NewBuffer(data)
+	var f uint64
+	if err := binary.Read(buf, binary.LittleEndian, &f); err != nil {
+		return fmt.Errorf("cannot read inbox.f: %v", err)
+	}
+	inbox.f = int(f)
+	var heightMapLen uint64
+	if err := binary.Read(buf, binary.LittleEndian, &heightMapLen); err != nil {
+		return fmt.Errorf("cannot read inbox.messages len: %v", err)
+	}
+	heightMap := make(map[block.Height]map[block.Round]map[id.Signatory]Message, heightMapLen)
+	for i := uint64(0); i < heightMapLen; i++ {
+		var height block.Height
+		if err := binary.Read(buf, binary.LittleEndian, &height); err != nil {
+			return fmt.Errorf("cannot read inbox.messages height: %v", err)
+		}
+		var roundMapLen uint64
+		if err := binary.Read(buf, binary.LittleEndian, &roundMapLen); err != nil {
+			return fmt.Errorf("cannot read inbox.messages roundMap len: %v", err)
+		}
+		roundMap := make(map[block.Round]map[id.Signatory]Message, roundMapLen)
+		for j := uint64(0); j < roundMapLen; j++ {
+			var round block.Round
+			if err := binary.Read(buf, binary.LittleEndian, &round); err != nil {
+				return fmt.Errorf("cannot read inbox.messages round: %v", err)
+			}
+			var sigMapLen uint64
+			if err := binary.Read(buf, binary.LittleEndian, &sigMapLen); err != nil {
+				return fmt.Errorf("cannot read inbox.messages sigMap len: %v", err)
+			}
+			sigMap := make(map[id.Signatory]Message, sigMapLen)
+			for k := uint64(0); k < sigMapLen; k++ {
+				var sig id.Signatory
+				if err := binary.Read(buf, binary.LittleEndian, &sig); err != nil {
+					return fmt.Errorf("cannot read inbox.messages sig: %v", err)
+				}
+				var numBytes uint64
+				if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
+					return fmt.Errorf("cannot read inbox.messages message len: %v", err)
+				}
+				messageBytes := make([]byte, numBytes)
+				if _, err := buf.Read(messageBytes); err != nil {
+					return fmt.Errorf("cannot read inbox.messages message data: %v", err)
+				}
+
+				var err error
+				switch inbox.messageType {
+				case ProposeMessageType:
+					message := new(Propose)
+					err = message.UnmarshalBinary(messageBytes)
+					sigMap[sig] = message
+				case PrevoteMessageType:
+					message := new(Prevote)
+					err = message.UnmarshalBinary(messageBytes)
+					sigMap[sig] = message
+				case PrecommitMessageType:
+					message := new(Precommit)
+					err = message.UnmarshalBinary(messageBytes)
+					sigMap[sig] = message
+				}
+				if err != nil {
+					return fmt.Errorf("cannot unmarshal inbox.messages message: %v", err)
+				}
+			}
+			roundMap[round] = sigMap
+		}
+		heightMap[height] = roundMap
+	}
+	inbox.messages = heightMap
 	return nil
 }
