@@ -115,10 +115,10 @@ func (options *Options) setZerosToDefaults() {
 		options.BackOffExp = 1.6
 	}
 	if options.BackOffBase == time.Duration(0) {
-		options.BackOffBase = 5 * time.Second
+		options.BackOffBase = 20 * time.Second
 	}
 	if options.BackOffMax == time.Duration(0) {
-		options.BackOffMax = time.Minute
+		options.BackOffMax = 5 * time.Minute
 	}
 }
 
