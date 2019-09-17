@@ -337,9 +337,9 @@ func (network *Network) startNode(i int) {
 	network.Cancels[i] = cancel
 	network.Broadcaster.EnablePeer(node.Sig)
 
-	node.Logger.Infof("[💡] starting hyperdrive...")
+	node.Logger.Infof("💡 starting hyperdrive...")
 	node.Hyperdrive.Start()
-	defer node.Logger.Info("[❌️] shutting down hyperdrive...")
+	defer node.Logger.Info("❌️ shutting down hyperdrive...")
 
 	messages := network.Broadcaster.Messages(node.Sig)
 	for {
@@ -374,7 +374,7 @@ func (network *Network) EnableNode(i int) {
 	network.mu.RLock()
 	defer network.mu.RUnlock()
 
-	network.Nodes[i].Logger.Infof("[💡] enable network connection... ")
+	network.Nodes[i].Logger.Infof("💡 enable network connection... ")
 	sig := network.Nodes[i].Sig
 	network.Broadcaster.EnablePeer(sig)
 }
@@ -405,7 +405,7 @@ func (network *Network) HealthCheck(indexes []int) bool {
 		for i, node := range nodes {
 			block := node.Storage.LatestBlock(shard)
 			if block.Header().Height() <= currentBlockHeights[i] {
-				log.Printf("[⚠] node %v didn't progress ,old height = %v, new height = %v", i, currentBlockHeights[i], block.Header().Height())
+				log.Printf("⚠️ node %v didn't progress, old height = %v, new height = %v", i, currentBlockHeights[i], block.Header().Height())
 				return false
 			}
 		}
@@ -418,7 +418,7 @@ func (network *Network) DisableNode(i int) {
 	network.mu.RLock()
 	defer network.mu.RUnlock()
 
-	network.Nodes[i].Logger.Infof("[⚠️] block network connection...")
+	network.Nodes[i].Logger.Infof("⚠️ block network connection...")
 	sig := network.Nodes[i].Sig
 	network.Broadcaster.DisablePeer(sig)
 }
