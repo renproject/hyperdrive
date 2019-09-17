@@ -208,13 +208,7 @@ func (replica *Replica) HandleMessage(m Message) {
 	// Handle the underlying `process.Message` and immediately save the
 	// `process.Process` afterwards to protect against unexpected crashes
 	replica.p.HandleMessage(m.Message)
-
-	// Save process to storage every 10 messages
-	replica.messagesSinceLastSave++
-	if replica.messagesSinceLastSave >= 10 {
-		replica.pStorage.SaveProcess(replica.p, replica.shard)
-		replica.messagesSinceLastSave = 0
-	}
+	replica.pStorage.SaveProcess(replica.p, replica.shard)
 }
 
 func (replica *Replica) Rebase(sigs id.Signatories) {

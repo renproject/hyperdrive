@@ -24,261 +24,300 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var AllLoggers = map[int]bool{
-	0: true,
-	1: true,
-	2: true,
-	3: true,
-	4: true,
-	5: true,
-	6: true,
-}
-
 func init() {
 	mrand.Seed(time.Now().Unix())
 }
 
 var _ = Describe("Hyperdrive", func() {
 
-	// Test parameters
-	testShards := []int{
-		1,
-	}
-	fs := []int{
-		2,
+	table := []struct {
+		shard int
+		f     int
+	}{
+		{1, 2},
 	}
 
-	// Test cases
-	for _, numShards := range testShards {
-		numShards := numShards
-		shards := make([]Shard, numShards)
+	for _, entry := range table {
+		shards := make([]Shard, entry.shard)
 		for i := range shards {
 			shards[i] = RandomShard()
 		}
+		f := entry.f
 
-		Context(fmt.Sprintf("when there are %v shards", numShards), func() {
-			for _, f := range fs {
-				f := f
+		Context(fmt.Sprintf("when the network have %v nodes (f = %v) and %v shards", 3*f+1, f, len(shards)), func() {
+			Context("when all nodes have 100% live time", func() {
+				Context("when all nodes start at same time", func() {
+					It("should keep producing new blocks", func() {
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
 
-				Context(fmt.Sprintf("when f = %v (network have %v nodes)", f, 3*f+1), func() {
-					Context("when all nodes have 100% live time", func() {
-						Context("when all nodes start at same time", func() {
-							It("should keep producing new blocks", func() {
-								ctx, cancel := context.WithCancel(context.Background())
-								defer cancel()
+						network := NewNetwork(f, shards, nil, 100, 200)
+						go network.Run(ctx, nil, false)
 
-								network := NewNetwork(f, shards, nil, 100, 200)
-								go network.Run(ctx, nil, false)
-
-								// Expect the network should be handle nodes starting with different delays and
-								Eventually(func() bool {
-									return network.HealthCheck(nil)
-								}, time.Minute).Should(BeTrue())
-							})
-						})
-
-						Context("when each node has a random delay when starting", func() {
-							It("should keep producing new blocks", func() {
-								ctx, cancel := context.WithCancel(context.Background())
-								defer cancel()
-
-								network := NewNetwork(f, shards, nil, 100, 200)
-								go network.Run(ctx, nil, true)
-
-								// Expect the network should be handle nodes starting with different delays and
-								Eventually(func() bool {
-									return network.HealthCheck(nil)
-								}, time.Minute).Should(BeTrue())
-							})
-						})
+						// Expect the network should be handle nodes starting with different delays and
+						Eventually(func() bool {
+							return network.HealthCheck(nil)
+						}, time.Minute).Should(BeTrue())
 					})
+				})
 
-					Context("when no more than one third nodes are offline at the beginning", func() {
+				Context("when each node has a random delay when starting", func() {
+					It("should keep producing new blocks", func() {
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
+
+						network := NewNetwork(f, shards, nil, 100, 200)
+						go network.Run(ctx, nil, true)
+
+						// Expect the network should be handle nodes starting with different delays and
+						Eventually(func() bool {
+							return network.HealthCheck(nil)
+						}, time.Minute).Should(BeTrue())
+					})
+				})
+			})
+
+			Context("when no more than one third nodes are offline at the beginning", func() {
+				It("should keep producing new blocks", func() {
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					network := NewNetwork(f, shards, nil, 100, 200)
+
+					// Start the network with random f nodes offline
+					shuffledIndex := mrand.Perm(3*f + 1)
+					offlineNodes := map[int]bool{}
+					for i := 0; i < f; i++ {
+						offlineNodes[shuffledIndex[i]] = true
+					}
+
+					go network.Run(ctx, offlineNodes, false)
+
+					// Only check the nodes which are online are progressing after certain amount time
+					Eventually(func() bool {
+						return network.HealthCheck(shuffledIndex[f:])
+					}, time.Duration(f*30)*time.Second).Should(BeTrue())
+				})
+			})
+
+			Context("when some nodes are having network connection issue", func() {
+				Context("when they go back online after certain amount of time", func() {
+					It("should keep producing new blocks", func() {
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
+						network := NewNetwork(f, shards, nil, 100, 200)
+						go network.Run(ctx, nil, false)
+						time.Sleep(5 * time.Second)
+
+						for i := 0; i < 3; i++ {
+							offlineNum := mrand.Intn(f) + 1 // Making sure at least one node is offline
+							shuffledIndex := mrand.Perm(3*f + 1)
+							offlineNodes := shuffledIndex[:offlineNum]
+
+							// Simulate connection issue for less than 1/3 nodes
+							phi.ParForAll(offlineNodes, func(i int) {
+								index := offlineNodes[i]
+								network.DisableNode(index)
+								time.Sleep(10 * time.Second)
+								network.EnableNode(index)
+							})
+
+							Eventually(func() bool {
+								return network.HealthCheck(nil)
+							}, 30*time.Second).Should(BeTrue())
+						}
+					})
+				})
+
+				Context("when they fail to reconnect to the network", func() {
+					It("should keep producing blocks with the rest of the networks", func() {
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
+						time.Sleep(5 * time.Second)
+
+						network := NewNetwork(f, shards, nil, 100, 200)
+						go network.Run(ctx, nil, false)
+
+						// Random select
+						shuffledIndex := mrand.Perm(3*f + 1)
+						offlineNodes := shuffledIndex[:f]
+
+						// Simulate connection issue for less than 1/3 nodes
+						phi.ParForAll(offlineNodes, func(i int) {
+							index := offlineNodes[i]
+							log.Printf("node %v is having connectiong issue", index)
+							network.DisableNode(index)
+						})
+
+						// Give them seconds to catch up
+						Eventually(func() bool {
+							return network.HealthCheck(shuffledIndex[f:])
+						}, time.Minute).Should(BeTrue())
+					})
+				})
+			})
+
+			Context("when nodes are completely offline", func() {
+				Context("when no more than f nodes crashed", func() {
+					Context("when they go back online after some time", func() {
 						It("should keep producing new blocks", func() {
 							ctx, cancel := context.WithCancel(context.Background())
 							defer cancel()
 							network := NewNetwork(f, shards, nil, 100, 200)
+							go network.Run(ctx, nil, false)
+							time.Sleep(5 * time.Second)
 
-							// Start the network with random f nodes offline
 							shuffledIndex := mrand.Perm(3*f + 1)
-							offlineNodes := map[int]bool{}
-							for i := 0; i < f; i++ {
-								offlineNodes[shuffledIndex[i]] = true
-							}
+							offlineNodes := shuffledIndex[:f]
 
-							go network.Run(ctx, offlineNodes, false)
+							// Simulate connection issue for less than 1/3 nodes
+							phi.ParForAll(offlineNodes, func(i int) {
+								index := offlineNodes[i]
+								network.StopNode(index)
 
-							// Only check the nodes which are online are progressing after certain amount time
+								time.Sleep(10 * time.Second)
+
+								go network.StartNode(index)
+							})
+
+							Eventually(func() bool {
+								return network.HealthCheck(nil)
+							}, 30*time.Second).Should(BeTrue())
+
+						})
+					})
+
+					Context("when they fail to reconnect to the network", func() {
+						It("should keep producing new blocks", func() {
+							ctx, cancel := context.WithCancel(context.Background())
+							defer cancel()
+							network := NewNetwork(f, shards, nil, 100, 200)
+							go network.Run(ctx, nil, false)
+							time.Sleep(5 * time.Second)
+
+							shuffledIndex := mrand.Perm(3*f + 1)
+							offlineNodes := shuffledIndex[:f]
+
+							// Simulate connection issue for less than 1/3 nodes
+							phi.ParForAll(offlineNodes, func(i int) {
+								index := offlineNodes[i]
+								network.StopNode(index)
+
+								time.Sleep(10 * time.Second)
+							})
+
 							Eventually(func() bool {
 								return network.HealthCheck(shuffledIndex[f:])
-							}, time.Duration(f*30)*time.Second).Should(BeTrue())
-						})
-					})
-
-					Context("when some nodes are having network connection issue", func() {
-						Context("when they go back online after certain amount of time", func() {
-							It("should keep producing new blocks", func() {
-								ctx, cancel := context.WithCancel(context.Background())
-								defer cancel()
-								network := NewNetwork(f, shards, nil, 100, 200)
-								go network.Run(ctx, nil, false)
-								time.Sleep(5 * time.Second)
-
-								for i := 0; i < 3; i++ {
-									offlineNum := mrand.Intn(f) + 1 // Making sure at least one node is offline
-									shuffledIndex := mrand.Perm(3*f + 1)
-									offlineNodes := shuffledIndex[:offlineNum]
-
-									// Simulate connection issue for less than 1/3 nodes
-									phi.ParForAll(offlineNodes, func(i int) {
-										index := offlineNodes[i]
-										network.DisableNode(index)
-										time.Sleep(10 * time.Second)
-										network.EnableNode(index)
-									})
-
-									Eventually(func() bool {
-										return network.HealthCheck(nil)
-									}, 30*time.Second).Should(BeTrue())
-								}
-							})
-						})
-
-						Context("when they fail to reconnect to the network", func() {
-							It("should keep producing blocks with the rest of the networks", func() {
-								ctx, cancel := context.WithCancel(context.Background())
-								defer cancel()
-								time.Sleep(5 * time.Second)
-
-								network := NewNetwork(f, shards, nil, 100, 200)
-								go network.Run(ctx, nil, false)
-
-								// Random select
-								shuffledIndex := mrand.Perm(3*f + 1)
-								offlineNodes := shuffledIndex[:f]
-
-								// Simulate connection issue for less than 1/3 nodes
-								phi.ParForAll(offlineNodes, func(i int) {
-									index := offlineNodes[i]
-									log.Printf("node %v is having connectiong issue", index)
-									network.DisableNode(index)
-								})
-
-								// Give them seconds to catch up
-								Eventually(func() bool {
-									return network.HealthCheck(shuffledIndex[f:])
-								}, time.Minute).Should(BeTrue())
-							})
-						})
-					})
-
-					Context("when nodes are completely offline", func() {
-						Context("when they go back online after some time", func() {
-							It("should keep producing new blocks", func() {
-								ctx, cancel := context.WithCancel(context.Background())
-								defer cancel()
-								network := NewNetwork(f, shards, nil, 100, 200)
-								go network.Run(ctx, nil, false)
-								time.Sleep(5 * time.Second)
-
-								shuffledIndex := mrand.Perm(3*f + 1)
-								offlineNodes := shuffledIndex[:f]
-
-								// Simulate connection issue for less than 1/3 nodes
-								phi.ParForAll(offlineNodes, func(i int) {
-									index := offlineNodes[i]
-									network.StopNode(index)
-
-									time.Sleep(10 * time.Second)
-
-									go network.StartNode(index)
-								})
-
-								Eventually(func() bool {
-									return network.HealthCheck(nil)
-								}, 30*time.Second).Should(BeTrue())
-
-							})
-						})
-
-						Context("when they fail to reconnect to the network", func() {
-							It("should keep producing new blocks", func() {
-								ctx, cancel := context.WithCancel(context.Background())
-								defer cancel()
-								network := NewNetwork(f, shards, nil, 100, 200)
-								go network.Run(ctx, nil, false)
-								time.Sleep(5 * time.Second)
-
-								shuffledIndex := mrand.Perm(3*f + 1)
-								offlineNodes := shuffledIndex[:f]
-
-								// Simulate connection issue for less than 1/3 nodes
-								phi.ParForAll(offlineNodes, func(i int) {
-									index := offlineNodes[i]
-									network.StopNode(index)
-
-									time.Sleep(10 * time.Second)
-								})
-
-								Eventually(func() bool {
-									return network.HealthCheck(shuffledIndex[f:])
-								}, 30*time.Second).Should(BeTrue())
-							})
-						})
-					})
-
-					Context("when more than f nodes fail to boot", func() {
-						Context("when the failed node never come back", func() {
-							It("should not process any blocks", func() {
-								ctx, cancel := context.WithCancel(context.Background())
-								defer cancel()
-								network := NewNetwork(f, shards, nil, 100, 200)
-
-								// Start the network with more than f nodes offline
-								shuffledIndex := mrand.Perm(3*f + 1)
-								offlineNodes := map[int]bool{}
-								for i := 0; i < f+1; i++ {
-									offlineNodes[shuffledIndex[i]] = true
-								}
-
-								go network.Run(ctx, offlineNodes, false)
-
-								// expect all nodes only have the genesis block
-								time.Sleep(30 * time.Second)
-								Expect(network.HealthCheck(shuffledIndex[f:])).Should(BeFalse())
-							})
-						})
-
-						Context("when the failed node come back online", func() {
-							It("should start produce blocks", func() {
-								ctx, cancel := context.WithCancel(context.Background())
-								defer cancel()
-								network := NewNetwork(f, shards, nil, 100, 200)
-
-								// Start the network with more than f nodes offline
-								shuffledIndex := mrand.Perm(3*f + 1)
-								offlineNodes := map[int]bool{}
-								for i := 0; i < f+1; i++ {
-									offlineNodes[shuffledIndex[i]] = true
-								}
-
-								go network.Run(ctx, offlineNodes, false)
-
-								time.Sleep(3 * time.Second)
-
-								// Simulate connection issue for less than 1/3 nodes
-								go phi.ParForAll(offlineNodes, func(i int) {
-									network.StartNode(i)
-								})
-
-								Eventually(func() bool {
-									return network.HealthCheck(nil)
-								}, 300*time.Second).Should(BeTrue())
-							})
+							}, 30*time.Second).Should(BeTrue())
 						})
 					})
 				})
-			}
+
+				Context("when more than f nodes crash,", func() {
+					Context("when they fail to reconnect to the network", func() {
+						It("should stop producing new blocks", func() {
+							ctx, cancel := context.WithCancel(context.Background())
+							defer cancel()
+							network := NewNetwork(f, shards, nil, 100, 200)
+							go network.Run(ctx, nil, false)
+							time.Sleep(5 * time.Second)
+
+							shuffledIndex := mrand.Perm(3*f + 1)
+							offlineNodes := shuffledIndex[:f+1]
+
+							// Simulate connection issue for less than 1/3 nodes
+							phi.ParForAll(offlineNodes, func(i int) {
+								index := offlineNodes[i]
+								network.StopNode(index)
+
+								time.Sleep(10 * time.Second)
+							})
+
+							// expect all nodes only have the genesis block
+							time.Sleep(30 * time.Second)
+							Expect(network.HealthCheck(shuffledIndex[f:])).Should(BeFalse())
+						})
+					})
+
+					Context("when they successfully reconnect to the network", func() {
+						It("should start producing blocks again", func() {
+							ctx, cancel := context.WithCancel(context.Background())
+							defer cancel()
+							network := NewNetwork(f, shards, nil, 100, 200)
+							go network.Run(ctx, nil, false)
+							time.Sleep(5 * time.Second)
+
+							shuffledIndex := mrand.Perm(3*f + 1)
+							offlineNodes := shuffledIndex[:f+1]
+
+							// Simulate connection issue for less than 1/3 nodes
+							phi.ParForAll(offlineNodes, func(i int) {
+								index := offlineNodes[i]
+								network.StopNode(index)
+
+								time.Sleep(10 * time.Second)
+							})
+
+							// Only start one of the node to meet the threshold
+							go network.StartNode(offlineNodes[f])
+
+							Eventually(func() bool {
+								return network.HealthCheck(shuffledIndex[f:])
+							}, 300*time.Second).Should(BeTrue())
+						})
+					})
+				})
+			})
+
+			Context("when more than f nodes fail to boot", func() {
+				Context("when the failed node never come back", func() {
+					It("should not process any blocks", func() {
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
+						network := NewNetwork(f, shards, nil, 100, 200)
+
+						// Start the network with more than f nodes offline
+						shuffledIndex := mrand.Perm(3*f + 1)
+						offlineNodes := map[int]bool{}
+						for i := 0; i < f+1; i++ {
+							offlineNodes[shuffledIndex[i]] = true
+						}
+
+						go network.Run(ctx, offlineNodes, false)
+
+						// expect all nodes only have the genesis block
+						time.Sleep(30 * time.Second)
+						Expect(network.HealthCheck(shuffledIndex[f:])).Should(BeFalse())
+					})
+				})
+
+				Context("when the failed node come back online", func() {
+					It("should start produce blocks", func() {
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
+						network := NewNetwork(f, shards, nil, 100, 200)
+
+						// Start the network with more than f nodes offline
+						shuffledIndex := mrand.Perm(3*f + 1)
+						offlineNodes := map[int]bool{}
+						for i := 0; i < f+1; i++ {
+							offlineNodes[shuffledIndex[i]] = true
+						}
+
+						go network.Run(ctx, offlineNodes, false)
+
+						time.Sleep(3 * time.Second)
+
+						// Simulate connection issue for less than 1/3 nodes
+						go phi.ParForAll(offlineNodes, func(i int) {
+							network.StartNode(i)
+						})
+
+						Eventually(func() bool {
+							return network.HealthCheck(nil)
+						}, 300*time.Second).Should(BeTrue())
+					})
+				})
+			})
 		})
 	}
 })

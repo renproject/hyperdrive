@@ -226,12 +226,25 @@ func (m *MockBroadcaster) EnablePeer(sig id.Signatory) {
 
 	m.cacheMu.Lock()
 	defer m.cacheMu.Unlock()
+
+	// Only resend the latest propose
+	highestPropose := replica.Message{}
+	for _, latest := range m.cachedMessages {
+		if !m.active[sig] || latest.Propose.Message == nil {
+			continue
+		}
+		if highestPropose.Message == nil || latest.Propose.Message.Height() > highestPropose.Message.Height() {
+			highestPropose = latest.Propose
+		}
+	}
+	if highestPropose.Message != nil {
+		m.cons[sig] <- highestPropose
+	}
+
+	// Resend each person's latest prevote and precommit.
 	for signatory, latest := range m.cachedMessages {
 		if signatory.Equal(sig) || !m.active[sig] {
 			continue
-		}
-		if latest.Propose.Message != nil {
-			m.cons[sig] <- latest.Propose
 		}
 		if latest.Prevote.Message != nil {
 			m.cons[sig] <- latest.Prevote
