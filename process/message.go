@@ -354,16 +354,16 @@ func (prevote Prevote) MarshalBinary() ([]byte, error) {
 		return buf.Bytes(), fmt.Errorf("cannot write prevote.sig: %v", err)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, prevote.signatory); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write prevote.signatory len: %v", err)
+		return buf.Bytes(), fmt.Errorf("cannot write prevote.signatory: %v", err)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, prevote.height); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write prevote.height data: %v", err)
+		return buf.Bytes(), fmt.Errorf("cannot write prevote.height: %v", err)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, prevote.round); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write prevote.round data: %v", err)
+		return buf.Bytes(), fmt.Errorf("cannot write prevote.round: %v", err)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, prevote.blockHash); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write prevote.blockHash data: %v", err)
+		return buf.Bytes(), fmt.Errorf("cannot write prevote.blockHash: %v", err)
 	}
 	return buf.Bytes(), nil
 }
@@ -481,16 +481,16 @@ func (precommit Precommit) MarshalBinary() ([]byte, error) {
 		return buf.Bytes(), fmt.Errorf("cannot write precommit.sig: %v", err)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, precommit.signatory); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write precommit.signatory len: %v", err)
+		return buf.Bytes(), fmt.Errorf("cannot write precommit.signatory: %v", err)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, precommit.height); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write precommit.height data: %v", err)
+		return buf.Bytes(), fmt.Errorf("cannot write precommit.height: %v", err)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, precommit.round); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write precommit.round data: %v", err)
+		return buf.Bytes(), fmt.Errorf("cannot write precommit.round: %v", err)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, precommit.blockHash); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write precommit.blockHash data: %v", err)
+		return buf.Bytes(), fmt.Errorf("cannot write precommit.blockHash: %v", err)
 	}
 	return buf.Bytes(), nil
 }
