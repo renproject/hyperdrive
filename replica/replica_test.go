@@ -1,8 +1,10 @@
 package replica
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"encoding/json"
 	"io/ioutil"
 	"reflect"
 	"testing/quick"
@@ -25,7 +27,7 @@ var _ = Describe("Replica", func() {
 		return privateKey
 	}
 
-	Context("Shard", func() {
+	Context("shard", func() {
 		Context("when comparing two shard", func() {
 			It("should be stringified to same text if two shards are equal and vice versa", func() {
 				test := func(shard1, shard2 Shard) bool {
@@ -46,6 +48,40 @@ var _ = Describe("Replica", func() {
 	})
 
 	Context("replica", func() {
+		Context("when marshaling/unmarshaling message", func() {
+			It("should equal itself after json marshaling and then unmarshaling", func() {
+				message := Message{
+					Message: RandomMessage(RandomMessageType()),
+					Shard:   Shard{},
+				}
+
+				data, err := json.Marshal(message)
+				Expect(err).NotTo(HaveOccurred())
+				newMessage := Message{}
+				Expect(json.Unmarshal(data, &newMessage)).Should(Succeed())
+
+				newData, err := json.Marshal(newMessage)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(bytes.Equal(data, newData)).Should(BeTrue())
+			})
+
+			It("should equal itself after binary marshaling and then unmarshaling", func() {
+				message := Message{
+					Message: RandomMessage(RandomMessageType()),
+					Shard:   Shard{},
+				}
+
+				data, err := message.MarshalBinary()
+				Expect(err).NotTo(HaveOccurred())
+				newMessage := Message{}
+				Expect(newMessage.UnmarshalBinary(data)).Should(Succeed())
+
+				newData, err := newMessage.MarshalBinary()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(bytes.Equal(data, newData)).Should(BeTrue())
+			})
+		})
+
 		Context("when sending messages to replica", func() {
 			It("should only pass message to process when it's a valid message", func() {
 				test := func(shard, wrongShard Shard) bool {
