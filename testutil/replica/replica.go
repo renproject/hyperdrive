@@ -111,11 +111,11 @@ func NewMockObserver(store *MockPersistentStorage) replica.Observer {
 
 func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
 	blockchain := m.store.MockBlockchain(shard)
-	block, ok := blockchain.BlockAtHeight(height)
+	b, ok := blockchain.BlockAtHeight(height)
 	if !ok {
 		panic("DidCommitBlock should be called only when the block has been added to storage")
 	}
-	digest := sha3.Sum256(block.Data())
+	digest := sha3.Sum256(b.Data())
 	blockchain.InsertBlockStatAtHeight(height, digest[:])
 
 	// Insert executed state of the previous height
@@ -174,28 +174,42 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 	switch msg := message.Message.(type) {
 	case *process.Propose:
 		sender = msg.Signatory()
-
-		latest := m.cachedMessages[sender]
-		if msg.Height() >= latest.Height {
-			latest.Height = msg.Height()
-			latest.Propose = message
+		if msg.Height() > m.cachedMessages[sender].Height {
+			m.cachedMessages[sender] = &latestMessages{
+				Height:    msg.Height(),
+				Propose:   message,
+				Prevote:   replica.Message{},
+				Precommit: replica.Message{},
+			}
+		} else {
+			m.cachedMessages[sender].Propose = message
 		}
 	case *process.Prevote:
 		sender = msg.Signatory()
-
-		latest := m.cachedMessages[sender]
-		if msg.Height() >= latest.Height {
-			latest.Height = msg.Height()
-			latest.Prevote = message
+		if msg.Height() > m.cachedMessages[sender].Height {
+			m.cachedMessages[sender] = &latestMessages{
+				Height:    msg.Height(),
+				Propose:   replica.Message{},
+				Prevote:   message,
+				Precommit: replica.Message{},
+			}
+		} else {
+			m.cachedMessages[sender].Prevote = message
 		}
 	case *process.Precommit:
 		sender = msg.Signatory()
-
-		latest := m.cachedMessages[sender]
-		if msg.Height() >= latest.Height {
-			latest.Height = msg.Height()
-			latest.Precommit = message
+		if msg.Height() > m.cachedMessages[sender].Height {
+			m.cachedMessages[sender] = &latestMessages{
+				Height:    msg.Height(),
+				Propose:   replica.Message{},
+				Prevote:   replica.Message{},
+				Precommit: message,
+			}
+		} else {
+			m.cachedMessages[sender].Precommit = message
 		}
+	default:
+		panic("unknown message type")
 	}
 	m.cacheMu.Unlock()
 
@@ -211,23 +225,14 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 	phi.ParForAll(m.cons, func(sig id.Signatory) {
 		if m.active[sig] {
 			m.sendMessage(sig, message)
-		} else {
-
 		}
 	})
 }
 
 func (m *MockBroadcaster) sendMessage(receiver id.Signatory, message replica.Message) {
 	messages := m.cons[receiver]
-	// Simulate the network latency
-	time.Sleep(time.Duration(mrand.Intn(m.max-m.min)+m.min) * time.Millisecond)
-
-	// Drop the message if the node is not online
+	time.Sleep(time.Duration(mrand.Intn(m.max-m.min)+m.min) * time.Millisecond) // Simulate the network latency
 	messages <- message
-}
-
-func (m *MockBroadcaster) saveMessage(receiver id.Signatory, message replica.Message) {
-
 }
 
 func (m *MockBroadcaster) Messages(sig id.Signatory) chan replica.Message {
@@ -260,8 +265,8 @@ func (m *MockBroadcaster) EnablePeer(sig id.Signatory) {
 	}
 
 	// Resend each person's latest prevote and precommit.
-	for signatory, latest := range m.cachedMessages {
-		if signatory.Equal(sig) || !m.active[sig] {
+	for _, latest := range m.cachedMessages {
+		if !m.active[sig] {
 			continue
 		}
 		if latest.Prevote.Message != nil {
