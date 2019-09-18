@@ -18,6 +18,24 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+func Contain(list []int, target int) bool {
+	for _, num := range list {
+		if num == target {
+			return true
+		}
+	}
+	return false
+}
+
+func SleepRandomSeconds(min, max int) {
+	if max == min {
+		time.Sleep(time.Duration(min) * time.Second)
+	} else {
+		duration := time.Duration(mrand.Intn(max-min) + min)
+		time.Sleep(duration * time.Second)
+	}
+}
+
 func RandomShard() replica.Shard {
 	shard := replica.Shard{}
 	_, err := rand.Read(shard[:])

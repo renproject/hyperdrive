@@ -138,7 +138,6 @@ func (p *Process) UnmarshalBinary(data []byte) error {
 func (p *Process) Start() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.logger.Debugf("current state = %+v", p.state)
 	p.startRound(p.state.CurrentRound)
 }
 

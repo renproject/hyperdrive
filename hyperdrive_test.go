@@ -48,13 +48,13 @@ var _ = Describe("Hyperdrive", func() {
 			Context("when all nodes have 100% live time", func() {
 				Context("when all nodes start at same time", func() {
 					It("should keep producing new blocks", func() {
-						ctx, cancel := context.WithCancel(context.Background())
-						defer cancel()
+						options := DefaultOption
+						options.maxBootDelay = 0
+						network := NewNetwork(f, shards, options)
 
-						network := NewNetwork(f, shards, nil, 100, 200)
-						go network.Run(ctx, nil, false)
+						network.Start()
+						defer network.Stop()
 
-						// Expect the network should be handle nodes starting with different delays and
 						Eventually(func() bool {
 							return network.HealthCheck(nil)
 						}, time.Minute).Should(BeTrue())
@@ -63,11 +63,9 @@ var _ = Describe("Hyperdrive", func() {
 
 				Context("when each node has a random delay when starting", func() {
 					It("should keep producing new blocks", func() {
-						ctx, cancel := context.WithCancel(context.Background())
-						defer cancel()
-
-						network := NewNetwork(f, shards, nil, 100, 200)
-						go network.Run(ctx, nil, true)
+						network := NewNetwork(f, shards, DefaultOption)
+						network.Start()
+						defer network.Stop()
 
 						// Expect the network should be handle nodes starting with different delays and
 						Eventually(func() bool {
@@ -77,24 +75,19 @@ var _ = Describe("Hyperdrive", func() {
 				})
 			})
 
-			Context("when no more than one third nodes are offline at the beginning", func() {
+			Context("when f nodes are offline at the beginning", func() {
 				It("should keep producing new blocks", func() {
-					ctx, cancel := context.WithCancel(context.Background())
-					defer cancel()
-					network := NewNetwork(f, shards, nil, 100, 200)
+					option := DefaultOption
+					shuffledIndices := mrand.Perm(3*f + 1)
+					option.disableNodes = shuffledIndices[:f]
 
-					// Start the network with random f nodes offline
-					shuffledIndex := mrand.Perm(3*f + 1)
-					offlineNodes := map[int]bool{}
-					for i := 0; i < f; i++ {
-						offlineNodes[shuffledIndex[i]] = true
-					}
-
-					go network.Run(ctx, offlineNodes, false)
+					network := NewNetwork(f, shards, option)
+					network.Start()
+					defer network.Stop()
 
 					// Only check the nodes which are online are progressing after certain amount time
 					Eventually(func() bool {
-						return network.HealthCheck(shuffledIndex[f:])
+						return network.HealthCheck(shuffledIndices[f:])
 					}, time.Duration(f*30)*time.Second).Should(BeTrue())
 				})
 			})
@@ -102,56 +95,47 @@ var _ = Describe("Hyperdrive", func() {
 			Context("when some nodes are having network connection issue", func() {
 				Context("when they go back online after certain amount of time", func() {
 					It("should keep producing new blocks", func() {
-						ctx, cancel := context.WithCancel(context.Background())
-						defer cancel()
-						network := NewNetwork(f, shards, nil, 100, 200)
-						go network.Run(ctx, nil, false)
-						time.Sleep(5 * time.Second)
+						network := NewNetwork(f, shards, DefaultOption)
+						network.Start()
+						defer network.Stop()
 
-						for i := 0; i < 3; i++ {
-							offlineNum := mrand.Intn(f) + 1 // Making sure at least one node is offline
-							shuffledIndex := mrand.Perm(3*f + 1)
-							offlineNodes := shuffledIndex[:offlineNum]
+						numNodesOffline := mrand.Intn(f) + 1 // Making sure at least one node is offline
+						shuffledIndices := mrand.Perm(3*f + 1)
+						SleepRandomSeconds(5, 10)
 
-							// Simulate connection issue for less than 1/3 nodes
-							phi.ParForAll(offlineNodes, func(i int) {
-								index := offlineNodes[i]
-								network.DisableNode(index)
-								time.Sleep(10 * time.Second)
-								network.EnableNode(index)
-							})
+						// Simulate connection issue for less than 1/3 nodes
+						phi.ParForAll(numNodesOffline, func(i int) {
+							index := shuffledIndices[i]
+							network.BlockNodeConnection(index)
+							SleepRandomSeconds(5, 10)
+							network.UnblockNodeConnection(index)
+						})
 
-							Eventually(func() bool {
-								return network.HealthCheck(nil)
-							}, 30*time.Second).Should(BeTrue())
-						}
+						Eventually(func() bool {
+							return network.HealthCheck(nil)
+						}, 30*time.Second).Should(BeTrue())
 					})
 				})
 
 				Context("when they fail to reconnect to the network", func() {
 					It("should keep producing blocks with the rest of the networks", func() {
-						ctx, cancel := context.WithCancel(context.Background())
-						defer cancel()
-						time.Sleep(5 * time.Second)
+						network := NewNetwork(f, shards, DefaultOption)
+						network.Start()
+						defer network.Stop()
 
-						network := NewNetwork(f, shards, nil, 100, 200)
-						go network.Run(ctx, nil, false)
-
-						// Random select
-						shuffledIndex := mrand.Perm(3*f + 1)
-						offlineNodes := shuffledIndex[:f]
+						numNodesOffline := mrand.Intn(f) + 1 // Making sure at least one node is offline
+						shuffledIndices := mrand.Perm(3*f + 1)
+						SleepRandomSeconds(5, 10)
 
 						// Simulate connection issue for less than 1/3 nodes
-						phi.ParForAll(offlineNodes, func(i int) {
-							index := offlineNodes[i]
-							log.Printf("node %v is having connectiong issue", index)
-							network.DisableNode(index)
+						phi.ParForAll(numNodesOffline, func(i int) {
+							index := shuffledIndices[i]
+							network.BlockNodeConnection(index)
 						})
 
-						// Give them seconds to catch up
 						Eventually(func() bool {
-							return network.HealthCheck(shuffledIndex[f:])
-						}, time.Minute).Should(BeTrue())
+							return network.HealthCheck(shuffledIndices[numNodesOffline:])
+						}, 30*time.Second).Should(BeTrue())
 					})
 				})
 			})
@@ -160,53 +144,49 @@ var _ = Describe("Hyperdrive", func() {
 				Context("when no more than f nodes crashed", func() {
 					Context("when they go back online after some time", func() {
 						It("should keep producing new blocks", func() {
-							ctx, cancel := context.WithCancel(context.Background())
-							defer cancel()
-							network := NewNetwork(f, shards, nil, 100, 200)
-							go network.Run(ctx, nil, false)
-							time.Sleep(5 * time.Second)
+							// todo
+							network := NewNetwork(f, shards, DefaultOption)
+							network.Start()
+							defer network.Stop()
 
-							shuffledIndex := mrand.Perm(3*f + 1)
-							offlineNodes := shuffledIndex[:f]
+							numNodesOffline := mrand.Intn(f) + 1 // Making sure at least one node is offline
+							shuffledIndices := mrand.Perm(3*f + 1)
+							SleepRandomSeconds(5, 10)
 
 							// Simulate connection issue for less than 1/3 nodes
-							phi.ParForAll(offlineNodes, func(i int) {
-								index := offlineNodes[i]
+							phi.ParForAll(numNodesOffline, func(i int) {
+								index := shuffledIndices[i]
 								network.StopNode(index)
-
-								time.Sleep(10 * time.Second)
-
-								go network.StartNode(index)
+								SleepRandomSeconds(5, 10)
+								network.StartNode(index)
 							})
 
 							Eventually(func() bool {
 								return network.HealthCheck(nil)
 							}, 30*time.Second).Should(BeTrue())
-
 						})
 					})
 
 					Context("when they fail to reconnect to the network", func() {
 						It("should keep producing new blocks", func() {
-							ctx, cancel := context.WithCancel(context.Background())
-							defer cancel()
-							network := NewNetwork(f, shards, nil, 100, 200)
-							go network.Run(ctx, nil, false)
-							time.Sleep(5 * time.Second)
+							network := NewNetwork(f, shards, DefaultOption)
+							network.Start()
+							defer network.Stop()
 
-							shuffledIndex := mrand.Perm(3*f + 1)
-							offlineNodes := shuffledIndex[:f]
+							numNodesOffline := mrand.Intn(f) + 1 // Making sure at least one node is offline
+							shuffledIndices := mrand.Perm(3*f + 1)
+							SleepRandomSeconds(5, 10)
 
 							// Simulate connection issue for less than 1/3 nodes
-							phi.ParForAll(offlineNodes, func(i int) {
-								index := offlineNodes[i]
+							phi.ParForAll(numNodesOffline, func(i int) {
+								index := shuffledIndices[i]
 								network.StopNode(index)
-
-								time.Sleep(10 * time.Second)
+								SleepRandomSeconds(5, 10)
+								network.StartNode(index)
 							})
 
 							Eventually(func() bool {
-								return network.HealthCheck(shuffledIndex[f:])
+								return network.HealthCheck(shuffledIndices[numNodesOffline:])
 							}, 30*time.Second).Should(BeTrue())
 						})
 					})
@@ -215,53 +195,56 @@ var _ = Describe("Hyperdrive", func() {
 				Context("when more than f nodes crash,", func() {
 					Context("when they fail to reconnect to the network", func() {
 						It("should stop producing new blocks", func() {
-							ctx, cancel := context.WithCancel(context.Background())
-							defer cancel()
-							network := NewNetwork(f, shards, nil, 100, 200)
-							go network.Run(ctx, nil, false)
-							time.Sleep(5 * time.Second)
+							network := NewNetwork(f, shards, DefaultOption)
+							network.Start()
+							defer network.Stop()
 
-							shuffledIndex := mrand.Perm(3*f + 1)
-							offlineNodes := shuffledIndex[:f+1]
+							shuffledIndices := mrand.Perm(3*f + 1)
+							crashedNodes := shuffledIndices[:f+1]
+							SleepRandomSeconds(3, 6)
 
-							// Simulate connection issue for less than 1/3 nodes
-							phi.ParForAll(offlineNodes, func(i int) {
-								index := offlineNodes[i]
+							// simulate the nodes crashed.
+							phi.ParForAll(crashedNodes, func(i int) {
+								index := crashedNodes[i]
 								network.StopNode(index)
-
-								time.Sleep(10 * time.Second)
 							})
 
-							// expect all nodes only have the genesis block
+							// expect the network not progressing
 							time.Sleep(30 * time.Second)
-							Expect(network.HealthCheck(shuffledIndex[f:])).Should(BeFalse())
+							Expect(network.HealthCheck(shuffledIndices[f:])).Should(BeFalse())
 						})
 					})
 
 					Context("when they successfully reconnect to the network", func() {
 						It("should start producing blocks again", func() {
-							ctx, cancel := context.WithCancel(context.Background())
-							defer cancel()
-							network := NewNetwork(f, shards, nil, 100, 200)
-							go network.Run(ctx, nil, false)
+							option := DefaultOption
+							option.debugLogger = []int{4}
+							network := NewNetwork(f, shards, option)
+							network.Start()
+							defer network.Stop()
+
+							shuffledIndices := mrand.Perm(3*f + 1)
+							crashedNodes := shuffledIndices[:f+1]
+
+							// SleepRandomSeconds(5, 10)
 							time.Sleep(5 * time.Second)
 
-							shuffledIndex := mrand.Perm(3*f + 1)
-							offlineNodes := shuffledIndex[:f+1]
-
-							// Simulate connection issue for less than 1/3 nodes
-							phi.ParForAll(offlineNodes, func(i int) {
-								index := offlineNodes[i]
+							// simulate the nodes crashed.
+							phi.ParForAll(crashedNodes, func(i int) {
+								index := crashedNodes[i]
 								network.StopNode(index)
+							})
+							Expect(network.HealthCheck(nil)).Should(BeFalse())
 
-								time.Sleep(10 * time.Second)
+							// Restart the nodes after some time
+							phi.ParForAll(crashedNodes, func(i int) {
+								time.Sleep(5 * time.Second)
+								index := crashedNodes[i]
+								network.StartNode(index)
 							})
 
-							// Only start one of the node to meet the threshold
-							go network.StartNode(offlineNodes[f])
-
 							Eventually(func() bool {
-								return network.HealthCheck(shuffledIndex[f:])
+								return network.HealthCheck(nil)
 							}, 300*time.Second).Should(BeTrue())
 						})
 					})
@@ -271,45 +254,36 @@ var _ = Describe("Hyperdrive", func() {
 			Context("when more than f nodes fail to boot", func() {
 				Context("when the failed node never come back", func() {
 					It("should not process any blocks", func() {
-						ctx, cancel := context.WithCancel(context.Background())
-						defer cancel()
-						network := NewNetwork(f, shards, nil, 100, 200)
-
 						// Start the network with more than f nodes offline
-						shuffledIndex := mrand.Perm(3*f + 1)
-						offlineNodes := map[int]bool{}
-						for i := 0; i < f+1; i++ {
-							offlineNodes[shuffledIndex[i]] = true
-						}
+						options := DefaultOption
+						shuffledIndices := mrand.Perm(3*f + 1)
+						options.disableNodes = shuffledIndices[:f+1]
 
-						go network.Run(ctx, offlineNodes, false)
+						network := NewNetwork(f, shards, options)
+						network.Start()
+						defer network.Stop()
 
 						// expect all nodes only have the genesis block
-						time.Sleep(30 * time.Second)
-						Expect(network.HealthCheck(shuffledIndex[f:])).Should(BeFalse())
+						time.Sleep(20 * time.Second)
+						Expect(network.HealthCheck(shuffledIndices[f:])).Should(BeFalse())
 					})
 				})
 
 				Context("when the failed node come back online", func() {
 					It("should start produce blocks", func() {
-						ctx, cancel := context.WithCancel(context.Background())
-						defer cancel()
-						network := NewNetwork(f, shards, nil, 100, 200)
-
+						// todo
 						// Start the network with more than f nodes offline
-						shuffledIndex := mrand.Perm(3*f + 1)
-						offlineNodes := map[int]bool{}
-						for i := 0; i < f+1; i++ {
-							offlineNodes[shuffledIndex[i]] = true
-						}
+						options := DefaultOption
+						shuffledIndices := mrand.Perm(3*f + 1)
+						options.disableNodes = shuffledIndices[:f+1]
 
-						go network.Run(ctx, offlineNodes, false)
+						network := NewNetwork(f, shards, options)
+						network.Start()
+						defer network.Stop()
 
-						time.Sleep(3 * time.Second)
-
-						// Simulate connection issue for less than 1/3 nodes
-						go phi.ParForAll(offlineNodes, func(i int) {
-							network.StartNode(i)
+						phi.ParForAll(shuffledIndices[:f+1], func(i int) {
+							index := shuffledIndices[i]
+							network.StartNode(index)
 						})
 
 						Eventually(func() bool {
@@ -322,20 +296,41 @@ var _ = Describe("Hyperdrive", func() {
 	}
 })
 
-type Network struct {
-	mu    *sync.RWMutex
-	Nodes []*Node
+type networkOptions struct {
+	minNetworkDelay int   // minimum network latency when sending messages in milliseconds
+	maxNetworkDelay int   // maximum network latency when sending messages in milliseconds
+	minBootDelay    int   // minimum delay when booting the node in seconds
+	maxBootDelay    int   // maximum delay when booting the node in seconds
+	debugLogger     []int // indexes of the nodes which we want to enable the debug logger, nil for disable all
+	disableNodes    []int // indexes of the nodes which we want to disable at the starting of the network, nil for enable all
 
-	F           int
-	Shards      replica.Shards
-	Context     context.Context
-	Cancels     []context.CancelFunc
-	Signatories id.Signatories
-	DebugNodes  map[int]bool
-	Broadcaster *MockBroadcaster
 }
 
-func NewNetwork(f int, shards replica.Shards, debugNodes map[int]bool, minDelay, maxDelay int) Network {
+var DefaultOption = networkOptions{
+	minNetworkDelay: 100,
+	maxNetworkDelay: 1000,
+	minBootDelay:    0,
+	maxBootDelay:    3,
+	debugLogger:     nil,
+	disableNodes:    nil,
+}
+
+type Network struct {
+	f       int
+	shards  replica.Shards
+	options networkOptions
+
+	nodesMu *sync.RWMutex
+	nodes   []*Node
+
+	context      context.Context
+	cancel       context.CancelFunc
+	nodesCancels []context.CancelFunc
+	keys         []*ecdsa.PrivateKey
+	Broadcaster  *MockBroadcaster
+}
+
+func NewNetwork(f int, shards replica.Shards, options networkOptions) Network {
 	if f <= 0 {
 		panic("f must be positive")
 	}
@@ -349,150 +344,163 @@ func NewNetwork(f int, shards replica.Shards, debugNodes map[int]bool, minDelay,
 		if err != nil {
 			panic(err)
 		}
-		keys[i] = pk
-		sig := id.NewSignatory(keys[i].PublicKey)
-		sigs[i] = sig
+		sig := id.NewSignatory(pk.PublicKey)
+		keys[i], sigs[i] = pk, sig
 	}
 
 	// Initialize all nodes
 	genesisBlock := testutil.GenesisBlock(sigs)
-	broadcaster := NewMockBroadcaster(keys, minDelay, maxDelay)
+	broadcaster := NewMockBroadcaster(keys, options.minNetworkDelay, options.maxNetworkDelay)
 	nodes := make([]*Node, total)
 	for i := range nodes {
 		logger := logrus.New()
-		if debugNodes[i] {
+		if Contain(options.debugLogger, i) {
 			logger.SetLevel(logrus.DebugLevel)
 		}
 		store := NewMockPersistentStorage(shards)
 		store.Init(genesisBlock)
 		nodes[i] = NewNode(logger.WithField("node", i), shards, keys[i], broadcaster, store)
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 
 	return Network{
-		mu:    new(sync.RWMutex),
-		Nodes: nodes,
-
-		F:           f,
-		Shards:      shards,
-		Cancels:     make([]context.CancelFunc, 3*f+1),
-		Signatories: sigs,
-		DebugNodes:  debugNodes,
-		Broadcaster: broadcaster,
+		f:            f,
+		shards:       shards,
+		options:      options,
+		nodesMu:      new(sync.RWMutex),
+		nodes:        nodes,
+		context:      ctx,
+		cancel:       cancel,
+		keys:         keys,
+		nodesCancels: make([]context.CancelFunc, len(nodes)),
+		Broadcaster:  broadcaster,
 	}
 }
 
-func (network *Network) Run(ctx context.Context, disableNodes map[int]bool, delayAtBeginning bool) {
-	network.Context = ctx
-
-	phi.ParForAll(network.Nodes, func(i int) {
-		if disableNodes != nil && disableNodes[i] {
+func (network Network) Start() {
+	phi.ParForAll(network.nodes, func(i int) {
+		if Contain(network.options.disableNodes, i) {
 			return
 		}
+		SleepRandomSeconds(network.options.minBootDelay, network.options.maxBootDelay)
 
-		// Add random delay before running the nodes.
-		if delayAtBeginning {
-			delay := time.Duration(mrand.Intn(5))
-			time.Sleep(delay * time.Second)
-		}
-
+		network.nodesMu.RLock()
+		defer network.nodesMu.RUnlock()
 		network.startNode(i)
 	})
 }
 
+func (network Network) Stop() {
+	for _, cancel := range network.nodesCancels {
+		if cancel != nil {
+			cancel()
+		}
+	}
+	network.cancel()
+	time.Sleep(time.Second)
+}
+
+func (network Network) Signatories() id.Signatories {
+	sigs := make(id.Signatories, len(network.nodes))
+	for i := range sigs {
+		sigs[i] = id.NewSignatory(network.keys[i].PublicKey)
+	}
+	return sigs
+}
+
 func (network *Network) StartNode(i int) {
 	logger := logrus.New()
-	if network.DebugNodes[i] {
+	if Contain(network.options.debugLogger, i) {
 		logger.SetLevel(logrus.DebugLevel)
 	}
-	store := network.Nodes[i].Storage
+	store := network.nodes[i].storage
 
-	network.mu.Lock()
-	network.Nodes[i] = NewNode(logger.WithField("node", i), network.Shards, network.Nodes[i].Key, network.Broadcaster, store)
-	network.mu.Unlock()
+	network.nodesMu.Lock()
+	defer network.nodesMu.Unlock()
 
+	network.nodes[i] = NewNode(logger.WithField("node", i), network.shards, network.nodes[i].key, network.Broadcaster, store)
 	network.startNode(i)
 }
 
 func (network *Network) startNode(i int) {
-	time.Sleep(time.Second) // waiting for previous test clean up
-
-	// Get the node.
-	network.mu.RLock()
-	node := network.Nodes[i]
-	network.mu.RUnlock()
-
 	// Creating cancel for this node and enable its network connection
-	innerCtx, cancel := context.WithCancel(network.Context)
-	network.Cancels[i] = cancel
-	network.Broadcaster.EnablePeer(node.Sig)
+	node := network.nodes[i]
+	innerCtx, cancel := context.WithCancel(network.context)
+	network.nodesCancels[i] = cancel
+	network.Broadcaster.EnablePeer(node.Signatory())
 
-	node.Logger.Infof("💡 starting hyperdrive...")
-	node.Hyperdrive.Start()
-	defer node.Logger.Info("❌ shutting down hyperdrive...")
+	// Start the node
+	node.logger.Infof("💡starting hyperdrive...")
+	node.hyperdrive.Start()
 
-	messages := network.Broadcaster.Messages(node.Sig)
-	for {
-		select {
-		case message := <-messages:
-			node.Hyperdrive.HandleMessage(message)
+	// Start reading messages from the broadcaster
+	messages := network.Broadcaster.Messages(node.Signatory())
+	hyperdrive, logger := node.hyperdrive, node.logger
+
+	go func() {
+		defer logger.Info("❌ shutting down hyperdrive...")
+
+		for {
 			select {
+			case message := <-messages:
+				hyperdrive.HandleMessage(message)
+				select {
+				case <-innerCtx.Done():
+					return
+				default:
+				}
 			case <-innerCtx.Done():
 				return
-			default:
 			}
-		case <-innerCtx.Done():
-			return
 		}
-	}
+	}()
 }
 
 func (network *Network) StopNode(i int) {
-	network.mu.RLock()
-	defer network.mu.RUnlock()
-
-	if network.Cancels[i] == nil {
+	if network.nodesCancels[i] == nil {
 		return
 	}
-	network.Cancels[i]()
-	sig := network.Nodes[i].Sig
-	network.Broadcaster.DisablePeer(sig)
+	network.nodesCancels[i]()
+	network.Broadcaster.DisablePeer(network.Signatories()[i])
 }
 
-// EnableNode enable the network connection to the node
-func (network *Network) EnableNode(i int) {
-	network.mu.RLock()
-	defer network.mu.RUnlock()
-
-	network.Nodes[i].Logger.Infof("💡 enable network connection... ")
-	sig := network.Nodes[i].Sig
-	network.Broadcaster.EnablePeer(sig)
+func (network *Network) UnblockNodeConnection(i int) {
+	network.nodes[i].logger.Infof("💡 enable network connection... ")
+	network.Broadcaster.EnablePeer(network.Signatories()[i])
 }
 
+func (network *Network) BlockNodeConnection(i int) {
+	network.nodes[i].logger.Infof("⚠️ block network connection...")
+	network.Broadcaster.DisablePeer(network.Signatories()[i])
+}
+
+// Check the nodes of given indexes are working together producing new blocks.
 func (network *Network) HealthCheck(indexes []int) bool {
-	network.mu.RLock()
-	defer network.mu.RUnlock()
-	nodes := network.Nodes
+	network.nodesMu.RLock()
+	defer network.nodesMu.RUnlock()
+
+	nodes := network.nodes
 	if indexes != nil {
 		nodes = make([]*Node, 0, len(indexes))
 		for _, index := range indexes {
-			nodes = append(nodes, network.Nodes[index])
+			nodes = append(nodes, network.nodes[index])
 		}
 	}
 
 	// Check the block height of each nodes
 	currentBlockHeights := make([]block.Height, len(nodes))
-	for _, shard := range network.Shards {
+	for _, shard := range network.shards {
 		for i, node := range nodes {
-			block := node.Storage.LatestBlock(shard)
+			block := node.storage.LatestBlock(shard)
 			currentBlockHeights[i] = block.Header().Height()
 		}
 	}
 
-	time.Sleep(4 * time.Second)
+	time.Sleep(5 * time.Second)
 
-	for _, shard := range network.Shards {
+	for _, shard := range network.shards {
 		for i, node := range nodes {
-			block := node.Storage.LatestBlock(shard)
+			block := node.storage.LatestBlock(shard)
 			if block.Header().Height() <= currentBlockHeights[i] {
 				log.Printf("⚠️ node %v didn't progress ,old height = %v, new height = %v", i, currentBlockHeights[i], block.Header().Height())
 				return false
@@ -502,31 +510,21 @@ func (network *Network) HealthCheck(indexes []int) bool {
 	return true
 }
 
-// DisableNode block network connection to the node
-func (network *Network) DisableNode(i int) {
-	network.mu.RLock()
-	defer network.mu.RUnlock()
-
-	network.Nodes[i].Logger.Infof("⚠️ block network connection...")
-	sig := network.Nodes[i].Sig
-	network.Broadcaster.DisablePeer(sig)
+type Node struct {
+	logger     logrus.FieldLogger
+	key        *ecdsa.PrivateKey
+	storage    *MockPersistentStorage
+	iter       replica.BlockIterator
+	validator  replica.Validator
+	observer   replica.Observer
+	hyperdrive Hyperdrive
 }
 
-type Node struct {
-	Logger      logrus.FieldLogger
-	Key         *ecdsa.PrivateKey
-	Sig         id.Signatory
-	Storage     *MockPersistentStorage
-	Iterator    replica.BlockIterator
-	Validator   replica.Validator
-	Observer    replica.Observer
-	Broadcaster *MockBroadcaster
-	Shards      Shards
-	Hyperdrive  Hyperdrive
+func (node Node) Signatory() id.Signatory {
+	return id.NewSignatory(node.key.PublicKey)
 }
 
 func NewNode(logger logrus.FieldLogger, shards Shards, pk *ecdsa.PrivateKey, broadcaster *MockBroadcaster, store *MockPersistentStorage) *Node {
-	sig := id.NewSignatory(pk.PublicKey)
 	option := Options{
 		Logger:      logger,
 		BackOffExp:  1,
@@ -539,15 +537,12 @@ func NewNode(logger logrus.FieldLogger, shards Shards, pk *ecdsa.PrivateKey, bro
 	hd := New(option, store, store, iter, validator, observer, broadcaster, shards, *pk)
 
 	return &Node{
-		Logger:      logger,
-		Key:         pk,
-		Sig:         sig,
-		Storage:     store,
-		Iterator:    iter,
-		Validator:   validator,
-		Observer:    observer,
-		Broadcaster: broadcaster,
-		Shards:      shards,
-		Hyperdrive:  hd,
+		logger:     logger,
+		key:        pk,
+		storage:    store,
+		iter:       iter,
+		validator:  validator,
+		observer:   observer,
+		hyperdrive: hd,
 	}
 }
