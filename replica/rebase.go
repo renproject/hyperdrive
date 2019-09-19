@@ -147,7 +147,7 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 	}
 
 	// Check against the parent `block.Block`
-	if checkHistory == true {
+	if checkHistory {
 		parentBlock, ok := rebaser.blockStorage.Blockchain(rebaser.shard).BlockAtHeight(proposedBlock.Header().Height() - 1)
 		if !ok {
 			return false
