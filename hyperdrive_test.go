@@ -216,7 +216,7 @@ var _ = Describe("Hyperdrive", func() {
 					})
 
 					Context("when they successfully reconnect to the network", func() {
-						FIt("should start producing blocks again", func() {
+						It("should start producing blocks again", func() {
 							network := NewNetwork(f, shards, DefaultOption)
 							network.Start()
 							defer network.Stop()
