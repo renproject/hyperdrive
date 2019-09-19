@@ -155,12 +155,13 @@ func (propose *Propose) String() string {
 // MarshalJSON implements the `json.Marshaler` interface for the Propose type.
 func (propose Propose) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Sig        id.Signature `json:"sig"`
-		Signatory  id.Signatory `json:"signatory"`
-		Height     block.Height `json:"height"`
-		Round      block.Round  `json:"round"`
-		Block      block.Block  `json:"block"`
-		ValidRound block.Round  `json:"validRound"`
+		Sig          id.Signature `json:"sig"`
+		Signatory    id.Signatory `json:"signatory"`
+		Height       block.Height `json:"height"`
+		Round        block.Round  `json:"round"`
+		Block        block.Block  `json:"block"`
+		ValidRound   block.Round  `json:"validRound"`
+		LatestCommit LatestCommit `json:"latestCommit"`
 	}{
 		propose.sig,
 		propose.signatory,
@@ -168,6 +169,7 @@ func (propose Propose) MarshalJSON() ([]byte, error) {
 		propose.round,
 		propose.block,
 		propose.validRound,
+		propose.latestCommit,
 	})
 }
 
@@ -175,12 +177,13 @@ func (propose Propose) MarshalJSON() ([]byte, error) {
 // type.
 func (propose *Propose) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		Sig        id.Signature `json:"sig"`
-		Signatory  id.Signatory `json:"signatory"`
-		Height     block.Height `json:"height"`
-		Round      block.Round  `json:"round"`
-		Block      block.Block  `json:"block"`
-		ValidRound block.Round  `json:"validRound"`
+		Sig          id.Signature `json:"sig"`
+		Signatory    id.Signatory `json:"signatory"`
+		Height       block.Height `json:"height"`
+		Round        block.Round  `json:"round"`
+		Block        block.Block  `json:"block"`
+		ValidRound   block.Round  `json:"validRound"`
+		LatestCommit LatestCommit `json:"latestCommit"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
@@ -191,6 +194,7 @@ func (propose *Propose) UnmarshalJSON(data []byte) error {
 	propose.round = tmp.Round
 	propose.block = tmp.Block
 	propose.validRound = tmp.ValidRound
+	propose.latestCommit = tmp.LatestCommit
 	return nil
 }
 
@@ -222,6 +226,32 @@ func (propose Propose) MarshalBinary() ([]byte, error) {
 	}
 	if err := binary.Write(buf, binary.LittleEndian, propose.validRound); err != nil {
 		return buf.Bytes(), fmt.Errorf("cannot write propose.validRound: %v", err)
+	}
+	latestCommitBlockData, err := propose.latestCommit.Block.MarshalBinary()
+	if err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot marshal propose.latestCommit.Block: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, uint64(len(latestCommitBlockData))); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write propose.latestCommit.Block len: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, latestCommitBlockData); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write propose.latestCommit.Block data: %v", err)
+	}
+	lenPrecommits := len(propose.latestCommit.Precommits)
+	if err := binary.Write(buf, binary.LittleEndian, uint64(lenPrecommits)); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write propose.latestCommit.Precommits len: %v", err)
+	}
+	for i := 0; i < lenPrecommits; i++ {
+		latestPrecommitBytes, err := propose.latestCommit.Precommits[i].MarshalBinary()
+		if err != nil {
+			return buf.Bytes(), fmt.Errorf("cannot marshal propose.latestCommit precommit: %v", err)
+		}
+		if err := binary.Write(buf, binary.LittleEndian, uint64(len(latestPrecommitBytes))); err != nil {
+			return buf.Bytes(), fmt.Errorf("cannot write propose.latestCommit precommit len: %v", err)
+		}
+		if err := binary.Write(buf, binary.LittleEndian, latestPrecommitBytes); err != nil {
+			return buf.Bytes(), fmt.Errorf("cannot write propose.latestCommit precommit data: %v", err)
+		}
 	}
 	return buf.Bytes(), nil
 }
@@ -255,6 +285,35 @@ func (propose *Propose) UnmarshalBinary(data []byte) error {
 	}
 	if err := binary.Read(buf, binary.LittleEndian, &propose.validRound); err != nil {
 		return fmt.Errorf("cannot read propose.validRound: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
+		return fmt.Errorf("cannot read propose.latestCommit.Block len: %v", err)
+	}
+	latestCommitBlockBytes := make([]byte, numBytes)
+	if _, err := buf.Read(latestCommitBlockBytes); err != nil {
+		return fmt.Errorf("cannot read propose.latestCommit.Block data: %v", err)
+	}
+	if err := propose.latestCommit.Block.UnmarshalBinary(latestCommitBlockBytes); err != nil {
+		return fmt.Errorf("cannot unmarshal propose.latestCommit.Block: %v", err)
+	}
+	var lenPrecommits uint64
+	if err := binary.Read(buf, binary.LittleEndian, &lenPrecommits); err != nil {
+		return fmt.Errorf("cannot read propose.latestCommit.Precommits len: %v", err)
+	}
+	if lenPrecommits > 0 {
+		propose.latestCommit.Precommits = make([]Precommit, lenPrecommits)
+	}
+	for i := uint64(0); i < lenPrecommits; i++ {
+		if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
+			return fmt.Errorf("cannot read propose.latestCommit precommit len: %v", err)
+		}
+		latestPrecommitBlockBytes := make([]byte, numBytes)
+		if _, err := buf.Read(latestPrecommitBlockBytes); err != nil {
+			return fmt.Errorf("cannot read propose.latestCommit precommit data: %v", err)
+		}
+		if err := propose.latestCommit.Precommits[i].UnmarshalBinary(latestPrecommitBlockBytes); err != nil {
+			return fmt.Errorf("cannot unmarshal propose.latestCommit precommit: %v", err)
+		}
 	}
 	return nil
 }
