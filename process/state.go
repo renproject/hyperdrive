@@ -15,8 +15,8 @@ type State struct {
 	CurrentRound  block.Round  `json:"currentRound"`
 	CurrentStep   Step         `json:"currentStep"`
 
-	LockedBlock block.Block `json:"lockedBlock"` // the most recent block for which a PRECOMMIT message has been sent
-	LockedRound block.Round `json:"lockedRound"` // the last round in which the process sent a PRECOMMIT message that is not nil.
+	LockedBlock block.Block `json:"lockedBlock"` // the most recent block for which a precommit message has been sent
+	LockedRound block.Round `json:"lockedRound"` // the last round in which the process sent a precommit message that is not nil.
 	ValidBlock  block.Block `json:"validBlock"`  // store the most recent possible decision value
 	ValidRound  block.Round `json:"validRound"`  // is the last round in which valid value is updated
 

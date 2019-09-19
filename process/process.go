@@ -138,7 +138,10 @@ func (p *Process) UnmarshalBinary(data []byte) error {
 func (p *Process) Start() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.startRound(p.state.CurrentRound)
+	p.logger.Debugf("🎰 Starting hyperdrive, height = %v, round = %v, step = %v", p.state.CurrentHeight, p.state.CurrentRound, p.state.CurrentStep)
+	if p.state.CurrentStep <= StepPropose {
+		p.startRound(p.state.CurrentRound)
+	}
 }
 
 // StartRound is safe for concurrent use. See

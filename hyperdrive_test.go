@@ -216,20 +216,16 @@ var _ = Describe("Hyperdrive", func() {
 					})
 
 					Context("when they successfully reconnect to the network", func() {
-						It("should start producing blocks again", func() {
-							option := DefaultOption
-							option.debugLogger = []int{4}
-							network := NewNetwork(f, shards, option)
+						FIt("should start producing blocks again", func() {
+							network := NewNetwork(f, shards, DefaultOption)
 							network.Start()
 							defer network.Stop()
 
+							SleepRandomSeconds(5,10)
+
+							// Crash f + 1 random nodes and expect no blocks produced after that
 							shuffledIndices := mrand.Perm(3*f + 1)
 							crashedNodes := shuffledIndices[:f+1]
-
-							// SleepRandomSeconds(5, 10)
-							time.Sleep(5 * time.Second)
-
-							// simulate the nodes crashed.
 							phi.ParForAll(crashedNodes, func(i int) {
 								index := crashedNodes[i]
 								network.StopNode(index)
@@ -238,14 +234,14 @@ var _ = Describe("Hyperdrive", func() {
 
 							// Restart the nodes after some time
 							phi.ParForAll(crashedNodes, func(i int) {
-								time.Sleep(5 * time.Second)
+								SleepRandomSeconds(5,10)
 								index := crashedNodes[i]
 								network.StartNode(index)
 							})
 
 							Eventually(func() bool {
 								return network.HealthCheck(nil)
-							}, 300*time.Second).Should(BeTrue())
+							}, 30*time.Second).Should(BeTrue())
 						})
 					})
 				})
@@ -271,7 +267,6 @@ var _ = Describe("Hyperdrive", func() {
 
 				Context("when the failed node come back online", func() {
 					It("should start produce blocks", func() {
-						// todo
 						// Start the network with more than f nodes offline
 						options := DefaultOption
 						shuffledIndices := mrand.Perm(3*f + 1)
@@ -288,7 +283,7 @@ var _ = Describe("Hyperdrive", func() {
 
 						Eventually(func() bool {
 							return network.HealthCheck(nil)
-						}, 300*time.Second).Should(BeTrue())
+						}, 30*time.Second).Should(BeTrue())
 					})
 				})
 			})
