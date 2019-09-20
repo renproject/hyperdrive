@@ -138,7 +138,13 @@ func (p *Process) UnmarshalBinary(data []byte) error {
 func (p *Process) Start() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	// Log the starting state of process for debugging purpose.
 	p.logger.Debugf("🎰 Starting hyperdrive, height = %v, round = %v, step = %v", p.state.CurrentHeight, p.state.CurrentRound, p.state.CurrentStep)
+	numProposes := p.state.Proposals.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
+	numPrevotes := p.state.Proposals.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
+	numProcommits := p.state.Proposals.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
+	p.logger.Debugf("Have %v propose, %v prevotes and %v precommits of current height and round", numProposes, numPrevotes, numProcommits)
 
 	// Resend the messages of latest height
 	if !p.state.Equal(DefaultState(p.state.Prevotes.f)) {
