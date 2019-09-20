@@ -126,6 +126,10 @@ func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
 	blockchain.InsertBlockStatAtHeight(height-1, prevBlock.PreviousState())
 }
 
+func (observer *MockObserver) IsSignatory() bool {
+	return true
+}
+
 type latestMessages struct {
 	Mu        *sync.RWMutex
 	Height    block.Height
