@@ -139,6 +139,23 @@ func (p *Process) Start() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.logger.Debugf("🎰 Starting hyperdrive, height = %v, round = %v, step = %v", p.state.CurrentHeight, p.state.CurrentRound, p.state.CurrentStep)
+
+	// Resend the messages of latest height
+	if !p.state.Equal(DefaultState(p.state.Prevotes.f)) {
+		proposal := p.state.Proposals.QueryByHeightRoundSignatory(p.state.CurrentHeight, p.state.CurrentRound, p.signatory)
+		if proposal != nil {
+			p.broadcaster.Broadcast(proposal)
+		}
+		prevote := p.state.Prevotes.QueryByHeightRoundSignatory(p.state.CurrentHeight, p.state.CurrentRound, p.signatory)
+		if prevote != nil {
+			p.broadcaster.Broadcast(prevote)
+		}
+		precommit := p.state.Precommits.QueryByHeightRoundSignatory(p.state.CurrentHeight, p.state.CurrentRound, p.signatory)
+		if precommit != nil {
+			p.broadcaster.Broadcast(precommit)
+		}
+	}
+
 	if p.state.CurrentStep <= StepPropose {
 		p.startRound(p.state.CurrentRound)
 	}

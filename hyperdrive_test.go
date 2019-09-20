@@ -144,7 +144,6 @@ var _ = Describe("Hyperdrive", func() {
 				Context("when no more than f nodes crashed", func() {
 					Context("when they go back online after some time", func() {
 						It("should keep producing new blocks", func() {
-							// todo
 							network := NewNetwork(f, shards, DefaultOption)
 							network.Start()
 							defer network.Stop()
