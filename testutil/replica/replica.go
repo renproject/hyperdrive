@@ -127,6 +127,7 @@ func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
 }
 
 type latestMessages struct {
+	Mu        *sync.RWMutex
 	Height    block.Height
 	Propose   replica.Message
 	Prevote   replica.Message
@@ -140,78 +141,91 @@ type MockBroadcaster struct {
 	cons   map[id.Signatory]chan replica.Message
 	active map[id.Signatory]bool
 
-	cacheMu        *sync.Mutex
-	cachedMessages map[id.Signatory]*latestMessages // keep tracking of the messages of latest height
+	signatories    map[id.Signatory]int
+	cachedMessages []*latestMessages // keep tracking of the messages of latest height
 }
 
 func NewMockBroadcaster(keys []*ecdsa.PrivateKey, min, max int) *MockBroadcaster {
 	cons := map[id.Signatory]chan replica.Message{}
-	cachedMessages := map[id.Signatory]*latestMessages{}
-
-	for _, key := range keys {
+	cachedMessages := make([]*latestMessages, len(keys))
+	signatories := map[id.Signatory]int{}
+	for i, key := range keys {
 		sig := id.NewSignatory(key.PublicKey)
 		messages := make(chan replica.Message, 128)
 		cons[sig] = messages
-		cachedMessages[sig] = &latestMessages{}
+		cachedMessages[i] = &latestMessages{
+			Mu:        new(sync.RWMutex),
+			Height:    0,
+			Propose:   replica.Message{},
+			Prevote:   replica.Message{},
+			Precommit: replica.Message{},
+		}
+		signatories[sig] = i
 	}
 
 	return &MockBroadcaster{
 		min: min,
 		max: max,
 
-		mu:     new(sync.RWMutex),
-		cons:   cons,
-		active: map[id.Signatory]bool{},
-
-		cacheMu:        new(sync.Mutex),
+		mu:             new(sync.RWMutex),
+		cons:           cons,
+		active:         map[id.Signatory]bool{},
+		signatories:    signatories,
 		cachedMessages: cachedMessages,
 	}
 }
 
 func (m *MockBroadcaster) Broadcast(message replica.Message) {
-	m.cacheMu.Lock()
 	var sender id.Signatory
 	switch msg := message.Message.(type) {
 	case *process.Propose:
 		sender = msg.Signatory()
-		if msg.Height() > m.cachedMessages[sender].Height {
-			m.cachedMessages[sender] = &latestMessages{
-				Height:    msg.Height(),
-				Propose:   message,
-				Prevote:   replica.Message{},
-				Precommit: replica.Message{},
-			}
-		} else {
-			m.cachedMessages[sender].Propose = message
+		latestMessages := m.cachedMessages[m.signatories[sender]]
+		latestMessages.Mu.RLock()
+		if msg.Height() < latestMessages.Height {
+			latestMessages.Mu.RUnlock()
+			break
 		}
+		if msg.Height() > latestMessages.Height {
+			latestMessages.Height = msg.Height()
+			latestMessages.Prevote = replica.Message{}
+			latestMessages.Precommit = replica.Message{}
+		}
+		latestMessages.Propose = message
+		latestMessages.Mu.RUnlock()
 	case *process.Prevote:
 		sender = msg.Signatory()
-		if msg.Height() > m.cachedMessages[sender].Height {
-			m.cachedMessages[sender] = &latestMessages{
-				Height:    msg.Height(),
-				Propose:   replica.Message{},
-				Prevote:   message,
-				Precommit: replica.Message{},
-			}
-		} else {
-			m.cachedMessages[sender].Prevote = message
+		latestMessages := m.cachedMessages[m.signatories[sender]]
+		latestMessages.Mu.RLock()
+		if msg.Height() < latestMessages.Height {
+			latestMessages.Mu.RUnlock()
+			break
 		}
+		if msg.Height() > latestMessages.Height {
+			latestMessages.Height = msg.Height()
+			latestMessages.Propose = replica.Message{}
+			latestMessages.Precommit = replica.Message{}
+		}
+		latestMessages.Prevote = message
+		latestMessages.Mu.RUnlock()
 	case *process.Precommit:
 		sender = msg.Signatory()
-		if msg.Height() > m.cachedMessages[sender].Height {
-			m.cachedMessages[sender] = &latestMessages{
-				Height:    msg.Height(),
-				Propose:   replica.Message{},
-				Prevote:   replica.Message{},
-				Precommit: message,
-			}
-		} else {
-			m.cachedMessages[sender].Precommit = message
+		latestMessages := m.cachedMessages[m.signatories[sender]]
+		latestMessages.Mu.RLock()
+		if msg.Height() < latestMessages.Height {
+			latestMessages.Mu.RUnlock()
+			break
 		}
+		if msg.Height() > latestMessages.Height {
+			latestMessages.Height = msg.Height()
+			latestMessages.Propose = replica.Message{}
+			latestMessages.Prevote = replica.Message{}
+		}
+		latestMessages.Precommit = message
+		latestMessages.Mu.RUnlock()
 	default:
 		panic("unknown message type")
 	}
-	m.cacheMu.Unlock()
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -243,38 +257,31 @@ func (m *MockBroadcaster) Messages(sig id.Signatory) chan replica.Message {
 }
 
 func (m *MockBroadcaster) EnablePeer(sig id.Signatory) {
+	// Make the user active
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.active[sig] = true
 
-	m.cacheMu.Lock()
-	defer m.cacheMu.Unlock()
-
-	// Only resend the latest propose
+	// Resent the latest messages from each node
 	highestPropose := replica.Message{}
 	for _, latest := range m.cachedMessages {
-		if !m.active[sig] || latest.Propose.Message == nil {
-			continue
-		}
-		if highestPropose.Message == nil || latest.Propose.Message.Height() > highestPropose.Message.Height() {
-			highestPropose = latest.Propose
-		}
-	}
-	if highestPropose.Message != nil {
-		m.cons[sig] <- highestPropose
-	}
-
-	// Resend each person's latest prevote and precommit.
-	for _, latest := range m.cachedMessages {
-		if !m.active[sig] {
-			continue
-		}
+		latest.Mu.Lock()
 		if latest.Prevote.Message != nil {
 			m.cons[sig] <- latest.Prevote
 		}
 		if latest.Precommit.Message != nil {
 			m.cons[sig] <- latest.Precommit
 		}
+		if highestPropose.Message == nil {
+			if latest.Propose.Message != nil {
+				highestPropose = latest.Propose
+			}
+		} else {
+			if latest.Propose.Message != nil && latest.Propose.Message.Height() > highestPropose.Message.Height() {
+				highestPropose = latest.Propose
+			}
+		}
+		latest.Mu.Unlock()
 	}
 }
 

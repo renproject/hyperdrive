@@ -221,7 +221,7 @@ var _ = Describe("Hyperdrive", func() {
 							network.Start()
 							defer network.Stop()
 
-							SleepRandomSeconds(5,10)
+							SleepRandomSeconds(5, 10)
 
 							// Crash f + 1 random nodes and expect no blocks produced after that
 							shuffledIndices := mrand.Perm(3*f + 1)
@@ -234,7 +234,7 @@ var _ = Describe("Hyperdrive", func() {
 
 							// Restart the nodes after some time
 							phi.ParForAll(crashedNodes, func(i int) {
-								SleepRandomSeconds(5,10)
+								SleepRandomSeconds(5, 10)
 								index := crashedNodes[i]
 								network.StartNode(index)
 							})
@@ -303,7 +303,7 @@ type networkOptions struct {
 
 var DefaultOption = networkOptions{
 	minNetworkDelay: 100,
-	maxNetworkDelay: 1000,
+	maxNetworkDelay: 500,
 	minBootDelay:    0,
 	maxBootDelay:    3,
 	debugLogger:     nil,

@@ -626,8 +626,8 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	}
 
 	firstTime = (previousN == 0) && (n == 1)
-	firstTimeExceedingF = (previousN < inbox.F()+1) && (n > inbox.F())
-	firstTimeExceeding2F = (previousN < 2*inbox.F()+1) && (n > 2*inbox.F())
+	firstTimeExceedingF = (previousN == inbox.F()) && (n == inbox.F()+1)
+	firstTimeExceeding2F = (previousN == 2*inbox.F()) && (n == 2*inbox.F()+1)
 	firstTimeExceeding2FOnBlockHash = !ok && (nOnBlockHash == 2*inbox.F()+1)
 	return
 }
