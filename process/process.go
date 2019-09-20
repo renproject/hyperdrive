@@ -142,25 +142,25 @@ func (p *Process) Start() {
 	// Log the starting state of process for debugging purpose.
 	p.logger.Debugf("🎰 Starting hyperdrive, height = %v, round = %v, step = %v", p.state.CurrentHeight, p.state.CurrentRound, p.state.CurrentStep)
 	numProposes := p.state.Proposals.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
-	numPrevotes := p.state.Proposals.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
-	numProcommits := p.state.Proposals.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
-	p.logger.Debugf("Have %v propose, %v prevotes and %v precommits of current height and round", numProposes, numPrevotes, numProcommits)
+	numPrevotes := p.state.Prevotes.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
+	numPrecommits := p.state.Precommits.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
+	p.logger.Debugf("Have %v propose, %v prevotes and %v precommits of current height and round", numProposes, numPrevotes, numPrecommits)
 
 	// Resend the messages of latest height
 	if !p.state.Equal(DefaultState(p.state.Prevotes.f)) {
 		p.resend(p.state.CurrentHeight, p.state.CurrentRound)
-		p.logger.Debugf("resending messages of current height = %v and round = %v", p.state.CurrentHeight, p.state.CurrentRound)
+		p.logger.Debugf("resending messages of current height = %v and current round = %v", p.state.CurrentHeight, p.state.CurrentRound)
 		if p.state.CurrentRound > 0 {
-			p.logger.Debugf("resending messages of current height = %v and round = %v", p.state.CurrentHeight, p.state.CurrentRound -1 )
+			p.logger.Debugf("resending messages of current height = %v and previous round = %v", p.state.CurrentHeight, p.state.CurrentRound-1 )
 			p.resend(p.state.CurrentHeight, p.state.CurrentRound - 1)
-		} else{
+		} else {
 			maxRound := block.Round(0)
 			for round := range p.state.Proposals.messages[p.state.CurrentHeight] {
 				if round > maxRound{
 					maxRound = round
 				}
 			}
-			p.logger.Debugf("resending messages of current height = %v and round = %v", p.state.CurrentHeight- 1, maxRound)
+			p.logger.Debugf("resending messages of previous height = %v and previous round = %v", p.state.CurrentHeight-1, maxRound)
 			p.resend(p.state.CurrentHeight-1, maxRound)
 		}
 	}
@@ -195,15 +195,15 @@ func (p *Process) HandleMessage(m Message) {
 }
 
 func (p *Process) resend(height block.Height, round block.Round) {
-	proposal := p.state.Proposals.QueryByHeightRoundSignatory(p.state.CurrentHeight, p.state.CurrentRound, p.signatory)
+	proposal := p.state.Proposals.QueryByHeightRoundSignatory(height, round, p.signatory)
 	if proposal != nil {
 		p.broadcaster.Broadcast(proposal)
 	}
-	prevote := p.state.Prevotes.QueryByHeightRoundSignatory(p.state.CurrentHeight, p.state.CurrentRound, p.signatory)
+	prevote := p.state.Prevotes.QueryByHeightRoundSignatory(height, round, p.signatory)
 	if prevote != nil {
 		p.broadcaster.Broadcast(prevote)
 	}
-	precommit := p.state.Precommits.QueryByHeightRoundSignatory(p.state.CurrentHeight, p.state.CurrentRound, p.signatory)
+	precommit := p.state.Precommits.QueryByHeightRoundSignatory(height, round, p.signatory)
 	if precommit != nil {
 		p.broadcaster.Broadcast(precommit)
 	}

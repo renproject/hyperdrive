@@ -283,6 +283,7 @@ func (m *MockBroadcaster) EnablePeer(sig id.Signatory) {
 		}
 		latest.Mu.Unlock()
 	}
+	m.cons[sig] <- highestPropose
 }
 
 func (m *MockBroadcaster) DisablePeer(sig id.Signatory) {

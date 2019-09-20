@@ -34,7 +34,7 @@ var _ = Describe("Hyperdrive", func() {
 		shard int
 		f     int
 	}{
-		{1, 2},
+		{1, 1},
 	}
 
 	for _, entry := range table {
