@@ -14,4 +14,4 @@ covermerge                 \
   process/coverprofile.out \
   replica/coverprofile.out \
   coverprofile.out > coverprofile.out
-sed '/marshal.go/d' coverprofile.out
+sed -i '/marshal.go/d' coverprofile.out
