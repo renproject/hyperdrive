@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -39,54 +38,6 @@ type Message struct {
 	Shard   Shard
 }
 
-func (m Message) MarshalJSON() ([]byte, error) {
-	tmp := struct {
-		MessageType process.MessageType `json:"type"`
-		Message     process.Message     `json:"message"`
-		Shard       Shard               `json:"shard"`
-	}{
-		MessageType: m.Message.Type(),
-		Message:     m.Message,
-		Shard:       m.Shard,
-	}
-	return json.Marshal(tmp)
-}
-
-func (m *Message) UnmarshalJSON(data []byte) error {
-	tmp := struct {
-		MessageType process.MessageType `json:"type"`
-		Message     json.RawMessage     `json:"message"`
-		Shard       Shard               `json:"shard"`
-	}{}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-
-	switch tmp.MessageType {
-	case process.ProposeMessageType:
-		propose := new(process.Propose)
-		if err := propose.UnmarshalJSON(tmp.Message); err != nil {
-			return err
-		}
-		m.Message = propose
-	case process.PrevoteMessageType:
-		prevote := new(process.Prevote)
-		if err := prevote.UnmarshalJSON(tmp.Message); err != nil {
-			return err
-		}
-		m.Message = prevote
-	case process.PrecommitMessageType:
-		precommit := new(process.Precommit)
-		if err := precommit.UnmarshalJSON(tmp.Message); err != nil {
-			return err
-		}
-		m.Message = precommit
-	}
-	m.Shard = tmp.Shard
-
-	return nil
-}
-
 // ProcessStorage saves and restores `process.State` to persistent memory. This
 // guarantess that in the event of an unexpected shutdown, the Replica will only
 // drop the `process.Message` that was currently being handling.
@@ -115,10 +66,10 @@ func (options *Options) setZerosToDefaults() {
 		options.BackOffExp = 1.6
 	}
 	if options.BackOffBase == time.Duration(0) {
-		options.BackOffBase = 5 * time.Second
+		options.BackOffBase = 20 * time.Second
 	}
 	if options.BackOffMax == time.Duration(0) {
-		options.BackOffMax = time.Minute
+		options.BackOffMax = 5 * time.Minute
 	}
 }
 
@@ -137,6 +88,8 @@ type Replica struct {
 	scheduler *roundRobinScheduler
 	rebaser   *shardRebaser
 	cache     baseBlockCache
+
+	messagesSinceLastSave int
 }
 
 func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shard Shard, privKey ecdsa.PrivateKey) Replica {
@@ -173,7 +126,13 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		scheduler: scheduler,
 		rebaser:   shardRebaser,
 		cache:     newBaseBlockCache(latestBase),
+
+		messagesSinceLastSave: 0,
 	}
+}
+
+func (replica *Replica) Start() {
+	replica.p.Start()
 }
 
 func (replica *Replica) HandleMessage(m Message) {

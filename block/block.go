@@ -2,7 +2,6 @@ package block
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -150,51 +149,6 @@ func (header Header) String() string {
 	)
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the Header type.
-func (header Header) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Kind        Kind           `json:"kind"`
-		ParentHash  id.Hash        `json:"parentHash"`
-		BaseHash    id.Hash        `json:"baseHash"`
-		Height      Height         `json:"height"`
-		Round       Round          `json:"round"`
-		Timestamp   Timestamp      `json:"timestamp"`
-		Signatories id.Signatories `json:"signatories"`
-	}{
-		header.kind,
-		header.parentHash,
-		header.baseHash,
-		header.height,
-		header.round,
-		header.timestamp,
-		header.signatories,
-	})
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Header type.
-func (header *Header) UnmarshalJSON(data []byte) error {
-	tmp := struct {
-		Kind        Kind           `json:"kind"`
-		ParentHash  id.Hash        `json:"parentHash"`
-		BaseHash    id.Hash        `json:"baseHash"`
-		Height      Height         `json:"height"`
-		Round       Round          `json:"round"`
-		Timestamp   Timestamp      `json:"timestamp"`
-		Signatories id.Signatories `json:"signatories"`
-	}{}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-	header.kind = tmp.Kind
-	header.parentHash = tmp.ParentHash
-	header.baseHash = tmp.BaseHash
-	header.height = tmp.Height
-	header.round = tmp.Round
-	header.timestamp = tmp.Timestamp
-	header.signatories = tmp.Signatories
-	return nil
-}
-
 // Data stores application-specific information used in Blocks and Notes (must
 // be nil in Rebase Blocks and Base Blocks).
 type Data []byte
@@ -265,40 +219,7 @@ func (block Block) String() string {
 // Equal compares one Block with another by checking that their Hashes are the
 // equal, and their Notes are equal.
 func (block Block) Equal(other Block) bool {
-	return block.hash.Equal(other.hash)
-}
-
-// MarshalJSON implements the `json.Marshaler` interface for the Block type.
-func (block Block) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Hash      id.Hash `json:"hash"`
-		Header    Header  `json:"header"`
-		Data      Data    `json:"data"`
-		PrevState State   `json:"prevState"`
-	}{
-		block.hash,
-		block.header,
-		block.data,
-		block.prevState,
-	})
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Block type.
-func (block *Block) UnmarshalJSON(data []byte) error {
-	tmp := struct {
-		Hash      id.Hash `json:"hash"`
-		Header    Header  `json:"header"`
-		Data      Data    `json:"data"`
-		PrevState State   `json:"prevState"`
-	}{}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-	block.hash = tmp.Hash
-	block.header = tmp.Header
-	block.data = tmp.Data
-	block.prevState = tmp.PrevState
-	return nil
+	return block.String() == other.String()
 }
 
 // Timestamp represents seconds since Unix Epoch.

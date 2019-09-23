@@ -64,7 +64,7 @@ var _ = Describe("shardRebaser", func() {
 				header.Timestamp = block.Timestamp(time.Now().Unix())
 				proposedBlock := block.New(header.ToBlockHeader(), nil, nil)
 
-				return rebaser.IsBlockValid(proposedBlock)
+				return rebaser.IsBlockValid(proposedBlock, true)
 			}
 
 			Expect(quick.Check(test, nil)).Should(Succeed())
@@ -166,7 +166,7 @@ var _ = Describe("shardRebaser", func() {
 				header.Timestamp = block.Timestamp(time.Now().Unix() - 1)
 				header.Signatories = sigs
 				rebaseBlock := block.New(header.ToBlockHeader(), nil, nil)
-				Expect(rebaser.IsBlockValid(rebaseBlock)).Should(BeTrue())
+				Expect(rebaser.IsBlockValid(rebaseBlock, true)).Should(BeTrue())
 
 				// After the block been committed
 				commitBlock(store, shard, rebaseBlock)
@@ -182,7 +182,7 @@ var _ = Describe("shardRebaser", func() {
 				baseHeader.Signatories = sigs
 				baseBlock := block.New(baseHeader.ToBlockHeader(), nil, nil)
 
-				return rebaser.IsBlockValid(baseBlock)
+				return rebaser.IsBlockValid(baseBlock, true)
 			}
 			Expect(quick.Check(test, nil)).Should(Succeed())
 		})
@@ -196,25 +196,21 @@ var _ = Describe("shardRebaser", func() {
 })
 
 func initStorage(shard Shard) (BlockStorage, block.Height, []*ecdsa.PrivateKey) {
-	store := newMockBlockStorage()
-	initHeight := block.Height(rand.Intn(100))
-
-	// Init the genesis block at height 0
-	bc := store.Blockchain(shard)
-	genesisBlockHeader := RandomBlockHeaderJSON(block.Base)
-	genesisBlockHeader.Height = 0
-	genesisBlockHeader.Signatories = make(id.Signatories, 7)
+	sigs := make(id.Signatories, 7)
 	keys := make([]*ecdsa.PrivateKey, 7)
-	for i := range genesisBlockHeader.Signatories {
+	for i := range sigs {
 		privateKey, err := ecdsa.GenerateKey(crypto.S256(), cRand.Reader)
 		if err != nil {
 			panic(err)
 		}
 		keys[i] = privateKey
-		genesisBlockHeader.Signatories[i] = id.NewSignatory(privateKey.PublicKey)
+		sigs[i] = id.NewSignatory(privateKey.PublicKey)
 	}
-	genesisBlock := block.New(genesisBlockHeader.ToBlockHeader(), nil, nil)
-	bc.InsertBlockAtHeight(0, genesisBlock)
+	store := newMockBlockStorage(sigs)
+	initHeight := block.Height(rand.Intn(100))
+
+	// Init the genesis block at height 0
+	bc := store.Blockchain(shard)
 
 	// Init standard blocks from block 1 to initHeight
 	for i := 1; i <= int(initHeight); i++ {

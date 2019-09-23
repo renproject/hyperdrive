@@ -65,7 +65,7 @@ var _ = Describe("Messages", func() {
 		})
 
 		Context("when marshaling random", func() {
-			It("should equal itself after marshaling and then unmarshaling", func() {
+			It("should equal itself after json marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomPropose()
 					data, err := json.Marshal(msg)
@@ -73,6 +73,20 @@ var _ = Describe("Messages", func() {
 
 					var newMsg Propose
 					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			It("should equal itself after binary marshaling and then unmarshaling", func() {
+				test := func() bool {
+					msg := RandomPropose()
+					data, err := msg.MarshalBinary()
+					Expect(err).NotTo(HaveOccurred())
+
+					var newMsg Propose
+					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 
@@ -142,7 +156,7 @@ var _ = Describe("Messages", func() {
 		})
 
 		Context("when marshaling random", func() {
-			It("should equal itself after marshaling and then unmarshaling", func() {
+			It("should equal itself after json marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomPrevote()
 					data, err := json.Marshal(msg)
@@ -150,6 +164,20 @@ var _ = Describe("Messages", func() {
 
 					var newMsg Prevote
 					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			It("should equal itself after binary marshaling and then unmarshaling", func() {
+				test := func() bool {
+					msg := RandomPrevote()
+					data, err := msg.MarshalBinary()
+					Expect(err).NotTo(HaveOccurred())
+
+					var newMsg Prevote
+					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 
@@ -219,7 +247,7 @@ var _ = Describe("Messages", func() {
 		})
 
 		Context("when marshaling random", func() {
-			It("should equal itself after marshaling and then unmarshaling", func() {
+			It("should equal itself after json marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomPrecommit()
 					data, err := json.Marshal(msg)
@@ -227,6 +255,20 @@ var _ = Describe("Messages", func() {
 
 					var newMsg Precommit
 					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			It("should equal itself after binary marshaling and then unmarshaling", func() {
+				test := func() bool {
+					msg := RandomPrecommit()
+					data, err := msg.MarshalBinary()
+					Expect(err).NotTo(HaveOccurred())
+
+					var newMsg Precommit
+					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 
@@ -288,7 +330,7 @@ var _ = Describe("Messages", func() {
 			test := func() bool {
 				f := rand.Int() + 1
 				Expect(func() {
-					_ = RandomInbox(f, nil)
+					_ = RandomInbox(f, NilMessageType)
 				}).Should(Panic())
 				return true
 			}
@@ -297,7 +339,7 @@ var _ = Describe("Messages", func() {
 	})
 
 	Context("when marshaling a random inbox", func() {
-		It("should equal itself after marshaling and then unmarshaling", func() {
+		It("should equal itself after json marshaling and then unmarshaling", func() {
 			test := func() bool {
 				messageType := RandomMessageType()
 				f := rand.Int() + 1
@@ -312,6 +354,22 @@ var _ = Describe("Messages", func() {
 			}
 			Expect(quick.Check(test, nil)).Should(Succeed())
 		})
+
+		It("should equal itself after binary marshaling and then unmarshaling", func() {
+			test := func() bool {
+				messageType := RandomMessageType()
+				f := rand.Int() + 1
+				inbox := RandomInbox(f, messageType)
+				Expect(inbox.F()).Should(Equal(f))
+				data, err := inbox.MarshalBinary()
+				Expect(err).NotTo(HaveOccurred())
+
+				newInbox := NewInbox(1, messageType)
+				Expect(newInbox.UnmarshalBinary(data)).Should(Succeed())
+				return reflect.DeepEqual(inbox, newInbox)
+			}
+			Expect(quick.Check(test, nil)).Should(Succeed())
+		})
 	})
 
 	Context("when inserting messages into an inbox", func() {
@@ -321,7 +379,7 @@ var _ = Describe("Messages", func() {
 					f := rand.Intn(100) + 1
 					messageType := RandomMessageType()
 					inbox := NewInbox(f, messageType)
-					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F := inbox.Insert(RandomMessage(messageType))
+					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _ := inbox.Insert(RandomMessage(messageType))
 					Expect(n).Should(Equal(1))
 					Expect(firstTime).Should(BeTrue())
 					Expect(firstTimeExceedingF).Should(BeFalse())
@@ -343,7 +401,7 @@ var _ = Describe("Messages", func() {
 					// Expect n, false, false, false when inserting no more than F messages
 					for i := 1; i <= f; i++ {
 						msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
-						n, firstTime, firstTimeExceedingF, firstTimeExceeding2F := inbox.Insert(msg)
+						n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _ := inbox.Insert(msg)
 						Expect(n).Should(Equal(i))
 						if i == 1 {
 							Expect(firstTime).Should(BeTrue())
@@ -356,7 +414,7 @@ var _ = Describe("Messages", func() {
 
 					// Expect F+1, false, true, false when inserting F+1 message
 					msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
-					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F := inbox.Insert(msg)
+					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _ := inbox.Insert(msg)
 
 					Expect(n).Should(Equal(f + 1))
 					Expect(firstTime).Should(BeFalse())
@@ -379,14 +437,14 @@ var _ = Describe("Messages", func() {
 					// Expect n, false, false,false when inserting no more than F messages
 					for i := 1; i <= 2*f; i++ {
 						msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
-						n, _, _, firstTimeExceeding2F := inbox.Insert(msg)
+						n, _, _, firstTimeExceeding2F, _ := inbox.Insert(msg)
 						Expect(n).Should(Equal(i))
 						Expect(firstTimeExceeding2F).Should(BeFalse())
 					}
 
 					// Expect 2F+1, false, true, false when inserting F+1 message
 					msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
-					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F := inbox.Insert(msg)
+					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _ := inbox.Insert(msg)
 
 					Expect(n).Should(Equal(2*f + 1))
 					Expect(firstTime).Should(BeFalse())
@@ -409,14 +467,14 @@ var _ = Describe("Messages", func() {
 					// Expect n, false, false,false when inserting no more than F messages
 					for i := 1; i <= 2*f+1; i++ {
 						msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
-						n, _, _, _ := inbox.Insert(msg)
+						n, _, _, _, _ := inbox.Insert(msg)
 						Expect(n).Should(Equal(i))
 					}
 
 					// Expect 3F+1, false, true, false when inserting F+1 message
 					for i := 1; i < rand.Intn(100); i++ {
 						msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
-						n, firstTime, firstTimeExceedingF, firstTimeExceeding2F := inbox.Insert(msg)
+						n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _ := inbox.Insert(msg)
 
 						Expect(n).Should(Equal(2*f + 1 + i))
 						Expect(firstTime).Should(BeFalse())
@@ -442,8 +500,8 @@ var _ = Describe("Messages", func() {
 						msg := RandomSignedMessage(messageType)
 
 						// Inserting the same msg twice should not affect anything
-						_, _, _, _ = inbox.Insert(msg)
-						_, _, _, _ = inbox.Insert(msg)
+						_, _, _, _, _ = inbox.Insert(msg)
+						_, _, _, _, _ = inbox.Insert(msg)
 
 						if _, ok := source[msg.Height()]; !ok {
 							source[msg.Height()] = map[block.Round]map[id.Hash]int{}
@@ -484,8 +542,8 @@ var _ = Describe("Messages", func() {
 						Expect(nilMessage).Should(BeNil())
 
 						// Inserting the same msg twice should not affect anything
-						_, _, _, _ = inbox.Insert(msg)
-						_, _, _, _ = inbox.Insert(msg)
+						_, _, _, _, _ = inbox.Insert(msg)
+						_, _, _, _, _ = inbox.Insert(msg)
 
 						// It return the same message we inserted
 						storedMsg := inbox.QueryByHeightRoundSignatory(msg.Height(), msg.Round(), msg.Signatory())
@@ -510,8 +568,8 @@ var _ = Describe("Messages", func() {
 						msg := RandomSignedMessage(messageType)
 
 						// Inserting the same msg twice should not affect anything
-						_, _, _, _ = inbox.Insert(msg)
-						_, _, _, _ = inbox.Insert(msg)
+						_, _, _, _, _ = inbox.Insert(msg)
+						_, _, _, _, _ = inbox.Insert(msg)
 
 						if _, ok := source[msg.Height()]; !ok {
 							source[msg.Height()] = map[block.Round]int{}

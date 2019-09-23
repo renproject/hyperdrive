@@ -6,7 +6,6 @@ import (
 	cRand "crypto/rand"
 	"encoding/json"
 	"math/rand"
-	"reflect"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/id"
 )
 
@@ -28,7 +28,7 @@ var _ = Describe("Process", func() {
 	}
 
 	Context("when marshaling/unmarshaling process", func() {
-		It("should equal itself after marshaling and then unmarshaling", func() {
+		It("should equal itself after json marshaling and then unmarshaling", func() {
 			processOrigin := NewProcessOrigin(100)
 			processOrigin.State.CurrentHeight = block.Height(100) // make sure it's not proposing block.
 			process := processOrigin.ToProcess()
@@ -44,6 +44,23 @@ var _ = Describe("Process", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bytes.Equal(data, newData)).Should(BeTrue())
 		})
+
+		It("should equal itself after binary marshaling and then unmarshaling", func() {
+			processOrigin := NewProcessOrigin(100)
+			processOrigin.State.CurrentHeight = block.Height(100) // make sure it's not proposing block.
+			process := processOrigin.ToProcess()
+
+			data, err := process.MarshalBinary()
+			Expect(err).NotTo(HaveOccurred())
+			newProcess := processOrigin.ToProcess()
+			Expect(newProcess.UnmarshalBinary(data)).Should(Succeed())
+
+			// Since state cannot be accessed from the process. We try to compared the
+			// marshalling bytes to check if they we get the same process.
+			newData, err := newProcess.MarshalBinary()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bytes.Equal(data, newData)).Should(BeTrue())
+		})
 	})
 
 	Context("when a new process is initialized", func() {
@@ -52,9 +69,10 @@ var _ = Describe("Process", func() {
 				It("should propose a block generated proposer and broadcast it", func() {
 					// Init a default process to be modified
 					processOrigin := NewProcessOrigin(100)
-					_ = processOrigin.ToProcess()
+					process := processOrigin.ToProcess()
+					process.Start()
 
-					// Expect the proposer broadcast a propose message with zero height and round
+					// Expect the proposer broadcast a propose message with height 1 and round 0
 					var message Message
 					Eventually(processOrigin.BroadcastMessages).Should(Receive(&message))
 					proposal, ok := message.(*Propose)
@@ -147,7 +165,8 @@ var _ = Describe("Process", func() {
 					// Replace the broadcaster and start the process
 					scheduler := NewMockScheduler(RandomSignatory())
 					processOrigin.Scheduler = scheduler
-					_ = processOrigin.ToProcess()
+					process := processOrigin.ToProcess()
+					process.Start()
 
 					// Expect the proposer broadcast a propose message with zero height and round
 					var message Message
@@ -201,7 +220,7 @@ var _ = Describe("Process", func() {
 				Expect(precommit.BlockHash().Equal(propose.BlockHash())).Should(BeTrue())
 
 				// Expect the block is locked in the state
-				state := GetStateFromProcess(process, f)
+				state := testutil.GetStateFromProcess(process, f)
 				Expect(state.LockedBlock.Equal(propose.Block())).Should(BeTrue())
 				Expect(state.LockedRound).Should(Equal(round))
 				Expect(state.ValidBlock.Equal(propose.Block())).Should(BeTrue())
@@ -238,7 +257,7 @@ var _ = Describe("Process", func() {
 				}
 
 				// Expect the block is locked in the state
-				state := GetStateFromProcess(process, f)
+				state := testutil.GetStateFromProcess(process, f)
 				Expect(state.LockedBlock.Equal(processOrigin.State.LockedBlock)).Should(BeTrue())
 				Expect(state.LockedRound).Should(Equal(processOrigin.State.LockedRound))
 				Expect(state.ValidBlock.Equal(propose.Block())).Should(BeTrue())
@@ -315,6 +334,7 @@ var _ = Describe("Process", func() {
 					processOrigin.State.CurrentStep = step
 					processOrigin.State.CurrentHeight = height
 					processOrigin.State.CurrentRound = round
+					processOrigin.Blockchain.InsertBlockAtHeight(height-1, RandomBlock(block.Standard))
 					process := processOrigin.ToProcess()
 
 					for i := 0; i < 2*f+1; i++ {
@@ -332,9 +352,9 @@ var _ = Describe("Process", func() {
 					Expect(proposal.Height()).Should(Equal(height))
 					Expect(proposal.Round()).Should(Equal(round + 1))
 
-					step := GetStateFromProcess(process, f)
-					Expect(step.CurrentRound).Should(Equal(round + 1))
-					Expect(step.CurrentStep).Should(Equal(StepPropose))
+					state := testutil.GetStateFromProcess(process, f)
+					Expect(state.CurrentRound).Should(Equal(round + 1))
+					Expect(state.CurrentStep).Should(Equal(StepPropose))
 				}
 			})
 		})
@@ -342,10 +362,10 @@ var _ = Describe("Process", func() {
 
 	Context("when receiving f+1 of any message whose round is higher", func() {
 		It("should start that round", func() {
-			for _, t := range []reflect.Type{
-				reflect.TypeOf(Propose{}),
-				reflect.TypeOf(Prevote{}),
-				reflect.TypeOf(Precommit{}),
+			for _, t := range []MessageType{
+				ProposeMessageType,
+				PrevoteMessageType,
+				PrecommitMessageType,
 			} {
 				messageType := t
 				// Init a default process to be modified
@@ -422,8 +442,8 @@ var _ = Describe("Process", func() {
 							Expect(prevote.BlockHash().Equal(propose.BlockHash())).Should(BeTrue())
 
 							// Step should be moved to prevote
-							step := GetStateFromProcess(process, f)
-							Expect(step.CurrentStep).Should(Equal(StepPrevote))
+							state := testutil.GetStateFromProcess(process, f)
+							Expect(state.CurrentStep).Should(Equal(StepPrevote))
 						})
 					})
 
@@ -466,8 +486,8 @@ var _ = Describe("Process", func() {
 							Expect(prevote.BlockHash().Equal(propose.BlockHash())).Should(BeTrue())
 
 							// Step should be moved to prevote
-							step := GetStateFromProcess(process, f)
-							Expect(step.CurrentStep).Should(Equal(StepPrevote))
+							state := testutil.GetStateFromProcess(process, f)
+							Expect(state.CurrentStep).Should(Equal(StepPrevote))
 						})
 					})
 				})
@@ -508,17 +528,17 @@ var _ = Describe("Process", func() {
 						Expect(prevote.BlockHash().Equal(block.InvalidHash)).Should(BeTrue())
 
 						// Step should be moved to prevote
-						step := GetStateFromProcess(process, f)
-						Expect(step.CurrentStep).Should(Equal(StepPrevote))
+						state := testutil.GetStateFromProcess(process, f)
+						Expect(state.CurrentStep).Should(Equal(StepPrevote))
 					})
 				})
 			})
 		})
 	})
 
-	Context("when current block doesn't exist in the blockchain", func() {
+	Context("when current block does not exist in the blockchain", func() {
 		Context("when receive 2f + 1 precommit of a proposal,", func() {
-			It("should finalize the block in blockchain, reset the state and start from round 0 in height +1 ", func() {
+			It("should finalize the block in blockchain, reset the state, and start from round 0 in height +1 ", func() {
 				for _, step := range []Step{StepPropose, StepPrevote, StepPrecommit} {
 					// Init a default process to be modified
 					f := rand.Intn(100) + 1
@@ -559,14 +579,14 @@ var _ = Describe("Process", func() {
 					Expect(processOrigin.Blockchain.BlockExistsAtHeight(height)).Should(BeTrue())
 
 					// Step should be reset and new height and 0 round
-					step := GetStateFromProcess(process, f)
-					Expect(step.CurrentHeight).Should(Equal(height + 1))
-					Expect(step.CurrentRound).Should(BeZero())
-					Expect(step.CurrentStep).Should(Equal(StepPropose))
-					Expect(step.LockedBlock).Should(Equal(block.InvalidBlock))
-					Expect(step.LockedRound).Should(Equal(block.InvalidRound))
-					Expect(step.ValidBlock).Should(Equal(block.InvalidBlock))
-					Expect(step.ValidRound).Should(Equal(block.InvalidRound))
+					state := testutil.GetStateFromProcess(process, f)
+					Expect(state.CurrentHeight).Should(Equal(height + 1))
+					Expect(state.CurrentRound).Should(BeZero())
+					Expect(state.CurrentStep).Should(Equal(StepPropose))
+					Expect(state.LockedBlock).Should(Equal(block.InvalidBlock))
+					Expect(state.LockedRound).Should(Equal(block.InvalidRound))
+					Expect(state.ValidBlock).Should(Equal(block.InvalidBlock))
+					Expect(state.ValidRound).Should(Equal(block.InvalidRound))
 				}
 			})
 		})

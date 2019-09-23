@@ -29,6 +29,7 @@ jobs:
               process/coverprofile.out    \
               replica/coverprofile.out    \
               coverprofile.out > coverprofile.out
+            sed -i '/marshal.go/d' coverprofile.out
             /go/bin/goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
           no_output_timeout: 40m
       - save_cache:

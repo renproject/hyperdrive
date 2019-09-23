@@ -1,8 +1,6 @@
 package process
 
 import (
-	"reflect"
-
 	"github.com/renproject/hyperdrive/block"
 )
 
@@ -13,8 +11,8 @@ type State struct {
 	CurrentRound  block.Round  `json:"currentRound"`
 	CurrentStep   Step         `json:"currentStep"`
 
-	LockedBlock block.Block `json:"lockedBlock"` // the most recent block for which a PRECOMMIT message has been sent
-	LockedRound block.Round `json:"lockedRound"` // the last round in which the process sent a PRECOMMIT message that is not nil.
+	LockedBlock block.Block `json:"lockedBlock"` // the most recent block for which a precommit message has been sent
+	LockedRound block.Round `json:"lockedRound"` // the last round in which the process sent a precommit message that is not nil.
 	ValidBlock  block.Block `json:"validBlock"`  // store the most recent possible decision value
 	ValidRound  block.Round `json:"validRound"`  // is the last round in which valid value is updated
 
@@ -34,21 +32,22 @@ func DefaultState(f int) State {
 		LockedRound:   block.InvalidRound,
 		ValidBlock:    block.InvalidBlock,
 		ValidRound:    block.InvalidRound,
-		Proposals:     NewInbox(f, reflect.TypeOf(Propose{})),
-		Prevotes:      NewInbox(f, reflect.TypeOf(Prevote{})),
-		Precommits:    NewInbox(f, reflect.TypeOf(Precommit{})),
+		Proposals:     NewInbox(f, ProposeMessageType),
+		Prevotes:      NewInbox(f, PrevoteMessageType),
+		Precommits:    NewInbox(f, PrecommitMessageType),
 	}
 }
 
 // Reset the State (not all values are reset). See
 // https://arxiv.org/pdf/1807.04938.pdf for more information.
-func (state *State) Reset() {
+func (state *State) Reset(height block.Height) {
 	state.LockedBlock = block.InvalidBlock
 	state.LockedRound = block.InvalidRound
 	state.ValidBlock = block.InvalidBlock
 	state.ValidRound = block.InvalidRound
-	// TODO : DO WE NEED TO RESET THOSE INBOXES ?
-	// clean all inboxes , below the new height
+	state.Proposals.Reset(height)
+	state.Prevotes.Reset(height)
+	state.Precommits.Reset(height)
 }
 
 // Equal compares one State with another.

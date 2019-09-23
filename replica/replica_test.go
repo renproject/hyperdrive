@@ -1,19 +1,22 @@
 package replica
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"encoding/json"
 	"io/ioutil"
 	"reflect"
 	"testing/quick"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/renproject/hyperdrive/process"
 	. "github.com/renproject/hyperdrive/testutil"
-	"github.com/sirupsen/logrus"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/hyperdrive/testutil"
+	"github.com/sirupsen/logrus"
 )
 
 var _ = Describe("Replica", func() {
@@ -24,7 +27,7 @@ var _ = Describe("Replica", func() {
 		return privateKey
 	}
 
-	Context("Shard", func() {
+	Context("shard", func() {
 		Context("when comparing two shard", func() {
 			It("should be stringified to same text if two shards are equal and vice versa", func() {
 				test := func(shard1, shard2 Shard) bool {
@@ -45,6 +48,40 @@ var _ = Describe("Replica", func() {
 	})
 
 	Context("replica", func() {
+		Context("when marshaling/unmarshaling message", func() {
+			It("should equal itself after json marshaling and then unmarshaling", func() {
+				message := Message{
+					Message: RandomMessage(RandomMessageType()),
+					Shard:   Shard{},
+				}
+
+				data, err := json.Marshal(message)
+				Expect(err).NotTo(HaveOccurred())
+				newMessage := Message{}
+				Expect(json.Unmarshal(data, &newMessage)).Should(Succeed())
+
+				newData, err := json.Marshal(newMessage)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(bytes.Equal(data, newData)).Should(BeTrue())
+			})
+
+			It("should equal itself after binary marshaling and then unmarshaling", func() {
+				message := Message{
+					Message: RandomMessage(RandomMessageType()),
+					Shard:   Shard{},
+				}
+
+				data, err := message.MarshalBinary()
+				Expect(err).NotTo(HaveOccurred())
+				newMessage := Message{}
+				Expect(newMessage.UnmarshalBinary(data)).Should(Succeed())
+
+				newData, err := newMessage.MarshalBinary()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(bytes.Equal(data, newData)).Should(BeTrue())
+			})
+		})
+
 		Context("when sending messages to replica", func() {
 			It("should only pass message to process when it's a valid message", func() {
 				test := func(shard, wrongShard Shard) bool {
@@ -53,7 +90,7 @@ var _ = Describe("Replica", func() {
 					broadcaster, _ := newMockBroadcaster()
 					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
 
-					pMessage := RandomMessage(reflect.TypeOf(process.Propose{}))
+					pMessage := RandomMessage(process.ProposeMessageType)
 					key := keys[0]
 					Expect(process.Sign(pMessage, *key)).Should(Succeed())
 					message := Message{
@@ -64,7 +101,7 @@ var _ = Describe("Replica", func() {
 
 					// Expect the message not been inserted into the specific inbox,
 					// which indicating the message not passed to the process.
-					state := GetStateFromProcess(replica.p, 2)
+					state := testutil.GetStateFromProcess(replica.p, 2)
 					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
 					Expect(reflect.DeepEqual(stored, pMessage)).Should(BeTrue())
 
@@ -84,7 +121,7 @@ var _ = Describe("Replica", func() {
 					logger.SetOutput(ioutil.Discard)
 					replica.options.Logger = logger
 
-					pMessage := RandomSignedMessage(reflect.TypeOf(process.Propose{}))
+					pMessage := RandomSignedMessage(process.ProposeMessageType)
 					message := Message{
 						Shard:   wrongShard,
 						Message: pMessage,
@@ -93,7 +130,7 @@ var _ = Describe("Replica", func() {
 
 					// Expect the message not been inserted into the specific inbox,
 					// which indicating the message not passed to the process.
-					state := GetStateFromProcess(replica.p, 2)
+					state := testutil.GetStateFromProcess(replica.p, 2)
 					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
 					Expect(stored).Should(BeNil())
 
@@ -110,7 +147,7 @@ var _ = Describe("Replica", func() {
 					broadcaster, _ := newMockBroadcaster()
 					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
 
-					pMessage := RandomSignedMessage(reflect.TypeOf(process.Propose{}))
+					pMessage := RandomSignedMessage(process.ProposeMessageType)
 					message := Message{
 						Shard:   shard,
 						Message: pMessage,
@@ -119,7 +156,7 @@ var _ = Describe("Replica", func() {
 
 					// Expect the message not been inserted into the specific inbox,
 					// which indicating the message not passed to the process.
-					state := GetStateFromProcess(replica.p, 2)
+					state := testutil.GetStateFromProcess(replica.p, 2)
 					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
 					Expect(stored).Should(BeNil())
 

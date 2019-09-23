@@ -7,6 +7,7 @@ import (
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/replica"
 	"github.com/renproject/id"
+	"github.com/renproject/phi"
 )
 
 // Re-export types.
@@ -56,6 +57,7 @@ var (
 // Hyperdrive manages multiple `Replicas` from different
 // `Shards`.
 type Hyperdrive interface {
+	Start()
 	Rebase(sigs Signatories)
 	HandleMessage(message Message)
 }
@@ -73,6 +75,13 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	return &hyperdrive{
 		replicas: replicas,
 	}
+}
+
+func (hyper *hyperdrive) Start() {
+	phi.ParForAll(hyper.replicas, func(shard Shard) {
+		replica := hyper.replicas[shard]
+		replica.Start()
+	})
 }
 
 func (hyper *hyperdrive) Rebase(sigs Signatories) {

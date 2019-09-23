@@ -3,9 +3,7 @@ package testutil
 import (
 	"crypto/ecdsa"
 	cRand "crypto/rand"
-	"encoding/json"
 	"math/rand"
-	"reflect"
 	"sync"
 	"time"
 
@@ -23,9 +21,10 @@ func RandomStep() process.Step {
 // RandomState returns a random `process.State`.
 func RandomState() process.State {
 	step := rand.Intn(3) + 1
+	f := rand.Intn(100) + 1
 
 	return process.State{
-		CurrentHeight: block.Height(rand.Int63()),
+		CurrentHeight: block.Height(rand.Int63() + 1),
 		CurrentRound:  block.Round(rand.Int63()),
 		CurrentStep:   process.Step(step),
 
@@ -33,10 +32,14 @@ func RandomState() process.State {
 		LockedRound: block.Round(rand.Int63()),
 		ValidBlock:  RandomBlock(RandomBlockKind()),
 		ValidRound:  block.Round(rand.Int63()),
+
+		Proposals:  process.NewInbox(f, process.ProposeMessageType),
+		Prevotes:   process.NewInbox(f, process.PrevoteMessageType),
+		Precommits: process.NewInbox(f, process.PrecommitMessageType),
 	}
 }
 
-func RandomSignedMessage(t reflect.Type) process.Message {
+func RandomSignedMessage(t process.MessageType) process.Message {
 	message := RandomMessage(t)
 	privateKey, err := ecdsa.GenerateKey(crypto.S256(), cRand.Reader)
 	if err != nil {
@@ -49,30 +52,30 @@ func RandomSignedMessage(t reflect.Type) process.Message {
 	return message
 }
 
-func RandomMessage(t reflect.Type) process.Message {
+func RandomMessage(t process.MessageType) process.Message {
 	switch t {
-	case reflect.TypeOf(process.Propose{}):
+	case process.ProposeMessageType:
 		return RandomPropose()
-	case reflect.TypeOf(process.Prevote{}):
+	case process.PrevoteMessageType:
 		return RandomPrevote()
-	case reflect.TypeOf(process.Precommit{}):
+	case process.PrecommitMessageType:
 		return RandomPrecommit()
 	default:
 		panic("unknown message type")
 	}
 }
 
-func RandomMessageWithHeightAndRound(height block.Height, round block.Round, t reflect.Type) process.Message {
+func RandomMessageWithHeightAndRound(height block.Height, round block.Round, t process.MessageType) process.Message {
 	var msg process.Message
 	switch t {
-	case reflect.TypeOf(process.Propose{}):
+	case process.ProposeMessageType:
 		validRound := block.Round(rand.Int63())
 		block := RandomBlock(RandomBlockKind())
 		msg = process.NewPropose(height, round, block, validRound)
-	case reflect.TypeOf(process.Prevote{}):
+	case process.PrevoteMessageType:
 		hash := RandomHash()
 		msg = process.NewPrevote(height, round, hash)
-	case reflect.TypeOf(process.Precommit{}):
+	case process.PrecommitMessageType:
 		hash := RandomHash()
 		msg = process.NewPrecommit(height, round, hash)
 	default:
@@ -81,7 +84,7 @@ func RandomMessageWithHeightAndRound(height block.Height, round block.Round, t r
 	return msg
 }
 
-func RandomSingedMessageWithHeightAndRound(height block.Height, round block.Round, t reflect.Type) process.Message {
+func RandomSingedMessageWithHeightAndRound(height block.Height, round block.Round, t process.MessageType) process.Message {
 	privateKey, err := ecdsa.GenerateKey(crypto.S256(), cRand.Reader)
 	if err != nil {
 		panic(err)
@@ -114,21 +117,21 @@ func RandomPrecommit() *process.Precommit {
 	return process.NewPrecommit(height, round, hash)
 }
 
-func RandomMessageType() reflect.Type {
+func RandomMessageType() process.MessageType {
 	index := rand.Intn(3)
 	switch index {
 	case 0:
-		return reflect.TypeOf(process.Propose{})
+		return process.ProposeMessageType
 	case 1:
-		return reflect.TypeOf(process.Prevote{})
+		return process.PrevoteMessageType
 	case 2:
-		return reflect.TypeOf(process.Precommit{})
+		return process.PrecommitMessageType
 	default:
 		panic("unexpect message type")
 	}
 }
 
-func RandomInbox(f int, t reflect.Type) *process.Inbox {
+func RandomInbox(f int, t process.MessageType) *process.Inbox {
 	inbox := process.NewInbox(f, t)
 	numMsgs := rand.Intn(100)
 	for i := 0; i < numMsgs; i++ {
@@ -159,11 +162,20 @@ func NewProcessOrigin(f int) ProcessOrigin {
 	}
 	sig := id.NewSignatory(privateKey.PublicKey)
 	messages := make(chan process.Message, 128)
+	signatories := make(id.Signatories, f)
+	for i := range signatories {
+		key, err := ecdsa.GenerateKey(crypto.S256(), cRand.Reader)
+		if err != nil {
+			panic(err)
+		}
+		signatories[i] = id.NewSignatory(key.PublicKey)
+	}
+	signatories[0] = sig
 
 	return ProcessOrigin{
 		PrivateKey:        privateKey,
 		Signatory:         sig,
-		Blockchain:        NewMockBlockchain(),
+		Blockchain:        NewMockBlockchain(signatories),
 		State:             process.DefaultState(f),
 		BroadcastMessages: messages,
 
@@ -194,12 +206,22 @@ func (p ProcessOrigin) ToProcess() *process.Process {
 type MockBlockchain struct {
 	mu     *sync.RWMutex
 	blocks map[block.Height]block.Block
+	states map[block.Height]block.State
 }
 
-func NewMockBlockchain() *MockBlockchain {
+func NewMockBlockchain(signatories id.Signatories) *MockBlockchain {
+	blocks := map[block.Height]block.Block{}
+	states := map[block.Height]block.State{}
+	if signatories != nil {
+		genesisblock := GenesisBlock(signatories)
+		blocks[0] = genesisblock
+		states[0] = block.State{}
+	}
+
 	return &MockBlockchain{
 		mu:     new(sync.RWMutex),
-		blocks: map[block.Height]block.Block{},
+		blocks: blocks,
+		states: states,
 	}
 }
 
@@ -210,12 +232,27 @@ func (bc *MockBlockchain) InsertBlockAtHeight(height block.Height, block block.B
 	bc.blocks[height] = block
 }
 
+func (bc *MockBlockchain) InsertBlockStatAtHeight(height block.Height, state block.State) {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	bc.states[height] = state
+}
+
 func (bc *MockBlockchain) BlockAtHeight(height block.Height) (block.Block, bool) {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
 
 	block, ok := bc.blocks[height]
 	return block, ok
+}
+
+func (bc *MockBlockchain) StateAtHeight(height block.Height) (block.State, bool) {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+
+	state, ok := bc.states[height]
+	return state, ok
 }
 
 func (bc *MockBlockchain) BlockExistsAtHeight(height block.Height) bool {
@@ -266,7 +303,7 @@ func NewMockValidator(valid bool) process.Validator {
 	return MockValidator{valid: valid}
 }
 
-func (m MockValidator) IsBlockValid(block.Block) bool {
+func (m MockValidator) IsBlockValid(block.Block, bool) bool {
 	return m.valid
 }
 
@@ -317,13 +354,23 @@ func (timer *MockTimer) Timeout(step process.Step, round block.Round) time.Durat
 }
 
 func GetStateFromProcess(p *process.Process, f int) process.State {
-	data, err := json.Marshal(p)
+	data, err := p.MarshalBinary()
 	if err != nil {
 		panic(err)
 	}
 	state := process.DefaultState(f)
-	if err := json.Unmarshal(data, &state); err != nil {
+	if err := state.UnmarshalBinary(data); err != nil {
 		panic(err)
 	}
 	return state
+}
+
+func GenesisBlock(signatories id.Signatories) block.Block {
+	header := block.NewHeader(
+		block.Base,
+		id.Hash{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+		id.Hash{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+		0, 0, 0, signatories,
+	)
+	return block.New(header, nil, nil)
 }

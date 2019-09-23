@@ -39,7 +39,7 @@ var _ = Describe("States", func() {
 				roundBeforeReset := state.CurrentRound
 				stepBeforeReset := state.CurrentStep
 
-				state.Reset()
+				state.Reset(0)
 
 				Expect(state.CurrentHeight).Should(Equal(heightBeforeReset))
 				Expect(state.CurrentRound).Should(Equal(roundBeforeReset))
@@ -60,7 +60,7 @@ var _ = Describe("States", func() {
 		It("should return a state that is equal to the default ", func() {
 			test := func() bool {
 				state := DefaultState(10)
-				state.Reset()
+				state.Reset(0)
 
 				return state.Equal(DefaultState(10))
 			}

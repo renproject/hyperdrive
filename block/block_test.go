@@ -71,7 +71,7 @@ var _ = Describe("Block", func() {
 		})
 
 		Context("when marshaling a random block header", func() {
-			It("should equal itself after marshaling and then unmarshaling", func() {
+			It("should equal itself after json marshaling and then unmarshaling", func() {
 				test := func() bool {
 					header := RandomBlockHeader(RandomBlockKind())
 					data, err := json.Marshal(header)
@@ -79,6 +79,20 @@ var _ = Describe("Block", func() {
 
 					var newHeader Header
 					Expect(json.Unmarshal(data, &newHeader)).Should(Succeed())
+					Expect(header.String()).Should(Equal(newHeader.String()))
+					return reflect.DeepEqual(header, newHeader)
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			It("should equal itself after binary marshaling and then unmarshaling", func() {
+				test := func() bool {
+					header := RandomBlockHeader(RandomBlockKind())
+					data, err := header.MarshalBinary()
+					Expect(err).NotTo(HaveOccurred())
+
+					var newHeader Header
+					Expect(newHeader.UnmarshalBinary(data)).Should(Succeed())
 					Expect(header.String()).Should(Equal(newHeader.String()))
 					return reflect.DeepEqual(header, newHeader)
 				}
@@ -351,7 +365,7 @@ var _ = Describe("Block", func() {
 
 		Context("when marshaling", func() {
 			Context("when marshaling a random block", func() {
-				It("should equal itself after marshaling and then unmarshaling", func() {
+				It("should equal itself after json marshaling and then unmarshaling", func() {
 					test := func() bool {
 						block := RandomBlock(RandomBlockKind())
 						data, err := json.Marshal(block)
@@ -359,6 +373,20 @@ var _ = Describe("Block", func() {
 
 						var newBlock Block
 						Expect(json.Unmarshal(data, &newBlock)).Should(Succeed())
+						Expect(block.String()).Should(Equal(newBlock.String()))
+						return block.Equal(newBlock)
+					}
+					Expect(quick.Check(test, nil)).Should(Succeed())
+				})
+
+				It("should equal itself after binary marshaling and then unmarshaling", func() {
+					test := func() bool {
+						block := RandomBlock(RandomBlockKind())
+						data, err := block.MarshalBinary()
+						Expect(err).NotTo(HaveOccurred())
+
+						var newBlock Block
+						Expect(newBlock.UnmarshalBinary(data)).Should(Succeed())
 						Expect(block.String()).Should(Equal(newBlock.String()))
 						return block.Equal(newBlock)
 					}
