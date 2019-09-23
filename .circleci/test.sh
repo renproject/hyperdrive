@@ -7,15 +7,11 @@
 # golint -set_exit_status `go list ./... | grep -Ev "(stackint/asm|vendor)"`
 # golint `go list ./... | grep -Ev "(stackint/asm|vendor)"`
 
-go build ./...
-GOMAXPROCS=1 CI=true ginkgo -v --race --cover --coverprofile coverprofile.out ./...
-covermerge 
-  block/coverprofile.out          \
-  cmd/hyperdrive/coverprofile.out \
-  consensus/coverprofile.out      \
-  replica/coverprofile.out        \
-  shard/coverprofile.out          \
-  sig/ecdsa/coverprofile.out      \
-  sig/coverprofile.out            \
-  supervisor/coverprofile.out     \
-  tx/coverprofile.out > coverprofile.out
+go vet ./...
+CI=true ginkgo -v --race --cover --coverprofile coverprofile.out ./...
+covermerge                 \
+  block/coverprofile.out   \
+  process/coverprofile.out \
+  replica/coverprofile.out \
+  coverprofile.out > coverprofile.out
+sed -i '/marshal.go/d' coverprofile.out

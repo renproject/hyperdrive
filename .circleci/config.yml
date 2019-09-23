@@ -15,7 +15,7 @@ jobs:
       - restore_cache:
           key: go-mod-v3-{{ checksum "go.sum" }}
       - run:
-          name: Building and testing
+          name: Install tools
           command: |
             go vet ./...
             go get -u github.com/onsi/ginkgo/ginkgo
@@ -29,12 +29,16 @@ jobs:
               process/coverprofile.out    \
               replica/coverprofile.out    \
               coverprofile.out > coverprofile.out
+            sed -i '/marshal.go/d' coverprofile.out
             /go/bin/goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
           no_output_timeout: 40m
       - save_cache:
           key: go-mod-v3-{{ checksum "go.sum" }}
           paths:
             - "~/go"
+      - run:
+          name: Run linter
+          command: golint ./...
 
 workflows:
   version: 2.1
