@@ -536,7 +536,7 @@ func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
 
 	// Validate the commits
 	signatories := map[id.Signatory]struct{}{}
-	baseBlock, ok := p.blockchain.BlockAtHeight(0) // FIXME : NEED TO CONSIDER HOW TO DO WHEN A REBASE
+	baseBlock, ok := p.blockchain.BlockAtHeight(0)
 	if !ok {
 		panic("no genesis block")
 	}

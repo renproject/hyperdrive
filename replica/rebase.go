@@ -173,7 +173,6 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 	}
 
 	// Check against the base `block.Block`
-	// TODO : THIS NEEDS TO BE FIXED
 	baseBlock := rebaser.blockStorage.LatestBaseBlock(rebaser.shard)
 	if !proposedBlock.Header().BaseHash().Equal(baseBlock.Hash()) {
 		return false
@@ -199,13 +198,12 @@ func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
 	case block.Standard:
 	case block.Rebase:
 		rebaser.expectedKind = block.Base
-		rebaser.expectedRebaseSigs = committedBlock.Header().Signatories() // TODO: Should this be an invariant check?
+		rebaser.expectedRebaseSigs = committedBlock.Header().Signatories()
 	case block.Base:
 		rebaser.expectedKind = block.Standard
 		rebaser.expectedRebaseSigs = nil
 	}
 	if rebaser.observer != nil {
-		// TODO : external observer needs to take the previous state in the committedBlock and store in the storage
 		rebaser.observer.DidCommitBlock(height, rebaser.shard)
 	}
 }
