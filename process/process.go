@@ -140,27 +140,27 @@ func (p *Process) Start() {
 	defer p.mu.Unlock()
 
 	// Log the starting state of process for debugging purpose.
-	p.logger.Debugf("🎰 Starting hyperdrive, height = %v, round = %v, step = %v", p.state.CurrentHeight, p.state.CurrentRound, p.state.CurrentStep)
+	p.logger.Debugf("🎰 starting process at height=%v, round=%v, step=%v", p.state.CurrentHeight, p.state.CurrentRound, p.state.CurrentStep)
 	numProposes := p.state.Proposals.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
 	numPrevotes := p.state.Prevotes.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
 	numPrecommits := p.state.Precommits.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
-	p.logger.Debugf("Have %v propose, %v prevotes and %v precommits of current height and round", numProposes, numPrevotes, numPrecommits)
+	p.logger.Debugf("propose inbox len=%v, prevote inbox len=%v, precommit inbox len=%v", numProposes, numPrevotes, numPrecommits)
 
 	// Resend the messages of latest height
 	if !p.state.Equal(DefaultState(p.state.Prevotes.f)) {
+		p.logger.Debugf("resending messages at current height=%v and current round=%v", p.state.CurrentHeight, p.state.CurrentRound)
 		p.resend(p.state.CurrentHeight, p.state.CurrentRound)
-		p.logger.Debugf("resending messages of current height = %v and current round = %v", p.state.CurrentHeight, p.state.CurrentRound)
 		if p.state.CurrentRound > 0 {
-			p.logger.Debugf("resending messages of current height = %v and previous round = %v", p.state.CurrentHeight, p.state.CurrentRound-1 )
-			p.resend(p.state.CurrentHeight, p.state.CurrentRound - 1)
-		} else {
+			p.logger.Debugf("resending messages at current height=%v and previous round=%v", p.state.CurrentHeight, p.state.CurrentRound-1)
+			p.resend(p.state.CurrentHeight, p.state.CurrentRound-1)
+		} else if p.state.CurrentHeight > 0 {
 			maxRound := block.Round(0)
-			for round := range p.state.Proposals.messages[p.state.CurrentHeight] {
-				if round > maxRound{
+			for round := range p.state.Proposals.messages[p.state.CurrentHeight-1] {
+				if round > maxRound {
 					maxRound = round
 				}
 			}
-			p.logger.Debugf("resending messages of previous height = %v and previous round = %v", p.state.CurrentHeight-1, maxRound)
+			p.logger.Debugf("resending messages at previous height=%v and previous round=%v", p.state.CurrentHeight-1, maxRound)
 			p.resend(p.state.CurrentHeight-1, maxRound)
 		}
 	}
@@ -196,14 +196,14 @@ func (p *Process) HandleMessage(m Message) {
 
 func (p *Process) resend(height block.Height, round block.Round) {
 	proposal := p.state.Proposals.QueryByHeightRoundSignatory(height, round, p.signatory)
+	prevote := p.state.Prevotes.QueryByHeightRoundSignatory(height, round, p.signatory)
+	precommit := p.state.Precommits.QueryByHeightRoundSignatory(height, round, p.signatory)
 	if proposal != nil {
 		p.broadcaster.Broadcast(proposal)
 	}
-	prevote := p.state.Prevotes.QueryByHeightRoundSignatory(height, round, p.signatory)
 	if prevote != nil {
 		p.broadcaster.Broadcast(prevote)
 	}
-	precommit := p.state.Precommits.QueryByHeightRoundSignatory(height, round, p.signatory)
 	if precommit != nil {
 		p.broadcaster.Broadcast(precommit)
 	}
@@ -245,9 +245,7 @@ func (p *Process) startRound(round block.Round) {
 			Block:      previousBlock,
 			Precommits: commits,
 		}
-
-		// Always broadcast at the end
-		p.logger.Infof("🔊proposing a new block of height %v, round = %v", propose.Height(), propose.Round())
+		p.logger.Infof("🔊 proposed block=%v at height=%v and round=%v", propose.BlockHash(), propose.height, propose.round)
 		p.broadcaster.Broadcast(propose)
 	} else {
 		p.scheduleTimeoutPropose(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPropose, p.state.CurrentRound))
@@ -257,7 +255,7 @@ func (p *Process) startRound(round block.Round) {
 func (p *Process) handlePropose(propose *Propose) {
 	p.syncLatestCommit(propose.latestCommit)
 
-	p.logger.Debugf("receive new propose, height = %v, round = %v", propose.height, propose.round)
+	p.logger.Debugf("received propose at height=%v and round=%v", propose.height, propose.round)
 	n, firstTime, _, _, _ := p.state.Proposals.Insert(propose)
 
 	// upon Propose{currentHeight, currentRound, block, -1}
@@ -273,14 +271,14 @@ func (p *Process) handlePropose(propose *Propose) {
 						p.state.CurrentRound,
 						propose.Block().Hash(),
 					)
-					p.logger.Debugf("prevote YES for height = %v, round = %v", propose.height, propose.round)
+					p.logger.Debugf("prevoted=%v at height=%v and round=%v", propose.BlockHash(), propose.height, propose.round)
 				} else {
 					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						block.InvalidHash,
 					)
-					p.logger.Debugf("prevote NIL for height = %v, round = %v due to an invalid proposal", propose.height, propose.round)
+					p.logger.Debugf("prevoted=<nil> at height=%v and round=%v (invalid proposal)", propose.height, propose.round)
 				}
 				p.state.CurrentStep = StepPrevote
 				p.broadcaster.Broadcast(prevote)
@@ -301,7 +299,11 @@ func (p *Process) handlePropose(propose *Propose) {
 }
 
 func (p *Process) handlePrevote(prevote *Prevote) {
-	p.logger.Debugf("receive new prevote of height = %v , round = %v IsNil = %v", prevote.height, prevote.round, prevote.blockHash.Equal(block.InvalidHash))
+	prevoteDebugStr := "<nil>"
+	if !prevote.blockHash.Equal(block.InvalidHash) {
+		prevoteDebugStr = prevote.blockHash.String()
+	}
+	p.logger.Debugf("received prevote=%v at height=%v and round=%v", prevoteDebugStr, prevote.height, prevote.round)
 	n, _, _, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash := p.state.Prevotes.Insert(prevote)
 	if firstTimeExceeding2F && prevote.Height() == p.state.CurrentHeight && prevote.Round() == p.state.CurrentRound && p.state.CurrentStep == StepPrevote {
 		// upon 2f+1 Prevote{currentHeight, currentRound, *} while step = StepPrevote for the first time
@@ -315,9 +317,8 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 			p.state.CurrentRound,
 			block.InvalidHash,
 		)
-		p.logger.Debugf("precommit nil for height = %v, round = %v due to 2f+1 nil prevotes", precommit.height, precommit.round)
+		p.logger.Debugf("precommited=<nil> at height=%v and round=%v (2f+1 prevote=<nil>)", precommit.height, precommit.round)
 		p.state.CurrentStep = StepPrecommit
-		// Always broadcast at the end
 		p.broadcaster.Broadcast(precommit)
 	}
 
@@ -333,7 +334,11 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 }
 
 func (p *Process) handlePrecommit(precommit *Precommit) {
-	p.logger.Debugf("receive new precommit of height = %v, round = %v, IsNil = %v", precommit.height, precommit.round, precommit.blockHash.Equal(block.InvalidHash))
+	precommitDebugStr := "<nil>"
+	if !precommit.blockHash.Equal(block.InvalidHash) {
+		precommitDebugStr = precommit.blockHash.String()
+	}
+	p.logger.Debugf("received precommit=%v at height=%v and round=%v", precommitDebugStr, precommit.height, precommit.round)
 	// upon 2f+1 Precommit{currentHeight, currentRound, *} for the first time
 	n, _, _, firstTimeExceeding2F, _ := p.state.Precommits.Insert(precommit)
 	if firstTimeExceeding2F && precommit.Height() == p.state.CurrentHeight && precommit.Round() == p.state.CurrentRound {
@@ -358,9 +363,8 @@ func (p *Process) timeoutPropose(height block.Height, round block.Round) {
 			p.state.CurrentRound,
 			block.InvalidHash,
 		)
-		p.logger.Debugf("prevote nil for height = %v, round = %v due to timeout", prevote.height, prevote.round)
+		p.logger.Debugf("prevoted=<nil> at height=%v and round=%v (timeout)", prevote.height, prevote.round)
 		p.state.CurrentStep = StepPrevote
-		// Always broadcast at the end
 		p.broadcaster.Broadcast(prevote)
 	}
 }
@@ -372,9 +376,8 @@ func (p *Process) timeoutPrevote(height block.Height, round block.Round) {
 			p.state.CurrentRound,
 			block.InvalidHash,
 		)
-		p.logger.Debugf("precommit nil for height = %v, round = %v due to timeout", precommit.height, precommit.round)
+		p.logger.Debugf("precommitted=<nil> at height=%v and round=%v (timeout)", precommit.height, precommit.round)
 		p.state.CurrentStep = StepPrecommit
-		// Always broadcast at the end
 		p.broadcaster.Broadcast(precommit)
 	}
 }
@@ -439,18 +442,17 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 						p.state.CurrentRound,
 						propose.Block().Hash(),
 					)
-					p.logger.Debugf("prevote YES for height = %v, round = %v due to 2f+1 valid prevotes", prevote.height, prevote.round)
+					p.logger.Debugf("prevoted=%v at height=%v and round=%v (2f+1 valid prevotes)", prevote.blockHash, prevote.height, prevote.round)
 				} else {
 					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						block.InvalidHash,
 					)
-					p.logger.Debugf("prevote NIL for height = %v, round = %v due to an invalid proposal", prevote.height, prevote.round)
+					p.logger.Debugf("prevoted=<nil> at height=%v and round=%v (invalid proposal)", prevote.height, prevote.round)
 				}
 
 				p.state.CurrentStep = StepPrevote
-				// Always broadcast at the end
 				p.broadcaster.Broadcast(prevote)
 			}
 		}
@@ -486,9 +488,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime
 					p.state.CurrentRound,
 					propose.Block().Hash(),
 				)
-
-				// Always broadcast at the end
-				p.logger.Debugf("Precommit YES for height = %v , round = %v", p.state.CurrentHeight, p.state.CurrentRound)
+				p.logger.Debugf("precommitted=%v at height=%v and round=%v", precommit.blockHash, p.state.CurrentHeight, p.state.CurrentRound)
 				p.broadcaster.Broadcast(precommit)
 			}
 		}
@@ -515,7 +515,7 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 				if p.observer != nil {
 					p.observer.DidCommitBlock(p.state.CurrentHeight - 1)
 				}
-				p.logger.Infof("✅ block of height %v is finalised", propose.height)
+				p.logger.Infof("✅ committed block=%v at height=%v", propose.BlockHash(), propose.height)
 				p.startRound(0)
 			}
 		}
@@ -574,8 +574,8 @@ func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
 	if !p.blockchain.BlockExistsAtHeight(latestCommit.Block.Header().Height()) {
 		p.blockchain.InsertBlockAtHeight(latestCommit.Block.Header().Height(), latestCommit.Block)
 	}
+	p.logger.Infof("syncing from height=%v to height=%v", p.state.CurrentHeight, latestCommit.Block.Header().Height()+1)
 	p.state.CurrentHeight = latestCommit.Block.Header().Height() + 1
-	p.logger.Infof("Detect the node is falling behind, trying to catch up to height = %v", p.state.CurrentHeight)
 	p.state.CurrentRound = 0
 	p.state.Reset(latestCommit.Block.Header().Height())
 	p.startRound(p.state.CurrentRound)
