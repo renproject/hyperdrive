@@ -126,7 +126,7 @@ func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
 	blockchain.InsertBlockStatAtHeight(height-1, prevBlock.PreviousState())
 }
 
-func (observer *MockObserver) IsSignatory() bool {
+func (observer *MockObserver) IsSignatory(replica.Shard) bool {
 	return true
 }
 

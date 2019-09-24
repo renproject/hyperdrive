@@ -70,7 +70,7 @@ type hyperdrive struct {
 func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shards Shards, privKey ecdsa.PrivateKey) Hyperdrive {
 	replicas := make(map[Shard]Replica, len(shards))
 	for _, shard := range shards {
-		if observer.IsSignatory() {
+		if observer.IsSignatory(shard) {
 			replicas[shard] = replica.New(options, pStorage, blockStorage, blockIterator, validator, observer, broadcaster, shard, privKey)
 		}
 	}

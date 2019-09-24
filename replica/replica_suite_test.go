@@ -96,7 +96,7 @@ func newMockObserver() Observer {
 
 func (m mockObserver) DidCommitBlock(block.Height, Shard) {
 }
-func (m mockObserver) IsSignatory() bool {
+func (m mockObserver) IsSignatory(Shard) bool {
 	return true
 }
 
