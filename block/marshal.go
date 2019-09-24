@@ -129,12 +129,14 @@ func (block Block) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Hash      id.Hash `json:"hash"`
 		Header    Header  `json:"header"`
-		Data      Data    `json:"data"`
+		Txs       Txs     `json:"txs"`
+		Plan      Plan    `json:"plan"`
 		PrevState State   `json:"prevState"`
 	}{
 		block.hash,
 		block.header,
-		block.data,
+		block.txs,
+		block.plan,
 		block.prevState,
 	})
 }
@@ -144,7 +146,8 @@ func (block *Block) UnmarshalJSON(data []byte) error {
 	tmp := struct {
 		Hash      id.Hash `json:"hash"`
 		Header    Header  `json:"header"`
-		Data      Data    `json:"data"`
+		Txs       Txs     `json:"txs"`
+		Plan      Plan    `json:"plan"`
 		PrevState State   `json:"prevState"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
@@ -152,7 +155,8 @@ func (block *Block) UnmarshalJSON(data []byte) error {
 	}
 	block.hash = tmp.Hash
 	block.header = tmp.Header
-	block.data = tmp.Data
+	block.txs = tmp.Txs
+	block.plan = tmp.Plan
 	block.prevState = tmp.PrevState
 	return nil
 }
@@ -174,11 +178,17 @@ func (block Block) MarshalBinary() ([]byte, error) {
 	if err := binary.Write(buf, binary.LittleEndian, headerData); err != nil {
 		return buf.Bytes(), fmt.Errorf("cannot write block.header data: %v", err)
 	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(block.data))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write block.data len: %v", err)
+	if err := binary.Write(buf, binary.LittleEndian, uint64(len(block.txs))); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write block.txs len: %v", err)
 	}
-	if err := binary.Write(buf, binary.LittleEndian, block.data); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write block.data data: %v", err)
+	if err := binary.Write(buf, binary.LittleEndian, block.txs); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write block.txs data: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, uint64(len(block.plan))); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write block.plan len: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, block.plan); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write block.plan data: %v", err)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, uint64(len(block.prevState))); err != nil {
 		return buf.Bytes(), fmt.Errorf("cannot write block.prevState len: %v", err)
@@ -208,14 +218,24 @@ func (block *Block) UnmarshalBinary(data []byte) error {
 		return fmt.Errorf("cannot unmarshal block.header: %v", err)
 	}
 	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read block.data len: %v", err)
+		return fmt.Errorf("cannot read block.txs len: %v", err)
 	}
 	if numBytes > 0 {
-		dataBytes := make([]byte, numBytes)
-		if _, err := buf.Read(dataBytes); err != nil {
-			return fmt.Errorf("cannot read block.data data: %v", err)
+		txsBytes := make([]byte, numBytes)
+		if _, err := buf.Read(txsBytes); err != nil {
+			return fmt.Errorf("cannot read block.txs data: %v", err)
 		}
-		block.data = dataBytes
+		block.txs = txsBytes
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
+		return fmt.Errorf("cannot read block.plan len: %v", err)
+	}
+	if numBytes > 0 {
+		planBytes := make([]byte, numBytes)
+		if _, err := buf.Read(planBytes); err != nil {
+			return fmt.Errorf("cannot read block.plan data: %v", err)
+		}
+		block.plan = planBytes
 	}
 	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
 		return fmt.Errorf("cannot read block.prevState len: %v", err)

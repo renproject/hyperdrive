@@ -20,9 +20,9 @@ type BlockStorage interface {
 }
 
 type BlockIterator interface {
-	// NextBlock returns the `block.Data` and the parent `block.State` for the
-	// given `block.Height`.
-	NextBlock(block.Kind, block.Height, Shard) (block.Data, block.State)
+	// NextBlock returns the `block.Txs`, `block.Plan` and the parent
+	// `block.State` for the given `block.Height`.
+	NextBlock(block.Kind, block.Height, Shard) (block.Txs, block.Plan, block.State)
 }
 
 type Validator interface {
@@ -92,22 +92,26 @@ func (rebaser *shardRebaser) BlockProposal(height block.Height, round block.Roun
 		panic(fmt.Errorf("invariant violation: must not propose block kind=%v", rebaser.expectedKind))
 	}
 
-	header := block.NewHeader(
-		rebaser.expectedKind,
-		parent.Hash(),
-		base.Hash(),
-		height,
-		round,
-		block.Timestamp(time.Now().Unix()),
-		expectedSigs,
-	)
-	data, prevState := rebaser.blockIterator.NextBlock(
+	txs, plan, prevState := rebaser.blockIterator.NextBlock(
 		rebaser.expectedKind,
 		height,
 		rebaser.shard,
 	)
 
-	return block.New(header, data, prevState)
+	header := block.NewHeader(
+		rebaser.expectedKind,
+		parent.Hash(),
+		base.Hash(),
+		txs.Hash(),
+		plan.Hash(),
+		prevState.Hash(),
+		height,
+		round,
+		block.Timestamp(time.Now().Unix()),
+		expectedSigs,
+	)
+
+	return block.New(header, txs, plan, prevState)
 }
 
 func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistory bool) bool {
@@ -133,7 +137,10 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
 			return false
 		}
-		if proposedBlock.Data() != nil {
+		if proposedBlock.Txs() != nil {
+			return false
+		}
+		if proposedBlock.Plan() != nil {
 			return false
 		}
 
@@ -142,7 +149,7 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 	}
 
 	// Check the expected `block.Hash`
-	if !proposedBlock.Hash().Equal(block.ComputeHash(proposedBlock.Header(), proposedBlock.Data(), proposedBlock.PreviousState())) {
+	if !proposedBlock.Hash().Equal(block.ComputeHash(proposedBlock.Header(), proposedBlock.Txs(), proposedBlock.Plan(), proposedBlock.PreviousState())) {
 		return false
 	}
 

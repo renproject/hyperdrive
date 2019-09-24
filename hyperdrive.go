@@ -23,7 +23,8 @@ type (
 	Height         = block.Height
 	Round          = block.Round
 	Timestamp      = block.Timestamp
-	BlockData      = block.Data
+	BlockTxs       = block.Txs
+	BlockPlan      = block.Plan
 	BlockState     = block.State
 	Messages       = replica.Messages
 	Message        = replica.Message
