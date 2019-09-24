@@ -9,12 +9,7 @@ import (
 	mrand "math/rand"
 	"sync"
 	"time"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive"
-	. "github.com/renproject/hyperdrive/testutil/replica"
-
+	
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/replica"
@@ -22,6 +17,11 @@ import (
 	"github.com/renproject/id"
 	"github.com/renproject/phi"
 	"github.com/sirupsen/logrus"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	. "github.com/renproject/hyperdrive"
+	. "github.com/renproject/hyperdrive/testutil/replica"
 )
 
 func init() {
