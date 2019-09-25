@@ -40,7 +40,7 @@ type BlockHeaderJSON struct {
 	BaseHash     id.Hash         `json:"baseHash"`
 	TxsRef       id.Hash         `json:"txsRef"`
 	PlanRef      id.Hash         `json:"planRef"`
-	PrevStateRef id.Hash         `json:"prevStateRed"`
+	PrevStateRef id.Hash         `json:"prevStateRef"`
 	Height       block.Height    `json:"height"`
 	Round        block.Round     `json:"round"`
 	Timestamp    block.Timestamp `json:"timestamp"`
