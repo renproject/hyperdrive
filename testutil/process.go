@@ -180,7 +180,7 @@ func NewProcessOrigin(f int) ProcessOrigin {
 		BroadcastMessages: messages,
 
 		Proposer:    NewMockProposer(privateKey),
-		Validator:   NewMockValidator(true),
+		Validator:   NewMockValidator(nil),
 		Scheduler:   NewMockScheduler(sig),
 		Broadcaster: NewMockBroadcaster(messages),
 		Timer:       NewMockTimer(1 * time.Second),
@@ -296,14 +296,14 @@ func (m *MockProposer) BlockProposal(height block.Height, round block.Round) blo
 }
 
 type MockValidator struct {
-	valid bool
+	valid error
 }
 
-func NewMockValidator(valid bool) process.Validator {
+func NewMockValidator(valid error) process.Validator {
 	return MockValidator{valid: valid}
 }
 
-func (m MockValidator) IsBlockValid(block.Block, bool) bool {
+func (m MockValidator) IsBlockValid(block.Block, bool) error {
 	return m.valid
 }
 

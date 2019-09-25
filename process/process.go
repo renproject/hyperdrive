@@ -36,7 +36,7 @@ type Proposer interface {
 
 // A Validator validates a `block.Block` that has been proposed.
 type Validator interface {
-	IsBlockValid(block block.Block, checkHistory bool) bool
+	IsBlockValid(block block.Block, checkHistory bool) error
 }
 
 // An Observer is notified when note-worthy events happen for the first time.
@@ -265,7 +265,8 @@ func (p *Process) handlePropose(propose *Propose) {
 			// while currentStep = StepPropose
 			if p.state.CurrentStep == StepPropose {
 				var prevote *Prevote
-				if p.validator.IsBlockValid(propose.Block(), true) && (p.state.LockedRound == block.InvalidRound || p.state.LockedBlock.Equal(propose.Block())) {
+				err := p.validator.IsBlockValid(propose.Block(), true)
+				if err == nil && (p.state.LockedRound == block.InvalidRound || p.state.LockedBlock.Equal(propose.Block())) {
 					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
@@ -278,7 +279,7 @@ func (p *Process) handlePropose(propose *Propose) {
 						p.state.CurrentRound,
 						block.InvalidHash,
 					)
-					p.logger.Debugf("prevoted=<nil> at height=%v and round=%v (invalid proposal)", propose.height, propose.round)
+					p.logger.Infof("prevoted=<nil> at height=%v and round=%v (invalid proposal, err = %v)", propose.height, propose.round, err)
 				}
 				p.state.CurrentStep = StepPrevote
 				p.broadcaster.Broadcast(prevote)
@@ -436,7 +437,8 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 			// while step = StepPropose and validRound >= 0 and validRound < currentRound
 			if p.state.CurrentStep == StepPropose && propose.ValidRound() < p.state.CurrentRound {
 				var prevote *Prevote
-				if p.validator.IsBlockValid(propose.Block(), true) && (p.state.LockedRound <= propose.ValidRound() || p.state.LockedBlock.Equal(propose.Block())) {
+				err := p.validator.IsBlockValid(propose.Block(), true)
+				if err == nil && (p.state.LockedRound <= propose.ValidRound() || p.state.LockedBlock.Equal(propose.Block())) {
 					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
@@ -449,7 +451,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 						p.state.CurrentRound,
 						block.InvalidHash,
 					)
-					p.logger.Debugf("prevoted=<nil> at height=%v and round=%v (invalid proposal)", prevote.height, prevote.round)
+					p.logger.Infof("prevoted=<nil> at height=%v and round=%v (invalid proposal, err = %v)", prevote.height, prevote.round, err)
 				}
 
 				p.state.CurrentStep = StepPrevote
@@ -476,7 +478,8 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime
 	// and 2f+1 Prevote{currentHeight, currentRound, blockHash} while Validate(block) and step >= StepPrevote for the first time
 	n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, p.state.CurrentRound, propose.BlockHash())
 	if n > 2*p.state.Prevotes.F() {
-		if p.state.CurrentStep >= StepPrevote && p.validator.IsBlockValid(propose.Block(), true) {
+		err := p.validator.IsBlockValid(propose.Block(), true)
+		if p.state.CurrentStep >= StepPrevote && err == nil {
 			p.state.ValidBlock = propose.Block()
 			p.state.ValidRound = p.state.CurrentRound
 			if p.state.CurrentStep == StepPrevote {
@@ -491,6 +494,8 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime
 				p.logger.Debugf("precommitted=%v at height=%v and round=%v", precommit.blockHash, p.state.CurrentHeight, p.state.CurrentRound)
 				p.broadcaster.Broadcast(precommit)
 			}
+		} else {
+			p.logger.Infof("failed to precommit at height=%v, round=%v and step=%v (invalid block, err = %v)", propose.height, propose.round, p.state.CurrentStep, err)
 		}
 	}
 }
@@ -508,7 +513,8 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 	if n > 2*p.state.Precommits.F() {
 		// while !BlockExistsAtHeight(currentHeight)
 		if !p.blockchain.BlockExistsAtHeight(p.state.CurrentHeight) {
-			if p.validator.IsBlockValid(propose.Block(), false) {
+			err := p.validator.IsBlockValid(propose.Block(), false)
+			if err == nil {
 				p.blockchain.InsertBlockAtHeight(p.state.CurrentHeight, propose.Block())
 				p.state.CurrentHeight++
 				p.state.Reset(p.state.CurrentHeight - 1)
@@ -517,6 +523,8 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 				}
 				p.logger.Infof("✅ committed block=%v at height=%v", propose.BlockHash(), propose.height)
 				p.startRound(0)
+			} else {
+				p.logger.Infof("failed to commit at height=%v and round=%v (invalid block, err = %v)", propose.height, propose.round, err)
 			}
 		}
 	}
@@ -528,9 +536,10 @@ func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
 		return
 	}
 
-	// Check the proposed block and previous block with checking historical data..
-	// It needs the validator to store the previous execute state.
-	if !p.validator.IsBlockValid(latestCommit.Block, false) {
+	// Check the proposed block and previous block without historical data. It
+	// needs the validator to store the previous execute state.
+	if err := p.validator.IsBlockValid(latestCommit.Block, false); err != nil {
+		p.logger.Infof("failed to validate block at height=%v and round=%v (err = %v)", latestCommit.Block.Header().Height(), latestCommit.Block.Header().Round(), err)
 		return
 	}
 

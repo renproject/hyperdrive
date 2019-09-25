@@ -76,14 +76,14 @@ func (m mockBlockIterator) NextBlock(kind block.Kind, height block.Height, shard
 }
 
 type mockValidator struct {
-	valid bool
+	valid error
 }
 
-func (m mockValidator) IsBlockValid(block.Block, bool, Shard) bool {
+func (m mockValidator) IsBlockValid(block.Block, bool, Shard) error {
 	return m.valid
 }
 
-func newMockValidator(valid bool) Validator {
+func newMockValidator(valid error) Validator {
 	return mockValidator{valid: valid}
 }
 

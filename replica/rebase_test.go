@@ -51,7 +51,7 @@ var _ = Describe("shardRebaser", func() {
 			test := func(shard Shard) bool {
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
-				validator := newMockValidator(true)
+				validator := newMockValidator(nil)
 				rebaser := newShardRebaser(store, iter, validator, nil, shard)
 
 				// Generate a valid propose block.
@@ -64,7 +64,7 @@ var _ = Describe("shardRebaser", func() {
 				header.Timestamp = block.Timestamp(time.Now().Unix())
 				proposedBlock := block.New(header.ToBlockHeader(), nil, nil)
 
-				return rebaser.IsBlockValid(proposedBlock, true)
+				return rebaser.IsBlockValid(proposedBlock, true) == nil
 			}
 
 			Expect(quick.Check(test, nil)).Should(Succeed())
@@ -166,7 +166,7 @@ var _ = Describe("shardRebaser", func() {
 				header.Timestamp = block.Timestamp(time.Now().Unix() - 1)
 				header.Signatories = sigs
 				rebaseBlock := block.New(header.ToBlockHeader(), nil, nil)
-				Expect(rebaser.IsBlockValid(rebaseBlock, true)).Should(BeTrue())
+				Expect(rebaser.IsBlockValid(rebaseBlock, true)).Should(BeNil())
 
 				// After the block been committed
 				commitBlock(store, shard, rebaseBlock)
@@ -182,7 +182,7 @@ var _ = Describe("shardRebaser", func() {
 				baseHeader.Signatories = sigs
 				baseBlock := block.New(baseHeader.ToBlockHeader(), nil, nil)
 
-				return rebaser.IsBlockValid(baseBlock, true)
+				return rebaser.IsBlockValid(baseBlock, true) == nil
 			}
 			Expect(quick.Check(test, nil)).Should(Succeed())
 		})
