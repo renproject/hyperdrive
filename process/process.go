@@ -304,7 +304,7 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 	if !prevote.blockHash.Equal(block.InvalidHash) {
 		prevoteDebugStr = prevote.blockHash.String()
 	}
-	p.logger.Debugf("received prevote= %v at height=%v and round=%v", prevoteDebugStr, prevote.height, prevote.round)
+	p.logger.Debugf("received prevote=%v at height=%v and round=%v", prevoteDebugStr, prevote.height, prevote.round)
 	n, _, _, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash := p.state.Prevotes.Insert(prevote)
 	if firstTimeExceeding2F && prevote.Height() == p.state.CurrentHeight && prevote.Round() == p.state.CurrentRound && p.state.CurrentStep == StepPrevote {
 		// upon 2f+1 Prevote{currentHeight, currentRound, *} while step = StepPrevote for the first time

@@ -2,7 +2,6 @@ package hyperdrive
 
 import (
 	"crypto/ecdsa"
-	"sync"
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
@@ -64,7 +63,6 @@ type Hyperdrive interface {
 }
 
 type hyperdrive struct {
-	mu *sync.Mutex
 	replicas map[Shard]Replica
 }
 
@@ -75,17 +73,13 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		replicas[shard] = replica.New(options, pStorage, blockStorage, blockIterator, validator, observer, broadcaster, shard, privKey)
 	}
 	return &hyperdrive{
-		mu:       new(sync.Mutex),
 		replicas: replicas,
 	}
 }
 
 func (hyper *hyperdrive) Start() {
 	phi.ParForAll(hyper.replicas, func(shard Shard) {
-		hyper.mu.Lock()
 		replica := hyper.replicas[shard]
-		hyper.mu.Unlock()
-
 		replica.Start()
 	})
 }
@@ -98,9 +92,6 @@ func (hyper *hyperdrive) Rebase(sigs Signatories) {
 }
 
 func (hyper *hyperdrive) HandleMessage(message Message) {
-	hyper.mu.Lock()
-	defer hyper.mu.Unlock()
-
 	replica, ok := hyper.replicas[message.Shard]
 	if !ok {
 		return
