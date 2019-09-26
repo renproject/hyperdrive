@@ -128,12 +128,18 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
 			return fmt.Errorf("unexpected signatories in rebase block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
 		}
+		// TODO: Transactions are expected to be nil (the plan is not expected
+		// to be nil, because there are "default" computations that might need
+		// to be done every block).
 
 	case block.Base:
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
 			return fmt.Errorf("unexpected signatories in base block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
 		}
 		if proposedBlock.Data() != nil {
+			// TODO: Transactions are expected to be nil (the plan is not expected
+			// to be nil, because there are "default" computations that might need
+			// to be done every block).
 			return fmt.Errorf("expected base block to have nil data")
 		}
 
@@ -150,7 +156,7 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 	if checkHistory {
 		parentBlock, ok := rebaser.blockStorage.Blockchain(rebaser.shard).BlockAtHeight(proposedBlock.Header().Height() - 1)
 		if !ok {
-			return fmt.Errorf("failed to fetch block at height=%d", proposedBlock.Header().Height()-1)
+			return fmt.Errorf("block at height=%d not found", proposedBlock.Header().Height()-1)
 		}
 		if proposedBlock.Header().Timestamp() < parentBlock.Header().Timestamp() {
 			return fmt.Errorf("expected timestamp for proposed block to be greater than parent block")
