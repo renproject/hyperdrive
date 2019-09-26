@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	cRand "crypto/rand"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -138,7 +139,7 @@ var _ = Describe("Process", func() {
 						privateKey := newEcdsaKey()
 						scheduler := NewMockScheduler(id.NewSignatory(privateKey.PublicKey))
 						processOrigin.Scheduler = scheduler
-						processOrigin.Validator = NewMockValidator(false)
+						processOrigin.Validator = NewMockValidator(fmt.Errorf(""))
 						process := processOrigin.ToProcess()
 
 						// Generate a invalid proposal
@@ -501,7 +502,7 @@ var _ = Describe("Process", func() {
 						processOrigin.State.CurrentHeight = height
 						processOrigin.State.CurrentRound = round
 						processOrigin.State.CurrentStep = StepPropose
-						processOrigin.Validator = NewMockValidator(false)
+						processOrigin.Validator = NewMockValidator(fmt.Errorf(""))
 						process := processOrigin.ToProcess()
 
 						// Send the proposal
