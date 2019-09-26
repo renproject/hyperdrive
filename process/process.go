@@ -279,7 +279,7 @@ func (p *Process) handlePropose(propose *Propose) {
 						p.state.CurrentRound,
 						block.InvalidHash,
 					)
-					p.logger.Infof("prevoted=<nil> at height=%v and round=%v (invalid proposal, err = %v)", propose.height, propose.round, err)
+					p.logger.Warnf("prevoted=<nil> at height=%v and round=%v (invalid propose: %v)", propose.height, propose.round, err)
 				}
 				p.state.CurrentStep = StepPrevote
 				p.broadcaster.Broadcast(prevote)
@@ -451,7 +451,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 						p.state.CurrentRound,
 						block.InvalidHash,
 					)
-					p.logger.Infof("prevoted=<nil> at height=%v and round=%v (invalid proposal, err = %v)", prevote.height, prevote.round, err)
+					p.logger.Warnf("prevoted=<nil> at height=%v and round=%v (invalid propose: %v)", prevote.height, prevote.round, err)
 				}
 
 				p.state.CurrentStep = StepPrevote
@@ -495,7 +495,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime
 				p.broadcaster.Broadcast(precommit)
 			}
 		} else {
-			p.logger.Infof("failed to precommit at height=%v, round=%v and step=%v (invalid block, err = %v)", propose.height, propose.round, p.state.CurrentStep, err)
+			p.logger.Warnf("nothing precommitted at height=%v, round=%v and step=%v (invalid block: %v)", propose.height, propose.round, p.state.CurrentStep, err)
 		}
 	}
 }
@@ -524,7 +524,7 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 				p.logger.Infof("✅ committed block=%v at height=%v", propose.BlockHash(), propose.height)
 				p.startRound(0)
 			} else {
-				p.logger.Infof("failed to commit at height=%v and round=%v (invalid block, err = %v)", propose.height, propose.round, err)
+				p.logger.Warnf("nothing committed at height=%v and round=%v (invalid block: %v)", propose.height, propose.round, err)
 			}
 		}
 	}
@@ -539,7 +539,7 @@ func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
 	// Check the proposed block and previous block without historical data. It
 	// needs the validator to store the previous execute state.
 	if err := p.validator.IsBlockValid(latestCommit.Block, false); err != nil {
-		p.logger.Infof("failed to validate block at height=%v and round=%v (err = %v)", latestCommit.Block.Header().Height(), latestCommit.Block.Header().Round(), err)
+		p.logger.Warnf("error syncing to height=%v and round=%v (invalid block: %v)", latestCommit.Block.Header().Height(), latestCommit.Block.Header().Round(), err)
 		return
 	}
 
