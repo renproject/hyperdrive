@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	mrand "math/rand"
 	"sync"
@@ -15,7 +16,6 @@ import (
 	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/id"
 	"github.com/renproject/phi"
-	"golang.org/x/crypto/sha3"
 )
 
 func Contain(list []int, target int) bool {
@@ -115,7 +115,7 @@ func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
 	if !ok {
 		panic("DidCommitBlock should be called only when the block has been added to storage")
 	}
-	digest := sha3.Sum256(b.Data())
+	digest := sha256.Sum256(b.Data())
 	blockchain.InsertBlockStatAtHeight(height, digest[:])
 
 	// Insert executed state of the previous height
