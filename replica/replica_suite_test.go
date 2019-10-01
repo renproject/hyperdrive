@@ -99,7 +99,7 @@ func (m mockObserver) DidCommitBlock(block.Height, Shard) {
 func (m mockObserver) IsSignatory(Shard) bool {
 	return true
 }
-func (m mockObserver) ReceivedSufficientPrevotes(process.Messages) {
+func (m mockObserver) ReceivedSufficientPrevotes(process.Messages, int) {
 }
 
 type mockProcessStorage struct {
