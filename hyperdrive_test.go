@@ -1,333 +1,542 @@
 package hyperdrive_test
 
 import (
+	"context"
+	"crypto/ecdsa"
 	"crypto/rand"
 	"fmt"
+	"log"
 	mrand "math/rand"
-	"os"
+	"sync"
 	"time"
-
+	
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/shard"
-	"github.com/renproject/hyperdrive/sig"
-	"github.com/renproject/hyperdrive/sig/ecdsa"
-	"github.com/renproject/hyperdrive/state"
-	"github.com/renproject/hyperdrive/testutils"
-	"github.com/renproject/hyperdrive/tx"
-	"github.com/renproject/phi/co"
+	"github.com/renproject/hyperdrive/replica"
+	"github.com/renproject/hyperdrive/testutil"
+	"github.com/renproject/id"
+	"github.com/renproject/phi"
+	"github.com/sirupsen/logrus"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/hyperdrive"
+	. "github.com/renproject/hyperdrive/testutil/replica"
 )
+
+func init() {
+	mrand.Seed(time.Now().Unix())
+}
 
 var _ = Describe("Hyperdrive", func() {
 
-	initReplicas := func(n int) ([]chan Object, []sig.SignerVerifier, *time.Ticker, chan struct{}, int) {
-		mrand.Seed(time.Now().UnixNano())
-		done := make(chan struct{})
-		ipChans := make([]chan Object, n)
-		signatories := make(sig.Signatories, n)
-		signers := make([]sig.SignerVerifier, n)
-		shardHash := testutils.RandomHash()
-
-		txPool := tx.FIFOPool(100)
-		go populateTxPool(txPool, done)
-
-		for i := 0; i < n; i++ {
-			var err error
-			ipChans[i] = make(chan Object, n*n)
-			signers[i], err = ecdsa.NewFromRandom()
-			signatories[i] = signers[i].Signatory()
-			Expect(err).ShouldNot(HaveOccurred())
-		}
-
-		shard := shard.Shard{
-			Hash:        shardHash,
-			Signatories: make(sig.Signatories, n),
-		}
-		copy(shard.Signatories[:], signatories[:])
-
-		for i := 0; i < n; i++ {
-			ipChans[i] <- ShardObject{shard, txPool}
-		}
-
-		tickerInterval := time.Duration(20 + mrand.Intn(10))
-		ticker := time.NewTicker(tickerInterval * time.Second)
-		go func() {
-			for t := range ticker.C {
-				for i := 0; i < n; i++ {
-					select {
-					case <-done:
-						return
-					case ipChans[i] <- TickObject{t}:
-					}
-				}
-			}
-		}()
-
-		return ipChans, signers, ticker, done, shard.ConsensusThreshold()
-	}
-
 	table := []struct {
-		numHyperdrives int
-		maxHeight      block.Height
+		shard int
+		f     int
 	}{
-		{2, 320},
-		{4, 160},
-		{8, 80},
-		{16, 40},
-		{32, 20},
-		{64, 10},
-
-		// Disabled so that the CI does not take too long.
-		// {128, 5},
-		// {256, 5},
-		// {512, 5},
-		// {1024, 5},
+		{1, 1},
 	}
 
 	for _, entry := range table {
-		entry := entry
+		shards := make([]Shard, entry.shard)
+		for i := range shards {
+			shards[i] = RandomShard()
+		}
+		f := entry.f
 
-		_, ok := os.LookupEnv("CI")
-		Context(fmt.Sprintf("when reaching consensus on a shard with %v replicas", entry.numHyperdrives), func() {
-			It("should commit blocks", func() {
-				maxHeight := entry.maxHeight
-				if ok {
-					maxHeight /= 10
-				}
-				// The estimated number of messages a Replica will receive throughout the test
-				cap := 2 * (entry.numHyperdrives + 1) * int(maxHeight)
-				// Increase by an order of magnitude to account for timeouts and
-				// multiple rounds
-				cap = 10 * cap
+		Context(fmt.Sprintf("when the network have %v nodes (f = %v) and %v shards", 3*f+1, f, len(shards)), func() {
+			Context("when all nodes have 100% live time", func() {
+				Context("when all nodes start at same time", func() {
+					It("should keep producing new blocks", func() {
+						options := DefaultOption
+						options.maxBootDelay = 0
+						network := NewNetwork(f, shards, options)
 
-				ipChans, signers, ticker, done, _ := initReplicas(entry.numHyperdrives)
-				defer ticker.Stop()
-				defer close(done)
+						network.Start()
+						defer network.Stop()
 
-				co.ParForAll(entry.numHyperdrives, func(i int) {
-					defer GinkgoRecover()
+						Eventually(func() bool {
+							return network.HealthCheck(nil)
+						}, time.Minute).Should(BeTrue())
+					})
+				})
 
-					h := New(signers[i], NewMockDispatcher(true, i, ipChans, done, cap))
+				Context("when each node has a random delay when starting", func() {
+					It("should keep producing new blocks", func() {
+						network := NewNetwork(f, shards, DefaultOption)
+						network.Start()
+						defer network.Stop()
 
-					Expect(runHyperdrive(i, h, ipChans[i], done, maxHeight, block.Round(0))).ShouldNot((HaveOccurred()))
+						// Expect the network should be handle nodes starting with different delays and
+						Eventually(func() bool {
+							return network.HealthCheck(nil)
+						}, time.Minute).Should(BeTrue())
+					})
 				})
 			})
 
-			if (!ok && entry.numHyperdrives > 2 && entry.numHyperdrives <= 16) || (ok && entry.numHyperdrives == 8) {
-				Context("when leader at index = 0 is inactive", func() {
-					It("should commit blocks with new leader", func() {
-						maxHeight := entry.maxHeight / 4
-						if ok {
-							maxHeight = 4
-						}
-						// The estimated number of messages a Replica will receive throughout the test
-						cap := 2 * (entry.numHyperdrives + 1) * int(maxHeight)
-						// Increase by an order of magnitude to account for timeouts and
-						// multiple rounds
-						cap = 10 * cap
+			Context("when f nodes are offline at the beginning", func() {
+				It("should keep producing new blocks", func() {
+					option := DefaultOption
+					shuffledIndices := mrand.Perm(3*f + 1)
+					option.disableNodes = shuffledIndices[:f]
 
-						ipChans, signers, ticker, done, consensusThreshold := initReplicas(entry.numHyperdrives)
-						defer ticker.Stop()
-						defer close(done)
+					network := NewNetwork(f, shards, option)
+					network.Start()
+					defer network.Stop()
 
-						co.ParForAll(entry.numHyperdrives, func(i int) {
-							defer GinkgoRecover()
+					// Only check the nodes which are online are progressing after certain amount time
+					Eventually(func() bool {
+						return network.HealthCheck(shuffledIndices[f:])
+					}, time.Duration(f*30)*time.Second).Should(BeTrue())
+				})
+			})
 
-							h := New(signers[i], NewMockDispatcher(false, i, ipChans, done, cap))
-							if i == 0 {
-								h = testutils.NewFaultyLeader(signers[i], NewMockDispatcher(false, i, ipChans, done, cap), consensusThreshold)
-							}
+			Context("when some nodes are having network connection issue", func() {
+				Context("when they go back online after certain amount of time", func() {
+					It("should keep producing new blocks", func() {
+						network := NewNetwork(f, shards, DefaultOption)
+						network.Start()
+						defer network.Stop()
 
-							Expect(runHyperdrive(i, h, ipChans[i], done, maxHeight, block.Round(1))).ShouldNot(HaveOccurred())
+						numNodesOffline := mrand.Intn(f) + 1 // Making sure at least one node is offline
+						shuffledIndices := mrand.Perm(3*f + 1)
+						SleepRandomSeconds(5, 10)
+
+						// Simulate connection issue for less than 1/3 nodes
+						phi.ParForAll(numNodesOffline, func(i int) {
+							index := shuffledIndices[i]
+							network.BlockNodeConnection(index)
+							SleepRandomSeconds(5, 10)
+							network.UnblockNodeConnection(index)
+						})
+
+						Eventually(func() bool {
+							return network.HealthCheck(nil)
+						}, 30*time.Second).Should(BeTrue())
+					})
+				})
+
+				Context("when they fail to reconnect to the network", func() {
+					It("should keep producing blocks with the rest of the networks", func() {
+						network := NewNetwork(f, shards, DefaultOption)
+						network.Start()
+						defer network.Stop()
+
+						numNodesOffline := mrand.Intn(f) + 1 // Making sure at least one node is offline
+						shuffledIndices := mrand.Perm(3*f + 1)
+						SleepRandomSeconds(5, 10)
+
+						// Simulate connection issue for less than 1/3 nodes
+						phi.ParForAll(numNodesOffline, func(i int) {
+							index := shuffledIndices[i]
+							network.BlockNodeConnection(index)
+						})
+
+						Eventually(func() bool {
+							return network.HealthCheck(shuffledIndices[numNodesOffline:])
+						}, 30*time.Second).Should(BeTrue())
+					})
+				})
+			})
+
+			Context("when nodes are completely offline", func() {
+				Context("when no more than f nodes crashed", func() {
+					Context("when they go back online after some time", func() {
+						It("should keep producing new blocks", func() {
+							network := NewNetwork(f, shards, DefaultOption)
+							network.Start()
+							defer network.Stop()
+
+							numNodesOffline := mrand.Intn(f) + 1 // Making sure at least one node is offline
+							shuffledIndices := mrand.Perm(3*f + 1)
+							SleepRandomSeconds(5, 10)
+
+							// Simulate connection issue for less than 1/3 nodes
+							phi.ParForAll(numNodesOffline, func(i int) {
+								index := shuffledIndices[i]
+								network.StopNode(index)
+								SleepRandomSeconds(5, 10)
+								network.StartNode(index)
+							})
+
+							Eventually(func() bool {
+								return network.HealthCheck(nil)
+							}, 30*time.Second).Should(BeTrue())
+						})
+					})
+
+					Context("when they fail to reconnect to the network", func() {
+						It("should keep producing new blocks", func() {
+							network := NewNetwork(f, shards, DefaultOption)
+							network.Start()
+							defer network.Stop()
+
+							numNodesOffline := mrand.Intn(f) + 1 // Making sure at least one node is offline
+							shuffledIndices := mrand.Perm(3*f + 1)
+							SleepRandomSeconds(5, 10)
+
+							// Simulate connection issue for less than 1/3 nodes
+							phi.ParForAll(numNodesOffline, func(i int) {
+								index := shuffledIndices[i]
+								network.StopNode(index)
+								SleepRandomSeconds(5, 10)
+								network.StartNode(index)
+							})
+
+							Eventually(func() bool {
+								return network.HealthCheck(shuffledIndices[numNodesOffline:])
+							}, 30*time.Second).Should(BeTrue())
 						})
 					})
 				})
-			}
+
+				Context("when more than f nodes crash,", func() {
+					Context("when they fail to reconnect to the network", func() {
+						It("should stop producing new blocks", func() {
+							network := NewNetwork(f, shards, DefaultOption)
+							network.Start()
+							defer network.Stop()
+
+							shuffledIndices := mrand.Perm(3*f + 1)
+							crashedNodes := shuffledIndices[:f+1]
+							SleepRandomSeconds(3, 6)
+
+							// simulate the nodes crashed.
+							phi.ParForAll(crashedNodes, func(i int) {
+								index := crashedNodes[i]
+								network.StopNode(index)
+							})
+
+							// expect the network not progressing
+							time.Sleep(30 * time.Second)
+							Expect(network.HealthCheck(shuffledIndices[f:])).Should(BeFalse())
+						})
+					})
+
+					Context("when they successfully reconnect to the network", func() {
+						It("should start producing blocks again", func() {
+							network := NewNetwork(f, shards, DefaultOption)
+							network.Start()
+							defer network.Stop()
+
+							SleepRandomSeconds(5, 10)
+
+							// Crash f + 1 random nodes and expect no blocks produced after that
+							shuffledIndices := mrand.Perm(3*f + 1)
+							crashedNodes := shuffledIndices[:f+1]
+							phi.ParForAll(crashedNodes, func(i int) {
+								index := crashedNodes[i]
+								network.StopNode(index)
+							})
+							Expect(network.HealthCheck(nil)).Should(BeFalse())
+
+							// Restart the nodes after some time
+							phi.ParForAll(crashedNodes, func(i int) {
+								SleepRandomSeconds(5, 10)
+								index := crashedNodes[i]
+								network.StartNode(index)
+							})
+
+							Eventually(func() bool {
+								return network.HealthCheck(nil)
+							}, 30*time.Second).Should(BeTrue())
+						})
+					})
+				})
+			})
+
+			Context("when more than f nodes fail to boot", func() {
+				Context("when the failed node never come back", func() {
+					It("should not process any blocks", func() {
+						// Start the network with more than f nodes offline
+						options := DefaultOption
+						shuffledIndices := mrand.Perm(3*f + 1)
+						options.disableNodes = shuffledIndices[:f+1]
+
+						network := NewNetwork(f, shards, options)
+						network.Start()
+						defer network.Stop()
+
+						// expect all nodes only have the genesis block
+						time.Sleep(20 * time.Second)
+						Expect(network.HealthCheck(shuffledIndices[f:])).Should(BeFalse())
+					})
+				})
+
+				Context("when the failed node come back online", func() {
+					It("should start produce blocks", func() {
+						// Start the network with more than f nodes offline
+						options := DefaultOption
+						shuffledIndices := mrand.Perm(3*f + 1)
+						options.disableNodes = shuffledIndices[:f+1]
+
+						network := NewNetwork(f, shards, options)
+						network.Start()
+						defer network.Stop()
+
+						phi.ParForAll(shuffledIndices[:f+1], func(i int) {
+							index := shuffledIndices[i]
+							network.StartNode(index)
+						})
+
+						Eventually(func() bool {
+							return network.HealthCheck(nil)
+						}, 30*time.Second).Should(BeTrue())
+					})
+				})
+			})
 		})
 	}
 })
 
-type mockDispatcher struct {
-	index int
+type networkOptions struct {
+	minNetworkDelay int   // minimum network latency when sending messages in milliseconds
+	maxNetworkDelay int   // maximum network latency when sending messages in milliseconds
+	minBootDelay    int   // minimum delay when booting the node in seconds
+	maxBootDelay    int   // maximum delay when booting the node in seconds
+	debugLogger     []int // indexes of the nodes which we want to enable the debug logger, nil for disable all
+	disableNodes    []int // indexes of the nodes which we want to disable at the starting of the network, nil for enable all
 
-	dups     map[string]bool
-	channels []chan Object
-	reqCh    chan ActionObject
-
-	done chan struct{}
 }
 
-func NewMockDispatcher(perfect bool, i int, channels []chan Object, done chan struct{}, cap int) *mockDispatcher {
-	dispatcher := &mockDispatcher{
-		index: i,
+var DefaultOption = networkOptions{
+	minNetworkDelay: 100,
+	maxNetworkDelay: 500,
+	minBootDelay:    0,
+	maxBootDelay:    3,
+	debugLogger:     nil,
+	disableNodes:    nil,
+}
 
-		dups:     map[string]bool{},
-		channels: channels,
-		reqCh:    make(chan ActionObject, cap),
+type Network struct {
+	f       int
+	shards  replica.Shards
+	options networkOptions
 
-		done: done,
+	nodesMu *sync.RWMutex
+	nodes   []*Node
+
+	context      context.Context
+	cancel       context.CancelFunc
+	nodesCancels []context.CancelFunc
+	keys         []*ecdsa.PrivateKey
+	Broadcaster  *MockBroadcaster
+}
+
+func NewNetwork(f int, shards replica.Shards, options networkOptions) Network {
+	if f <= 0 {
+		panic("f must be positive")
+	}
+	total := 3*f + 1
+
+	// Generate keys for all the nodes
+	keys := make([]*ecdsa.PrivateKey, total)
+	sigs := make([]id.Signatory, total)
+	for i := range keys {
+		pk, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
+		if err != nil {
+			panic(err)
+		}
+		sig := id.NewSignatory(pk.PublicKey)
+		keys[i], sigs[i] = pk, sig
 	}
 
+	// Initialize all nodes
+	genesisBlock := testutil.GenesisBlock(sigs)
+	broadcaster := NewMockBroadcaster(keys, options.minNetworkDelay, options.maxNetworkDelay)
+	nodes := make([]*Node, total)
+	for i := range nodes {
+		logger := logrus.New()
+		if Contain(options.debugLogger, i) {
+			logger.SetLevel(logrus.DebugLevel)
+		}
+		store := NewMockPersistentStorage(shards)
+		store.Init(genesisBlock)
+		nodes[i] = NewNode(logger.WithField("node", i), shards, keys[i], broadcaster, store)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	return Network{
+		f:            f,
+		shards:       shards,
+		options:      options,
+		nodesMu:      new(sync.RWMutex),
+		nodes:        nodes,
+		context:      ctx,
+		cancel:       cancel,
+		keys:         keys,
+		nodesCancels: make([]context.CancelFunc, len(nodes)),
+		Broadcaster:  broadcaster,
+	}
+}
+
+func (network Network) Start() {
+	phi.ParForAll(network.nodes, func(i int) {
+		if Contain(network.options.disableNodes, i) {
+			return
+		}
+		SleepRandomSeconds(network.options.minBootDelay, network.options.maxBootDelay)
+
+		network.nodesMu.RLock()
+		defer network.nodesMu.RUnlock()
+		network.startNode(i)
+	})
+}
+
+func (network Network) Stop() {
+	for _, cancel := range network.nodesCancels {
+		if cancel != nil {
+			cancel()
+		}
+	}
+	network.cancel()
+	time.Sleep(time.Second)
+}
+
+func (network Network) Signatories() id.Signatories {
+	sigs := make(id.Signatories, len(network.nodes))
+	for i := range sigs {
+		sigs[i] = id.NewSignatory(network.keys[i].PublicKey)
+	}
+	return sigs
+}
+
+func (network *Network) StartNode(i int) {
+	logger := logrus.New()
+	if Contain(network.options.debugLogger, i) {
+		logger.SetLevel(logrus.DebugLevel)
+	}
+	store := network.nodes[i].storage
+
+	network.nodesMu.Lock()
+	defer network.nodesMu.Unlock()
+
+	network.nodes[i] = NewNode(logger.WithField("node", i), network.shards, network.nodes[i].key, network.Broadcaster, store)
+	network.startNode(i)
+}
+
+func (network *Network) startNode(i int) {
+	// Creating cancel for this node and enable its network connection
+	node := network.nodes[i]
+	innerCtx, cancel := context.WithCancel(network.context)
+	network.nodesCancels[i] = cancel
+	network.Broadcaster.EnablePeer(node.Signatory())
+
+	// Start the node
+	node.logger.Infof("💡starting hyperdrive...")
+	node.hyperdrive.Start()
+
+	// Start reading messages from the broadcaster
+	messages := network.Broadcaster.Messages(node.Signatory())
+	hyperdrive, logger := node.hyperdrive, node.logger
+
 	go func() {
+		defer logger.Info("❌ shutting down hyperdrive...")
+
 		for {
 			select {
-			case <-dispatcher.done:
-				return
-			case actionObject := <-dispatcher.reqCh:
-				for i := range dispatcher.channels {
-					if i != dispatcher.index {
-						if !SimulateCommsFault(perfect, len(channels), 2, dispatcher.index, i) {
-							continue
-						}
-						select {
-						case <-dispatcher.done:
-							return
-						case dispatcher.channels[i] <- actionObject:
-						}
-					}
+			case message := <-messages:
+				hyperdrive.HandleMessage(message)
+				select {
+				case <-innerCtx.Done():
+					return
+				default:
 				}
+			case <-innerCtx.Done():
+				return
 			}
 		}
 	}()
-	return dispatcher
 }
 
-func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action state.Action) {
-
-	// De-duplicate
-	height := block.Height(0)
-	round := block.Round(0)
-	switch action := action.(type) {
-	case state.Propose:
-		height = action.Block.Height
-		round = action.Round
-	case state.SignedPreVote:
-		height = action.Height
-		round = action.Round
-	case state.SignedPreCommit:
-		height = action.Polka.Height
-		round = action.Polka.Round
-	case state.Commit:
-		height = action.Polka.Height
-		round = action.Polka.Round
-	default:
-		panic(fmt.Errorf("unexpected action type %T", action))
-	}
-
-	key := fmt.Sprintf("Key(Shard=%v,Height=%v,Round=%v,Action=%T)", shardHash, height, round, action)
-	if dup := mockDispatcher.dups[key]; dup {
+func (network *Network) StopNode(i int) {
+	if network.nodesCancels[i] == nil {
 		return
 	}
-	mockDispatcher.dups[key] = true
-
-	select {
-	case <-mockDispatcher.done:
-		return
-	case mockDispatcher.reqCh <- ActionObject{shardHash, action}:
-	}
+	network.nodesCancels[i]()
+	network.Broadcaster.DisablePeer(network.Signatories()[i])
 }
 
-type Object interface {
-	IsObject()
+func (network *Network) UnblockNodeConnection(i int) {
+	network.nodes[i].logger.Infof("💡 enable network connection... ")
+	network.Broadcaster.EnablePeer(network.Signatories()[i])
 }
 
-type ActionObject struct {
-	shardHash sig.Hash
-	action    state.Action
+func (network *Network) BlockNodeConnection(i int) {
+	network.nodes[i].logger.Infof("⚠️ block network connection...")
+	network.Broadcaster.DisablePeer(network.Signatories()[i])
 }
 
-func (ActionObject) IsObject() {}
+// Check the nodes of given indexes are working together producing new blocks.
+func (network *Network) HealthCheck(indexes []int) bool {
+	network.nodesMu.RLock()
+	defer network.nodesMu.RUnlock()
 
-type ShardObject struct {
-	shard shard.Shard
-	pool  tx.Pool
-}
-
-func (ShardObject) IsObject() {}
-
-type TickObject struct {
-	Time time.Time
-}
-
-func (TickObject) IsObject() {}
-
-func runHyperdrive(index int, h Hyperdrive, inputCh chan Object, done chan struct{}, maxHeight block.Height, expectedRound block.Round) error {
-	var currentBlock *block.SignedBlock
-
-	for {
-		select {
-		case <-done:
-			return nil
-		case input := <-inputCh:
-			switch input := input.(type) {
-			case TickObject:
-				h.AcceptTick(input.Time)
-			case ShardObject:
-				h.BeginShard(input.shard, shard.Shard{}, nil, input.pool)
-			case ActionObject:
-				switch action := input.action.(type) {
-				case state.Propose:
-					h.AcceptPropose(input.shardHash, action.SignedPropose)
-				case state.SignedPreVote:
-					h.AcceptPreVote(input.shardHash, action.SignedPreVote)
-				case state.SignedPreCommit:
-					h.AcceptPreCommit(input.shardHash, action.SignedPreCommit)
-				case state.Commit:
-					Expect(len(action.Commit.Polka.Block.Txs)).To(BeNumerically("<=", block.MaxTransactions))
-					if currentBlock == nil || action.Polka.Block.Height > currentBlock.Height {
-						if currentBlock != nil {
-							Expect(action.Polka.Block.Height).To(Equal(currentBlock.Height + 1))
-							Expect(currentBlock.Header.Equal(action.Polka.Block.ParentHeader)).To(Equal(true))
-						}
-						if index == 1 {
-							fmt.Printf("%v, Round=%d\n", *action.Polka.Block, action.Polka.Round)
-						}
-						currentBlock = action.Polka.Block
-						if currentBlock.Height == maxHeight {
-							return nil
-						}
-					}
-				default:
-				}
-			}
+	nodes := network.nodes
+	if indexes != nil {
+		nodes = make([]*Node, 0, len(indexes))
+		for _, index := range indexes {
+			nodes = append(nodes, network.nodes[index])
 		}
 	}
-}
 
-func rand32Byte() [32]byte {
-	key := make([]byte, 32)
-
-	rand.Read(key)
-	b := [32]byte{}
-	copy(b[:], key[:])
-	return b
-}
-
-func populateTxPool(txPool tx.Pool, done chan struct{}) {
-	for {
-		tx := testutils.RandomTransaction()
-		if err := txPool.Enqueue(tx); err != nil {
-			select {
-			case <-done:
-				return
-			case <-time.After(time.Duration(mrand.Intn(5)) * time.Millisecond):
-			}
+	// Check the block height of each nodes
+	currentBlockHeights := make([]block.Height, len(nodes))
+	for _, shard := range network.shards {
+		for i, node := range nodes {
+			block := node.storage.LatestBlock(shard)
+			currentBlockHeights[i] = block.Header().Height()
 		}
 	}
-}
 
-// SimulateCommsFault mimics an imperfect communication channel. It returns
-// true if the message is to be sent as normal, and false if the message should
-// be dropped. If perfect is true, the function will always return true.
-// Otherwise, there is a chance that it will return false, and it will also
-// delay returning for a brief random time interval.
-func SimulateCommsFault(perfect bool, n, k, from, to int) bool {
-	// Simulate message failure
-	if !perfect {
-		time.Sleep(time.Duration(mrand.Intn(100)) * time.Millisecond)
+	time.Sleep(5 * time.Second)
+
+	for _, shard := range network.shards {
+		for i, node := range nodes {
+			block := node.storage.LatestBlock(shard)
+			if block.Header().Height() <= currentBlockHeights[i] {
+				log.Printf("⚠️ node %v didn't progress ,old height = %v, new height = %v", i, currentBlockHeights[i], block.Header().Height())
+				return false
+			}
+		}
 	}
 	return true
+}
+
+type Node struct {
+	logger     logrus.FieldLogger
+	key        *ecdsa.PrivateKey
+	storage    *MockPersistentStorage
+	iter       replica.BlockIterator
+	validator  replica.Validator
+	observer   replica.Observer
+	hyperdrive Hyperdrive
+}
+
+func (node Node) Signatory() id.Signatory {
+	return id.NewSignatory(node.key.PublicKey)
+}
+
+func NewNode(logger logrus.FieldLogger, shards Shards, pk *ecdsa.PrivateKey, broadcaster *MockBroadcaster, store *MockPersistentStorage) *Node {
+	option := Options{
+		Logger:      logger,
+		BackOffExp:  1,
+		BackOffBase: 3 * time.Second,
+		BackOffMax:  3 * time.Second,
+	}
+	iter := NewMockBlockIterator(store)
+	validator := NewMockValidator(store)
+	observer := NewMockObserver(store)
+	hd := New(option, store, store, iter, validator, observer, broadcaster, shards, *pk)
+
+	return &Node{
+		logger:     logger,
+		key:        pk,
+		storage:    store,
+		iter:       iter,
+		validator:  validator,
+		observer:   observer,
+		hyperdrive: hd,
+	}
 }

@@ -1,711 +1,183 @@
-package replica_test
+package replica
 
 import (
-	"fmt"
+	"bytes"
+	"crypto/ecdsa"
+	"crypto/rand"
+	"encoding/json"
+	"io/ioutil"
 	"reflect"
-	"time"
-
-	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/hyperdrive/shard"
-	"github.com/renproject/hyperdrive/sig"
-	"github.com/renproject/hyperdrive/sig/ecdsa"
-	"github.com/renproject/hyperdrive/state"
-	"github.com/renproject/hyperdrive/testutils"
-	"github.com/renproject/hyperdrive/tx"
+	"testing/quick"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/replica"
+	. "github.com/renproject/hyperdrive/testutil"
+
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/hyperdrive/testutil"
+	"github.com/sirupsen/logrus"
 )
 
 var _ = Describe("Replica", func() {
 
-	Context("when Init is called", func() {
-		It("should generate a new block", func() {
-			transitionBuffer := state.NewTransitionBuffer(128)
-			pool := tx.FIFOPool(100)
-			signer, err := ecdsa.NewFromRandom()
-			Expect(err).ShouldNot(HaveOccurred())
-			shard := shard.Shard{
-				Hash:        sig.Hash{},
-				BlockHeader: sig.Hash{},
-				BlockHeight: 0,
-				Signatories: sig.Signatories{signer.Signatory()},
-			}
-			stateMachine := state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), signer, shard, pool, nil)
+	newEcdsaKey := func() *ecdsa.PrivateKey {
+		privateKey, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
+		Expect(err).NotTo(HaveOccurred())
+		return privateKey
+	}
 
-			replica := New(newMockDispatcher(), signer, stateMachine, transitionBuffer, shard, shard)
-			Expect(func() { replica.Init() }).ToNot(Panic())
+	Context("shard", func() {
+		Context("when comparing two shard", func() {
+			It("should be stringified to same text if two shards are equal and vice versa", func() {
+				test := func(shard1, shard2 Shard) bool {
+					shard := shard1
+					Expect(shard.Equal(shard1)).Should(BeTrue())
+					Expect(shard1.Equal(shard)).Should(BeTrue())
+					Expect(shard.String()).Should(Equal(shard1.String()))
+
+					Expect(shard1.Equal(shard2)).Should(BeFalse())
+					Expect(shard1.String()).ShouldNot(Equal(shard2.String()))
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
 		})
 	})
 
-	Context("when new Transitions are sent", func() {
+	Context("replica", func() {
+		Context("when marshaling/unmarshaling message", func() {
+			It("should equal itself after json marshaling and then unmarshaling", func() {
+				message := Message{
+					Message: RandomMessage(RandomMessageType()),
+					Shard:   Shard{},
+				}
 
-		signer, err := ecdsa.NewFromRandom()
-		if err != nil {
-			panic(fmt.Sprintf("error generating random SignerVerifier: %v", err))
-		}
-		participant1, err := ecdsa.NewFromRandom()
-		if err != nil {
-			panic(fmt.Sprintf("error generating random SignerVerifier: %v", err))
-		}
-		participant2, err := ecdsa.NewFromRandom()
-		if err != nil {
-			panic(fmt.Sprintf("error generating random SignerVerifier: %v", err))
-		}
-		testCases := generateTestCases(signer, participant1, participant2)
-		for _, t := range testCases {
-			t := t
+				data, err := json.Marshal(message)
+				Expect(err).NotTo(HaveOccurred())
+				newMessage := Message{}
+				Expect(json.Unmarshal(data, &newMessage)).Should(Succeed())
 
-			Context(fmt.Sprintf("when replica starts with intial state - %s", reflect.TypeOf(t.startingState).Name()), func() {
-				It(fmt.Sprintf("should arrive at %s", reflect.TypeOf(t.finalState).Name()), func() {
-					transitionBuffer := state.NewTransitionBuffer(128)
-					pool := tx.FIFOPool(100)
-
-					for i := 0; i < 100; i++ {
-						tx := testutils.RandomTransaction()
-						pool.Enqueue(tx)
-					}
-
-					shard := shard.Shard{
-						Hash:        sig.Hash{},
-						BlockHeader: sig.Hash{},
-						BlockHeight: 0,
-						Signatories: sig.Signatories{signer.Signatory(), participant1.Signatory(), participant2.Signatory()},
-					}
-					stateMachine := state.NewMachine(t.startingState, block.NewPolkaBuilder(), block.NewCommitBuilder(), signer, shard, pool, nil)
-
-					replica := New(NewMockDispatcher(), signer, stateMachine, transitionBuffer, shard, shard)
-					for _, transition := range t.transitions {
-						replica.Transition(transition)
-					}
-					// Expect(stateMachine.State()).To(Equal(t.finalState))
-				})
+				newData, err := json.Marshal(newMessage)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(bytes.Equal(data, newData)).Should(BeTrue())
 			})
-		}
+
+			It("should equal itself after binary marshaling and then unmarshaling", func() {
+				message := Message{
+					Message: RandomMessage(RandomMessageType()),
+					Shard:   Shard{},
+				}
+
+				data, err := message.MarshalBinary()
+				Expect(err).NotTo(HaveOccurred())
+				newMessage := Message{}
+				Expect(newMessage.UnmarshalBinary(data)).Should(Succeed())
+
+				newData, err := newMessage.MarshalBinary()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(bytes.Equal(data, newData)).Should(BeTrue())
+			})
+		})
+
+		Context("when sending messages to replica", func() {
+			It("should only pass message to process when it's a valid message", func() {
+				test := func(shard, wrongShard Shard) bool {
+					store, _, keys := initStorage(shard)
+					pstore := mockProcessStorage{}
+					broadcaster, _ := newMockBroadcaster()
+					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
+
+					pMessage := RandomMessage(process.ProposeMessageType)
+					key := keys[0]
+					Expect(process.Sign(pMessage, *key)).Should(Succeed())
+					message := Message{
+						Shard:   shard,
+						Message: pMessage,
+					}
+					replica.HandleMessage(message)
+
+					// Expect the message not been inserted into the specific inbox,
+					// which indicating the message not passed to the process.
+					state := testutil.GetStateFromProcess(replica.p, 2)
+					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
+					Expect(reflect.DeepEqual(stored, pMessage)).Should(BeTrue())
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			It("should reject message of different shard", func() {
+				test := func(shard, wrongShard Shard) bool {
+					store, _, _ := initStorage(shard)
+					pstore := mockProcessStorage{}
+					broadcaster, _ := newMockBroadcaster()
+					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
+					logger := logrus.StandardLogger()
+					logger.SetOutput(ioutil.Discard)
+					replica.options.Logger = logger
+
+					pMessage := RandomSignedMessage(process.ProposeMessageType)
+					message := Message{
+						Shard:   wrongShard,
+						Message: pMessage,
+					}
+					replica.HandleMessage(message)
+
+					// Expect the message not been inserted into the specific inbox,
+					// which indicating the message not passed to the process.
+					state := testutil.GetStateFromProcess(replica.p, 2)
+					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
+					Expect(stored).Should(BeNil())
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			It("should reject message whose signatory is not valid", func() {
+				test := func(shard Shard) bool {
+					store, _, _ := initStorage(shard)
+					pstore := mockProcessStorage{}
+					broadcaster, _ := newMockBroadcaster()
+					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
+
+					pMessage := RandomSignedMessage(process.ProposeMessageType)
+					message := Message{
+						Shard:   shard,
+						Message: pMessage,
+					}
+					replica.HandleMessage(message)
+
+					// Expect the message not been inserted into the specific inbox,
+					// which indicating the message not passed to the process.
+					state := testutil.GetStateFromProcess(replica.p, 2)
+					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
+					Expect(stored).Should(BeNil())
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
 	})
 })
 
-type TestCase struct {
-	consensusThreshold int
-
-	startingState state.State
-	finalState    state.State
-
-	transitions []state.Transition
-}
-
-func generateTestCases(signer, p1, p2 sig.SignerVerifier) []TestCase {
-	signedBlock := testutils.SignBlock(block.Block{
-		Height: 1,
-		Header: testutils.RandomHash(),
-	}, signer)
-	signedFutureBlock := testutils.SignBlock(block.Block{
-		Height:       2,
-		Header:       testutils.RandomHash(),
-		ParentHeader: signedBlock.Header,
-	}, signer)
-
-	maliciousSigner, err := ecdsa.NewFromRandom()
-	if err != nil {
-		panic(fmt.Sprintf("error generating random SignerVerifier: %v", err))
-	}
-
-	return []TestCase{
-		{
-			consensusThreshold: 2,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Height: 1,
-								Round:  2,
-								Block: testutils.SignBlock(block.Block{
-									Header:       testutils.RandomHash(),
-									ParentHeader: testutils.RandomHash(),
-								}, signer),
-								Signatories: testutils.RandomSignatories(3),
-								Signatures:  testutils.RandomSignatures(3),
-							},
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 2,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Height: 1,
-								Block: testutils.SignBlock(block.Block{
-									Height:       2,
-									Header:       testutils.RandomHash(),
-									ParentHeader: testutils.RandomHash(),
-								}, signer),
-								Signatories: testutils.RandomSignatories(3),
-								Signatures:  testutils.RandomSignatures(3),
-							},
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 2,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Height: 1,
-								Block: testutils.SignBlock(block.Block{
-									Height:       1,
-									Header:       testutils.RandomHash(),
-									ParentHeader: testutils.RandomHash(),
-								}, signer),
-								Signatories: testutils.RandomSignatories(3),
-								Signatures:  testutils.RandomSignatures(3),
-							},
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 2,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Height:      1,
-								Block:       signedBlock,
-								Signatories: testutils.RandomSignatories(3),
-								Signatures:  testutils.RandomSignatures(3),
-							},
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 2,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Height:      1,
-								Block:       signedBlock,
-								Signatories: testutils.RandomSignatories(1),
-								Signatures:  testutils.RandomSignatures(1),
-							},
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Height:      1,
-								Block:       signedBlock,
-								Signatories: testutils.RandomSignatories(3),
-								Signatures:  testutils.RandomSignatures(2),
-							},
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Round:  1,
-								Height: -1,
-								Block:  signedBlock,
-							},
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Round:  -1,
-								Height: 1,
-								Block:  signedBlock,
-							},
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{},
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.PreVoted{SignedPreVote: testutils.GenerateSignedPreVote(signedBlock, maliciousSigner)},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.PreVoted{
-					SignedPreVote: block.SignedPreVote{
-						PreVote: block.PreVote{
-							Block:  signedBlock,
-							Height: 2,
-							Round:  0,
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.PreVoted{
-					SignedPreVote: block.SignedPreVote{
-						PreVote: block.PreVote{
-							Block:  signedBlock,
-							Height: 1,
-							Round:  1,
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.PreVoted{
-					SignedPreVote: block.SignedPreVote{
-						PreVote: block.PreVote{
-							Block: testutils.SignBlock(block.Block{
-								Height:       1,
-								Header:       testutils.RandomHash(),
-								ParentHeader: testutils.RandomHash(),
-							}, signer),
-							Height: 1,
-						},
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedPropose: testutils.GenerateSignedPropose(
-						*testutils.SignBlock(block.Block{
-							Height:       1,
-							Header:       testutils.RandomHash(),
-							ParentHeader: testutils.RandomHash(),
-						}, signer),
-						1, signer),
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedPropose: testutils.GenerateSignedPropose(
-						*testutils.SignBlock(block.Block{
-							Height: 1,
-						}, maliciousSigner),
-						1, maliciousSigner),
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedPropose: testutils.GenerateSignedPropose(
-						block.SignedBlock{
-							Block: block.Block{
-								Height: -1,
-							},
-						}, 1, maliciousSigner),
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedPropose: testutils.GenerateSignedPropose(
-						block.SignedBlock{
-							Block: block.Block{},
-						}, -1, signer),
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedPropose: testutils.GenerateSignedPropose(
-						block.SignedBlock{
-							Block: block.Block{
-								Height: 1,
-								Time:   time.Now().Add(10 * time.Minute),
-							},
-						}, 1, signer),
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedPropose: testutils.GenerateSignedPropose(
-						block.SignedBlock{
-							Block: block.Block{
-								Height: 0,
-								Header: testutils.RandomHash(),
-							},
-							Signature: testutils.RandomSignature(),
-						}, 1, signer),
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedPropose: testutils.GenerateSignedPropose(
-						block.SignedBlock{
-							Block: block.Block{},
-						}, 1, signer),
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedPropose: testutils.GenerateSignedPropose(*signedBlock, 1, signer),
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{testutils.InvalidTransition{}},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Ticked{Time: time.Now().Add(10 * time.Minute)},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPolka{},
-
-			transitions: []state.Transition{
-				state.Ticked{Time: time.Now()},
-			},
-		},
-
-		{
-			consensusThreshold: 1,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedPropose: testutils.GenerateSignedPropose(
-						block.SignedBlock{
-							Block: block.Block{},
-						}, 1, signer),
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 2,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedPropose: testutils.GenerateSignedPropose(
-						block.SignedBlock{
-							Block: block.Block{
-								Height: -1,
-							},
-						}, 1, signer),
-				},
-				state.PreVoted{
-					SignedPreVote: block.SignedPreVote{
-						PreVote: block.PreVote{
-							Height: -1,
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
-				},
-				state.PreVoted{
-					SignedPreVote: block.SignedPreVote{
-						PreVote: block.PreVote{
-							Height: -1,
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
-				},
-				state.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Block: &block.SignedBlock{
-									Block: block.Block{
-										Height: -1,
-									},
-								},
-								Height: -1,
-							},
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
-				},
-				state.PreCommitted{
-					SignedPreCommit: block.SignedPreCommit{
-						PreCommit: block.PreCommit{
-							Polka: block.Polka{
-								Block: &block.SignedBlock{
-									Block: block.Block{
-										Height: -1,
-									},
-								},
-								Height: -1,
-							},
-						},
-						Signatory: testutils.RandomSignatory(),
-						Signature: testutils.RandomSignature(),
-					},
-				},
-			},
-		},
-
-		{
-			consensusThreshold: 3,
-
-			startingState: state.WaitingForPropose{},
-			finalState:    state.WaitingForPropose{},
-
-			transitions: []state.Transition{
-				state.Proposed{
-					SignedPropose: testutils.GenerateSignedPropose(*signedFutureBlock, 1, signer),
-				},
-				state.PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(signedFutureBlock, signer),
-				},
-				state.PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(signedFutureBlock, p1),
-				},
-				state.PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(signedFutureBlock, p2),
-				},
-				state.PreCommitted{
-					SignedPreCommit: testutils.GenerateSignedPreCommit(*signedFutureBlock, signer, []sig.SignerVerifier{signer, p1, p2}),
-				},
-				state.PreCommitted{
-					SignedPreCommit: testutils.GenerateSignedPreCommit(*signedFutureBlock, p1, []sig.SignerVerifier{signer, p1, p2}),
-				},
-				state.PreCommitted{
-					SignedPreCommit: testutils.GenerateSignedPreCommit(*signedFutureBlock, p2, []sig.SignerVerifier{signer, p1, p2}),
-				},
-				state.Proposed{
-					SignedPropose: testutils.GenerateSignedPropose(*signedBlock, 1, signer),
-				},
-				state.PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(signedBlock, signer),
-				},
-				state.PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(signedBlock, p1),
-				},
-				state.PreVoted{
-					SignedPreVote: testutils.GenerateSignedPreVote(signedBlock, p2),
-				},
-				state.PreCommitted{
-					SignedPreCommit: testutils.GenerateSignedPreCommit(*signedBlock, signer, []sig.SignerVerifier{signer, p1, p2}),
-				},
-				state.PreCommitted{
-					SignedPreCommit: testutils.GenerateSignedPreCommit(*signedBlock, p1, []sig.SignerVerifier{signer, p1, p2}),
-				},
-				state.PreCommitted{
-					SignedPreCommit: testutils.GenerateSignedPreCommit(*signedBlock, p2, []sig.SignerVerifier{signer, p1, p2}),
-				},
-			},
-		},
+func parseType(s string) reflect.Type {
+	switch s {
+	case "propose":
+		return reflect.TypeOf(process.Propose{})
+	case "prevote":
+		return reflect.TypeOf(process.Prevote{})
+	case "precommit":
+		return reflect.TypeOf(process.Precommit{})
+	default:
+		panic("unknown message type")
 	}
 }
-
-type mockDispatcher struct{}
-
-func newMockDispatcher() *mockDispatcher {
-	return &mockDispatcher{}
-}
-
-func (mockDispatcher *mockDispatcher) Dispatch(shardHash sig.Hash, action state.Action) {}
-
-type MockDispatcher struct {
-}
-
-func NewMockDispatcher() Dispatcher {
-	return &MockDispatcher{}
-}
-
-func (dispatcher *MockDispatcher) Dispatch(shardHash sig.Hash, action state.Action) {}

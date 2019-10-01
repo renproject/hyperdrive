@@ -1,111 +1,103 @@
 package hyperdrive
 
 import (
-	"time"
+	"crypto/ecdsa"
 
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/replica"
-	"github.com/renproject/hyperdrive/shard"
-	"github.com/renproject/hyperdrive/sig"
-	"github.com/renproject/hyperdrive/state"
-	"github.com/renproject/hyperdrive/tx"
+	"github.com/renproject/id"
+	"github.com/renproject/phi"
 )
 
-// NumHistoricalShards specifies the number of historical shards allowed.
-const NumHistoricalShards = 3
+// Re-export types.
+type (
+	Hashes         = id.Hashes
+	Hash           = id.Hash
+	Signatures     = id.Signatures
+	Signature      = id.Signature
+	Signatories    = id.Signatories
+	Signatory      = id.Signatory
+	Blocks         = block.Blocks
+	Block          = block.Block
+	Height         = block.Height
+	Round          = block.Round
+	Timestamp      = block.Timestamp
+	BlockData      = block.Data
+	BlockState     = block.State
+	Messages       = replica.Messages
+	Message        = replica.Message
+	Shards         = replica.Shards
+	Shard          = replica.Shard
+	Options        = replica.Options
+	Replicas       = replica.Replicas
+	Replica        = replica.Replica
+	ProcessStorage = replica.ProcessStorage
+	BlockStorage   = replica.BlockStorage
+	BlockIterator  = replica.BlockIterator
+	Validator      = replica.Validator
+	Observer       = replica.Observer
+	Broadcaster    = replica.Broadcaster
+	Blockchain     = process.Blockchain
+	Process        = process.Process
+	ProcessState   = process.State
+)
 
-// Hyperdrive accepts blocks and ticks and sends relevant Transitions to the respective replica.
+// Re-export variables.
+var (
+	NewSignatory = id.NewSignatory
+
+	StandardBlockKind = block.Standard
+	RebaseBlockKind   = block.Rebase
+	BaseBlockKind     = block.Base
+	NewBlock          = block.New
+	NewBlockHeader    = block.NewHeader
+)
+
+// Hyperdrive manages multiple `Replicas` from different
+// `Shards`.
 type Hyperdrive interface {
-	Sync(shardHash sig.Hash, commit block.Commit) bool
-
-	AcceptTick(t time.Time)
-	AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose)
-	AcceptPreVote(shardHash sig.Hash, preVote block.SignedPreVote)
-	AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit)
-
-	BeginShard(shard, previousShard shard.Shard, head *block.Commit, pool tx.Pool)
-	EndShard(shardHash sig.Hash)
-	DropShard(shardHash sig.Hash)
+	Start()
+	Rebase(sigs Signatories)
+	HandleMessage(message Message)
 }
 
 type hyperdrive struct {
-	signer     sig.SignerVerifier
-	dispatcher replica.Dispatcher
-
-	shardReplicas map[sig.Hash]replica.Replica
+	replicas map[Shard]Replica
 }
 
-// New returns a Hyperdrive.
-func New(signer sig.SignerVerifier, dispatcher replica.Dispatcher) Hyperdrive {
+// New Hyperdrive.
+func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shards Shards, privKey ecdsa.PrivateKey) Hyperdrive {
+	replicas := make(map[Shard]Replica, len(shards))
+	for _, shard := range shards {
+		replicas[shard] = replica.New(options, pStorage, blockStorage, blockIterator, validator, observer, broadcaster, shard, privKey)
+	}
 	return &hyperdrive{
-		signer:     signer,
-		dispatcher: dispatcher,
-
-		shardReplicas: map[sig.Hash]replica.Replica{},
+		replicas: replicas,
 	}
 }
 
-func (hyperdrive *hyperdrive) Sync(shardHash sig.Hash, commit block.Commit) bool {
-	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		return replica.Sync(commit)
-	}
-	return false
+func (hyper *hyperdrive) Start() {
+	phi.ParForAll(hyper.replicas, func(shard Shard) {
+		replica := hyper.replicas[shard]
+		replica.Start()
+	})
 }
 
-func (hyperdrive *hyperdrive) AcceptTick(t time.Time) {
-	// 1. Increment number of ticks seen by each shard
-	for shardHash := range hyperdrive.shardReplicas {
-
-		// 2. Send a Ticked transition to the shard
-		if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-			replica.Transition(state.Ticked{Time: t})
-		}
+func (hyper *hyperdrive) Rebase(sigs Signatories) {
+	for shard, replica := range hyper.replicas {
+		replica.Rebase(sigs)
+		hyper.replicas[shard] = replica
 	}
 }
 
-func (hyperdrive *hyperdrive) AcceptPropose(shardHash sig.Hash, proposed block.SignedPropose) {
-	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		replica.Transition(state.Proposed{SignedPropose: proposed})
-	}
-}
-
-func (hyperdrive *hyperdrive) AcceptPreVote(shardHash sig.Hash, preVote block.SignedPreVote) {
-	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		replica.Transition(state.PreVoted{SignedPreVote: preVote})
-	}
-}
-
-func (hyperdrive *hyperdrive) AcceptPreCommit(shardHash sig.Hash, preCommit block.SignedPreCommit) {
-	if replica, ok := hyperdrive.shardReplicas[shardHash]; ok {
-		replica.Transition(state.PreCommitted{SignedPreCommit: preCommit})
-	}
-}
-
-func (hyperdrive *hyperdrive) BeginShard(shard, previousShard shard.Shard, head *block.Commit, pool tx.Pool) {
-	if _, ok := hyperdrive.shardReplicas[shard.Hash]; ok {
+func (hyper *hyperdrive) HandleMessage(message Message) {
+	replica, ok := hyper.replicas[message.Shard]
+	if !ok {
 		return
 	}
-
-	r := replica.New(
-		hyperdrive.dispatcher,
-		hyperdrive.signer,
-		state.NewMachine(state.WaitingForPropose{}, block.NewPolkaBuilder(), block.NewCommitBuilder(), hyperdrive.signer, shard, pool, head),
-		state.NewTransitionBuffer(shard.Size()),
-		shard,
-		previousShard,
-	)
-
-	hyperdrive.shardReplicas[shard.Hash] = r
-
-	r.Init()
-}
-
-func (hyperdrive *hyperdrive) EndShard(shardHahs sig.Hash) {
-	// TODO: Stop the replica from pre-voting on blocks that contain
-	// transactions. It will only pre-vote on blocks that contain the "end
-	// shard" transaction.
-}
-
-func (hyperdrive *hyperdrive) DropShard(shardHash sig.Hash) {
-	delete(hyperdrive.shardReplicas, shardHash)
+	defer func() {
+		hyper.replicas[message.Shard] = replica
+	}()
+	replica.HandleMessage(message)
 }

@@ -1,4 +1,4 @@
-package hyperdrive_test
+package process_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestHyperdrive(t *testing.T) {
+func TestProcess(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Hyperdrive Suite")
+	RunSpecs(t, "Process Suite")
 }

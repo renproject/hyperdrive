@@ -1,374 +1,247 @@
 package block
 
 import (
-	"encoding/binary"
+	"encoding/base64"
 	"fmt"
-	"io"
 	"time"
 
-	"github.com/renproject/hyperdrive/sig"
-	"github.com/renproject/hyperdrive/tx"
+	"github.com/renproject/id"
 	"golang.org/x/crypto/sha3"
 )
 
-// MaxTransactions defines the maximum number of transactions allowed in a block.
-const MaxTransactions = 8
+// Kind defines the different kinds of Block that exist.
+type Kind uint8
 
-// The Round in which a `Block` was proposed.
-type Round int64
+const (
+	// Invalid defines an invalid Kind that must not be used.
+	Invalid Kind = iota
 
-// The Height at which a `Block` was proposed.
+	// Standard Blocks are used when reaching consensus on the ordering of
+	// application-specific data. Standard Blocks must have nil Header
+	// Signatories. This is the most common Block Kind.
+	Standard
+	// Rebase Blocks are used when reaching consensus about a change to the
+	// Header Signatories that oversee the consensus algorithm. Rebase Blocks
+	// must include non-empty Header Signatories.
+	Rebase
+	// Base Blocks are used to finalise Rebase Blocks. Base Blocks must come
+	// immediately after a Rebase Block, must have no Content, and must have the
+	// same Header Signatories as their parent.
+	Base
+)
+
+// String implements the `fmt.Stringer` interface for the Kind type.
+func (kind Kind) String() string {
+	switch kind {
+	case Standard:
+		return "standard"
+	case Rebase:
+		return "rebase"
+	case Base:
+		return "base"
+	default:
+		panic(fmt.Errorf("invariant violation: unexpected kind=%d", uint8(kind)))
+	}
+}
+
+// A Header defines properties of a Block that are not application-specific.
+// These properties are required by, or produced by, the consensus algorithm.
+type Header struct {
+	kind       Kind      // Kind of Block
+	parentHash id.Hash   // Hash of the Block parent
+	baseHash   id.Hash   // Hash of the Block base
+	height     Height    // Height at which the Block was committed
+	round      Round     // Round at which the Block was committed
+	timestamp  Timestamp // Seconds since Unix Epoch
+
+	// Signatories oversee the consensus algorithm (must be nil unless the Block
+	// is a Rebase/Base Block)
+	signatories id.Signatories
+}
+
+// NewHeader returns a Header. It will panic if a pre-condition for Header
+// validity is violated.
+func NewHeader(kind Kind, parentHash, baseHash id.Hash, height Height, round Round, timestamp Timestamp, signatories id.Signatories) Header {
+	switch kind {
+	case Standard:
+		if signatories != nil {
+			panic("pre-condition violation: standard blocks must not declare signatories")
+		}
+	case Rebase, Base:
+		if len(signatories) == 0 {
+			panic(fmt.Sprintf("pre-condition violation: %v blocks must declare signatories", kind))
+		}
+	default:
+		panic(fmt.Errorf("pre-condition violation: unexpected block kind=%v", kind))
+	}
+	if parentHash.Equal(InvalidHash) {
+		panic(fmt.Errorf("pre-condition violation: invalid parent hash=%v", parentHash))
+	}
+	if baseHash.Equal(InvalidHash) {
+		panic(fmt.Errorf("pre-condition violation: invalid base hash=%v", baseHash))
+	}
+	if height <= InvalidHeight {
+		panic(fmt.Errorf("pre-condition violation: invalid height=%v", height))
+	}
+	if round <= InvalidRound {
+		panic(fmt.Errorf("pre-condition violation: invalid round=%v", round))
+	}
+	if Timestamp(time.Now().Unix()) < timestamp {
+		panic("pre-condition violation: timestamp has not passed")
+	}
+	return Header{
+		kind:        kind,
+		parentHash:  parentHash,
+		baseHash:    baseHash,
+		height:      height,
+		round:       round,
+		timestamp:   timestamp,
+		signatories: signatories,
+	}
+}
+
+// Kind of the Block.
+func (header Header) Kind() Kind {
+	return header.kind
+}
+
+// ParentHash of the Block.
+func (header Header) ParentHash() id.Hash {
+	return header.parentHash
+}
+
+// BaseHash of the Block.
+func (header Header) BaseHash() id.Hash {
+	return header.baseHash
+}
+
+// Height of the Block.
+func (header Header) Height() Height {
+	return header.height
+}
+
+// Round of the Block.
+func (header Header) Round() Round {
+	return header.round
+}
+
+// Timestamp of the Block in seconds since Unix Epoch.
+func (header Header) Timestamp() Timestamp {
+	return header.timestamp
+}
+
+// Signatories of the Block.
+func (header Header) Signatories() id.Signatories {
+	return header.signatories
+}
+
+// String implements the `fmt.Stringer` interface for the Header type.
+func (header Header) String() string {
+	return fmt.Sprintf(
+		"Header(Kind=%v,ParentHash=%v,BaseHash=%v,Height=%v,Round=%v,Timestamp=%v,Signatories=%v)",
+		header.kind,
+		header.parentHash,
+		header.baseHash,
+		header.height,
+		header.round,
+		header.timestamp,
+		header.signatories,
+	)
+}
+
+// Data stores application-specific information used in Blocks and Notes (must
+// be nil in Rebase Blocks and Base Blocks).
+type Data []byte
+
+// String implements the `fmt.Stringer` interface for the Data type.
+func (data Data) String() string {
+	return base64.RawStdEncoding.EncodeToString(data)
+}
+
+// State stores application-specific state after the execution of a Block.
+type State []byte
+
+// String implements the `fmt.Stringer` interface for the State type.
+func (state State) String() string {
+	return base64.RawStdEncoding.EncodeToString(state)
+}
+
+// Blocks defines a wrapper type around the []Block type.
+type Blocks []Block
+
+// A Block is the atomic unit upon which consensus is reached. Consensus
+// guarantees a consistent ordering of Blocks that is agreed upon by all members
+// in a distributed network, even when some of the members are malicious.
+type Block struct {
+	hash      id.Hash // Hash of the Header, Data, and State
+	header    Header
+	data      Data
+	prevState State
+}
+
+// New Block with the Header, Data, and State of the Block parent. The Block
+// Hash will automatically be computed and set.
+func New(header Header, data Data, prevState State) Block {
+	return Block{
+		hash:      ComputeHash(header, data, prevState),
+		header:    header,
+		data:      data,
+		prevState: prevState,
+	}
+}
+
+// Hash returns the 256-bit SHA3 Hash of the Header and Data.
+func (block Block) Hash() id.Hash {
+	return block.hash
+}
+
+// Header of the Block.
+func (block Block) Header() Header {
+	return block.header
+}
+
+// Data embedded in the Block for application-specific purposes.
+func (block Block) Data() Data {
+	return block.data
+}
+
+// PreviousState embedded in the Block for application-specific state after the
+// execution of the Block parent.
+func (block Block) PreviousState() State {
+	return block.prevState
+}
+
+// String implements the `fmt.Stringer` interface for the Block type.
+func (block Block) String() string {
+	return fmt.Sprintf("Block(Hash=%v,Header=%v,Data=%v,PreviousState=%v)", block.hash, block.header, block.data, block.prevState)
+}
+
+// Equal compares one Block with another by checking that their Hashes are the
+// equal, and their Notes are equal.
+func (block Block) Equal(other Block) bool {
+	return block.String() == other.String()
+}
+
+// Timestamp represents seconds since Unix Epoch.
+type Timestamp uint64
+
+// Height of a Block.
 type Height int64
 
-// A Block is the data structure on which consensus must be reached. The Height
-// of a Block should be unique to that Block, otherwise the consensus mechanism
-// is faulty. A Block stores an ordered list of Transactions that will be
-// executed when consensus has been reached on the Block.
-type Block struct {
-	Time         time.Time
-	Height       Height
-	Header       sig.Hash
-	ParentHeader sig.Hash
-	TxHeader     sig.Hash
-	Txs          tx.Transactions
-}
+// Round in which a Block was proposed.
+type Round int64
 
-// New Block with the transaction header, and header, automatically computed and
-// stored in the returned Block.
-func New(height Height, parentHeader sig.Hash, txs tx.Transactions) Block {
-	block := Block{
-		Time:         time.Now(),
-		Height:       height,
-		ParentHeader: parentHeader,
-		Txs:          txs,
-	}
-	txHeaders := make([]byte, 32*len(block.Txs))
-	for i, tx := range block.Txs {
-		copy(txHeaders[32*i:], tx[:])
-	}
-	block.TxHeader = sha3.Sum256(txHeaders)
-	block.Header = sha3.Sum256([]byte(block.String()))
-	return block
-}
+// Define some default invalid values.
+var (
+	InvalidHash      = id.Hash{}
+	InvalidSignature = id.Signature{}
+	InvalidSignatory = id.Signatory{}
+	InvalidBlock     = Block{}
+	InvalidRound     = Round(-1)
+	InvalidHeight    = Height(-1)
+)
 
-// Equal checks for equality between the heights,  headers, and parent headers.
-func (block Block) Equal(other Block) bool {
-	return block.Height == other.Height &&
-		block.Header.Equal(other.Header) &&
-		block.ParentHeader.Equal(other.ParentHeader)
-}
-
-// Sign the header of the Block.
-func (block Block) Sign(signer sig.Signer) (SignedBlock, error) {
-	signedBlock := SignedBlock{
-		Block: block,
-	}
-
-	signature, err := signer.Sign(signedBlock.Header)
-	if err != nil {
-		return SignedBlock{}, err
-	}
-	signedBlock.Signature = signature
-	signedBlock.Signatory = signer.Signatory()
-
-	return signedBlock, nil
-}
-
-// String implements the Stringer interface for the Block type.
-func (block Block) String() string {
-	return fmt.Sprintf("Block(Height=%d,Timestamp=%d,TxHeader=%s,ParentHeader=%s)", block.Height, block.Time.Unix(), block.TxHeader, block.ParentHeader)
-}
-
-func (block Block) Write(w io.Writer) error {
-	if err := binary.Write(w, binary.LittleEndian, block.Time.Unix()); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.LittleEndian, block.Height); err != nil {
-		return err
-	}
-	if err := block.Header.Write(w); err != nil {
-		return err
-	}
-	if err := block.ParentHeader.Write(w); err != nil {
-		return err
-	}
-	if err := block.TxHeader.Write(w); err != nil {
-		return err
-	}
-	if err := block.Txs.Write(w); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (block *Block) Read(r io.Reader) error {
-	var now int64
-	if err := binary.Read(r, binary.LittleEndian, &now); err != nil {
-		return err
-	}
-	block.Time = time.Unix(now, 0)
-
-	if err := binary.Read(r, binary.LittleEndian, &block.Height); err != nil {
-		return err
-	}
-	if err := block.Header.Read(r); err != nil {
-		return err
-	}
-	if err := block.ParentHeader.Read(r); err != nil {
-		return err
-	}
-	if err := block.TxHeader.Read(r); err != nil {
-		return err
-	}
-
-	block.Txs = tx.Transactions{}
-	if err := block.Txs.Read(r); err != nil {
-		return err
-	}
-	return nil
-}
-
-// A SignedBlock is a Block associated with a Signature and a Signatory. The
-// Signature is generated by signing the Block header.
-type SignedBlock struct {
-	Block
-
-	Signature sig.Signature
-	Signatory sig.Signatory
-}
-
-// Genesis returns the genesis SignedBlock. The Signature and Signatory is
-// empty, and all other values are non-nil zero values.
-func Genesis() SignedBlock {
-	return SignedBlock{
-		Block: Block{
-			Time:         time.Unix(0, 0),
-			Height:       0,
-			Header:       sig.Hash{},
-			ParentHeader: sig.Hash{},
-			Txs:          tx.Transactions{},
-		},
-		Signature: sig.Signature{},
-		Signatory: sig.Signatory{},
-	}
-}
-
-// String implements the Stringer interface for the SignedBlock type.
-func (signedBlock SignedBlock) String() string {
-	return fmt.Sprintf("Block(Height=%d,Timestamp=%d,TxHeader=%s,ParentHeader=%s,Header=%s)", signedBlock.Height, signedBlock.Time.Unix(), signedBlock.TxHeader, signedBlock.ParentHeader, signedBlock.Header)
-}
-
-func (signedBlock SignedBlock) Write(w io.Writer) error {
-	if err := signedBlock.Block.Write(w); err != nil {
-		return err
-	}
-	if err := signedBlock.Signature.Write(w); err != nil {
-		return err
-	}
-	if err := signedBlock.Signatory.Write(w); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (signedBlock *SignedBlock) Read(r io.Reader) error {
-	if err := signedBlock.Block.Read(r); err != nil {
-		return err
-	}
-	if err := signedBlock.Signature.Read(r); err != nil {
-		return err
-	}
-	if err := signedBlock.Signatory.Read(r); err != nil {
-		return err
-	}
-	return nil
-}
-
-type Propose struct {
-	Block      SignedBlock
-	Round      Round
-	ValidRound Round // TODO: (Review) This name comes from the pseudocode in (https://arxiv.org/pdf/1807.04938.pdf). Should this be renamed to something more appropriate?
-	LastCommit *Commit
-}
-
-// Sign a Propose with your private key
-func (propose Propose) Sign(signer sig.Signer) (SignedPropose, error) {
-	data := []byte(propose.String())
-
-	hashSum256 := sha3.Sum256(data)
-	hash := sig.Hash{}
-	copy(hash[:], hashSum256[:])
-
-	signature, err := signer.Sign(hash)
-	if err != nil {
-		return SignedPropose{}, err
-	}
-
-	return SignedPropose{
-		Propose:   propose,
-		Signature: signature,
-		Signatory: signer.Signatory(),
-	}, nil
-}
-
-func (propose Propose) String() string {
-	return fmt.Sprintf("Propose(Block=%s,Round=%d,ValidRound=%d)", propose.Block.String(), propose.Round, propose.ValidRound)
-}
-
-func (propose Propose) Write(w io.Writer) error {
-	if err := propose.Block.Write(w); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.LittleEndian, propose.Round); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.LittleEndian, propose.ValidRound); err != nil {
-		return err
-	}
-
-	if propose.LastCommit == nil {
-		if err := binary.Write(w, binary.LittleEndian, uint8(0)); err != nil {
-			return err
-		}
-	} else {
-		if err := binary.Write(w, binary.LittleEndian, uint8(1)); err != nil {
-			return err
-		}
-		if err := propose.LastCommit.Write(w); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (propose *Propose) Read(r io.Reader) error {
-	if err := propose.Block.Read(r); err != nil {
-		return err
-	}
-	if err := binary.Read(r, binary.LittleEndian, &propose.Round); err != nil {
-		return err
-	}
-	if err := binary.Read(r, binary.LittleEndian, &propose.ValidRound); err != nil {
-		return err
-	}
-
-	var hasBlock uint8
-	if err := binary.Read(r, binary.LittleEndian, &hasBlock); err != nil {
-		return err
-	}
-	if hasBlock == 1 {
-		propose.LastCommit = new(Commit)
-		if err := propose.LastCommit.Read(r); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-type SignedPropose struct {
-	Propose
-
-	Signature sig.Signature
-	Signatory sig.Signatory
-}
-
-func (signedPropose SignedPropose) Write(w io.Writer) error {
-	if err := signedPropose.Propose.Write(w); err != nil {
-		return err
-	}
-	if err := signedPropose.Signature.Write(w); err != nil {
-		return err
-	}
-	if err := signedPropose.Signatory.Write(w); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (signedPropose *SignedPropose) Read(r io.Reader) error {
-	if err := signedPropose.Propose.Read(r); err != nil {
-		return err
-	}
-	if err := signedPropose.Signature.Read(r); err != nil {
-		return err
-	}
-	if err := signedPropose.Signatory.Read(r); err != nil {
-		return err
-	}
-	return nil
-}
-
-type Blockchain struct {
-	store Store
-}
-
-func NewBlockchain(store Store) Blockchain {
-	return Blockchain{
-		store: store,
-	}
-}
-
-func (blockchain *Blockchain) Height() Height {
-	height, err := blockchain.store.Height()
-	if err != nil {
-		return Genesis().Height
-	}
-	return height
-}
-
-func (blockchain *Blockchain) Head() (Commit, bool) {
-	return blockchain.Block(blockchain.Height())
-}
-
-func (blockchain *Blockchain) Block(height Height) (Commit, bool) {
-	commit, err := blockchain.store.Block(height)
-	if err != nil || commit.Polka.Block == nil {
-		genesis := Genesis()
-		return Commit{Polka: Polka{Block: &genesis}}, false
-	}
-	return commit, true
-}
-
-func (blockchain *Blockchain) Extend(commitToNextBlock Commit) error {
-	if commitToNextBlock.Polka.Block == nil {
-		return nil
-	}
-	if commitToNextBlock.Polka.Block.Height < blockchain.Height() {
-		panic("invariant violation: insert block before latest height")
-	}
-	return blockchain.store.InsertBlock(commitToNextBlock)
-}
-
-func (blockchain *Blockchain) Blocks(begin, end Height) []Commit {
-	if end < begin {
-		return []Commit{}
-	}
-
-	var block Commit
-	var err error
-
-	blocks := make([]Commit, 0, end-begin)
-	for i := begin; i <= end; i++ {
-		if block, err = blockchain.store.Block(i); err != nil || block.Polka.Block == nil {
-			return blocks
-		}
-		blocks = append(blocks, block)
-	}
-	return blocks
-}
-
-type Store interface {
-
-	// InsertBlock stores a committed SignedBlock to persistent storage.
-	InsertBlock(commit Commit) error
-
-	// Block returns a committed SignedBlock from persistent storage. An error
-	// is returned when there is no SignedBlock committed at the given Height.
-	Block(height Height) (Commit, error)
-
-	// Height returns the latest Height that has been seen when inserting a
-	// Block. An error is returned when there is no Height.
-	Height() (Height, error)
+// ComputeHash of a block basing on its header, data and previous state.
+func ComputeHash(header Header, data Data, prevState State) id.Hash {
+	return sha3.Sum256([]byte(fmt.Sprintf("BlockHash(Header=%v,Data=%v,PreviousState=%v)", header, data, prevState)))
 }
