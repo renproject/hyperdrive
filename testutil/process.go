@@ -74,7 +74,7 @@ func RandomMessageWithHeightAndRound(height block.Height, round block.Round, t p
 		msg = process.NewPropose(height, round, block, validRound)
 	case process.PrevoteMessageType:
 		hash := RandomHash()
-		msg = process.NewPrevote(height, round, hash)
+		msg = process.NewPrevote(height, round, hash, nil)
 	case process.PrecommitMessageType:
 		hash := RandomHash()
 		msg = process.NewPrecommit(height, round, hash)
@@ -107,7 +107,7 @@ func RandomPrevote() *process.Prevote {
 	height := block.Height(rand.Int63())
 	round := block.Round(rand.Int63())
 	hash := RandomHash()
-	return process.NewPrevote(height, round, hash)
+	return process.NewPrevote(height, round, hash, nil)
 }
 
 func RandomPrecommit() *process.Precommit {
@@ -303,14 +303,17 @@ func NewMockValidator(valid error) process.Validator {
 	return MockValidator{valid: valid}
 }
 
-func (m MockValidator) IsBlockValid(block.Block, bool) error {
-	return m.valid
+func (m MockValidator) IsBlockValid(block.Block, bool) (map[string]interface{}, error) {
+	return nil, m.valid
 }
 
 type MockObserver struct {
 }
 
 func (m MockObserver) DidCommitBlock(block.Height) {
+}
+
+func (m MockObserver) ReceivedSufficientPrevotes(process.Messages) {
 }
 
 type MockBroadcaster struct {

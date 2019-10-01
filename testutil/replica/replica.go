@@ -80,23 +80,23 @@ func NewMockValidator(store *MockPersistentStorage) replica.Validator {
 	}
 }
 
-func (m *MockValidator) IsBlockValid(b block.Block, checkHistory bool, shard replica.Shard) error {
+func (m *MockValidator) IsBlockValid(b block.Block, checkHistory bool, shard replica.Shard) (map[string]interface{}, error) {
 	height := b.Header().Height()
 	prevState := b.PreviousState()
 
 	blockchain := m.store.MockBlockchain(shard)
 	if !checkHistory {
-		return nil
+		return nil, nil
 	}
 
 	state, ok := blockchain.StateAtHeight(height - 1)
 	if !ok {
-		return fmt.Errorf("failed to get state at height %d", height-1)
+		return nil, fmt.Errorf("failed to get state at height %d", height-1)
 	}
 	if !bytes.Equal(prevState, state) {
-		return fmt.Errorf("invalid previous state")
+		return nil, fmt.Errorf("invalid previous state")
 	}
-	return nil
+	return nil, nil
 }
 
 type MockObserver struct {
@@ -130,6 +130,9 @@ func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
 
 func (observer *MockObserver) IsSignatory(replica.Shard) bool {
 	return observer.isSignatory
+}
+
+func (observer *MockObserver) ReceivedSufficientPrevotes(process.Messages) {
 }
 
 type latestMessages struct {

@@ -64,7 +64,8 @@ var _ = Describe("shardRebaser", func() {
 				header.Timestamp = block.Timestamp(time.Now().Unix())
 				proposedBlock := block.New(header.ToBlockHeader(), nil, nil)
 
-				return rebaser.IsBlockValid(proposedBlock, true) == nil
+				_, err := rebaser.IsBlockValid(proposedBlock, true)
+				return err == nil
 			}
 
 			Expect(quick.Check(test, nil)).Should(Succeed())
@@ -166,7 +167,8 @@ var _ = Describe("shardRebaser", func() {
 				header.Timestamp = block.Timestamp(time.Now().Unix() - 1)
 				header.Signatories = sigs
 				rebaseBlock := block.New(header.ToBlockHeader(), nil, nil)
-				Expect(rebaser.IsBlockValid(rebaseBlock, true)).Should(BeNil())
+				_, err := rebaser.IsBlockValid(rebaseBlock, true)
+				Expect(err).Should(BeNil())
 
 				// After the block been committed
 				commitBlock(store, shard, rebaseBlock)
@@ -182,7 +184,8 @@ var _ = Describe("shardRebaser", func() {
 				baseHeader.Signatories = sigs
 				baseBlock := block.New(baseHeader.ToBlockHeader(), nil, nil)
 
-				return rebaser.IsBlockValid(baseBlock, true) == nil
+				_, err = rebaser.IsBlockValid(baseBlock, true)
+				return err == nil
 			}
 			Expect(quick.Check(test, nil)).Should(Succeed())
 		})

@@ -158,13 +158,15 @@ type Prevote struct {
 	height    block.Height
 	round     block.Round
 	blockHash id.Hash
+	extras    map[string]interface{}
 }
 
-func NewPrevote(height block.Height, round block.Round, blockHash id.Hash) *Prevote {
+func NewPrevote(height block.Height, round block.Round, blockHash id.Hash, extras map[string]interface{}) *Prevote {
 	return &Prevote{
 		height:    height,
 		round:     round,
 		blockHash: blockHash,
+		extras:    extras,
 	}
 }
 
@@ -301,7 +303,21 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	return
 }
 
-func (inbox *Inbox) QueryMessagesByHeightWithHigestRound(height block.Height) []Message {
+func (inbox *Inbox) QueryMessagesByHeightRound(height block.Height, round block.Round) []Message {
+	if _, ok := inbox.messages[height]; !ok {
+		return nil
+	}
+	if _, ok := inbox.messages[height][round]; !ok {
+		return nil
+	}
+	messages := make([]Message, 0, len(inbox.messages[height][round]))
+	for _, message := range inbox.messages[height][round] {
+		messages = append(messages, message)
+	}
+	return messages
+}
+
+func (inbox *Inbox) QueryMessagesByHeightWithHighestRound(height block.Height) []Message {
 	if _, ok := inbox.messages[height]; !ok {
 		return nil
 	}

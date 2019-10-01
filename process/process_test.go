@@ -205,7 +205,7 @@ var _ = Describe("Process", func() {
 
 				// Send 2F +1 Prevote for this proposal
 				for i := 0; i < 2*f+1; i++ {
-					prevote := NewPrevote(height, round, propose.BlockHash())
+					prevote := NewPrevote(height, round, propose.BlockHash(), nil)
 					pk := newEcdsaKey()
 					Expect(Sign(prevote, *pk)).Should(Succeed())
 					process.HandleMessage(prevote)
@@ -251,7 +251,7 @@ var _ = Describe("Process", func() {
 
 				// Send 2F +1 Prevote for this proposal
 				for i := 0; i < 2*f+1; i++ {
-					prevote := NewPrevote(height, round, propose.BlockHash())
+					prevote := NewPrevote(height, round, propose.BlockHash(), nil)
 					pk := newEcdsaKey()
 					Expect(Sign(prevote, *pk)).Should(Succeed())
 					process.HandleMessage(prevote)
@@ -279,7 +279,7 @@ var _ = Describe("Process", func() {
 				process := processOrigin.ToProcess()
 
 				for i := 0; i < 2*f+1; i++ {
-					prevote := NewPrevote(height, round, RandomBlock(RandomBlockKind()).Hash())
+					prevote := NewPrevote(height, round, RandomBlock(RandomBlockKind()).Hash(), nil)
 					privateKey := newEcdsaKey()
 					Expect(Sign(prevote, *privateKey)).NotTo(HaveOccurred())
 					process.HandleMessage(prevote)
@@ -307,7 +307,7 @@ var _ = Describe("Process", func() {
 				process := processOrigin.ToProcess()
 
 				for i := 0; i < 2*f+1; i++ {
-					prevote := NewPrevote(height, round, block.InvalidHash)
+					prevote := NewPrevote(height, round, block.InvalidHash, nil)
 					privateKey := newEcdsaKey()
 					Expect(Sign(prevote, *privateKey)).NotTo(HaveOccurred())
 					process.HandleMessage(prevote)
@@ -427,7 +427,7 @@ var _ = Describe("Process", func() {
 
 							// Send 2f + 1 prevotes
 							for i := 0; i < 2*f+1; i++ {
-								prevote := NewPrevote(height, validRound, propose.BlockHash())
+								prevote := NewPrevote(height, validRound, propose.BlockHash(), nil)
 								privateKey := newEcdsaKey()
 								Expect(Sign(prevote, *privateKey)).Should(Succeed())
 								process.HandleMessage(prevote)
@@ -471,7 +471,7 @@ var _ = Describe("Process", func() {
 
 							// Send 2f + 1 prevotes
 							for i := 0; i < 2*f+1; i++ {
-								prevote := NewPrevote(height, validRound, propose.BlockHash())
+								prevote := NewPrevote(height, validRound, propose.BlockHash(), nil)
 								privateKey := newEcdsaKey()
 								Expect(Sign(prevote, *privateKey)).Should(Succeed())
 								process.HandleMessage(prevote)
@@ -513,7 +513,7 @@ var _ = Describe("Process", func() {
 
 						// Send 2f + 1 prevotes
 						for i := 0; i < 2*f+1; i++ {
-							prevote := NewPrevote(height, validRound, propose.BlockHash())
+							prevote := NewPrevote(height, validRound, propose.BlockHash(), nil)
 							privateKey := newEcdsaKey()
 							Expect(Sign(prevote, *privateKey)).Should(Succeed())
 							process.HandleMessage(prevote)

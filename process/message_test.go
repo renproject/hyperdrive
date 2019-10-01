@@ -121,7 +121,7 @@ var _ = Describe("Messages", func() {
 					round := block.Round(rand.Int63())
 					blockHash := RandomHash()
 
-					prevote := NewPrevote(height, round, blockHash)
+					prevote := NewPrevote(height, round, blockHash, nil)
 
 					Expect(prevote.Height()).Should(Equal(height))
 					Expect(prevote.Round()).Should(Equal(round))

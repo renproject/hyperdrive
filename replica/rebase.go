@@ -26,12 +26,13 @@ type BlockIterator interface {
 }
 
 type Validator interface {
-	IsBlockValid(block block.Block, checkHistory bool, shard Shard) error
+	IsBlockValid(block block.Block, checkHistory bool, shard Shard) (map[string]interface{}, error)
 }
 
 type Observer interface {
 	DidCommitBlock(block.Height, Shard)
 	IsSignatory(Shard) bool
+	ReceivedSufficientPrevotes(process.Messages)
 }
 
 type shardRebaser struct {
@@ -111,23 +112,25 @@ func (rebaser *shardRebaser) BlockProposal(height block.Height, round block.Roun
 	return block.New(header, data, prevState)
 }
 
-func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistory bool) error {
+func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistory bool) (map[string]interface{}, error) {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
+	extras := make(map[string]interface{})
+
 	// Check the expected `block.Kind`
 	if proposedBlock.Header().Kind() != rebaser.expectedKind {
-		return fmt.Errorf("unexpected block kind: expected %v, got %v", rebaser.expectedKind, proposedBlock.Header().Kind())
+		return extras, fmt.Errorf("unexpected block kind: expected %v, got %v", rebaser.expectedKind, proposedBlock.Header().Kind())
 	}
 	switch proposedBlock.Header().Kind() {
 	case block.Standard:
 		if proposedBlock.Header().Signatories() != nil {
-			return fmt.Errorf("expected standard block to have nil signatories")
+			return extras, fmt.Errorf("expected standard block to have nil signatories")
 		}
 
 	case block.Rebase:
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
-			return fmt.Errorf("unexpected signatories in rebase block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
+			return extras, fmt.Errorf("unexpected signatories in rebase block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
 		}
 		// TODO: Transactions are expected to be nil (the plan is not expected
 		// to be nil, because there are "default" computations that might need
@@ -135,13 +138,13 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 
 	case block.Base:
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
-			return fmt.Errorf("unexpected signatories in base block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
+			return extras, fmt.Errorf("unexpected signatories in base block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
 		}
 		if proposedBlock.Data() != nil {
 			// TODO: Transactions are expected to be nil (the plan is not expected
 			// to be nil, because there are "default" computations that might need
 			// to be done every block).
-			return fmt.Errorf("expected base block to have nil data")
+			return extras, fmt.Errorf("expected base block to have nil data")
 		}
 
 	default:
@@ -150,46 +153,46 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 
 	// Check the expected `block.Hash`
 	if !proposedBlock.Hash().Equal(block.ComputeHash(proposedBlock.Header(), proposedBlock.Data(), proposedBlock.PreviousState())) {
-		return fmt.Errorf("unexpected block hash for proposed block")
+		return extras, fmt.Errorf("unexpected block hash for proposed block")
 	}
 
 	// Check against the parent `block.Block`
 	if checkHistory {
 		parentBlock, ok := rebaser.blockStorage.Blockchain(rebaser.shard).BlockAtHeight(proposedBlock.Header().Height() - 1)
 		if !ok {
-			return fmt.Errorf("block at height=%d not found", proposedBlock.Header().Height()-1)
+			return extras, fmt.Errorf("block at height=%d not found", proposedBlock.Header().Height()-1)
 		}
 		if proposedBlock.Header().Timestamp() < parentBlock.Header().Timestamp() {
-			return fmt.Errorf("expected timestamp for proposed block to be greater than parent block")
+			return extras, fmt.Errorf("expected timestamp for proposed block to be greater than parent block")
 		}
 		if proposedBlock.Header().Timestamp() > block.Timestamp(time.Now().Unix()) {
-			return fmt.Errorf("expected timestamp for proposed block to be less than current time")
+			return extras, fmt.Errorf("expected timestamp for proposed block to be less than current time")
 		}
 		if !proposedBlock.Header().ParentHash().Equal(parentBlock.Hash()) {
-			return fmt.Errorf("expected parent hash for proposed block to equal parent block hash")
+			return extras, fmt.Errorf("expected parent hash for proposed block to equal parent block hash")
 		}
 
 		// Check that the parent is the most recently finalised
 		latestBlock := rebaser.blockStorage.LatestBlock(rebaser.shard)
 		if !parentBlock.Hash().Equal(latestBlock.Hash()) {
-			return fmt.Errorf("expected parent block hash to equal latest block hash")
+			return extras, fmt.Errorf("expected parent block hash to equal latest block hash")
 		}
 		if parentBlock.Hash().Equal(block.InvalidHash) {
-			return fmt.Errorf("parent block hash should not be invalid")
+			return extras, fmt.Errorf("parent block hash should not be invalid")
 		}
 	}
 
 	// Check against the base `block.Block`
 	baseBlock := rebaser.blockStorage.LatestBaseBlock(rebaser.shard)
 	if !proposedBlock.Header().BaseHash().Equal(baseBlock.Hash()) {
-		return fmt.Errorf("expected base hash for proposed block to equal base block hash")
+		return extras, fmt.Errorf("expected base hash for proposed block to equal base block hash")
 	}
 
 	// Pass to the next `process.Validator`
 	if rebaser.validator != nil {
 		return rebaser.validator.IsBlockValid(proposedBlock, checkHistory, rebaser.shard)
 	}
-	return nil
+	return extras, nil
 }
 
 func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
@@ -212,6 +215,12 @@ func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
 	}
 	if rebaser.observer != nil {
 		rebaser.observer.DidCommitBlock(height, rebaser.shard)
+	}
+}
+
+func (rebaser *shardRebaser) ReceivedSufficientPrevotes(messages process.Messages) {
+	if rebaser.observer != nil {
+		rebaser.observer.ReceivedSufficientPrevotes(messages)
 	}
 }
 
