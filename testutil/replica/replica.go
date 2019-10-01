@@ -100,12 +100,14 @@ func (m *MockValidator) IsBlockValid(b block.Block, checkHistory bool, shard rep
 }
 
 type MockObserver struct {
-	store *MockPersistentStorage
+	store       *MockPersistentStorage
+	isSignatory bool
 }
 
-func NewMockObserver(store *MockPersistentStorage) replica.Observer {
+func NewMockObserver(store *MockPersistentStorage, isSignatory bool) replica.Observer {
 	return &MockObserver{
-		store: store,
+		store:       store,
+		isSignatory: isSignatory,
 	}
 }
 
@@ -124,6 +126,10 @@ func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
 		panic(fmt.Sprintf("cannot find block of height %v, %v", height-1, prevBlock))
 	}
 	blockchain.InsertBlockStatAtHeight(height-1, prevBlock.PreviousState())
+}
+
+func (observer *MockObserver) IsSignatory(replica.Shard) bool {
+	return observer.isSignatory
 }
 
 type latestMessages struct {
