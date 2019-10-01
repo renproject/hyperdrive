@@ -194,6 +194,10 @@ func (prevote *Prevote) BlockHash() id.Hash {
 	return prevote.blockHash
 }
 
+func (prevote *Prevote) Extras() map[string]interface{} {
+	return prevote.extras
+}
+
 func (prevote *Prevote) Type() MessageType {
 	return PrevoteMessageType
 }
