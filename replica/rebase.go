@@ -141,8 +141,11 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
 			return fmt.Errorf("unexpected signatories in base block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
 		}
+		if proposedBlock.Txs() != nil {
+			return fmt.Errorf("expected base block to have nil txs")
+		}
 		if proposedBlock.Plan() != nil {
-			return fmt.Errorf("expected base block to have nil data")
+			return fmt.Errorf("expected base block to have nil plan")
 		}
 
 	default:
