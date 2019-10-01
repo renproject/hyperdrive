@@ -1,12 +1,12 @@
 package block
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"time"
 
 	"github.com/renproject/id"
-	"golang.org/x/crypto/sha3"
 )
 
 // Kind defines the different kinds of Block that exist.
@@ -190,7 +190,7 @@ func New(header Header, data Data, prevState State) Block {
 	}
 }
 
-// Hash returns the 256-bit SHA3 Hash of the Header and Data.
+// Hash returns the 256-bit SHA2 Hash of the Header and Data.
 func (block Block) Hash() id.Hash {
 	return block.hash
 }
@@ -243,5 +243,5 @@ var (
 
 // ComputeHash of a block basing on its header, data and previous state.
 func ComputeHash(header Header, data Data, prevState State) id.Hash {
-	return sha3.Sum256([]byte(fmt.Sprintf("BlockHash(Header=%v,Data=%v,PreviousState=%v)", header, data, prevState)))
+	return sha256.Sum256([]byte(fmt.Sprintf("BlockHash(Header=%v,Data=%v,PreviousState=%v)", header, data, prevState)))
 }
