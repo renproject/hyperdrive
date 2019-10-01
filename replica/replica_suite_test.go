@@ -96,6 +96,9 @@ func newMockObserver() Observer {
 
 func (m mockObserver) DidCommitBlock(block.Height, Shard) {
 }
+func (m mockObserver) IsSignatory(Shard) bool {
+	return true
+}
 
 type mockProcessStorage struct {
 }
