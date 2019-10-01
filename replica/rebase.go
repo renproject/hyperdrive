@@ -26,11 +26,12 @@ type BlockIterator interface {
 }
 
 type Validator interface {
-	IsBlockValid(block block.Block, checkHistory bool, shard Shard) bool
+	IsBlockValid(block block.Block, checkHistory bool, shard Shard) error
 }
 
 type Observer interface {
 	DidCommitBlock(block.Height, Shard)
+	IsSignatory(Shard) bool
 }
 
 type shardRebaser struct {
@@ -114,34 +115,34 @@ func (rebaser *shardRebaser) BlockProposal(height block.Height, round block.Roun
 	return block.New(header, txs, plan, prevState)
 }
 
-func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistory bool) bool {
+func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistory bool) error {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
 	// Check the expected `block.Kind`
 	if proposedBlock.Header().Kind() != rebaser.expectedKind {
-		return false
+		return fmt.Errorf("unexpected block kind: expected %v, got %v", rebaser.expectedKind, proposedBlock.Header().Kind())
 	}
 	switch proposedBlock.Header().Kind() {
 	case block.Standard:
 		if proposedBlock.Header().Signatories() != nil {
-			return false
+			return fmt.Errorf("expected standard block to have nil signatories")
 		}
 
 	case block.Rebase:
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
-			return false
+			return fmt.Errorf("unexpected signatories in rebase block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
 		}
+		// TODO: Transactions are expected to be nil (the plan is not expected
+		// to be nil, because there are "default" computations that might need
+		// to be done every block).
 
 	case block.Base:
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
-			return false
-		}
-		if proposedBlock.Txs() != nil {
-			return false
+			return fmt.Errorf("unexpected signatories in base block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
 		}
 		if proposedBlock.Plan() != nil {
-			return false
+			return fmt.Errorf("expected base block to have nil data")
 		}
 
 	default:
@@ -150,46 +151,46 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 
 	// Check the expected `block.Hash`
 	if !proposedBlock.Hash().Equal(block.ComputeHash(proposedBlock.Header(), proposedBlock.Txs(), proposedBlock.Plan(), proposedBlock.PreviousState())) {
-		return false
+		return fmt.Errorf("unexpected block hash for proposed block")
 	}
 
 	// Check against the parent `block.Block`
 	if checkHistory {
 		parentBlock, ok := rebaser.blockStorage.Blockchain(rebaser.shard).BlockAtHeight(proposedBlock.Header().Height() - 1)
 		if !ok {
-			return false
+			return fmt.Errorf("block at height=%d not found", proposedBlock.Header().Height()-1)
 		}
 		if proposedBlock.Header().Timestamp() < parentBlock.Header().Timestamp() {
-			return false
+			return fmt.Errorf("expected timestamp for proposed block to be greater than parent block")
 		}
 		if proposedBlock.Header().Timestamp() > block.Timestamp(time.Now().Unix()) {
-			return false
+			return fmt.Errorf("expected timestamp for proposed block to be less than current time")
 		}
 		if !proposedBlock.Header().ParentHash().Equal(parentBlock.Hash()) {
-			return false
+			return fmt.Errorf("expected parent hash for proposed block to equal parent block hash")
 		}
 
 		// Check that the parent is the most recently finalised
 		latestBlock := rebaser.blockStorage.LatestBlock(rebaser.shard)
 		if !parentBlock.Hash().Equal(latestBlock.Hash()) {
-			return false
+			return fmt.Errorf("expected parent block hash to equal latest block hash")
 		}
 		if parentBlock.Hash().Equal(block.InvalidHash) {
-			return false
+			return fmt.Errorf("parent block hash should not be invalid")
 		}
 	}
 
 	// Check against the base `block.Block`
 	baseBlock := rebaser.blockStorage.LatestBaseBlock(rebaser.shard)
 	if !proposedBlock.Header().BaseHash().Equal(baseBlock.Hash()) {
-		return false
+		return fmt.Errorf("expected base hash for proposed block to equal base block hash")
 	}
 
 	// Pass to the next `process.Validator`
 	if rebaser.validator != nil {
 		return rebaser.validator.IsBlockValid(proposedBlock, checkHistory, rebaser.shard)
 	}
-	return true
+	return nil
 }
 
 func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
