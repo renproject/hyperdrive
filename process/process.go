@@ -42,7 +42,7 @@ type Validator interface {
 // An Observer is notified when note-worthy events happen for the first time.
 type Observer interface {
 	DidCommitBlock(block.Height)
-	ReceivedSufficientPrevotes(Messages)
+	ReceivedSufficientPrevotes(messages Messages, threshold int)
 }
 
 // A Scheduler determines which `id.Signatory` should be broadcasting
@@ -327,7 +327,7 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 			p.broadcaster.Broadcast(precommit)
 		}
 
-		p.observer.ReceivedSufficientPrevotes(p.state.Prevotes.QueryMessagesByHeightRound(p.state.CurrentHeight, p.state.CurrentRound))
+		p.observer.ReceivedSufficientPrevotes(p.state.Prevotes.QueryMessagesByHeightRound(p.state.CurrentHeight, p.state.CurrentRound), 2*p.state.Prevotes.F()+1)
 	}
 
 	// upon f+1 *{currentHeight, round, *, *} and round > currentRound
