@@ -132,7 +132,7 @@ func (observer *MockObserver) IsSignatory(replica.Shard) bool {
 	return observer.isSignatory
 }
 
-func (observer *MockObserver) ReceivedSufficientPrevotes(process.Messages, int) {
+func (observer *MockObserver) ReceivedSufficientNilPrevotes(process.Messages, int) {
 }
 
 type latestMessages struct {

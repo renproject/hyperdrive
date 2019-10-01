@@ -313,7 +313,7 @@ type MockObserver struct {
 func (m MockObserver) DidCommitBlock(block.Height) {
 }
 
-func (m MockObserver) ReceivedSufficientPrevotes(process.Messages, int) {
+func (m MockObserver) ReceivedSufficientNilPrevotes(process.Messages, int) {
 }
 
 type MockBroadcaster struct {
