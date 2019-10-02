@@ -268,7 +268,7 @@ func (block Block) PreviousState() State {
 
 // String implements the `fmt.Stringer` interface for the Block type.
 func (block Block) String() string {
-	return fmt.Sprintf("Block(Hash=%v,Header=%v,Txs=%vPlan=%v,PreviousState=%v)", block.hash, block.header, block.txs, block.plan, block.prevState)
+	return fmt.Sprintf("Block(Hash=%v,Header=%v,Txs=%v,Plan=%v,PreviousState=%v)", block.hash, block.header, block.txs, block.plan, block.prevState)
 }
 
 // Equal compares one Block with another by checking that their Hashes are the
