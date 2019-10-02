@@ -12,17 +12,23 @@ import (
 // MarshalJSON implements the `json.Marshaler` interface for the Header type.
 func (header Header) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Kind        Kind           `json:"kind"`
-		ParentHash  id.Hash        `json:"parentHash"`
-		BaseHash    id.Hash        `json:"baseHash"`
-		Height      Height         `json:"height"`
-		Round       Round          `json:"round"`
-		Timestamp   Timestamp      `json:"timestamp"`
-		Signatories id.Signatories `json:"signatories"`
+		Kind         Kind           `json:"kind"`
+		ParentHash   id.Hash        `json:"parentHash"`
+		BaseHash     id.Hash        `json:"baseHash"`
+		TxsRef       id.Hash        `json:"txsRef"`
+		PlanRef      id.Hash        `json:"planRef"`
+		PrevStateRef id.Hash        `json:"prevStateRef"`
+		Height       Height         `json:"height"`
+		Round        Round          `json:"round"`
+		Timestamp    Timestamp      `json:"timestamp"`
+		Signatories  id.Signatories `json:"signatories"`
 	}{
 		header.kind,
 		header.parentHash,
 		header.baseHash,
+		header.txsRef,
+		header.planRef,
+		header.prevStateRef,
 		header.height,
 		header.round,
 		header.timestamp,
@@ -33,13 +39,16 @@ func (header Header) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Header type.
 func (header *Header) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		Kind        Kind           `json:"kind"`
-		ParentHash  id.Hash        `json:"parentHash"`
-		BaseHash    id.Hash        `json:"baseHash"`
-		Height      Height         `json:"height"`
-		Round       Round          `json:"round"`
-		Timestamp   Timestamp      `json:"timestamp"`
-		Signatories id.Signatories `json:"signatories"`
+		Kind         Kind           `json:"kind"`
+		ParentHash   id.Hash        `json:"parentHash"`
+		BaseHash     id.Hash        `json:"baseHash"`
+		TxsRef       id.Hash        `json:"txsRef"`
+		PlanRef      id.Hash        `json:"planRef"`
+		PrevStateRef id.Hash        `json:"prevStateRef"`
+		Height       Height         `json:"height"`
+		Round        Round          `json:"round"`
+		Timestamp    Timestamp      `json:"timestamp"`
+		Signatories  id.Signatories `json:"signatories"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
@@ -47,6 +56,9 @@ func (header *Header) UnmarshalJSON(data []byte) error {
 	header.kind = tmp.Kind
 	header.parentHash = tmp.ParentHash
 	header.baseHash = tmp.BaseHash
+	header.txsRef = tmp.TxsRef
+	header.planRef = tmp.PlanRef
+	header.prevStateRef = tmp.PrevStateRef
 	header.height = tmp.Height
 	header.round = tmp.Round
 	header.timestamp = tmp.Timestamp
@@ -66,6 +78,15 @@ func (header Header) MarshalBinary() ([]byte, error) {
 	}
 	if err := binary.Write(buf, binary.LittleEndian, header.baseHash); err != nil {
 		return buf.Bytes(), fmt.Errorf("cannot write header.baseHash: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, header.txsRef); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write header.txsRef: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, header.planRef); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write header.planRef: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, header.prevStateRef); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write header.prevStateRef: %v", err)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, header.height); err != nil {
 		return buf.Bytes(), fmt.Errorf("cannot write header.height: %v", err)
@@ -100,6 +121,15 @@ func (header *Header) UnmarshalBinary(data []byte) error {
 	if err := binary.Read(buf, binary.LittleEndian, &header.baseHash); err != nil {
 		return fmt.Errorf("cannot read header.baseHash: %v", err)
 	}
+	if err := binary.Read(buf, binary.LittleEndian, &header.txsRef); err != nil {
+		return fmt.Errorf("cannot read header.txsRef: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &header.planRef); err != nil {
+		return fmt.Errorf("cannot read header.planRef: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &header.prevStateRef); err != nil {
+		return fmt.Errorf("cannot read header.prevStateRef: %v", err)
+	}
 	if err := binary.Read(buf, binary.LittleEndian, &header.height); err != nil {
 		return fmt.Errorf("cannot read header.height: %v", err)
 	}
@@ -129,12 +159,14 @@ func (block Block) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Hash      id.Hash `json:"hash"`
 		Header    Header  `json:"header"`
-		Data      Data    `json:"data"`
+		Txs       Txs     `json:"txs"`
+		Plan      Plan    `json:"plan"`
 		PrevState State   `json:"prevState"`
 	}{
 		block.hash,
 		block.header,
-		block.data,
+		block.txs,
+		block.plan,
 		block.prevState,
 	})
 }
@@ -144,7 +176,8 @@ func (block *Block) UnmarshalJSON(data []byte) error {
 	tmp := struct {
 		Hash      id.Hash `json:"hash"`
 		Header    Header  `json:"header"`
-		Data      Data    `json:"data"`
+		Txs       Txs     `json:"txs"`
+		Plan      Plan    `json:"plan"`
 		PrevState State   `json:"prevState"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
@@ -152,7 +185,8 @@ func (block *Block) UnmarshalJSON(data []byte) error {
 	}
 	block.hash = tmp.Hash
 	block.header = tmp.Header
-	block.data = tmp.Data
+	block.txs = tmp.Txs
+	block.plan = tmp.Plan
 	block.prevState = tmp.PrevState
 	return nil
 }
@@ -174,11 +208,17 @@ func (block Block) MarshalBinary() ([]byte, error) {
 	if err := binary.Write(buf, binary.LittleEndian, headerData); err != nil {
 		return buf.Bytes(), fmt.Errorf("cannot write block.header data: %v", err)
 	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(block.data))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write block.data len: %v", err)
+	if err := binary.Write(buf, binary.LittleEndian, uint64(len(block.txs))); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write block.txs len: %v", err)
 	}
-	if err := binary.Write(buf, binary.LittleEndian, block.data); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write block.data data: %v", err)
+	if err := binary.Write(buf, binary.LittleEndian, block.txs); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write block.txs data: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, uint64(len(block.plan))); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write block.plan len: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, block.plan); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write block.plan data: %v", err)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, uint64(len(block.prevState))); err != nil {
 		return buf.Bytes(), fmt.Errorf("cannot write block.prevState len: %v", err)
@@ -208,14 +248,24 @@ func (block *Block) UnmarshalBinary(data []byte) error {
 		return fmt.Errorf("cannot unmarshal block.header: %v", err)
 	}
 	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read block.data len: %v", err)
+		return fmt.Errorf("cannot read block.txs len: %v", err)
 	}
 	if numBytes > 0 {
-		dataBytes := make([]byte, numBytes)
-		if _, err := buf.Read(dataBytes); err != nil {
-			return fmt.Errorf("cannot read block.data data: %v", err)
+		txsBytes := make([]byte, numBytes)
+		if _, err := buf.Read(txsBytes); err != nil {
+			return fmt.Errorf("cannot read block.txs data: %v", err)
 		}
-		block.data = dataBytes
+		block.txs = txsBytes
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
+		return fmt.Errorf("cannot read block.plan len: %v", err)
+	}
+	if numBytes > 0 {
+		planBytes := make([]byte, numBytes)
+		if _, err := buf.Read(planBytes); err != nil {
+			return fmt.Errorf("cannot read block.plan data: %v", err)
+		}
+		block.plan = planBytes
 	}
 	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
 		return fmt.Errorf("cannot read block.prevState len: %v", err)
