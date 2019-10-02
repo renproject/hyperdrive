@@ -1,12 +1,12 @@
 package block
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"time"
 
 	"github.com/renproject/id"
-	"golang.org/x/crypto/sha3"
 )
 
 // Kind defines the different kinds of Block that exist.
@@ -179,7 +179,7 @@ type Txs []byte
 
 // Hash of a Txs object.
 func (txs Txs) Hash() id.Hash {
-	return sha3.Sum256(txs)
+	return sha256.Sum256(txs)
 }
 
 // String implements the `fmt.Stringer` interface for the Txs type.
@@ -193,7 +193,7 @@ type Plan []byte
 
 // Hash of a Plan object.
 func (plan Plan) Hash() id.Hash {
-	return sha3.Sum256(plan)
+	return sha256.Sum256(plan)
 }
 
 // String implements the `fmt.Stringer` interface for the Plan type.
@@ -206,7 +206,7 @@ type State []byte
 
 // Hash of a State object.
 func (state State) Hash() id.Hash {
-	return sha3.Sum256(state)
+	return sha256.Sum256(state)
 }
 
 // String implements the `fmt.Stringer` interface for the State type.
@@ -240,7 +240,7 @@ func New(header Header, txs Txs, plan Plan, prevState State) Block {
 	}
 }
 
-// Hash returns the 256-bit SHA3 Hash of the Header and Data.
+// Hash returns the 256-bit SHA2 Hash of the Header and Data.
 func (block Block) Hash() id.Hash {
 	return block.hash
 }
@@ -298,5 +298,5 @@ var (
 
 // ComputeHash of a block basing on its header, data and previous state.
 func ComputeHash(header Header, txs Txs, plan Plan, prevState State) id.Hash {
-	return sha3.Sum256([]byte(fmt.Sprintf("BlockHash(Header=%v,Txs=%v,Plan=%v,PreviousState=%v)", header, txs, plan, prevState)))
+	return sha256.Sum256([]byte(fmt.Sprintf("BlockHash(Header=%v,Txs=%v,Plan=%v,PreviousState=%v)", header, txs, plan, prevState)))
 }

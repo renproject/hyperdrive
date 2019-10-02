@@ -2,6 +2,7 @@ package process
 
 import (
 	"crypto/ecdsa"
+	"crypto/sha256"
 	"encoding"
 	"encoding/json"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/id"
-	"golang.org/x/crypto/sha3"
 )
 
 type MessageType uint64
@@ -115,7 +115,7 @@ func (propose *Propose) Signatory() id.Signatory {
 }
 
 func (propose *Propose) SigHash() id.Hash {
-	return sha3.Sum256([]byte(propose.String()))
+	return sha256.Sum256([]byte(propose.String()))
 }
 
 func (propose *Propose) Sig() id.Signature {
@@ -173,7 +173,7 @@ func (prevote *Prevote) Signatory() id.Signatory {
 }
 
 func (prevote *Prevote) SigHash() id.Hash {
-	return sha3.Sum256([]byte(prevote.String()))
+	return sha256.Sum256([]byte(prevote.String()))
 }
 
 func (prevote *Prevote) Sig() id.Signature {
@@ -223,7 +223,7 @@ func (precommit *Precommit) Signatory() id.Signatory {
 }
 
 func (precommit *Precommit) SigHash() id.Hash {
-	return sha3.Sum256([]byte(precommit.String()))
+	return sha256.Sum256([]byte(precommit.String()))
 }
 
 func (precommit *Precommit) Sig() id.Signature {
