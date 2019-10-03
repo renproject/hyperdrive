@@ -1,30 +1,22 @@
 package testutil
 
 import (
-	"fmt"
 	"math/rand"
-	"reflect"
-	"testing/quick"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/id"
 )
 
-var r *rand.Rand
-
-func init() {
-	r = rand.New(rand.NewSource(time.Now().Unix()))
-}
-
 // RandomBytesSlice returns a random bytes slice.
 func RandomBytesSlice() []byte {
-	t := reflect.TypeOf([]byte{})
-	value, ok := quick.Value(t, r)
-	if !ok {
-		panic(fmt.Sprintf("cannot generate random value of type %v", t.Name()))
+	length := rand.Intn(256)
+	slice := make([]byte, length)
+	_, err := rand.Read(slice)
+	if err != nil {
+		panic(err)
 	}
-	return value.Interface().([]byte)
+	return slice
 }
 
 // RandomBlockKind returns a random valid block kind.
