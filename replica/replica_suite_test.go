@@ -71,8 +71,8 @@ func (m *mockBlockStorage) LatestBaseBlock(shard Shard) block.Block {
 type mockBlockIterator struct {
 }
 
-func (m mockBlockIterator) NextBlock(kind block.Kind, height block.Height, shard Shard) (block.Data, block.State) {
-	return RandomBytesSlice(), RandomBytesSlice()
+func (m mockBlockIterator) NextBlock(kind block.Kind, height block.Height, shard Shard) (block.Txs, block.Plan, block.State) {
+	return RandomBytesSlice(), RandomBytesSlice(), RandomBytesSlice()
 }
 
 type mockValidator struct {

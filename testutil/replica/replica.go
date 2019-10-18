@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	mrand "math/rand"
 	"sync"
@@ -15,7 +16,6 @@ import (
 	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/id"
 	"github.com/renproject/phi"
-	"golang.org/x/crypto/sha3"
 )
 
 func Contain(list []int, target int) bool {
@@ -55,16 +55,16 @@ func NewMockBlockIterator(store *MockPersistentStorage) replica.BlockIterator {
 	}
 }
 
-func (m *MockBlockIterator) NextBlock(kind block.Kind, height block.Height, shard replica.Shard) (block.Data, block.State) {
+func (m *MockBlockIterator) NextBlock(kind block.Kind, height block.Height, shard replica.Shard) (block.Txs, block.Plan, block.State) {
 	blockchain := m.store.MockBlockchain(shard)
 	state, ok := blockchain.StateAtHeight(height - 1)
 	if !ok {
-		return testutil.RandomBytesSlice(), nil
+		return testutil.RandomBytesSlice(), testutil.RandomBytesSlice(), nil
 	}
 
 	switch kind {
 	case block.Standard:
-		return testutil.RandomBytesSlice(), state
+		return testutil.RandomBytesSlice(), testutil.RandomBytesSlice(), state
 	default:
 		panic("unknown block kind")
 	}
@@ -117,7 +117,7 @@ func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
 	if !ok {
 		panic("DidCommitBlock should be called only when the block has been added to storage")
 	}
-	digest := sha3.Sum256(b.Data())
+	digest := sha256.Sum256(b.Txs())
 	blockchain.InsertBlockStatAtHeight(height, digest[:])
 
 	// Insert executed state of the previous height

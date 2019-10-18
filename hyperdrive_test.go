@@ -25,7 +25,9 @@ import (
 )
 
 func init() {
-	mrand.Seed(time.Now().Unix())
+	seed := time.Now().Unix()
+	log.Printf("seed = %v", seed)
+	mrand.Seed(seed)
 }
 
 var _ = Describe("Hyperdrive", func() {
@@ -104,7 +106,11 @@ var _ = Describe("Hyperdrive", func() {
 
 						numNodesOffline := mrand.Intn(f) + 1 // Making sure at least one node is offline
 						shuffledIndices := mrand.Perm(3*f + 1)
-						SleepRandomSeconds(5, 10)
+
+						// Wait for all nodes reach consensus
+						Eventually(func() bool {
+							return network.HealthCheck(nil)
+						}, 15*time.Second).Should(BeTrue())
 
 						// Simulate connection issue for less than 1/3 nodes
 						phi.ParForAll(numNodesOffline, func(i int) {
@@ -128,7 +134,11 @@ var _ = Describe("Hyperdrive", func() {
 
 						numNodesOffline := mrand.Intn(f) + 1 // Making sure at least one node is offline
 						shuffledIndices := mrand.Perm(3*f + 1)
-						SleepRandomSeconds(5, 10)
+
+						// Wait for all nodes reach consensus
+						Eventually(func() bool {
+							return network.HealthCheck(nil)
+						}, 15*time.Second).Should(BeTrue())
 
 						// Simulate connection issue for less than 1/3 nodes
 						phi.ParForAll(numNodesOffline, func(i int) {
@@ -153,7 +163,11 @@ var _ = Describe("Hyperdrive", func() {
 
 							numNodesOffline := mrand.Intn(f) + 1 // Making sure at least one node is offline
 							shuffledIndices := mrand.Perm(3*f + 1)
-							SleepRandomSeconds(5, 10)
+
+							// Wait for all nodes reach consensus
+							Eventually(func() bool {
+								return network.HealthCheck(nil)
+							}, 15*time.Second).Should(BeTrue())
 
 							// Simulate connection issue for less than 1/3 nodes
 							phi.ParForAll(numNodesOffline, func(i int) {
@@ -177,7 +191,11 @@ var _ = Describe("Hyperdrive", func() {
 
 							numNodesOffline := mrand.Intn(f) + 1 // Making sure at least one node is offline
 							shuffledIndices := mrand.Perm(3*f + 1)
-							SleepRandomSeconds(5, 10)
+
+							// Wait for all nodes reach consensus
+							Eventually(func() bool {
+								return network.HealthCheck(nil)
+							}, 15*time.Second).Should(BeTrue())
 
 							// Simulate connection issue for less than 1/3 nodes
 							phi.ParForAll(numNodesOffline, func(i int) {
@@ -203,7 +221,11 @@ var _ = Describe("Hyperdrive", func() {
 
 							shuffledIndices := mrand.Perm(3*f + 1)
 							crashedNodes := shuffledIndices[:f+1]
-							SleepRandomSeconds(3, 6)
+
+							// Wait for all nodes reach consensus
+							Eventually(func() bool {
+								return network.HealthCheck(nil)
+							}, 15*time.Second).Should(BeTrue())
 
 							// simulate the nodes crashed.
 							phi.ParForAll(crashedNodes, func(i int) {
@@ -223,7 +245,10 @@ var _ = Describe("Hyperdrive", func() {
 							network.Start()
 							defer network.Stop()
 
-							SleepRandomSeconds(5, 10)
+							// Wait for all nodes reach consensus
+							Eventually(func() bool {
+								return network.HealthCheck(nil)
+							}, 15*time.Second).Should(BeTrue())
 
 							// Crash f + 1 random nodes and expect no blocks produced after that
 							shuffledIndices := mrand.Perm(3*f + 1)
@@ -347,7 +372,7 @@ func NewNetwork(f, r int, shards replica.Shards, options networkOptions) Network
 	}
 
 	// Initialize all nodes
-	genesisBlock := testutil.GenesisBlock(sigs[r:])
+	genesisBlock := testutil.GenesisBlock(sigs[:3*f+1])
 	broadcaster := NewMockBroadcaster(keys, options.minNetworkDelay, options.maxNetworkDelay)
 	nodes := make([]*Node, total)
 	for i := range nodes {
@@ -357,7 +382,7 @@ func NewNetwork(f, r int, shards replica.Shards, options networkOptions) Network
 		}
 		store := NewMockPersistentStorage(shards)
 		store.Init(genesisBlock)
-		nodes[i] = NewNode(logger.WithField("node", i), shards, keys[i], broadcaster, store, i >= r)
+		nodes[i] = NewNode(logger.WithField("node", i), shards, keys[i], broadcaster, store, i < 3*f+1)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 

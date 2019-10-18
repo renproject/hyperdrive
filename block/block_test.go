@@ -101,7 +101,6 @@ var _ = Describe("Block", func() {
 		})
 
 		Context("when initializing a new block header", func() {
-
 			Context("when the block header is well-formed", func() {
 				It("should return a block header with fields equal to those passed during creation", func() {
 					test := func() bool {
@@ -112,6 +111,9 @@ var _ = Describe("Block", func() {
 						Expect(header.Kind()).Should(Equal(headerInit.Kind))
 						Expect(header.ParentHash()).Should(Equal(headerInit.ParentHash))
 						Expect(header.BaseHash()).Should(Equal(headerInit.BaseHash))
+						Expect(header.TxsRef()).Should(Equal(headerInit.TxsRef))
+						Expect(header.PlanRef()).Should(Equal(headerInit.PlanRef))
+						Expect(header.PrevStateRef()).Should(Equal(headerInit.PrevStateRef))
 						Expect(header.Height()).Should(Equal(headerInit.Height))
 						Expect(header.Round()).Should(Equal(headerInit.Round))
 						Expect(header.Timestamp()).Should(Equal(headerInit.Timestamp))
@@ -281,27 +283,27 @@ var _ = Describe("Block", func() {
 		})
 	})
 
-	Context("Block Data", func() {
-		Context("when stringifying random block data", func() {
-			Context("when block data is equal", func() {
+	Context("Block txs", func() {
+		Context("when stringifying random block txs", func() {
+			Context("when block txs is equal", func() {
 				It("should return equal strings", func() {
-					test := func(data Data) bool {
-						dataCopy := make(Data, len(data))
-						copy(dataCopy, data)
+					test := func(txs Txs) bool {
+						txsCopy := make(Txs, len(txs))
+						copy(txsCopy, txs)
 
-						return data.String() == dataCopy.String()
+						return txs.String() == txsCopy.String()
 					}
 					Expect(quick.Check(test, nil)).Should(Succeed())
 				})
 			})
 
-			Context("when block data is unequal", func() {
+			Context("when block txs is unequal", func() {
 				It("should return unequal strings", func() {
-					test := func(data1, data2 Data) bool {
-						if bytes.Equal(data1, data2) {
+					test := func(txs1, txs2 Txs) bool {
+						if bytes.Equal(txs1, txs2) {
 							return true
 						}
-						return data1.String() != data2.String()
+						return txs1.String() != txs2.String()
 					}
 					Expect(quick.Check(test, nil)).Should(Succeed())
 				})
@@ -309,7 +311,35 @@ var _ = Describe("Block", func() {
 		})
 	})
 
-	Context("Block State", func() {
+	Context("Block plan", func() {
+		Context("when stringifying random block plan", func() {
+			Context("when block plan is equal", func() {
+				It("should return equal strings", func() {
+					test := func(plan Plan) bool {
+						planCopy := make(Plan, len(plan))
+						copy(planCopy, plan)
+
+						return plan.String() == planCopy.String()
+					}
+					Expect(quick.Check(test, nil)).Should(Succeed())
+				})
+			})
+
+			Context("when block plan is unequal", func() {
+				It("should return unequal strings", func() {
+					test := func(plan1, plan2 Plan) bool {
+						if bytes.Equal(plan1, plan2) {
+							return true
+						}
+						return plan1.String() != plan2.String()
+					}
+					Expect(quick.Check(test, nil)).Should(Succeed())
+				})
+			})
+		})
+	})
+
+	Context("Block state", func() {
 		Context("when stringifying random block state", func() {
 			Context("when block state is equal", func() {
 				It("should return equal strings", func() {
@@ -338,7 +368,6 @@ var _ = Describe("Block", func() {
 	})
 
 	Context("Block", func() {
-
 		Context("when stringifying random blocks", func() {
 			Context("when blocks are equal", func() {
 				It("should return equal strings", func() {
@@ -399,14 +428,15 @@ var _ = Describe("Block", func() {
 			It("should return a block with fields equal to those passed during creation", func() {
 				test := func() bool {
 					header := RandomBlockHeader(RandomBlockKind())
-					data, state := RandomBytesSlice(), RandomBytesSlice()
+					txs, plan, state := RandomBytesSlice(), RandomBytesSlice(), RandomBytesSlice()
 
 					// Expect the block has a valid hash
-					block := New(header, data, state)
+					block := New(header, txs, plan, state)
 					Expect(block.Hash()).ShouldNot(Equal(InvalidHash))
 
 					Expect(block.Header().String()).Should(Equal(header.String()))
-					Expect(block.Data()).Should(Equal(Data(data)))
+					Expect(block.Txs()).Should(Equal(Txs(txs)))
+					Expect(block.Plan()).Should(Equal(Plan(plan)))
 					Expect(block.PreviousState()).Should(Equal(State(state)))
 
 					return true
@@ -418,10 +448,10 @@ var _ = Describe("Block", func() {
 				It("should return a block with computed hashes that are equal", func() {
 					test := func() bool {
 						header := RandomBlockHeader(RandomBlockKind())
-						data, state := RandomBytesSlice(), RandomBytesSlice()
+						txs, plan, state := RandomBytesSlice(), RandomBytesSlice(), RandomBytesSlice()
 
-						block1 := New(header, data, state)
-						block2 := New(header, data, state)
+						block1 := New(header, txs, plan, state)
+						block2 := New(header, txs, plan, state)
 
 						Expect(block1.Hash()).Should(Equal(block2.Hash()))
 						Expect(block1.Equal(block2)).Should(BeTrue())

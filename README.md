@@ -1,4 +1,4 @@
-# Hyperdrive
+# `🤖 hyperdrive`
 
 [![GoDoc](https://godoc.org/github.com/renproject/hyperdrive?status.svg)](https://godoc.org/github.com/renproject/hyperdrive)
 [![CircleCI](https://circleci.com/gh/renproject/hyperdrive/tree/master.svg?style=shield)](https://circleci.com/gh/renproject/hyperdrive/tree/master)

@@ -62,7 +62,7 @@ var _ = Describe("shardRebaser", func() {
 				header.BaseHash = base.Hash()
 				header.ParentHash = parent.Hash()
 				header.Timestamp = block.Timestamp(time.Now().Unix())
-				proposedBlock := block.New(header.ToBlockHeader(), nil, nil)
+				proposedBlock := block.New(header.ToBlockHeader(), nil, nil, nil)
 
 				_, err := rebaser.IsBlockValid(proposedBlock, true)
 				return err == nil
@@ -166,7 +166,7 @@ var _ = Describe("shardRebaser", func() {
 				header.ParentHash = parent.Hash()
 				header.Timestamp = block.Timestamp(time.Now().Unix() - 1)
 				header.Signatories = sigs
-				rebaseBlock := block.New(header.ToBlockHeader(), nil, nil)
+				rebaseBlock := block.New(header.ToBlockHeader(), nil, nil, nil)
 				_, err := rebaser.IsBlockValid(rebaseBlock, true)
 				Expect(err).Should(BeNil())
 
@@ -182,7 +182,7 @@ var _ = Describe("shardRebaser", func() {
 				baseHeader.ParentHash = parent.Hash()
 				baseHeader.Timestamp = block.Timestamp(time.Now().Unix())
 				baseHeader.Signatories = sigs
-				baseBlock := block.New(baseHeader.ToBlockHeader(), nil, nil)
+				baseBlock := block.New(baseHeader.ToBlockHeader(), nil, nil, nil)
 
 				_, err = rebaser.IsBlockValid(baseBlock, true)
 				return err == nil

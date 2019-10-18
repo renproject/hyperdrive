@@ -372,7 +372,7 @@ func (p *Process) timeoutPropose(height block.Height, round block.Round) {
 			block.InvalidHash,
 			nil,
 		)
-		p.logger.Debugf("prevoted=<nil> at height=%v and round=%v (timeout)", prevote.height, prevote.round)
+		p.logger.Warnf("prevoted=<nil> at height=%v and round=%v (timeout)", prevote.height, prevote.round)
 		p.state.CurrentStep = StepPrevote
 		p.broadcaster.Broadcast(prevote)
 	}
@@ -385,7 +385,7 @@ func (p *Process) timeoutPrevote(height block.Height, round block.Round) {
 			p.state.CurrentRound,
 			block.InvalidHash,
 		)
-		p.logger.Debugf("precommitted=<nil> at height=%v and round=%v (timeout)", precommit.height, precommit.round)
+		p.logger.Warnf("precommitted=<nil> at height=%v and round=%v (timeout)", precommit.height, precommit.round)
 		p.state.CurrentStep = StepPrecommit
 		p.broadcaster.Broadcast(precommit)
 	}
