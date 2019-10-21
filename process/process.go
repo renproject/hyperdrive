@@ -36,7 +36,7 @@ type Proposer interface {
 
 // A Validator validates a `block.Block` that has been proposed.
 type Validator interface {
-	IsBlockValid(block block.Block, checkHistory bool) (map[string]interface{}, error)
+	IsBlockValid(block block.Block, checkHistory bool) (map[string][]byte, error)
 }
 
 // An Observer is notified when note-worthy events happen for the first time.

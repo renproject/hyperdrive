@@ -158,10 +158,10 @@ type Prevote struct {
 	height    block.Height
 	round     block.Round
 	blockHash id.Hash
-	extras    map[string]interface{}
+	extras    map[string][]byte
 }
 
-func NewPrevote(height block.Height, round block.Round, blockHash id.Hash, extras map[string]interface{}) *Prevote {
+func NewPrevote(height block.Height, round block.Round, blockHash id.Hash, extras map[string][]byte) *Prevote {
 	return &Prevote{
 		height:    height,
 		round:     round,
@@ -194,7 +194,7 @@ func (prevote *Prevote) BlockHash() id.Hash {
 	return prevote.blockHash
 }
 
-func (prevote *Prevote) Extras() map[string]interface{} {
+func (prevote *Prevote) Extras() map[string][]byte {
 	return prevote.extras
 }
 

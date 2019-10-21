@@ -303,7 +303,7 @@ func NewMockValidator(valid error) process.Validator {
 	return MockValidator{valid: valid}
 }
 
-func (m MockValidator) IsBlockValid(block.Block, bool) (map[string]interface{}, error) {
+func (m MockValidator) IsBlockValid(block.Block, bool) (map[string][]byte, error) {
 	return nil, m.valid
 }
 
