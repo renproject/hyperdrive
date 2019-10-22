@@ -270,13 +270,13 @@ func (p *Process) handlePropose(propose *Propose) {
 			// while currentStep = StepPropose
 			if p.state.CurrentStep == StepPropose {
 				var prevote *Prevote
-				extras, err := p.validator.IsBlockValid(propose.Block(), true)
+				nilReasons, err := p.validator.IsBlockValid(propose.Block(), true)
 				if err == nil && (p.state.LockedRound == block.InvalidRound || p.state.LockedBlock.Equal(propose.Block())) {
 					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						propose.Block().Hash(),
-						extras,
+						nilReasons,
 					)
 					p.logger.Debugf("prevoted=%v at height=%v and round=%v", propose.BlockHash(), propose.height, propose.round)
 				} else {
@@ -284,7 +284,7 @@ func (p *Process) handlePropose(propose *Propose) {
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						block.InvalidHash,
-						extras,
+						nilReasons,
 					)
 					p.logger.Warnf("prevoted=<nil> at height=%v and round=%v (invalid propose: %v)", propose.height, propose.round, err)
 				}
@@ -449,13 +449,13 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 			// while step = StepPropose and validRound >= 0 and validRound < currentRound
 			if p.state.CurrentStep == StepPropose && propose.ValidRound() < p.state.CurrentRound {
 				var prevote *Prevote
-				extras, err := p.validator.IsBlockValid(propose.Block(), true)
+				nilReasons, err := p.validator.IsBlockValid(propose.Block(), true)
 				if err == nil && (p.state.LockedRound <= propose.ValidRound() || p.state.LockedBlock.Equal(propose.Block())) {
 					prevote = NewPrevote(
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						propose.Block().Hash(),
-						extras,
+						nilReasons,
 					)
 					p.logger.Debugf("prevoted=%v at height=%v and round=%v (2f+1 valid prevotes)", prevote.blockHash, prevote.height, prevote.round)
 				} else {
@@ -463,7 +463,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						block.InvalidHash,
-						extras,
+						nilReasons,
 					)
 					p.logger.Warnf("prevoted=<nil> at height=%v and round=%v (invalid propose: %v)", prevote.height, prevote.round, err)
 				}

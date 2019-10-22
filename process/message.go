@@ -153,20 +153,20 @@ func (propose *Propose) String() string {
 type Prevotes []Prevote
 
 type Prevote struct {
-	signatory id.Signatory
-	sig       id.Signature
-	height    block.Height
-	round     block.Round
-	blockHash id.Hash
-	extras    NilReasons
+	signatory  id.Signatory
+	sig        id.Signature
+	height     block.Height
+	round      block.Round
+	blockHash  id.Hash
+	nilReasons NilReasons
 }
 
-func NewPrevote(height block.Height, round block.Round, blockHash id.Hash, extras NilReasons) *Prevote {
+func NewPrevote(height block.Height, round block.Round, blockHash id.Hash, nilReasons NilReasons) *Prevote {
 	return &Prevote{
-		height:    height,
-		round:     round,
-		blockHash: blockHash,
-		extras:    extras,
+		height:     height,
+		round:      round,
+		blockHash:  blockHash,
+		nilReasons: nilReasons,
 	}
 }
 
@@ -194,8 +194,8 @@ func (prevote *Prevote) BlockHash() id.Hash {
 	return prevote.blockHash
 }
 
-func (prevote *Prevote) Extras() map[string][]byte {
-	return prevote.extras
+func (prevote *Prevote) NilReasons() NilReasons {
+	return prevote.nilReasons
 }
 
 func (prevote *Prevote) Type() MessageType {
@@ -203,7 +203,7 @@ func (prevote *Prevote) Type() MessageType {
 }
 
 func (prevote *Prevote) String() string {
-	return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v,Extras=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash(), prevote.Extras())
+	return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v,NilReasons=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash(), prevote.NilReasons())
 }
 
 type Precommits []Precommit

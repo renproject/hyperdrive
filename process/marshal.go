@@ -179,31 +179,31 @@ func (propose *Propose) UnmarshalBinary(data []byte) error {
 // MarshalJSON implements the `json.Marshaler` interface for the Prevote type.
 func (prevote Prevote) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Sig       id.Signature `json:"sig"`
-		Signatory id.Signatory `json:"signatory"`
-		Height    block.Height `json:"height"`
-		Round     block.Round  `json:"round"`
-		BlockHash id.Hash      `json:"blockHash"`
-		Extras    NilReasons   `json:"extras"`
+		Sig        id.Signature `json:"sig"`
+		Signatory  id.Signatory `json:"signatory"`
+		Height     block.Height `json:"height"`
+		Round      block.Round  `json:"round"`
+		BlockHash  id.Hash      `json:"blockHash"`
+		NilReasons NilReasons   `json:"nilReasons"`
 	}{
 		prevote.sig,
 		prevote.signatory,
 		prevote.height,
 		prevote.round,
 		prevote.blockHash,
-		prevote.extras,
+		prevote.nilReasons,
 	})
 }
 
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Prevote type.
 func (prevote *Prevote) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		Sig       id.Signature `json:"sig"`
-		Signatory id.Signatory `json:"signatory"`
-		Height    block.Height `json:"height"`
-		Round     block.Round  `json:"round"`
-		BlockHash id.Hash      `json:"blockHash"`
-		Extras    NilReasons   `json:"extras"`
+		Sig        id.Signature `json:"sig"`
+		Signatory  id.Signatory `json:"signatory"`
+		Height     block.Height `json:"height"`
+		Round      block.Round  `json:"round"`
+		BlockHash  id.Hash      `json:"blockHash"`
+		NilReasons NilReasons   `json:"nilReasons"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
@@ -213,7 +213,7 @@ func (prevote *Prevote) UnmarshalJSON(data []byte) error {
 	prevote.height = tmp.Height
 	prevote.round = tmp.Round
 	prevote.blockHash = tmp.BlockHash
-	prevote.extras = tmp.Extras
+	prevote.nilReasons = tmp.NilReasons
 	return nil
 }
 
@@ -236,22 +236,22 @@ func (prevote Prevote) MarshalBinary() ([]byte, error) {
 	if err := binary.Write(buf, binary.LittleEndian, prevote.blockHash); err != nil {
 		return buf.Bytes(), fmt.Errorf("cannot write prevote.blockHash: %v", err)
 	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(prevote.extras))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write prevote.extras len: %v", err)
+	if err := binary.Write(buf, binary.LittleEndian, uint64(len(prevote.nilReasons))); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write prevote.nilReasons len: %v", err)
 	}
-	for key, val := range prevote.extras {
+	for key, val := range prevote.nilReasons {
 		keyBytes := []byte(key)
 		if err := binary.Write(buf, binary.LittleEndian, uint64(len(keyBytes))); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write prevote.extras key len: %v", err)
+			return buf.Bytes(), fmt.Errorf("cannot write prevote.nilReasons key len: %v", err)
 		}
 		if err := binary.Write(buf, binary.LittleEndian, keyBytes); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write prevote.extras key data: %v", err)
+			return buf.Bytes(), fmt.Errorf("cannot write prevote.nilReasons key data: %v", err)
 		}
 		if err := binary.Write(buf, binary.LittleEndian, uint64(len(val))); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write prevote.extras val len: %v", err)
+			return buf.Bytes(), fmt.Errorf("cannot write prevote.nilReasons val len: %v", err)
 		}
 		if err := binary.Write(buf, binary.LittleEndian, val); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write prevote.extras val data: %v", err)
+			return buf.Bytes(), fmt.Errorf("cannot write prevote.nilReasons val data: %v", err)
 		}
 	}
 	return buf.Bytes(), nil
@@ -276,30 +276,30 @@ func (prevote *Prevote) UnmarshalBinary(data []byte) error {
 	if err := binary.Read(buf, binary.LittleEndian, &prevote.blockHash); err != nil {
 		return fmt.Errorf("cannot read prevote.blockHash: %v", err)
 	}
-	var lenExtras uint64
-	if err := binary.Read(buf, binary.LittleEndian, &lenExtras); err != nil {
-		return fmt.Errorf("cannot read prevote.extras len: %v", err)
+	var lenNilReasons uint64
+	if err := binary.Read(buf, binary.LittleEndian, &lenNilReasons); err != nil {
+		return fmt.Errorf("cannot read prevote.nilReasons len: %v", err)
 	}
-	if lenExtras > 0 {
-		prevote.extras = make(NilReasons, lenExtras)
-		for i := uint64(0); i < lenExtras; i++ {
+	if lenNilReasons > 0 {
+		prevote.nilReasons = make(NilReasons, lenNilReasons)
+		for i := uint64(0); i < lenNilReasons; i++ {
 			var lenKey uint64
 			if err := binary.Read(buf, binary.LittleEndian, &lenKey); err != nil {
-				return fmt.Errorf("cannot read prevote.extras key len: %v", err)
+				return fmt.Errorf("cannot read prevote.nilReasons key len: %v", err)
 			}
 			keyBytes := make([]byte, lenKey)
 			if err := binary.Read(buf, binary.LittleEndian, &keyBytes); err != nil {
-				return fmt.Errorf("cannot read prevote.extras key data: %v", err)
+				return fmt.Errorf("cannot read prevote.nilReasons key data: %v", err)
 			}
 			var lenVal uint64
 			if err := binary.Read(buf, binary.LittleEndian, &lenVal); err != nil {
-				return fmt.Errorf("cannot read prevote.extras val len: %v", err)
+				return fmt.Errorf("cannot read prevote.nilReasons val len: %v", err)
 			}
 			val := make([]byte, lenVal)
 			if err := binary.Read(buf, binary.LittleEndian, &val); err != nil {
-				return fmt.Errorf("cannot read prevote.extras val data: %v", err)
+				return fmt.Errorf("cannot read prevote.nilReasons val data: %v", err)
 			}
-			prevote.extras[string(keyBytes)] = val
+			prevote.nilReasons[string(keyBytes)] = val
 		}
 	}
 	return nil
