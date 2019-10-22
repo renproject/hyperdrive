@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/id"
@@ -13,11 +14,18 @@ import (
 // MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
 // NilReasons type.
 func (nilReasons NilReasons) MarshalBinary() ([]byte, error) {
+	// Sort map to remove non-determinism.
+	keys := []string{}
+	for key := range nilReasons {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
 	buf := new(bytes.Buffer)
 	if err := binary.Write(buf, binary.LittleEndian, uint64(len(nilReasons))); err != nil {
 		return buf.Bytes(), fmt.Errorf("cannot write nilReasons len: %v", err)
 	}
-	for key, val := range nilReasons {
+	for _, key := range keys {
 		keyBytes := []byte(key)
 		if err := binary.Write(buf, binary.LittleEndian, uint64(len(keyBytes))); err != nil {
 			return buf.Bytes(), fmt.Errorf("cannot write nilReasons key len: %v", err)
@@ -25,6 +33,7 @@ func (nilReasons NilReasons) MarshalBinary() ([]byte, error) {
 		if err := binary.Write(buf, binary.LittleEndian, keyBytes); err != nil {
 			return buf.Bytes(), fmt.Errorf("cannot write nilReasons key data: %v", err)
 		}
+		val := nilReasons[key]
 		if err := binary.Write(buf, binary.LittleEndian, uint64(len(val))); err != nil {
 			return buf.Bytes(), fmt.Errorf("cannot write nilReasons val len: %v", err)
 		}
