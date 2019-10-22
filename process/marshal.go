@@ -179,12 +179,12 @@ func (propose *Propose) UnmarshalBinary(data []byte) error {
 // MarshalJSON implements the `json.Marshaler` interface for the Prevote type.
 func (prevote Prevote) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Sig       id.Signature      `json:"sig"`
-		Signatory id.Signatory      `json:"signatory"`
-		Height    block.Height      `json:"height"`
-		Round     block.Round       `json:"round"`
-		BlockHash id.Hash           `json:"blockHash"`
-		Extras    map[string][]byte `json:"extras"`
+		Sig       id.Signature `json:"sig"`
+		Signatory id.Signatory `json:"signatory"`
+		Height    block.Height `json:"height"`
+		Round     block.Round  `json:"round"`
+		BlockHash id.Hash      `json:"blockHash"`
+		Extras    NilReasons   `json:"extras"`
 	}{
 		prevote.sig,
 		prevote.signatory,
@@ -198,12 +198,12 @@ func (prevote Prevote) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the `json.Unmarshaler` interface for the Prevote type.
 func (prevote *Prevote) UnmarshalJSON(data []byte) error {
 	tmp := struct {
-		Sig       id.Signature      `json:"sig"`
-		Signatory id.Signatory      `json:"signatory"`
-		Height    block.Height      `json:"height"`
-		Round     block.Round       `json:"round"`
-		BlockHash id.Hash           `json:"blockHash"`
-		Extras    map[string][]byte `json:"extras"`
+		Sig       id.Signature `json:"sig"`
+		Signatory id.Signatory `json:"signatory"`
+		Height    block.Height `json:"height"`
+		Round     block.Round  `json:"round"`
+		BlockHash id.Hash      `json:"blockHash"`
+		Extras    NilReasons   `json:"extras"`
 	}{}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
@@ -281,7 +281,7 @@ func (prevote *Prevote) UnmarshalBinary(data []byte) error {
 		return fmt.Errorf("cannot read prevote.extras len: %v", err)
 	}
 	if lenExtras > 0 {
-		prevote.extras = make(map[string][]byte, lenExtras)
+		prevote.extras = make(NilReasons, lenExtras)
 		for i := uint64(0); i < lenExtras; i++ {
 			var lenKey uint64
 			if err := binary.Read(buf, binary.LittleEndian, &lenKey); err != nil {
