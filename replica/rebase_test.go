@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/id"
 )
 
@@ -71,7 +72,7 @@ var _ = Describe("shardRebaser", func() {
 			Expect(quick.Check(test, nil)).Should(Succeed())
 		})
 
-		It("should implements the process.Observer", func() {
+		It("should implement the process.Observer", func() {
 			test := func(shard Shard) bool {
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
@@ -80,6 +81,11 @@ var _ = Describe("shardRebaser", func() {
 
 				rebaser.DidCommitBlock(0)
 				rebaser.DidCommitBlock(initHeight)
+				messages := make(process.Messages, 10)
+				for i := 0; i < len(messages); i++ {
+					messages[i] = RandomMessage(RandomMessageType())
+				}
+				rebaser.DidReceiveSufficientNilPrevotes(messages, 0)
 
 				return true
 			}
