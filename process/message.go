@@ -203,7 +203,12 @@ func (prevote *Prevote) Type() MessageType {
 }
 
 func (prevote *Prevote) String() string {
-	return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v,NilReasons=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash(), prevote.NilReasons())
+	nilReasonsBytes, err := prevote.NilReasons().MarshalBinary()
+	if err != nil {
+		return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash())
+	}
+	nilReasonsHash := id.Hash(sha256.Sum256(nilReasonsBytes))
+	return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v,NilReasons=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash(), nilReasonsHash.String())
 }
 
 type Precommits []Precommit
