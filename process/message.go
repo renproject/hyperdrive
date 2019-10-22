@@ -203,7 +203,7 @@ func (prevote *Prevote) Type() MessageType {
 }
 
 func (prevote *Prevote) String() string {
-	return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash())
+	return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v,Extras=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash(), prevote.Extras())
 }
 
 type Precommits []Precommit
