@@ -107,7 +107,11 @@ func RandomPrevote() *process.Prevote {
 	height := block.Height(rand.Int63())
 	round := block.Round(rand.Int63())
 	hash := RandomHash()
-	return process.NewPrevote(height, round, hash, nil)
+	nilReasons := make(process.NilReasons)
+	nilReasons["key1"] = []byte("val1")
+	nilReasons["key2"] = []byte("val2")
+	nilReasons["key3"] = []byte("val3")
+	return process.NewPrevote(height, round, hash, nilReasons)
 }
 
 func RandomPrecommit() *process.Precommit {
