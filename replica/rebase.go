@@ -31,8 +31,8 @@ type Validator interface {
 
 type Observer interface {
 	DidCommitBlock(block.Height, Shard)
-	IsSignatory(Shard) bool
 	DidReceiveSufficientNilPrevotes(messages process.Messages, threshold int)
+	IsSignatory(Shard) bool
 }
 
 type shardRebaser struct {
