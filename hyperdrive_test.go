@@ -110,7 +110,7 @@ var _ = Describe("Hyperdrive", func() {
 						// Wait for all nodes reach consensus
 						Eventually(func() bool {
 							return network.HealthCheck(nil)
-						}, 15*time.Second).Should(BeTrue())
+						}, 30*time.Second).Should(BeTrue())
 
 						// Simulate connection issue for less than 1/3 nodes
 						phi.ParForAll(numNodesOffline, func(i int) {
@@ -138,7 +138,7 @@ var _ = Describe("Hyperdrive", func() {
 						// Wait for all nodes reach consensus
 						Eventually(func() bool {
 							return network.HealthCheck(nil)
-						}, 15*time.Second).Should(BeTrue())
+						}, 30*time.Second).Should(BeTrue())
 
 						// Simulate connection issue for less than 1/3 nodes
 						phi.ParForAll(numNodesOffline, func(i int) {
@@ -167,7 +167,7 @@ var _ = Describe("Hyperdrive", func() {
 							// Wait for all nodes reach consensus
 							Eventually(func() bool {
 								return network.HealthCheck(nil)
-							}, 15*time.Second).Should(BeTrue())
+							}, 30*time.Second).Should(BeTrue())
 
 							// Simulate connection issue for less than 1/3 nodes
 							phi.ParForAll(numNodesOffline, func(i int) {
@@ -195,7 +195,7 @@ var _ = Describe("Hyperdrive", func() {
 							// Wait for all nodes reach consensus
 							Eventually(func() bool {
 								return network.HealthCheck(nil)
-							}, 15*time.Second).Should(BeTrue())
+							}, 30*time.Second).Should(BeTrue())
 
 							// Simulate connection issue for less than 1/3 nodes
 							phi.ParForAll(numNodesOffline, func(i int) {
@@ -225,7 +225,7 @@ var _ = Describe("Hyperdrive", func() {
 							// Wait for all nodes reach consensus
 							Eventually(func() bool {
 								return network.HealthCheck(nil)
-							}, 15*time.Second).Should(BeTrue())
+							}, 30*time.Second).Should(BeTrue())
 
 							// simulate the nodes crashed.
 							phi.ParForAll(crashedNodes, func(i int) {
@@ -248,7 +248,7 @@ var _ = Describe("Hyperdrive", func() {
 							// Wait for all nodes reach consensus
 							Eventually(func() bool {
 								return network.HealthCheck(nil)
-							}, 15*time.Second).Should(BeTrue())
+							}, 30*time.Second).Should(BeTrue())
 
 							// Crash f + 1 random nodes and expect no blocks produced after that
 							shuffledIndices := mrand.Perm(3*f + 1)
