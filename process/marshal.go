@@ -10,6 +10,65 @@ import (
 	"github.com/renproject/id"
 )
 
+// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
+// NilReasons type.
+func (nilReasons NilReasons) MarshalBinary() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := binary.Write(buf, binary.LittleEndian, uint64(len(nilReasons))); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write nilReasons len: %v", err)
+	}
+	for key, val := range nilReasons {
+		keyBytes := []byte(key)
+		if err := binary.Write(buf, binary.LittleEndian, uint64(len(keyBytes))); err != nil {
+			return buf.Bytes(), fmt.Errorf("cannot write nilReasons key len: %v", err)
+		}
+		if err := binary.Write(buf, binary.LittleEndian, keyBytes); err != nil {
+			return buf.Bytes(), fmt.Errorf("cannot write nilReasons key data: %v", err)
+		}
+		if err := binary.Write(buf, binary.LittleEndian, uint64(len(val))); err != nil {
+			return buf.Bytes(), fmt.Errorf("cannot write nilReasons val len: %v", err)
+		}
+		if err := binary.Write(buf, binary.LittleEndian, val); err != nil {
+			return buf.Bytes(), fmt.Errorf("cannot write nilReasons val data: %v", err)
+		}
+	}
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
+// NilReasons type.
+func (nilReasons *NilReasons) UnmarshalBinary(data []byte) error {
+	buf := bytes.NewBuffer(data)
+	var lenNilReasons uint64
+	if err := binary.Read(buf, binary.LittleEndian, &lenNilReasons); err != nil {
+		return fmt.Errorf("cannot read nilReasons len: %v", err)
+	}
+	if lenNilReasons > 0 {
+		nilReasonsMap := make(NilReasons, lenNilReasons)
+		for i := uint64(0); i < lenNilReasons; i++ {
+			var lenKey uint64
+			if err := binary.Read(buf, binary.LittleEndian, &lenKey); err != nil {
+				return fmt.Errorf("cannot read nilReasons key len: %v", err)
+			}
+			keyBytes := make([]byte, lenKey)
+			if err := binary.Read(buf, binary.LittleEndian, &keyBytes); err != nil {
+				return fmt.Errorf("cannot read nilReasons key data: %v", err)
+			}
+			var lenVal uint64
+			if err := binary.Read(buf, binary.LittleEndian, &lenVal); err != nil {
+				return fmt.Errorf("cannot read nilReasons val len: %v", err)
+			}
+			val := make([]byte, lenVal)
+			if err := binary.Read(buf, binary.LittleEndian, &val); err != nil {
+				return fmt.Errorf("cannot read nilReasons val data: %v", err)
+			}
+			nilReasonsMap[string(keyBytes)] = val
+		}
+		*nilReasons = nilReasonsMap
+	}
+	return nil
+}
+
 // MarshalJSON implements the `json.Marshaler` interface for the Propose type.
 func (propose Propose) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
@@ -236,23 +295,15 @@ func (prevote Prevote) MarshalBinary() ([]byte, error) {
 	if err := binary.Write(buf, binary.LittleEndian, prevote.blockHash); err != nil {
 		return buf.Bytes(), fmt.Errorf("cannot write prevote.blockHash: %v", err)
 	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(prevote.nilReasons))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write prevote.nilReasons len: %v", err)
+	nilReasonsBytes, err := prevote.nilReasons.MarshalBinary()
+	if err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot marshal prevote.nilReasons: %v", err)
 	}
-	for key, val := range prevote.nilReasons {
-		keyBytes := []byte(key)
-		if err := binary.Write(buf, binary.LittleEndian, uint64(len(keyBytes))); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write prevote.nilReasons key len: %v", err)
-		}
-		if err := binary.Write(buf, binary.LittleEndian, keyBytes); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write prevote.nilReasons key data: %v", err)
-		}
-		if err := binary.Write(buf, binary.LittleEndian, uint64(len(val))); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write prevote.nilReasons val len: %v", err)
-		}
-		if err := binary.Write(buf, binary.LittleEndian, val); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write prevote.nilReasons val data: %v", err)
-		}
+	if err := binary.Write(buf, binary.LittleEndian, uint64(len(nilReasonsBytes))); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write nilReasonsBytes len: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, nilReasonsBytes); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write nilReasonsBytes data: %v", err)
 	}
 	return buf.Bytes(), nil
 }
@@ -276,30 +327,17 @@ func (prevote *Prevote) UnmarshalBinary(data []byte) error {
 	if err := binary.Read(buf, binary.LittleEndian, &prevote.blockHash); err != nil {
 		return fmt.Errorf("cannot read prevote.blockHash: %v", err)
 	}
-	var lenNilReasons uint64
-	if err := binary.Read(buf, binary.LittleEndian, &lenNilReasons); err != nil {
-		return fmt.Errorf("cannot read prevote.nilReasons len: %v", err)
+	var lenNilReasonsBytes uint64
+	if err := binary.Read(buf, binary.LittleEndian, &lenNilReasonsBytes); err != nil {
+		return fmt.Errorf("cannot read nilReasonsBytes len: %v", err)
 	}
-	if lenNilReasons > 0 {
-		prevote.nilReasons = make(NilReasons, lenNilReasons)
-		for i := uint64(0); i < lenNilReasons; i++ {
-			var lenKey uint64
-			if err := binary.Read(buf, binary.LittleEndian, &lenKey); err != nil {
-				return fmt.Errorf("cannot read prevote.nilReasons key len: %v", err)
-			}
-			keyBytes := make([]byte, lenKey)
-			if err := binary.Read(buf, binary.LittleEndian, &keyBytes); err != nil {
-				return fmt.Errorf("cannot read prevote.nilReasons key data: %v", err)
-			}
-			var lenVal uint64
-			if err := binary.Read(buf, binary.LittleEndian, &lenVal); err != nil {
-				return fmt.Errorf("cannot read prevote.nilReasons val len: %v", err)
-			}
-			val := make([]byte, lenVal)
-			if err := binary.Read(buf, binary.LittleEndian, &val); err != nil {
-				return fmt.Errorf("cannot read prevote.nilReasons val data: %v", err)
-			}
-			prevote.nilReasons[string(keyBytes)] = val
+	if lenNilReasonsBytes > 0 {
+		nilReasonsBytes := make([]byte, lenNilReasonsBytes)
+		if err := binary.Read(buf, binary.LittleEndian, &nilReasonsBytes); err != nil {
+			return fmt.Errorf("cannot read nilReasonsBytes data: %v", err)
+		}
+		if err := prevote.nilReasons.UnmarshalBinary(nilReasonsBytes); err != nil {
+			return fmt.Errorf("cannot unmarshal nilReasonsBytes: %v", err)
 		}
 	}
 	return nil
