@@ -79,7 +79,7 @@ type mockValidator struct {
 	valid error
 }
 
-func (m mockValidator) IsBlockValid(block.Block, bool, Shard) (map[string][]byte, error) {
+func (m mockValidator) IsBlockValid(block.Block, bool, Shard) (process.NilReasons, error) {
 	return nil, m.valid
 }
 

@@ -26,7 +26,7 @@ type BlockIterator interface {
 }
 
 type Validator interface {
-	IsBlockValid(block block.Block, checkHistory bool, shard Shard) (map[string][]byte, error)
+	IsBlockValid(block block.Block, checkHistory bool, shard Shard) (process.NilReasons, error)
 }
 
 type Observer interface {
@@ -116,11 +116,11 @@ func (rebaser *shardRebaser) BlockProposal(height block.Height, round block.Roun
 	return block.New(header, txs, plan, prevState)
 }
 
-func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistory bool) (map[string][]byte, error) {
+func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistory bool) (process.NilReasons, error) {
 	rebaser.mu.Lock()
 	defer rebaser.mu.Unlock()
 
-	extras := make(map[string][]byte)
+	extras := make(process.NilReasons)
 
 	// Check the expected `block.Kind`
 	if proposedBlock.Header().Kind() != rebaser.expectedKind {

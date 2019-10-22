@@ -21,6 +21,10 @@ const (
 	StepPrecommit
 )
 
+// NilReasons can be used to provide contextual information alongside an error
+// upon validating blocks.
+type NilReasons map[string][]byte
+
 // A Blockchain defines a storage interface for Blocks that is based around
 // Height.
 type Blockchain interface {
@@ -36,7 +40,7 @@ type Proposer interface {
 
 // A Validator validates a `block.Block` that has been proposed.
 type Validator interface {
-	IsBlockValid(block block.Block, checkHistory bool) (map[string][]byte, error)
+	IsBlockValid(block block.Block, checkHistory bool) (NilReasons, error)
 }
 
 // An Observer is notified when note-worthy events happen for the first time.

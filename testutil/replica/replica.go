@@ -80,7 +80,7 @@ func NewMockValidator(store *MockPersistentStorage) replica.Validator {
 	}
 }
 
-func (m *MockValidator) IsBlockValid(b block.Block, checkHistory bool, shard replica.Shard) (map[string][]byte, error) {
+func (m *MockValidator) IsBlockValid(b block.Block, checkHistory bool, shard replica.Shard) (process.NilReasons, error) {
 	height := b.Header().Height()
 	prevState := b.PreviousState()
 
