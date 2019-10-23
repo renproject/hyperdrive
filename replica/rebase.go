@@ -31,7 +31,7 @@ type Validator interface {
 
 type Observer interface {
 	DidCommitBlock(block.Height, Shard)
-	DidReceiveSufficientNilPrevotes(messages process.Messages, threshold int)
+	DidReceiveSufficientNilPrevotes(messages process.Messages, f int)
 	IsSignatory(Shard) bool
 }
 
@@ -222,9 +222,9 @@ func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
 	}
 }
 
-func (rebaser *shardRebaser) DidReceiveSufficientNilPrevotes(messages process.Messages, threshold int) {
+func (rebaser *shardRebaser) DidReceiveSufficientNilPrevotes(messages process.Messages, f int) {
 	if rebaser.observer != nil {
-		rebaser.observer.DidReceiveSufficientNilPrevotes(messages, threshold)
+		rebaser.observer.DidReceiveSufficientNilPrevotes(messages, f)
 	}
 }
 
