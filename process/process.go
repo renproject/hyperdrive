@@ -46,7 +46,7 @@ type Validator interface {
 // An Observer is notified when note-worthy events happen for the first time.
 type Observer interface {
 	DidCommitBlock(block.Height)
-	DidReceiveSufficientNilPrevotes(messages Messages, threshold int)
+	DidReceiveSufficientNilPrevotes(messages Messages, f int)
 }
 
 // A Scheduler determines which `id.Signatory` should be broadcasting
@@ -318,20 +318,21 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 		p.scheduleTimeoutPrevote(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrevote, p.state.CurrentRound))
 	}
 
-	// upon 2f+1 Prevote{currentHeight, currentRound, nil} while currentStep = StepPrevote
-	if n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, p.state.CurrentRound, block.InvalidHash); n > 2*p.state.Prevotes.F() {
-		if p.state.CurrentStep == StepPrevote {
-			precommit := NewPrecommit(
-				p.state.CurrentHeight,
-				p.state.CurrentRound,
-				block.InvalidHash,
-			)
-			p.logger.Debugf("precommited=<nil> at height=%v and round=%v (2f+1 prevote=<nil>)", precommit.height, precommit.round)
-			p.state.CurrentStep = StepPrecommit
-			p.broadcaster.Broadcast(precommit)
-		}
+	// upon f+1 Prevote{currentHeight, currentRound, nil}
+	if n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, p.state.CurrentRound, block.InvalidHash); n > p.state.Prevotes.F() {
+		p.observer.DidReceiveSufficientNilPrevotes(p.state.Prevotes.QueryMessagesByHeightRound(p.state.CurrentHeight, p.state.CurrentRound), p.state.Prevotes.F())
+	}
 
-		p.observer.DidReceiveSufficientNilPrevotes(p.state.Prevotes.QueryMessagesByHeightRound(p.state.CurrentHeight, p.state.CurrentRound), 2*p.state.Prevotes.F()+1)
+	// upon 2f+1 Prevote{currentHeight, currentRound, nil} while currentStep = StepPrevote
+	if n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, p.state.CurrentRound, block.InvalidHash); n > 2*p.state.Prevotes.F() && p.state.CurrentStep == StepPrevote {
+		precommit := NewPrecommit(
+			p.state.CurrentHeight,
+			p.state.CurrentRound,
+			block.InvalidHash,
+		)
+		p.logger.Debugf("precommited=<nil> at height=%v and round=%v (2f+1 prevote=<nil>)", precommit.height, precommit.round)
+		p.state.CurrentStep = StepPrecommit
+		p.broadcaster.Broadcast(precommit)
 	}
 
 	// upon f+1 *{currentHeight, round, *, *} and round > currentRound
