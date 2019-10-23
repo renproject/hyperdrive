@@ -153,18 +153,20 @@ func (propose *Propose) String() string {
 type Prevotes []Prevote
 
 type Prevote struct {
-	signatory id.Signatory
-	sig       id.Signature
-	height    block.Height
-	round     block.Round
-	blockHash id.Hash
+	signatory  id.Signatory
+	sig        id.Signature
+	height     block.Height
+	round      block.Round
+	blockHash  id.Hash
+	nilReasons NilReasons
 }
 
-func NewPrevote(height block.Height, round block.Round, blockHash id.Hash) *Prevote {
+func NewPrevote(height block.Height, round block.Round, blockHash id.Hash, nilReasons NilReasons) *Prevote {
 	return &Prevote{
-		height:    height,
-		round:     round,
-		blockHash: blockHash,
+		height:     height,
+		round:      round,
+		blockHash:  blockHash,
+		nilReasons: nilReasons,
 	}
 }
 
@@ -192,12 +194,21 @@ func (prevote *Prevote) BlockHash() id.Hash {
 	return prevote.blockHash
 }
 
+func (prevote *Prevote) NilReasons() NilReasons {
+	return prevote.nilReasons
+}
+
 func (prevote *Prevote) Type() MessageType {
 	return PrevoteMessageType
 }
 
 func (prevote *Prevote) String() string {
-	return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash())
+	nilReasonsBytes, err := prevote.NilReasons().MarshalBinary()
+	if err != nil {
+		return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash())
+	}
+	nilReasonsHash := id.Hash(sha256.Sum256(nilReasonsBytes))
+	return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v,NilReasons=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash(), nilReasonsHash.String())
 }
 
 type Precommits []Precommit
@@ -301,7 +312,21 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	return
 }
 
-func (inbox *Inbox) QueryMessagesByHeightWithHigestRound(height block.Height) []Message {
+func (inbox *Inbox) QueryMessagesByHeightRound(height block.Height, round block.Round) []Message {
+	if _, ok := inbox.messages[height]; !ok {
+		return nil
+	}
+	if _, ok := inbox.messages[height][round]; !ok {
+		return nil
+	}
+	messages := make([]Message, 0, len(inbox.messages[height][round]))
+	for _, message := range inbox.messages[height][round] {
+		messages = append(messages, message)
+	}
+	return messages
+}
+
+func (inbox *Inbox) QueryMessagesByHeightWithHighestRound(height block.Height) []Message {
 	if _, ok := inbox.messages[height]; !ok {
 		return nil
 	}

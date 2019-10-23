@@ -79,8 +79,8 @@ type mockValidator struct {
 	valid error
 }
 
-func (m mockValidator) IsBlockValid(block.Block, bool, Shard) error {
-	return m.valid
+func (m mockValidator) IsBlockValid(block.Block, bool, Shard) (process.NilReasons, error) {
+	return nil, m.valid
 }
 
 func newMockValidator(valid error) Validator {
@@ -98,6 +98,8 @@ func (m mockObserver) DidCommitBlock(block.Height, Shard) {
 }
 func (m mockObserver) IsSignatory(Shard) bool {
 	return true
+}
+func (m mockObserver) DidReceiveSufficientNilPrevotes(process.Messages, int) {
 }
 
 type mockProcessStorage struct {

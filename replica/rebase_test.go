@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/id"
 )
 
@@ -64,13 +65,14 @@ var _ = Describe("shardRebaser", func() {
 				header.Timestamp = block.Timestamp(time.Now().Unix())
 				proposedBlock := block.New(header.ToBlockHeader(), nil, nil, nil)
 
-				return rebaser.IsBlockValid(proposedBlock, true) == nil
+				_, err := rebaser.IsBlockValid(proposedBlock, true)
+				return err == nil
 			}
 
 			Expect(quick.Check(test, nil)).Should(Succeed())
 		})
 
-		It("should implements the process.Observer", func() {
+		It("should implement the process.Observer", func() {
 			test := func(shard Shard) bool {
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
@@ -79,6 +81,11 @@ var _ = Describe("shardRebaser", func() {
 
 				rebaser.DidCommitBlock(0)
 				rebaser.DidCommitBlock(initHeight)
+				messages := make(process.Messages, 10)
+				for i := 0; i < len(messages); i++ {
+					messages[i] = RandomMessage(RandomMessageType())
+				}
+				rebaser.DidReceiveSufficientNilPrevotes(messages, 0)
 
 				return true
 			}
@@ -166,7 +173,8 @@ var _ = Describe("shardRebaser", func() {
 				header.Timestamp = block.Timestamp(time.Now().Unix() - 1)
 				header.Signatories = sigs
 				rebaseBlock := block.New(header.ToBlockHeader(), nil, nil, nil)
-				Expect(rebaser.IsBlockValid(rebaseBlock, true)).Should(BeNil())
+				_, err := rebaser.IsBlockValid(rebaseBlock, true)
+				Expect(err).Should(BeNil())
 
 				// After the block been committed
 				commitBlock(store, shard, rebaseBlock)
@@ -182,7 +190,8 @@ var _ = Describe("shardRebaser", func() {
 				baseHeader.Signatories = sigs
 				baseBlock := block.New(baseHeader.ToBlockHeader(), nil, nil, nil)
 
-				return rebaser.IsBlockValid(baseBlock, true) == nil
+				_, err = rebaser.IsBlockValid(baseBlock, true)
+				return err == nil
 			}
 			Expect(quick.Check(test, nil)).Should(Succeed())
 		})

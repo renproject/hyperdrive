@@ -205,7 +205,7 @@ var _ = Describe("Process", func() {
 
 				// Send 2F +1 Prevote for this proposal
 				for i := 0; i < 2*f+1; i++ {
-					prevote := NewPrevote(height, round, propose.BlockHash())
+					prevote := NewPrevote(height, round, propose.BlockHash(), nil)
 					pk := newEcdsaKey()
 					Expect(Sign(prevote, *pk)).Should(Succeed())
 					process.HandleMessage(prevote)
@@ -251,7 +251,7 @@ var _ = Describe("Process", func() {
 
 				// Send 2F +1 Prevote for this proposal
 				for i := 0; i < 2*f+1; i++ {
-					prevote := NewPrevote(height, round, propose.BlockHash())
+					prevote := NewPrevote(height, round, propose.BlockHash(), nil)
 					pk := newEcdsaKey()
 					Expect(Sign(prevote, *pk)).Should(Succeed())
 					process.HandleMessage(prevote)
@@ -279,7 +279,7 @@ var _ = Describe("Process", func() {
 				process := processOrigin.ToProcess()
 
 				for i := 0; i < 2*f+1; i++ {
-					prevote := NewPrevote(height, round, RandomBlock(RandomBlockKind()).Hash())
+					prevote := NewPrevote(height, round, RandomBlock(RandomBlockKind()).Hash(), nil)
 					privateKey := newEcdsaKey()
 					Expect(Sign(prevote, *privateKey)).NotTo(HaveOccurred())
 					process.HandleMessage(prevote)
@@ -307,7 +307,7 @@ var _ = Describe("Process", func() {
 				process := processOrigin.ToProcess()
 
 				for i := 0; i < 2*f+1; i++ {
-					prevote := NewPrevote(height, round, block.InvalidHash)
+					prevote := NewPrevote(height, round, block.InvalidHash, nil)
 					privateKey := newEcdsaKey()
 					Expect(Sign(prevote, *privateKey)).NotTo(HaveOccurred())
 					process.HandleMessage(prevote)
@@ -427,7 +427,7 @@ var _ = Describe("Process", func() {
 
 							// Send 2f + 1 prevotes
 							for i := 0; i < 2*f+1; i++ {
-								prevote := NewPrevote(height, validRound, propose.BlockHash())
+								prevote := NewPrevote(height, validRound, propose.BlockHash(), nil)
 								privateKey := newEcdsaKey()
 								Expect(Sign(prevote, *privateKey)).Should(Succeed())
 								process.HandleMessage(prevote)
@@ -471,7 +471,7 @@ var _ = Describe("Process", func() {
 
 							// Send 2f + 1 prevotes
 							for i := 0; i < 2*f+1; i++ {
-								prevote := NewPrevote(height, validRound, propose.BlockHash())
+								prevote := NewPrevote(height, validRound, propose.BlockHash(), nil)
 								privateKey := newEcdsaKey()
 								Expect(Sign(prevote, *privateKey)).Should(Succeed())
 								process.HandleMessage(prevote)
@@ -513,7 +513,7 @@ var _ = Describe("Process", func() {
 
 						// Send 2f + 1 prevotes
 						for i := 0; i < 2*f+1; i++ {
-							prevote := NewPrevote(height, validRound, propose.BlockHash())
+							prevote := NewPrevote(height, validRound, propose.BlockHash(), nil)
 							privateKey := newEcdsaKey()
 							Expect(Sign(prevote, *privateKey)).Should(Succeed())
 							process.HandleMessage(prevote)
@@ -589,6 +589,99 @@ var _ = Describe("Process", func() {
 					Expect(state.ValidBlock).Should(Equal(block.InvalidBlock))
 					Expect(state.ValidRound).Should(Equal(block.InvalidRound))
 				}
+			})
+		})
+	})
+
+	Context("when starting the process", func() {
+		Context("when the process has messages from a previous height", func() {
+			It("should resend the most recent proposal, prevote, and precommit", func() {
+				processOrigin := NewProcessOrigin(100)
+
+				propose := RandomPropose()
+				Expect(Sign(propose, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
+				prevote := NewPrevote(propose.Height(), propose.Round(), propose.BlockHash(), nil)
+				Expect(Sign(prevote, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
+				precommit := NewPrecommit(propose.Height(), propose.Round(), propose.BlockHash())
+				Expect(Sign(precommit, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
+
+				processOrigin.Blockchain.InsertBlockAtHeight(propose.Height(), propose.Block())
+				processOrigin.State.CurrentHeight = propose.Height() + 1
+				processOrigin.State.CurrentRound = 0
+				processOrigin.State.Proposals.Insert(propose)
+				processOrigin.State.Prevotes.Insert(prevote)
+				processOrigin.State.Precommits.Insert(precommit)
+				process := processOrigin.ToProcess()
+
+				done := make(chan struct{})
+				resentProposal := false
+				resentPrevote := false
+				resentPrecommit := false
+				go func() {
+					defer close(done)
+					for m := range processOrigin.BroadcastMessages {
+						switch m.(type) {
+						case *Propose:
+							resentProposal = true
+						case *Prevote:
+							resentPrevote = true
+						case *Precommit:
+							resentPrecommit = true
+						}
+						if resentProposal && resentPrevote && resentPrecommit {
+							return
+						}
+					}
+				}()
+
+				go process.Start()
+				<-done
+			})
+		})
+
+		Context("when the process has messages from a current height", func() {
+			It("should resend the most recent proposal, prevote, and precommit", func() {
+				processOrigin := NewProcessOrigin(100)
+
+				propose := RandomPropose()
+				Expect(Sign(propose, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
+				prevote := NewPrevote(propose.Height(), propose.Round(), propose.BlockHash(), nil)
+				Expect(Sign(prevote, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
+				precommit := NewPrecommit(propose.Height(), propose.Round(), propose.BlockHash())
+				Expect(Sign(precommit, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
+
+				processOrigin.Blockchain.InsertBlockAtHeight(propose.Height()-1, RandomBlock(block.Standard))
+				processOrigin.Blockchain.InsertBlockAtHeight(propose.Height(), propose.Block())
+				processOrigin.State.CurrentHeight = propose.Height()
+				processOrigin.State.CurrentRound = propose.Round() + 1
+				processOrigin.State.Proposals.Insert(propose)
+				processOrigin.State.Prevotes.Insert(prevote)
+				processOrigin.State.Precommits.Insert(precommit)
+				process := processOrigin.ToProcess()
+
+				done := make(chan struct{})
+				resentProposal := false
+				resentPrevote := false
+				resentPrecommit := false
+				go func() {
+					defer close(done)
+					for m := range processOrigin.BroadcastMessages {
+						switch m.(type) {
+						case *Propose:
+							resentProposal = true
+						case *Prevote:
+							resentPrevote = true
+						case *Precommit:
+							resentPrecommit = true
+						}
+						if resentProposal && resentPrevote && resentPrecommit {
+							return
+						}
+					}
+				}()
+
+				go process.Start()
+				<-done
 			})
 		})
 	})
