@@ -14,47 +14,47 @@ import (
 )
 
 type (
-	// Hashes is a wrapper around the []Hash type.
+	// Hashes is a wrapper around the `[]Hash` type.
 	Hashes = id.Hashes
-	// A Hash is the [32]byte output of a hashing function. Hyperdrive uses SHA2
-	// for hashing.
+	// A Hash is the `[32]byte` output of a hashing function. Hyperdrive uses
+	// SHA2 for hashing.
 	Hash = id.Hash
-	// Signatures is a wrapper around the []Signature type.
+	// Signatures is a wrapper around the `[]Signature` type.
 	Signatures = id.Signatures
-	// A Signature is the [65]byte output of an ECDSA signing algorithm.
+	// A Signature is the `[65]byte` output of an ECDSA signing algorithm.
 	// Hyperdrive uses the secp256k1 curve for ECDSA signing.
 	Signature = id.Signature
-	// Signatories is a wrapper around the []Signatory type.
+	// Signatories is a wrapper around the `[]Signatory` type.
 	Signatories = id.Signatories
-	// A Signatory is the [32]byte resulting from hashing an ECDSA public key.
+	// A Signatory is the `[32]byte` resulting from hashing an ECDSA public key.
 	// It represents the public identity of a content author and can be used to
 	// authenticate content that has been signed.
 	Signatory = id.Signatory
 )
 
 type (
-	// Blocks is a wrapper type around the []Block type.
+	// Blocks is a wrapper type around the `[]Block` type.
 	Blocks = block.Blocks
 	// A Block is an atomic unit of data upon which consensus is reached.
-	// Everything upon which consensus is needed should be put into a Block, and
-	// consensus can only be reached on a Block by Block basis (there is no
+	// Everything upon which consensus is needed should be put into a block, and
+	// consensus can only be reached on a block by block basis (there is no
 	// finer-grained way to express consensus).
 	Block = block.Block
-	// The Height in a blockchain at which a Block was proposed/committed.
+	// The Height in a blockchain at which a block was proposed/committed.
 	Height = block.Height
-	// The Round in a consensus algorithm at which a Block was
+	// The Round in a consensus algorithm at which a block was
 	// proposed/committed.
 	Round = block.Round
-	// Timestamp is a wrapper around the uint64 type.
+	// Timestamp is a wrapper around the `uint64` type.
 	Timestamp = block.Timestamp
 	// BlockTxs represent the application-specific transactions that are being
-	// proposed as part of a Block. An application that wishes to achieve
+	// proposed as part of a block. An application that wishes to achieve
 	// consensus on activity within the application should represent this
 	// activity as transactions, serialise them into bytes, and put them into a
-	// Block. No assumptions are made about the format of these transactions.
+	// block. No assumptions are made about the format of these transactions.
 	BlockTxs = block.Txs
 	// A BlockPlan represents application-specific data that is needed to
-	// execute the transactions in a Block. No assumptions are made about the
+	// execute the transactions in a block. No assumptions are made about the
 	// format of this plan.
 	BlockPlan = block.Plan
 	// The BlockState represents application-specific state.
@@ -110,36 +110,36 @@ type hyperdrive struct {
 	replicas map[Shard]Replica
 }
 
-// New returns a new Hyperdrive instance that wraps multiple Replica instances.
-// One Replica instance will be created per Shard, but all Replica instances
-// will use the same interfaces and private key. Replicas will not be created
-// for Shards for which the Replica is not a Signatory. This means that rebasing
-// can shuffle Signatories, but it cannot introduce new ones or remove existing
-// ones (this will be supported in future updates).
+// New returns a new `Hyperdrive` instance that wraps multiple replica
+// instances. One replica instance will be created per Shard, but all replica
+// instances will use the same interfaces and private key. Replicas will not be
+// created for shards for which the replica is not a signatory. This means that
+// rebasing can shuffle Signatories, but it cannot introduce new ones or remove
+// existing ones (this will be supported in future updates).
 //
-// 	hyper := hyperdrive.New(
-// 		hyperdrive.Options{},
-// 		pStorage,
-// 		bStorage,
-// 		bIter,
-// 		validator,
-// 		observer,
-// 		broadcaster,
-// 		shards,
-// 		privKey,
-// 	)
-// 	hyper.Start()
-// 	for {
-// 		select {
-// 		case <-ctx.Done():
-// 			break
-// 		case message, ok := <-messagesFromNetwork:
-// 			if !ok {
-// 				break
-// 			}
-// 			hyper.HandleMessage(message)
-// 		}
-//	}
+//  hyper := hyperdrive.New(
+//      hyperdrive.Options{},
+//      pStorage,
+//      bStorage,
+//      bIter,
+//      validator,
+//      observer,
+//      broadcaster,
+//      shards,
+//      privKey,
+//  )
+//  hyper.Start()
+//  for {
+//      select {
+//      case <-ctx.Done():
+//          break
+//      case message, ok := <-messagesFromNetwork:
+//          if !ok {
+//              break
+//          }
+//          hyper.HandleMessage(message)
+//      }
+//  }
 func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shards Shards, privKey ecdsa.PrivateKey) Hyperdrive {
 	replicas := make(map[Shard]Replica, len(shards))
 	for _, shard := range shards {
@@ -152,9 +152,9 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	}
 }
 
-// Start all Replicas in the Hyperdrive instance. All Replicas will be started
-// in parallel. This must be done before Hyperdrive can rebase shards, or handle
-// messages.
+// Start all replicas in the `Hyperdrive` instance. All replicas will be started
+// in parallel. This must be done before shards can be rebased, and before
+// messages can be handled.
 func (hyper *hyperdrive) Start() {
 	phi.ParForAll(hyper.replicas, func(shard Shard) {
 		replica := hyper.replicas[shard]
