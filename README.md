@@ -6,6 +6,6 @@
 [![Coverage Status](https://coveralls.io/repos/github/renproject/hyperdrive/badge.svg?branch=master)](https://coveralls.io/github/renproject/hyperdrive?branch=master)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-A Byzantine fault tolerant consensus algorithm for secure multiparty computation protocols. Inspired by Tendermint.
+A Byzantine fault tolerant consensus algorithm for secure multiparty computation protocols. For more information, [checkout the Wiki](https://github.com/renproject/hyperdrive/wiki).
 
 Built with ❤ by Ren.
