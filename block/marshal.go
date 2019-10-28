@@ -9,7 +9,7 @@ import (
 	"github.com/renproject/id"
 )
 
-// MarshalJSON implements the `json.Marshaler` interface for the Header type.
+// MarshalJSON implements the `json.Marshaler` interface for the `Header` type.
 func (header Header) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Kind         Kind           `json:"kind"`
@@ -36,7 +36,8 @@ func (header Header) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Header type.
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Header`
+// type.
 func (header *Header) UnmarshalJSON(data []byte) error {
 	tmp := struct {
 		Kind         Kind           `json:"kind"`
@@ -67,7 +68,7 @@ func (header *Header) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// Header type.
+// `Header` type.
 func (header Header) MarshalBinary() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	if err := binary.Write(buf, binary.LittleEndian, header.kind); err != nil {
@@ -109,7 +110,7 @@ func (header Header) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// Header type.
+// `Header` type.
 func (header *Header) UnmarshalBinary(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	if err := binary.Read(buf, binary.LittleEndian, &header.kind); err != nil {
@@ -154,7 +155,7 @@ func (header *Header) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the Block type.
+// MarshalJSON implements the `json.Marshaler` interface for the `Block` type.
 func (block Block) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Hash      id.Hash `json:"hash"`
@@ -171,7 +172,8 @@ func (block Block) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Block type.
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Block`
+// type.
 func (block *Block) UnmarshalJSON(data []byte) error {
 	tmp := struct {
 		Hash      id.Hash `json:"hash"`
@@ -192,7 +194,7 @@ func (block *Block) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// Block type.
+// `Block` type.
 func (block Block) MarshalBinary() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	if err := binary.Write(buf, binary.LittleEndian, block.hash); err != nil {
@@ -230,7 +232,7 @@ func (block Block) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// Block type.
+// `Block` type.
 func (block *Block) UnmarshalBinary(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	if err := binary.Read(buf, binary.LittleEndian, &block.hash); err != nil {

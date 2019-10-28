@@ -9,28 +9,30 @@ import (
 	"github.com/renproject/id"
 )
 
-// Kind defines the different kinds of Block that exist.
+// Kind defines the different kinds of blocks that exist. This is used for
+// differentiating between blocks that are for consensus on application-specific
+// data, blocks that suggest changing the signatories of a shard, and blocks
+// that change the signatories of a shard.
 type Kind uint8
 
 const (
-	// Invalid defines an invalid Kind that must not be used.
+	// Invalid defines an invalid kind that must not be used.
 	Invalid Kind = iota
-
-	// Standard Blocks are used when reaching consensus on the ordering of
-	// application-specific data. Standard Blocks must have nil Header
-	// Signatories. This is the most common Block Kind.
+	// Standard blocks are used when reaching consensus on the ordering of
+	// application-specific data. Standard blocks must have nil header
+	// signatories. This is the most common block kind.
 	Standard
-	// Rebase Blocks are used when reaching consensus about a change to the
-	// Header Signatories that oversee the consensus algorithm. Rebase Blocks
-	// must include non-empty Header Signatories.
+	// Rebase blocks are used when reaching consensus about a change to the
+	// header signatories that oversee the consensus algorithm. Rebase blocks
+	// must include non-empty header signatories.
 	Rebase
-	// Base Blocks are used to finalise Rebase Blocks. Base Blocks must come
-	// immediately after a Rebase Block, must have no Content, and must have the
-	// same Header Signatories as their parent.
+	// Base blocks are used to finalise rebase blocks. Base blocks must come
+	// immediately after a rebase block, must have no content, and must have the
+	// same header signatories as their parent.
 	Base
 )
 
-// String implements the `fmt.Stringer` interface for the Kind type.
+// String implements the `fmt.Stringer` interface for the `Kind` type.
 func (kind Kind) String() string {
 	switch kind {
 	case Standard:
@@ -44,26 +46,27 @@ func (kind Kind) String() string {
 	}
 }
 
-// A Header defines properties of a Block that are not application-specific.
-// These properties are required by, or produced by, the consensus algorithm.
+// A Header defines properties of a block that are not application-specific.
+// These properties are required by, or produced by, the consensus algorithm and
+// are not subject modification by the user.
 type Header struct {
-	kind         Kind      // Kind of Block
-	parentHash   id.Hash   // Hash of the Block parent
-	baseHash     id.Hash   // Hash of the Block base
-	txsRef       id.Hash   // Reference to the Block txs
-	planRef      id.Hash   // Reference to the Block plan
-	prevStateRef id.Hash   // Reference to the Block previous state
-	height       Height    // Height at which the Block was committed
-	round        Round     // Round at which the Block was committed
-	timestamp    Timestamp // Seconds since Unix Epoch
+	kind         Kind      // Kind of block
+	parentHash   id.Hash   // Hash of the block parent
+	baseHash     id.Hash   // Hash of the block base
+	txsRef       id.Hash   // Reference to the block txs
+	planRef      id.Hash   // Reference to the block plan
+	prevStateRef id.Hash   // Reference to the block previous state
+	height       Height    // Height at which the block was committed
+	round        Round     // Round at which the block was committed
+	timestamp    Timestamp // Seconds since Unix epoch
 
-	// Signatories oversee the consensus algorithm (must be nil unless the Block
-	// is a Rebase/Base Block)
+	// Signatories oversee the consensus algorithm (must be nil unless the block
+	// is a rebase/base block)
 	signatories id.Signatories
 }
 
-// NewHeader returns a Header. It will panic if a pre-condition for Header
-// validity is violated.
+// NewHeader with all pre-conditions and invariants checked. It will panic if a
+// pre-condition or invariant is violated.
 func NewHeader(kind Kind, parentHash, baseHash, txsRef, planRef, prevStateRef id.Hash, height Height, round Round, timestamp Timestamp, signatories id.Signatories) Header {
 	switch kind {
 	case Standard:
@@ -106,57 +109,59 @@ func NewHeader(kind Kind, parentHash, baseHash, txsRef, planRef, prevStateRef id
 	}
 }
 
-// Kind of the Block.
+// Kind of the block.
 func (header Header) Kind() Kind {
 	return header.kind
 }
 
-// ParentHash of the Block.
+// ParentHash of the block.
 func (header Header) ParentHash() id.Hash {
 	return header.parentHash
 }
 
-// BaseHash of the Block.
+// BaseHash of the block.
 func (header Header) BaseHash() id.Hash {
 	return header.baseHash
 }
 
-// TxsRef of the Block.
+// TxsRef of the block.
 func (header Header) TxsRef() id.Hash {
 	return header.txsRef
 }
 
-// PlanRef of the Block.
+// PlanRef of the block.
 func (header Header) PlanRef() id.Hash {
 	return header.planRef
 }
 
-// PrevStateRef of the Block.
+// PrevStateRef of the block.
 func (header Header) PrevStateRef() id.Hash {
 	return header.prevStateRef
 }
 
-// Height of the Block.
+// Height of the block.
 func (header Header) Height() Height {
 	return header.height
 }
 
-// Round of the Block.
+// Round of the block.
 func (header Header) Round() Round {
 	return header.round
 }
 
-// Timestamp of the Block in seconds since Unix Epoch.
+// Timestamp of the block in seconds since Unix epoch.
 func (header Header) Timestamp() Timestamp {
 	return header.timestamp
 }
 
-// Signatories of the Block.
+// Signatories of the block.
 func (header Header) Signatories() id.Signatories {
 	return header.signatories
 }
 
-// String implements the `fmt.Stringer` interface for the Header type.
+// String implements the `fmt.Stringer` interface for the `Header` type. Two
+// headers must not have the same string representation, unless the headers are
+// equal.
 func (header Header) String() string {
 	return fmt.Sprintf(
 		"Header(Kind=%v,ParentHash=%v,BaseHash=%v,TxsRef=%v,PlanRef=%v,PrevStateRef=%v,Height=%v,Round=%v,Timestamp=%v,Signatories=%v)",
@@ -173,55 +178,62 @@ func (header Header) String() string {
 	)
 }
 
-// Txs stores application-specific transaction data used in Blocks and Notes
-// (must be nil in Rebase Blocks and Base Blocks).
+// Txs stores application-specific transaction data used in blocks.
 type Txs []byte
 
-// Hash of a Txs object.
+// Hash the transactions using SHA256.
 func (txs Txs) Hash() id.Hash {
 	return sha256.Sum256(txs)
 }
 
-// String implements the `fmt.Stringer` interface for the Txs type.
+// String implements the `fmt.Stringer` interface for the `Txs` type.
 func (txs Txs) String() string {
 	return base64.RawStdEncoding.EncodeToString(txs)
 }
 
-// Plan stores application-specific plan data used in Blocks and Notes (must be
-// nil in Rebase Blocks and Base Blocks).
+// Plan stores application-specific data used that is required for the execution
+// of transactions in the block. This plan is usually pre-computed data that is
+// needed by players in the secure multi-party computation. It is separated from
+// transactions for clearer semantic representation (sometimes plans can be
+// needed without transactions, and some transactions can be executed without
+// plans).
 type Plan []byte
 
-// Hash of a Plan object.
+// Hash the plan using SHA256.
 func (plan Plan) Hash() id.Hash {
 	return sha256.Sum256(plan)
 }
 
-// String implements the `fmt.Stringer` interface for the Plan type.
+// String implements the `fmt.Stringer` interface for the `Plan` type.
 func (plan Plan) String() string {
 	return base64.RawStdEncoding.EncodeToString(plan)
 }
 
-// State stores application-specific state after the execution of a Block.
+// State stores application-specific state after the execution of a block. The
+// block at height H+1 will store the state after the execution of block H. This
+// is required because of the nature of execution when using an interactive
+// secure multi-party computations.
 type State []byte
 
-// Hash of a State object.
+// Hash the state using SHA256.
 func (state State) Hash() id.Hash {
 	return sha256.Sum256(state)
 }
 
-// String implements the `fmt.Stringer` interface for the State type.
+// String implements the `fmt.Stringer` interface for the `State` type.
 func (state State) String() string {
 	return base64.RawStdEncoding.EncodeToString(state)
 }
 
-// Blocks defines a wrapper type around the []Block type.
+// Blocks is a wrapper around the `[]Block` type.
 type Blocks []Block
 
 // A Block is the atomic unit upon which consensus is reached. Consensus
-// guarantees a consistent ordering of Blocks that is agreed upon by all members
+// guarantees a consistent ordering of blocks that is agreed upon by all members
 // in a distributed network, even when some of the members are malicious.
 type Block struct {
-	hash      id.Hash // Hash of the Header, Txs, Plan, and State
+	hash id.Hash
+
 	header    Header
 	txs       Txs
 	plan      Plan
@@ -266,24 +278,25 @@ func (block Block) PreviousState() State {
 	return block.prevState
 }
 
-// String implements the `fmt.Stringer` interface for the Block type.
+// String implements the `fmt.Stringer` interface for the `Block` type.  Two
+// blocks must not have the same string representation, unless the blocks are
+// equal.
 func (block Block) String() string {
 	return fmt.Sprintf("Block(Hash=%v,Header=%v,Txs=%v,Plan=%v,PreviousState=%v)", block.hash, block.header, block.txs, block.plan, block.prevState)
 }
 
-// Equal compares one Block with another by checking that their Hashes are the
-// equal, and their Notes are equal.
+// Equal compares one block with another.
 func (block Block) Equal(other Block) bool {
 	return block.String() == other.String()
 }
 
-// Timestamp represents seconds since Unix Epoch.
+// Timestamp represents seconds since Unix epoch.
 type Timestamp uint64
 
-// Height of a Block.
+// Height of a block.
 type Height int64
 
-// Round in which a Block was proposed.
+// Round in which a block was proposed.
 type Round int64
 
 // Define some default invalid values.
@@ -296,7 +309,9 @@ var (
 	InvalidHeight    = Height(-1)
 )
 
-// ComputeHash of a block basing on its header, data and previous state.
+// ComputeHash of a block based on its header, transactions, execution plan and
+// state before execution (i.e. state after execution of its parent). This
+// function returns a hash that can be used when creating a block.
 func ComputeHash(header Header, txs Txs, plan Plan, prevState State) id.Hash {
 	return sha256.Sum256([]byte(fmt.Sprintf("BlockHash(Header=%v,Txs=%v,Plan=%v,PreviousState=%v)", header, txs, plan, prevState)))
 }
