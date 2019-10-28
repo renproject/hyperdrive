@@ -1,3 +1,6 @@
+// Package block defines the `Block` type, and all of the related types. This
+// package does not implement any kind of consensus logic; it is concerned with
+// defining data types, and serialization/deserialization of those data types.
 package block
 
 import (
