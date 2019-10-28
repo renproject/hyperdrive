@@ -17,7 +17,7 @@ type (
 	// Hashes is a wrapper around the `[]Hash` type.
 	Hashes = id.Hashes
 	// A Hash is the `[32]byte` output of a hashing function. Hyperdrive uses
-	// SHA2 for hashing.
+	// SHA256 for hashing.
 	Hash = id.Hash
 	// Signatures is a wrapper around the `[]Signature` type.
 	Signatures = id.Signatures
@@ -85,8 +85,7 @@ type (
 
 var (
 	// NewSignatory returns a Signatory from an ECDSA public key by serializing
-	// the ECDSA public key into bytes, and then hashing it using a SHA2 hashing
-	// function.
+	// the ECDSA public key into bytes and hashing it with SHA256.
 	NewSignatory = id.NewSignatory
 )
 
