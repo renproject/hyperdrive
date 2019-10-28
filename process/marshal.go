@@ -12,7 +12,7 @@ import (
 )
 
 // MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// NilReasons type.
+// `NilReasons` type.
 func (nilReasons NilReasons) MarshalBinary() ([]byte, error) {
 	// Sort map to remove non-determinism.
 	keys := []string{}
@@ -45,7 +45,7 @@ func (nilReasons NilReasons) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// NilReasons type.
+// `NilReasons` type.
 func (nilReasons *NilReasons) UnmarshalBinary(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	var lenNilReasons uint64
@@ -78,7 +78,7 @@ func (nilReasons *NilReasons) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the Propose type.
+// MarshalJSON implements the `json.Marshaler` interface for the `Propose` type.
 func (propose Propose) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Sig          id.Signature `json:"sig"`
@@ -99,7 +99,7 @@ func (propose Propose) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Propose
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Propose`
 // type.
 func (propose *Propose) UnmarshalJSON(data []byte) error {
 	tmp := struct {
@@ -125,7 +125,7 @@ func (propose *Propose) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// Propose type.
+// `Propose` type.
 func (propose Propose) MarshalBinary() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	if err := binary.Write(buf, binary.LittleEndian, propose.sig); err != nil {
@@ -183,7 +183,7 @@ func (propose Propose) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// Propose type.
+// `Propose` type.
 func (propose *Propose) UnmarshalBinary(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	if err := binary.Read(buf, binary.LittleEndian, &propose.sig); err != nil {
@@ -244,7 +244,7 @@ func (propose *Propose) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the Prevote type.
+// MarshalJSON implements the `json.Marshaler` interface for the `Prevote` type.
 func (prevote Prevote) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Sig        id.Signature `json:"sig"`
@@ -263,7 +263,8 @@ func (prevote Prevote) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Prevote type.
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Prevote`
+// type.
 func (prevote *Prevote) UnmarshalJSON(data []byte) error {
 	tmp := struct {
 		Sig        id.Signature `json:"sig"`
@@ -286,7 +287,7 @@ func (prevote *Prevote) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// Prevote type.
+// `Prevote` type.
 func (prevote Prevote) MarshalBinary() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	if err := binary.Write(buf, binary.LittleEndian, prevote.sig); err != nil {
@@ -318,7 +319,7 @@ func (prevote Prevote) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// Prevote type.
+// `Prevote` type.
 func (prevote *Prevote) UnmarshalBinary(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	if err := binary.Read(buf, binary.LittleEndian, &prevote.sig); err != nil {
@@ -352,7 +353,8 @@ func (prevote *Prevote) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the Precommit type.
+// MarshalJSON implements the `json.Marshaler` interface for the `Precommit`
+// type.
 func (precommit Precommit) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Sig       id.Signature `json:"sig"`
@@ -369,7 +371,8 @@ func (precommit Precommit) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Precommit type.
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Precommit`
+// type.
 func (precommit *Precommit) UnmarshalJSON(data []byte) error {
 	tmp := struct {
 		Sig       id.Signature `json:"sig"`
@@ -390,7 +393,7 @@ func (precommit *Precommit) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// Precommit type.
+// `Precommit` type.
 func (precommit Precommit) MarshalBinary() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	if err := binary.Write(buf, binary.LittleEndian, precommit.sig); err != nil {
@@ -412,7 +415,7 @@ func (precommit Precommit) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// Precommit type.
+// `Precommit` type.
 func (precommit *Precommit) UnmarshalBinary(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	if err := binary.Read(buf, binary.LittleEndian, &precommit.sig); err != nil {
@@ -434,7 +437,7 @@ func (precommit *Precommit) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the Inbox type.
+// MarshalJSON implements the `json.Marshaler` interface for the `Inbox` type.
 func (inbox Inbox) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		F        int                                                       `json:"f"`
@@ -445,9 +448,10 @@ func (inbox Inbox) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Inbox type.
-// Note : you need to be really careful when doing unmarshaling, specifically you need
-// to initialize the inbox with the expected messageType. Otherwise it would panic.
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Inbox`
+// type. Before unmarshaling into an inbox, you must initialise it. Unmarshaling
+// will panic if the inbox in not initialised, or if it is initialised with the
+// wrong message type.
 func (inbox *Inbox) UnmarshalJSON(data []byte) error {
 	tmp := struct {
 		F        int                                                               `json:"f"`
@@ -494,7 +498,7 @@ func (inbox *Inbox) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// Inbox type.
+// `Inbox` type.
 func (inbox Inbox) MarshalBinary() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	if err := binary.Write(buf, binary.LittleEndian, uint64(inbox.f)); err != nil {
@@ -538,7 +542,7 @@ func (inbox Inbox) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// Inbox type.
+// `Inbox` type. See the `UnmarshalJSON` method for more information.
 func (inbox *Inbox) UnmarshalBinary(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	var f uint64
@@ -613,7 +617,7 @@ func (inbox *Inbox) UnmarshalBinary(data []byte) error {
 }
 
 // MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// State type.
+// `State` type.
 func (state State) MarshalBinary() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	if err := binary.Write(buf, binary.LittleEndian, state.CurrentHeight); err != nil {
@@ -685,7 +689,7 @@ func (state State) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// State type.
+// `State` type.
 func (state *State) UnmarshalBinary(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	if err := binary.Read(buf, binary.LittleEndian, &state.CurrentHeight); err != nil {
