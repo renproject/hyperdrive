@@ -1,18 +1,6 @@
 // Package hyperdrive a high-level package for running multiple instances of the
 // Hyperdrive consensus algorithm for over multiple shards. The Hyperdrive
 // interface is the main entry point for users.
-//
-// See [package
-// process](https://godoc.org/github.com/renproject/hyperdrive/process) for the
-// implementation of the core consensus algorithm.
-//
-// See [package
-// replica](https://godoc.org/github.com/renproject/hyperdrive/replica) for the
-// implementation of rebasing/sharding wrapped around the core consensus
-// algorithm.
-//
-// See [package block](https://godoc.org/github.com/renproject/hyperdrive/block)
-// for the definition of Blocks and their related data types.
 package hyperdrive
 
 import (
@@ -129,31 +117,29 @@ type hyperdrive struct {
 // can shuffle Signatories, but it cannot introduce new ones or remove existing
 // ones (this will be supported in future updates).
 //
-// ```go
-// hyper := hyperdrive.New(
-// 	hyperdrive.Options{},
-// 	pStorage,
-// 	bStorage,
-// 	bIter,
-// 	validator,
-// 	observer,
-// 	broadcaster,
-// 	shards,
-// 	privKey,
-// )
-// hyper.Start()
-// for {
-// 	select {
-// 	case <-ctx.Done():
-// 		break
-// 	case message, ok := <-messagesFromNetwork:
-// 		if !ok {
+// 	hyper := hyperdrive.New(
+// 		hyperdrive.Options{},
+// 		pStorage,
+// 		bStorage,
+// 		bIter,
+// 		validator,
+// 		observer,
+// 		broadcaster,
+// 		shards,
+// 		privKey,
+// 	)
+// 	hyper.Start()
+// 	for {
+// 		select {
+// 		case <-ctx.Done():
 // 			break
+// 		case message, ok := <-messagesFromNetwork:
+// 			if !ok {
+// 				break
+// 			}
+// 			hyper.HandleMessage(message)
 // 		}
-// 		hyper.HandleMessage(message)
-// 	}
-// }
-// ```
+//	}
 func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shards Shards, privKey ecdsa.PrivateKey) Hyperdrive {
 	replicas := make(map[Shard]Replica, len(shards))
 	for _, shard := range shards {
@@ -166,7 +152,9 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	}
 }
 
-// Start all Replicas in the Hyperdrive instance.
+// Start all Replicas in the Hyperdrive instance. All Replicas will be started
+// in parallel. This must be done before Hyperdrive can rebase shards, or handle
+// messages.
 func (hyper *hyperdrive) Start() {
 	phi.ParForAll(hyper.replicas, func(shard Shard) {
 		replica := hyper.replicas[shard]
