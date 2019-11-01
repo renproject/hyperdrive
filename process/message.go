@@ -12,17 +12,28 @@ import (
 	"github.com/renproject/id"
 )
 
+// MessageType distinguished between the three valid (and one invalid) messages
+// types that are supported during consensus rounds.
 type MessageType uint64
 
 const (
-	NilMessageType       = 0
-	ProposeMessageType   = 1
-	PrevoteMessageType   = 2
+	// NilMessageType is invalid and must not be used.
+	NilMessageType = 0
+	// ProposeMessageType is used by messages that propose blocks for consensus.
+	ProposeMessageType = 1
+	// PrevoteMessageType is used by messages that are prevoting for block
+	// hashes (or nil prevoting).
+	PrevoteMessageType = 2
+	// PrecommitMessageType is used by messages that are precommitting for block
+	// hashes (or nil precommitting).
 	PrecommitMessageType = 3
 )
 
+// Messages is a wrapper around the `[]Message` type.
 type Messages []Message
 
+// The Message interface defines the common behaviour of all messages that are
+// broadcast throughout the network during consensus rounds.
 type Message interface {
 	fmt.Stringer
 	json.Marshaler
@@ -30,17 +41,34 @@ type Message interface {
 	encoding.BinaryMarshaler
 	encoding.BinaryUnmarshaler
 
+	// The Signatory that sent the message.
 	Signatory() id.Signatory
+	// The SigHash that is expected to by signed by the signatory. This is used
+	// to authenticate the claimed signatory.
 	SigHash() id.Hash
+	// The Signature produced by the signatory signing the sighash. This is used
+	// to authenticate the claimed signatory.
 	Sig() id.Signature
 
+	// The Height of the blockchain in which this message was broadcast.
 	Height() block.Height
+	// The Round of consensus in which this message was broadcast.
 	Round() block.Round
+	// The BlockHash of the block to this message concerns. Proposals will be
+	// proposing the block identified  by this hash, prevotes will be prevoting
+	// for the block identified by this hash (nil prevotes will use
+	// `InvalidBlockHash`), and precommits will be precommitting for block
+	// identified by this hash (nil precommits will also use
+	// `InvalidBlockHash`).
 	BlockHash() id.Hash
 
+	// Type returns the message type of this message. This is useful for
+	// marshaling/unmarshaling when type information is elided.
 	Type() MessageType
 }
 
+// Sign a message using an ECDSA private key. The resulting signature will be
+// stored inside the message.
 func Sign(m Message, privKey ecdsa.PrivateKey) error {
 	sigHash := m.SigHash()
 	signatory := id.NewSignatory(privKey.PublicKey)
@@ -68,6 +96,9 @@ func Sign(m Message, privKey ecdsa.PrivateKey) error {
 	return nil
 }
 
+// Verify that the signature in a message is from the expected signatory. This
+// is done by checking the `Message.Sig()` against the `Message.SigHash()` and
+// `Message.Signatory()`.
 func Verify(m Message) error {
 	sigHash := m.SigHash()
 	sig := m.Sig()
@@ -83,8 +114,10 @@ func Verify(m Message) error {
 	return nil
 }
 
+// Proposes is a wrapper around the `[]Propose` type.
 type Proposes []Propose
 
+// Propose a block for committment.
 type Propose struct {
 	signatory  id.Signatory
 	sig        id.Signature
@@ -96,6 +129,11 @@ type Propose struct {
 	latestCommit LatestCommit
 }
 
+// The LatestCommit can be attached to a proposal. It stores the latest
+// committed block, and a set of precommits that prove this block was committed.
+// This is useful for allowing processes that have fallen out-of-sync to fast
+// forward. See https://github.com/renproject/hyperdrive/wiki/Consensus for more
+// information about fast fowarding.
 type LatestCommit struct {
 	Block      block.Block
 	Precommits []Precommit
@@ -150,8 +188,10 @@ func (propose *Propose) String() string {
 	return fmt.Sprintf("Propose(Height=%v,Round=%v,BlockHash=%v,ValidRound=%v)", propose.Height(), propose.Round(), propose.BlockHash(), propose.ValidRound())
 }
 
+// Prevotes is a wrapper around the `[]Prevote` type.
 type Prevotes []Prevote
 
+// Prevote for a block hash.
 type Prevote struct {
 	signatory  id.Signatory
 	sig        id.Signature
@@ -211,8 +251,10 @@ func (prevote *Prevote) String() string {
 	return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v,NilReasons=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash(), nilReasonsHash.String())
 }
 
+// Precommits is a wrapper around the `[]Precommit` type.
 type Precommits []Precommit
 
+// Precommit a block hash.
 type Precommit struct {
 	signatory id.Signatory
 	sig       id.Signature
@@ -261,12 +303,21 @@ func (precommit *Precommit) String() string {
 	return fmt.Sprintf("Precommit(Height=%v,Round=%v,BlockHash=%v)", precommit.Height(), precommit.Round(), precommit.BlockHash())
 }
 
+// An Inbox is storage container for one type message. Any type of message can
+// be stored, but an attempt to store messages of different types in one inbox
+// will cause a panic. Inboxes are used extensively by the consensus algorithm
+// to track how many messages (of particular types) have been received, and
+// under what conditions. For example, inboxes are used to track when `2F+1`
+// prevote messages have been received for a specific block hash for the first
+// time.
 type Inbox struct {
 	f           int
 	messages    map[block.Height]map[block.Round]map[id.Signatory]Message
 	messageType MessageType
 }
 
+// NewInbox returns an inbox for one type of message. It assumes at most `F`
+// adversaries are present.
 func NewInbox(f int, messageType MessageType) *Inbox {
 	if f <= 0 {
 		panic(fmt.Sprintf("invariant violation: f = %v needs to be a positive number", f))
@@ -281,6 +332,22 @@ func NewInbox(f int, messageType MessageType) *Inbox {
 	}
 }
 
+// Insert a message into the inbox. It returns:
+//
+// - `n` the number of unique messages at the height and round of the inserted
+//    message (not necessarily for the same block hash),
+// - `firstTime` whether, or not, this is the first time this message has been
+//   seen,
+// - `firstTimeExceedingF` whether, or not, `n` has exceeded `F` for the first
+//   time as a result of this message being inserted,
+// - `firstTimeExceeding2F` whether, or not, `n` has exceeded `2F` for the first
+//   time as a result of this message being inserted, and
+// - `firstTimeExceeding2FOnBlockHash` whether, or not, this is the first
+//   time that more than `2F` unique messages have been seen for the same block.
+//
+// This method is used extensively for tracking the different conditions under
+// which the state machine is allowed to transition between various states. Its
+// correctness is fundamental to the correctness of the overall implementation.
 func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedingF, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash bool) {
 	if message.Type() != inbox.messageType {
 		panic(fmt.Sprintf("pre-condition violation: expected type %v, got type %T", inbox.messageType, message))
@@ -312,6 +379,9 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	return
 }
 
+// QueryMessagesByHeightRound returns all unique messages that have been
+// received at the specified height and round. The specific block hash of the
+// messages are ignored and might be different from each other.
 func (inbox *Inbox) QueryMessagesByHeightRound(height block.Height, round block.Round) []Message {
 	if _, ok := inbox.messages[height]; !ok {
 		return nil
@@ -326,6 +396,10 @@ func (inbox *Inbox) QueryMessagesByHeightRound(height block.Height, round block.
 	return messages
 }
 
+// QueryMessagesByHeightWithHighestRound returns all unique messages that have
+// been received at the specified height and at the heighest round observed (for
+// the specified height). The specific block hash of the messages are ignored
+// and might be different from each other.
 func (inbox *Inbox) QueryMessagesByHeightWithHighestRound(height block.Height) []Message {
 	if _, ok := inbox.messages[height]; !ok {
 		return nil
@@ -349,6 +423,9 @@ func (inbox *Inbox) QueryMessagesByHeightWithHighestRound(height block.Height) [
 	return messages
 }
 
+// QueryByHeightRoundBlockHash returns the number of unique messages that have
+// been received at the specified height and round. Only messages that reference
+// the specified block hash are considered.
 func (inbox *Inbox) QueryByHeightRoundBlockHash(height block.Height, round block.Round, blockHash id.Hash) (n int) {
 	if _, ok := inbox.messages[height]; !ok {
 		return
@@ -364,6 +441,8 @@ func (inbox *Inbox) QueryByHeightRoundBlockHash(height block.Height, round block
 	return
 }
 
+// QueryByHeightRoundSignatory the message (or nil) sent by a specific signatory
+// at a specific height and round.
 func (inbox *Inbox) QueryByHeightRoundSignatory(height block.Height, round block.Round, sig id.Signatory) Message {
 	if _, ok := inbox.messages[height]; !ok {
 		return nil
@@ -374,6 +453,9 @@ func (inbox *Inbox) QueryByHeightRoundSignatory(height block.Height, round block
 	return inbox.messages[height][round][sig]
 }
 
+// QueryByHeightRound returns the number of unique messages that have been
+// received at the specified height and round. The specific block hash of the
+// messages are ignored and might be different from each other.
 func (inbox *Inbox) QueryByHeightRound(height block.Height, round block.Round) (n int) {
 	if _, ok := inbox.messages[height]; !ok {
 		return
@@ -385,7 +467,6 @@ func (inbox *Inbox) QueryByHeightRound(height block.Height, round block.Round) (
 	return
 }
 
-func (inbox *Inbox) F() int {
 	return inbox.f
 }
 
@@ -393,6 +474,9 @@ func (inbox *Inbox) MessageType() MessageType {
 	return inbox.messageType
 }
 
+// Reset the inbox to a specific height. All messages for height lower than the
+// specified height are dropped. This is necessary to ensure that, over time,
+// the storage space of the inbox is bounded.
 func (inbox *Inbox) Reset(height block.Height) {
 	for blockHeight := range inbox.messages {
 		if blockHeight < height {
