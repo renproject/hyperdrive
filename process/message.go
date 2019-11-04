@@ -467,6 +467,7 @@ func (inbox *Inbox) QueryByHeightRound(height block.Height, round block.Round) (
 	return
 }
 
+func (inbox *Inbox) F() int {
 	return inbox.f
 }
 
