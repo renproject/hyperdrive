@@ -320,7 +320,10 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 
 	// upon f+1 Prevote{currentHeight, currentRound, nil}
 	if n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, p.state.CurrentRound, block.InvalidHash); n > p.state.Prevotes.F() {
-		p.observer.DidReceiveSufficientNilPrevotes(p.state.Prevotes.QueryMessagesByHeightRound(p.state.CurrentHeight, p.state.CurrentRound), p.state.Prevotes.F())
+		// if we are the proposer
+		if p.signatory.Equal(p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound)) {
+			p.observer.DidReceiveSufficientNilPrevotes(p.state.Prevotes.QueryMessagesByHeightRound(p.state.CurrentHeight, p.state.CurrentRound), p.state.Prevotes.F())
+		}
 	}
 
 	// upon 2f+1 Prevote{currentHeight, currentRound, nil} while currentStep = StepPrevote
