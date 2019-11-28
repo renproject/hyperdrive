@@ -205,7 +205,7 @@ func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
 
 	committedBlock, ok := rebaser.blockStorage.Blockchain(rebaser.shard).BlockAtHeight(height)
 	if !ok {
-		panic(fmt.Errorf("invariant violatoin: missing block at height=%v", height))
+		panic(fmt.Errorf("invariant violation: missing block at height=%v", height))
 	}
 
 	switch committedBlock.Header().Kind() {
