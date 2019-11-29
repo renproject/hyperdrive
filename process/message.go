@@ -380,12 +380,8 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 }
 
 // Delete removes all messages at a given height.
-func (inbox *Inbox) Delete(height block.Height) bool {
-	if _, ok := inbox.messages[height]; !ok {
-		return false
-	}
-	inbox.messages[height] = map[block.Round]map[id.Signatory]Message{}
-	return true
+func (inbox *Inbox) Delete(height block.Height) {
+	delete(inbox.messages, height)
 }
 
 // QueryMessagesByHeightRound returns all unique messages that have been
