@@ -588,4 +588,33 @@ var _ = Describe("Messages", func() {
 			})
 		})
 	})
+
+	Context("when deleting messages from an inbox", func() {
+		It("should return correct number of messages", func() {
+			test := func() bool {
+				f := rand.Intn(100) + 1
+				messageType := RandomMessageType()
+				inbox := NewInbox(f, messageType)
+				message := RandomMessage(messageType)
+
+				inbox.Insert(message)
+				Expect(inbox.QueryByHeightRound(message.Height(), message.Round())).Should(Equal(1))
+
+				inbox.Insert(RandomMessage(messageType))
+				Expect(inbox.QueryByHeightRound(message.Height(), message.Round())).Should(Equal(1))
+
+				inbox.Insert(RandomMessage(messageType))
+				Expect(inbox.QueryByHeightRound(message.Height(), message.Round())).Should(Equal(1))
+
+				inbox.Delete(message.Height())
+				Expect(inbox.QueryByHeightRound(message.Height(), message.Round())).Should(Equal(0))
+
+				inbox.Delete(message.Height())
+				Expect(inbox.QueryByHeightRound(message.Height(), message.Round())).Should(Equal(0))
+
+				return true
+			}
+			Expect(quick.Check(test, nil)).Should(Succeed())
+		})
+	})
 })
