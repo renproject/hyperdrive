@@ -379,6 +379,11 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	return
 }
 
+// Delete removes all messages at a given height.
+func (inbox *Inbox) Delete(height block.Height) {
+	delete(inbox.messages, height)
+}
+
 // QueryMessagesByHeightRound returns all unique messages that have been
 // received at the specified height and round. The specific block hash of the
 // messages are ignored and might be different from each other.
