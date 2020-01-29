@@ -170,8 +170,20 @@ func (p *Process) Start() {
 		}
 	}
 
-	if p.state.CurrentStep <= StepPropose {
+	// Start the Process from previous state.
+	switch p.state.CurrentStep{
+	case StepNil, StepPropose:
 		p.startRound(p.state.CurrentRound)
+	case StepPrevote:
+		if numPrevotes >= 2 * p.state.Prevotes.f + 1{
+			p.scheduleTimeoutPrevote(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrevote, p.state.CurrentRound))
+		}
+	case StepPrecommit:
+		if numPrecommits >= 2 * p.state.Precommits.f + 1{
+			p.scheduleTimeoutPrecommit(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrecommit, p.state.CurrentRound))
+		}
+	default:
+		panic("unknown step value")
 	}
 }
 
