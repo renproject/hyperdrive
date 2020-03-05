@@ -10,24 +10,32 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/hyperdrive/testutil"
+	"github.com/renproject/id"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/process"
 )
 
 type mockBroadcaster struct {
-	messages chan<- Message
+	broadcastMessages chan<- Message
+	castMessages      chan<- Message
 }
 
 func (m *mockBroadcaster) Broadcast(message Message) {
-	m.messages <- message
+	m.broadcastMessages <- message
 }
 
-func newMockBroadcaster() (Broadcaster, chan Message) {
-	messages := make(chan Message, 1)
+func (m *mockBroadcaster) Cast(to id.Signatory, message Message) {
+	m.castMessages <- message
+}
+
+func newMockBroadcaster() (Broadcaster, chan Message, chan Message) {
+	broadcastMessages := make(chan Message, 1)
+	castMessages := make(chan Message, 1)
 	return &mockBroadcaster{
-		messages: messages,
-	}, messages
+		broadcastMessages: broadcastMessages,
+		castMessages:      castMessages,
+	}, broadcastMessages, castMessages
 }
 
 var _ = Describe("signer", func() {
@@ -36,14 +44,14 @@ var _ = Describe("signer", func() {
 			test := func(shard Shard) bool {
 				key, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
 				Expect(err).NotTo(HaveOccurred())
-				broadcaster, messages := newMockBroadcaster()
+				broadcaster, broadcastMessages, _ := newMockBroadcaster()
 				signer := newSigner(broadcaster, shard, *key)
 
 				msg := RandomMessage(RandomMessageType())
 				signer.Broadcast(msg)
 
 				var message Message
-				Eventually(messages, 2*time.Second).Should(Receive(&message))
+				Eventually(broadcastMessages, 2*time.Second).Should(Receive(&message))
 				Expect(bytes.Equal(message.Shard[:], shard[:])).Should(BeTrue())
 				Expect(process.Verify(message.Message)).Should(Succeed())
 				return true
@@ -53,4 +61,6 @@ var _ = Describe("signer", func() {
 			Expect(quick.Check(test, nil)).Should(Succeed())
 		})
 	})
+
+	// TODO: Test casting messages.
 })

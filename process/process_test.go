@@ -685,4 +685,6 @@ var _ = Describe("Process", func() {
 			})
 		})
 	})
+
+	// TODO: Test resync messages.
 })

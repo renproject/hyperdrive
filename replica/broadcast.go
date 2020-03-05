@@ -5,12 +5,14 @@ import (
 	"fmt"
 
 	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/id"
 )
 
-// A Broadcaster is used to send signed, shard-specific, Messages to all
+// A Broadcaster is used to send signed, shard-specific, Messages to one or all
 // Replicas in the network.
 type Broadcaster interface {
 	Broadcast(Message)
+	Cast(id.Signatory, Message)
 }
 
 type signer struct {
@@ -35,6 +37,17 @@ func (broadcaster *signer) Broadcast(m process.Message) {
 		panic(fmt.Errorf("invariant violation: error broadcasting message: %v", err))
 	}
 	broadcaster.broadcaster.Broadcast(Message{
+		Message: m,
+		Shard:   broadcaster.shard,
+	})
+}
+
+// Cast implements the `process.Broadcaster` interface.
+func (broadcaster *signer) Cast(to id.Signatory, m process.Message) {
+	if err := process.Sign(m, broadcaster.privKey); err != nil {
+		panic(fmt.Errorf("invariant violation: error casting message: %v", err))
+	}
+	broadcaster.broadcaster.Cast(to, Message{
 		Message: m,
 		Shard:   broadcaster.shard,
 	})

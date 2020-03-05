@@ -47,15 +47,22 @@ func RandomShard() replica.Shard {
 
 type MockBlockIterator struct {
 	store *MockPersistentStorage
+	err   error
 }
 
-func NewMockBlockIterator(store *MockPersistentStorage) replica.BlockIterator {
+func NewMockBlockIterator(store *MockPersistentStorage, err error) *MockBlockIterator {
 	return &MockBlockIterator{
 		store: store,
+		err:   err,
 	}
 }
 
 func (m *MockBlockIterator) NextBlock(kind block.Kind, height block.Height, shard replica.Shard) (block.Txs, block.Plan, block.State) {
+	// Return an invalid block if we are a faulty proposer.
+	if m.err != nil {
+		return nil, nil, nil
+	}
+
 	blockchain := m.store.MockBlockchain(shard)
 	state, ok := blockchain.StateAtHeight(height - 1)
 	if !ok {
@@ -150,25 +157,16 @@ type MockBroadcaster struct {
 	cons   map[id.Signatory]chan replica.Message
 	active map[id.Signatory]bool
 
-	signatories    map[id.Signatory]int
-	cachedMessages []*latestMessages // keep tracking of the messages of latest height
+	signatories map[id.Signatory]int
 }
 
 func NewMockBroadcaster(keys []*ecdsa.PrivateKey, min, max int) *MockBroadcaster {
 	cons := map[id.Signatory]chan replica.Message{}
-	cachedMessages := make([]*latestMessages, len(keys))
 	signatories := map[id.Signatory]int{}
 	for i, key := range keys {
 		sig := id.NewSignatory(key.PublicKey)
 		messages := make(chan replica.Message, 128)
 		cons[sig] = messages
-		cachedMessages[i] = &latestMessages{
-			Mu:        new(sync.RWMutex),
-			Height:    0,
-			Propose:   replica.Message{},
-			Prevote:   replica.Message{},
-			Precommit: replica.Message{},
-		}
 		signatories[sig] = i
 	}
 
@@ -176,85 +174,47 @@ func NewMockBroadcaster(keys []*ecdsa.PrivateKey, min, max int) *MockBroadcaster
 		min: min,
 		max: max,
 
-		mu:             new(sync.RWMutex),
-		cons:           cons,
-		active:         map[id.Signatory]bool{},
-		signatories:    signatories,
-		cachedMessages: cachedMessages,
+		mu:          new(sync.RWMutex),
+		cons:        cons,
+		active:      map[id.Signatory]bool{},
+		signatories: signatories,
 	}
 }
 
 func (m *MockBroadcaster) Broadcast(message replica.Message) {
-	var sender id.Signatory
-	switch msg := message.Message.(type) {
-	case *process.Propose:
-		sender = msg.Signatory()
-		latestMessages := m.cachedMessages[m.signatories[sender]]
-		latestMessages.Mu.RLock()
-		if msg.Height() < latestMessages.Height {
-			latestMessages.Mu.RUnlock()
-			break
-		}
-		if msg.Height() > latestMessages.Height {
-			latestMessages.Height = msg.Height()
-			latestMessages.Prevote = replica.Message{}
-			latestMessages.Precommit = replica.Message{}
-		}
-		latestMessages.Propose = message
-		latestMessages.Mu.RUnlock()
-	case *process.Prevote:
-		sender = msg.Signatory()
-		latestMessages := m.cachedMessages[m.signatories[sender]]
-		latestMessages.Mu.RLock()
-		if msg.Height() < latestMessages.Height {
-			latestMessages.Mu.RUnlock()
-			break
-		}
-		if msg.Height() > latestMessages.Height {
-			latestMessages.Height = msg.Height()
-			latestMessages.Propose = replica.Message{}
-			latestMessages.Precommit = replica.Message{}
-		}
-		latestMessages.Prevote = message
-		latestMessages.Mu.RUnlock()
-	case *process.Precommit:
-		sender = msg.Signatory()
-		latestMessages := m.cachedMessages[m.signatories[sender]]
-		latestMessages.Mu.RLock()
-		if msg.Height() < latestMessages.Height {
-			latestMessages.Mu.RUnlock()
-			break
-		}
-		if msg.Height() > latestMessages.Height {
-			latestMessages.Height = msg.Height()
-			latestMessages.Propose = replica.Message{}
-			latestMessages.Prevote = replica.Message{}
-		}
-		latestMessages.Precommit = message
-		latestMessages.Mu.RUnlock()
-	default:
-		panic("unknown message type")
-	}
-
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// If the sender is offline, it cannot send message to other nodes
-	if !m.active[sender] {
+	// If the sender is offline, it cannot send messages to other nodes.
+	if !m.active[message.Message.Signatory()] {
 		return
 	}
 
-	// If the receiver is offline, it cannot receive any message from other nodes.
 	phi.ParForAll(m.cons, func(sig id.Signatory) {
+		// If the receiver is offline, it cannot receive any messages from other
+		// nodes.
 		if m.active[sig] {
 			m.sendMessage(sig, message)
 		}
 	})
 }
 
+func (m *MockBroadcaster) Cast(to id.Signatory, message replica.Message) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if !m.active[message.Message.Signatory()] {
+		return
+	}
+
+	if m.active[to] {
+		m.sendMessage(to, message)
+	}
+}
+
 func (m *MockBroadcaster) sendMessage(receiver id.Signatory, message replica.Message) {
 	messages := m.cons[receiver]
-	time.Sleep(time.Duration(mrand.Intn(m.max-m.min)+m.min) * time.Millisecond) // Simulate the network latency
+	time.Sleep(time.Duration(mrand.Intn(m.max-m.min)+m.min) * time.Millisecond) // Simulate network latency.
 	messages <- message
 }
 
@@ -266,33 +226,10 @@ func (m *MockBroadcaster) Messages(sig id.Signatory) chan replica.Message {
 }
 
 func (m *MockBroadcaster) EnablePeer(sig id.Signatory) {
-	// Make the user active
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.active[sig] = true
 
-	// Resent the latest messages from each node
-	highestPropose := replica.Message{}
-	for _, latest := range m.cachedMessages {
-		latest.Mu.Lock()
-		if latest.Prevote.Message != nil {
-			m.cons[sig] <- latest.Prevote
-		}
-		if latest.Precommit.Message != nil {
-			m.cons[sig] <- latest.Precommit
-		}
-		if highestPropose.Message == nil {
-			if latest.Propose.Message != nil {
-				highestPropose = latest.Propose
-			}
-		} else {
-			if latest.Propose.Message != nil && latest.Propose.Message.Height() > highestPropose.Message.Height() {
-				highestPropose = latest.Propose
-			}
-		}
-		latest.Mu.Unlock()
-	}
-	m.cons[sig] <- highestPropose
+	m.active[sig] = true
 }
 
 func (m *MockBroadcaster) DisablePeer(sig id.Signatory) {
