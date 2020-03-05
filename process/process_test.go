@@ -73,8 +73,12 @@ var _ = Describe("Process", func() {
 					process := processOrigin.ToProcess()
 					process.Start()
 
-					// Expect the proposer broadcast a propose message with height 1 and round 0
 					var message Message
+					Eventually(processOrigin.BroadcastMessages).Should(Receive(&message))
+					_, ok := message.(*Resync)
+					Expect(ok).Should(BeTrue())
+
+					// Expect the proposer broadcast a propose message with height 1 and round 0
 					Eventually(processOrigin.BroadcastMessages).Should(Receive(&message))
 					proposal, ok := message.(*Propose)
 					Expect(ok).Should(BeTrue())
@@ -169,8 +173,12 @@ var _ = Describe("Process", func() {
 					process := processOrigin.ToProcess()
 					process.Start()
 
-					// Expect the proposer broadcast a propose message with zero height and round
 					var message Message
+					Eventually(processOrigin.BroadcastMessages).Should(Receive(&message))
+					_, ok := message.(*Resync)
+					Expect(ok).Should(BeTrue())
+
+					// Expect the proposer broadcast a propose message with zero height and round
 					Eventually(processOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
 					prevote, ok := message.(*Prevote)
 					Expect(ok).Should(BeTrue())
