@@ -11,6 +11,7 @@ import (
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/id"
+	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
 )
 
@@ -366,7 +367,7 @@ func GetStateFromProcess(p *process.Process, f int) process.State {
 		panic(err)
 	}
 	state := process.DefaultState(f)
-	if err := state.UnmarshalBinary(data); err != nil {
+	if err := surge.FromBinary(data, &state); err != nil {
 		panic(err)
 	}
 	return state
