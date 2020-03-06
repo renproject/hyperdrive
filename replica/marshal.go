@@ -1,12 +1,12 @@
 package replica
 
 import (
-	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/surge"
 )
 
 func (m Message) MarshalJSON() ([]byte, error) {
@@ -57,63 +57,65 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (m Message) MarshalBinary() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	messageData, err := m.Message.MarshalBinary()
-	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal m.Message: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(messageData))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write m.Message len: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, m.Message.Type()); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write m.Message.Type: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, messageData); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write m.Message data: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, m.Shard); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write m.Shard: %v", err)
-	}
-	return buf.Bytes(), nil
+func (message Message) SizeHint() int {
+	return surge.SizeHint(message.Message.Type()) +
+		surge.SizeHint(message.Message) +
+		surge.SizeHint(message.Shard)
 }
 
-func (m *Message) UnmarshalBinary(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	var numBytes uint64
-	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read m.Message len: %v", err)
+func (message Message) Marshal(w io.Writer, m int) (int, error) {
+	if m <= 0 {
+		return m, surge.ErrMaxBytesExceeded
 	}
-	var messageType uint64
-	if err := binary.Read(buf, binary.LittleEndian, &messageType); err != nil {
-		return fmt.Errorf("cannot read m.Message.Type: %v", err)
+
+	m, err := surge.Marshal(w, uint64(message.Message.Type()), m)
+	if err != nil {
+		return m, err
 	}
-	messageBytes := make([]byte, numBytes)
-	if _, err := buf.Read(messageBytes); err != nil {
-		return fmt.Errorf("cannot read m.Message data: %v", err)
+	if m, err = surge.Marshal(w, message.Message, m); err != nil {
+		return m, err
 	}
-	var err error
+	return surge.Marshal(w, message.Shard, m)
+}
+
+func (message *Message) Unmarshal(r io.Reader, m int) (int, error) {
+	if m <= 0 {
+		return m, surge.ErrMaxBytesExceeded
+	}
+
+	var messageType process.MessageType
+	m, err := surge.Unmarshal(r, (*uint64)(&messageType), m)
+	if err != nil {
+		return m, err
+	}
+
 	switch messageType {
 	case process.ProposeMessageType:
 		propose := new(process.Propose)
-		err = propose.UnmarshalBinary(messageBytes)
-		m.Message = propose
+		m, err = propose.Unmarshal(r, m)
+		message.Message = propose
 	case process.PrevoteMessageType:
 		prevote := new(process.Prevote)
-		err = prevote.UnmarshalBinary(messageBytes)
-		m.Message = prevote
+		m, err = prevote.Unmarshal(r, m)
+		message.Message = prevote
 	case process.PrecommitMessageType:
 		precommit := new(process.Precommit)
-		err = precommit.UnmarshalBinary(messageBytes)
-		m.Message = precommit
+		m, err = precommit.Unmarshal(r, m)
+		message.Message = precommit
 	default:
-		return fmt.Errorf("unexpected message type %d", messageType)
+		return m, fmt.Errorf("unexpected message type %d", messageType)
 	}
 	if err != nil {
-		return err
+		return m, err
 	}
-	if err := binary.Read(buf, binary.LittleEndian, &m.Shard); err != nil {
-		return fmt.Errorf("cannot read m.Shard: %v", err)
-	}
-	return nil
+
+	return surge.Unmarshal(r, message.Shard, m)
+}
+
+func (message Message) MarshalBinary() ([]byte, error) {
+	return surge.ToBinary(message)
+}
+
+func (message *Message) UnmarshalBinary(data []byte) error {
+	return surge.FromBinary(data, message)
 }
