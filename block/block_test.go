@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/hyperdrive/block"
 	. "github.com/renproject/hyperdrive/testutil"
+	"github.com/renproject/surge"
 
 	"github.com/renproject/id"
 )
@@ -88,11 +89,11 @@ var _ = Describe("Block", func() {
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				test := func() bool {
 					header := RandomBlockHeader(RandomBlockKind())
-					data, err := header.MarshalBinary()
+					data, err := surge.ToBinary(header)
 					Expect(err).NotTo(HaveOccurred())
 
 					var newHeader Header
-					Expect(newHeader.UnmarshalBinary(data)).Should(Succeed())
+					Expect(surge.FromBinary(data, &newHeader)).Should(Succeed())
 					Expect(header.String()).Should(Equal(newHeader.String()))
 					return reflect.DeepEqual(header, newHeader)
 				}
@@ -411,11 +412,11 @@ var _ = Describe("Block", func() {
 				It("should equal itself after binary marshaling and then unmarshaling", func() {
 					test := func() bool {
 						block := RandomBlock(RandomBlockKind())
-						data, err := block.MarshalBinary()
+						data, err := surge.ToBinary(block)
 						Expect(err).NotTo(HaveOccurred())
 
 						var newBlock Block
-						Expect(newBlock.UnmarshalBinary(data)).Should(Succeed())
+						Expect(surge.FromBinary(data, &newBlock)).Should(Succeed())
 						Expect(block.String()).Should(Equal(newBlock.String()))
 						return block.Equal(newBlock)
 					}
