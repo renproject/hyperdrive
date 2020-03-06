@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/id"
+	"github.com/renproject/surge"
 )
 
 // MessageType distinguished between the three valid (and one invalid) messages
@@ -243,7 +244,7 @@ func (prevote *Prevote) Type() MessageType {
 }
 
 func (prevote *Prevote) String() string {
-	nilReasonsBytes, err := prevote.NilReasons().MarshalBinary()
+	nilReasonsBytes, err := surge.ToBinary(prevote.NilReasons())
 	if err != nil {
 		return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash())
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/id"
+	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
 )
 
@@ -128,7 +129,7 @@ func (p *Process) UnmarshalJSON(data []byte) error {
 func (p Process) MarshalBinary() ([]byte, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.state.MarshalBinary()
+	return surge.ToBinary(p.state)
 }
 
 // UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
@@ -136,7 +137,7 @@ func (p Process) MarshalBinary() ([]byte, error) {
 func (p *Process) UnmarshalBinary(data []byte) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.state.UnmarshalBinary(data)
+	return surge.FromBinary(data, &p.state)
 }
 
 // Start the process
