@@ -602,6 +602,18 @@ var _ = Describe("Process", func() {
 	})
 
 	Context("when starting the process", func() {
+		It("should send a resync message", func() {
+			processOrigin := NewProcessOrigin(100)
+			process := processOrigin.ToProcess()
+			process.Start()
+
+			// Expect the process to broadcast a resync message.
+			var message Message
+			Eventually(processOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
+			_, ok := message.(*Resync)
+			Expect(ok).Should(BeTrue())
+		})
+
 		Context("when the process has messages from a previous height", func() {
 			It("should resend the most recent proposal, prevote, and precommit", func() {
 				processOrigin := NewProcessOrigin(100)
@@ -693,6 +705,4 @@ var _ = Describe("Process", func() {
 			})
 		})
 	})
-
-	// TODO: Test resync messages.
 })
