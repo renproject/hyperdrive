@@ -384,6 +384,7 @@ func NewNetwork(f, r int, shards replica.Shards, options networkOptions) Network
 	for i := range nodes {
 		logger := logrus.New()
 		if Contain(options.debugLogger, i) {
+			logger.Infof("✏️ node %d has debug logs enabled", i)
 			logger.SetLevel(logrus.DebugLevel)
 		}
 		store := NewMockPersistentStorage(shards)
@@ -391,6 +392,7 @@ func NewNetwork(f, r int, shards replica.Shards, options networkOptions) Network
 
 		var iterErr error
 		if Contain(options.invalidProposers, i) {
+			logger.Infof("✏️ node %d is an invalid proposer", i)
 			iterErr = fmt.Errorf("")
 		}
 		iter := NewMockBlockIterator(store, iterErr)
@@ -550,7 +552,7 @@ func (network *Network) HealthCheck(indexes []int) bool {
 			if node.observer.IsSignatory(shard) {
 				block := node.storage.LatestBlock(shard)
 				if block.Header().Height() <= currentBlockHeights[i] {
-					log.Printf("⚠️ node %v did not progress, old height = %v, new height = %v", i, currentBlockHeights[i], block.Header().Height())
+					node.logger.Infof("⚠️ node %d did not progress, old height = %d, new height = %d", i, currentBlockHeights[i], block.Header().Height())
 					return false
 				}
 			}
