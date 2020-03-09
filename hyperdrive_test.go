@@ -483,7 +483,11 @@ func (network *Network) startNode(i int) {
 
 		for {
 			select {
-			case message := <-messages:
+			case messageBytes := <-messages:
+				var message replica.Message
+				if err := message.UnmarshalBinary(messageBytes); err != nil {
+					panic(err)
+				}
 				hyperdrive.HandleMessage(message)
 				select {
 				case <-innerCtx.Done():

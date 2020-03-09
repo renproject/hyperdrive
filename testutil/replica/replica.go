@@ -146,18 +146,18 @@ type MockBroadcaster struct {
 	min, max int
 
 	mu     *sync.RWMutex
-	cons   map[id.Signatory]chan replica.Message
+	cons   map[id.Signatory]chan []byte
 	active map[id.Signatory]bool
 
 	signatories map[id.Signatory]int
 }
 
 func NewMockBroadcaster(keys []*ecdsa.PrivateKey, min, max int) *MockBroadcaster {
-	cons := map[id.Signatory]chan replica.Message{}
+	cons := map[id.Signatory]chan []byte{}
 	signatories := map[id.Signatory]int{}
 	for i, key := range keys {
 		sig := id.NewSignatory(key.PublicKey)
-		messages := make(chan replica.Message, 128)
+		messages := make(chan []byte, 128)
 		cons[sig] = messages
 		signatories[sig] = i
 	}
@@ -182,12 +182,12 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 		return
 	}
 
-	phi.ParForAll(m.cons, func(sig id.Signatory) {
-		// If the receiver is offline, it cannot receive any messages from other
-		// nodes.
-		if m.active[sig] {
-			m.sendMessage(sig, message)
-		}
+	messageBytes, err := message.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	phi.ParForAll(m.cons, func(to id.Signatory) {
+		m.sendMessage(to, messageBytes)
 	})
 }
 
@@ -195,22 +195,30 @@ func (m *MockBroadcaster) Cast(to id.Signatory, message replica.Message) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	// If the sender is offline, it cannot send messages to other nodes.
 	if !m.active[message.Message.Signatory()] {
 		return
 	}
 
-	if m.active[to] {
-		m.sendMessage(to, message)
+	messageBytes, err := message.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	m.sendMessage(to, messageBytes)
+}
+
+func (m *MockBroadcaster) sendMessage(receiver id.Signatory, message []byte) {
+	messages := m.cons[receiver]
+	time.Sleep(time.Duration(mrand.Intn(m.max-m.min)+m.min) * time.Millisecond) // Simulate network latency.
+
+	// If the receiver is offline, it cannot receive any messages from other
+	// nodes.
+	if m.active[receiver] {
+		messages <- message
 	}
 }
 
-func (m *MockBroadcaster) sendMessage(receiver id.Signatory, message replica.Message) {
-	messages := m.cons[receiver]
-	time.Sleep(time.Duration(mrand.Intn(m.max-m.min)+m.min) * time.Millisecond) // Simulate network latency.
-	messages <- message
-}
-
-func (m *MockBroadcaster) Messages(sig id.Signatory) chan replica.Message {
+func (m *MockBroadcaster) Messages(sig id.Signatory) chan []byte {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
