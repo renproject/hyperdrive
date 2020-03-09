@@ -142,14 +142,6 @@ func (observer *MockObserver) IsSignatory(replica.Shard) bool {
 func (observer *MockObserver) DidReceiveSufficientNilPrevotes(process.Messages, int) {
 }
 
-type latestMessages struct {
-	Mu        *sync.RWMutex
-	Height    block.Height
-	Propose   replica.Message
-	Prevote   replica.Message
-	Precommit replica.Message
-}
-
 type MockBroadcaster struct {
 	min, max int
 
