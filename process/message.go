@@ -363,7 +363,7 @@ func (resync *Resync) Type() MessageType {
 }
 
 func (resync *Resync) String() string {
-	return fmt.Sprintf("Resync(Height=%v,Round=%v,BlockHash=%v)", resync.Height(), resync.Round(), resync.BlockHash())
+	return fmt.Sprintf("Resync(Height=%v,Round=%v)", resync.Height(), resync.Round())
 }
 
 // An Inbox is storage container for one type message. Any type of message can
