@@ -243,7 +243,7 @@ var _ = Describe("Hyperdrive", func() {
 						It("should start producing blocks again", func() {
 							options := DefaultOption
 							options.debugLogger = []int{0}
-							options.invalidProposers = []int{mrand.Intn(3*f + 1)} // Pick a random validator to propose invalid blocks.
+							options.timeoutProposers = []int{mrand.Intn(3*f + 1)} // Pick a random node to timeout when proposing blocks.
 							network := NewNetwork(f, r, shards, options)
 							network.Start()
 							defer network.Stop()
@@ -330,7 +330,7 @@ type networkOptions struct {
 	maxBootDelay     int   // maximum delay when booting the node in seconds
 	debugLogger      []int // indices of nodes that use a debug logger, nil to disable all
 	disabledNodes    []int // indices of nodes that are disabled when the network starts, nil to enable all
-	invalidProposers []int // indices of nodes that intentionally propose invalid blocks, nil for no invalid proposers
+	timeoutProposers []int // indices of nodes that timeout prior to proposing blocks, nil for no invalid proposers
 }
 
 var DefaultOption = networkOptions{
@@ -340,7 +340,7 @@ var DefaultOption = networkOptions{
 	maxBootDelay:     3,
 	debugLogger:      nil,
 	disabledNodes:    nil,
-	invalidProposers: nil,
+	timeoutProposers: nil,
 }
 
 type Network struct {
@@ -390,12 +390,12 @@ func NewNetwork(f, r int, shards replica.Shards, options networkOptions) Network
 		store := NewMockPersistentStorage(shards)
 		store.Init(genesisBlock)
 
-		var iterErr error
-		if Contain(options.invalidProposers, i) {
-			logger.Infof("✏️ node %d is an invalid proposer", i)
-			iterErr = fmt.Errorf("")
+		var timeoutProposer bool
+		if Contain(options.timeoutProposers, i) {
+			logger.Infof("✏️ node %d will time out when proposing", i)
+			timeoutProposer = true
 		}
-		iter := NewMockBlockIterator(store, iterErr)
+		iter := NewMockBlockIterator(store, timeoutProposer)
 		nodes[i] = NewNode(logger.WithField("node", i), shards, keys[i], iter, broadcaster, store, i < 3*f+1)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -452,11 +452,11 @@ func (network *Network) StartNode(i int) {
 		logger.SetLevel(logrus.DebugLevel)
 	}
 	store := network.nodes[i].storage
-	var iterErr error
-	if Contain(network.options.invalidProposers, i) {
-		iterErr = fmt.Errorf("")
+	var timeoutProposer bool
+	if Contain(network.options.timeoutProposers, i) {
+		timeoutProposer = true
 	}
-	iter := NewMockBlockIterator(store, iterErr)
+	iter := NewMockBlockIterator(store, timeoutProposer)
 
 	network.nodesMu.Lock()
 	defer network.nodesMu.Unlock()

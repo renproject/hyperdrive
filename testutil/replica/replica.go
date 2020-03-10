@@ -46,21 +46,21 @@ func RandomShard() replica.Shard {
 }
 
 type MockBlockIterator struct {
-	store *MockPersistentStorage
-	err   error
+	store   *MockPersistentStorage
+	timeout bool
 }
 
-func NewMockBlockIterator(store *MockPersistentStorage, err error) *MockBlockIterator {
+func NewMockBlockIterator(store *MockPersistentStorage, timeout bool) *MockBlockIterator {
 	return &MockBlockIterator{
-		store: store,
-		err:   err,
+		store:   store,
+		timeout: timeout,
 	}
 }
 
 func (m *MockBlockIterator) NextBlock(kind block.Kind, height block.Height, shard replica.Shard) (block.Txs, block.Plan, block.State) {
-	// Return an invalid block if we are a faulty proposer.
-	if m.err != nil {
-		return nil, nil, testutil.RandomBytesSlice()
+	// Sleep before continuing if we are expected to timeout.
+	if m.timeout {
+		time.Sleep(5 * time.Second)
 	}
 
 	blockchain := m.store.MockBlockchain(shard)
