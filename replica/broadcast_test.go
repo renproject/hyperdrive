@@ -10,10 +10,10 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/hyperdrive/testutil"
-	"github.com/renproject/id"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/id"
 )
 
 type mockBroadcaster struct {
