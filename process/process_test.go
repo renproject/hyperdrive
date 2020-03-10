@@ -302,6 +302,9 @@ var _ = Describe("Process", func() {
 	Context("when the process is in prevote step", func() {
 		Context("when receive 2*f +1 prevote of any proposal for the first time", func() {
 			It("should send a nil precommit when nothing changes after the timeout", func() {
+				By("before reboot")
+
+				// Initialise a new process at thee prevote step.
 				f := rand.Intn(100) + 1
 				height, round := block.Height(rand.Int()), block.Round(rand.Int())
 				processOrigin := NewProcessOrigin(f)
@@ -309,7 +312,9 @@ var _ = Describe("Process", func() {
 				processOrigin.State.CurrentHeight = height
 				processOrigin.State.CurrentRound = round
 				process := processOrigin.ToProcess()
+				process.Start()
 
+				// Handle random prevotes.
 				for i := 0; i < 2*f+1; i++ {
 					prevote := NewPrevote(height, round, RandomBlock(RandomBlockKind()).Hash(), nil)
 					privateKey := newEcdsaKey()
@@ -317,10 +322,39 @@ var _ = Describe("Process", func() {
 					process.HandleMessage(prevote)
 				}
 
-				// Expect the proposer broadcast a precommit message with
+				// Store state for later use.
+				stateBytes, err := process.MarshalBinary()
+				Expect(err).ToNot(HaveOccurred())
+
+				// Expect the validator to broadcast a nil precommit.
 				var message Message
 				Eventually(processOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
 				precommit, ok := message.(*Precommit)
+				Expect(ok).Should(BeTrue())
+				Expect(precommit.Height()).Should(Equal(height))
+				Expect(precommit.Round()).Should(Equal(round))
+				Expect(precommit.BlockHash().Equal(block.InvalidHash)).Should(BeTrue())
+
+				By("after reboot")
+
+				// Initialise a new process using the stored state and
+				// ensure it times out and broadcasts a nil precommit.
+				newProcessOrigin := NewProcessOrigin(100)
+				newProcessOrigin.State.CurrentStep = StepPrevote
+				newProcessOrigin.State.CurrentHeight = height
+				newProcessOrigin.State.CurrentRound = round
+
+				state := DefaultState(100)
+				err = state.UnmarshalBinary(stateBytes)
+				Expect(err).ToNot(HaveOccurred())
+				newProcessOrigin.UpdateState(state)
+
+				newProcess := newProcessOrigin.ToProcess()
+				newProcess.Start()
+
+				// Expect the validator to broadcast a nil precommit message.
+				Eventually(newProcessOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
+				precommit, ok = message.(*Precommit)
 				Expect(ok).Should(BeTrue())
 				Expect(precommit.Height()).Should(Equal(height))
 				Expect(precommit.Round()).Should(Equal(round))
