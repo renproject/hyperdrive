@@ -31,6 +31,7 @@ var _ = Describe("Messages", func() {
 
 					propose := NewPropose(height, round, block, validRound)
 
+					Expect(propose.Type()).Should(Equal(MessageType(ProposeMessageType)))
 					Expect(propose.Height()).Should(Equal(height))
 					Expect(propose.Round()).Should(Equal(round))
 					Expect(propose.ValidRound()).Should(Equal(validRound))
@@ -123,6 +124,7 @@ var _ = Describe("Messages", func() {
 
 					prevote := NewPrevote(height, round, blockHash, nil)
 
+					Expect(prevote.Type()).Should(Equal(MessageType(PrevoteMessageType)))
 					Expect(prevote.Height()).Should(Equal(height))
 					Expect(prevote.Round()).Should(Equal(round))
 					Expect(prevote.BlockHash().Equal(blockHash)).Should(BeTrue())
@@ -214,6 +216,7 @@ var _ = Describe("Messages", func() {
 
 					precommit := NewPrecommit(height, round, blockHash)
 
+					Expect(precommit.Type()).Should(Equal(MessageType(PrecommitMessageType)))
 					Expect(precommit.Height()).Should(Equal(height))
 					Expect(precommit.Round()).Should(Equal(round))
 					Expect(precommit.BlockHash().Equal(blockHash)).Should(BeTrue())
@@ -302,10 +305,15 @@ var _ = Describe("Messages", func() {
 					height := block.Height(rand.Int63())
 					round := block.Round(rand.Int63())
 
-					prevote := NewResync(height, round)
+					resync := NewResync(height, round)
 
-					Expect(prevote.Height()).Should(Equal(height))
-					Expect(prevote.Round()).Should(Equal(round))
+					Expect(resync.Type()).Should(Equal(MessageType(ResyncMessageType)))
+					Expect(resync.Height()).Should(Equal(height))
+					Expect(resync.Round()).Should(Equal(round))
+					Expect(func() {
+						resync.BlockHash()
+					}).Should(Panic())
+
 					return true
 				}
 				Expect(quick.Check(test, nil)).Should(Succeed())
