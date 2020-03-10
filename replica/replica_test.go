@@ -51,7 +51,7 @@ var _ = Describe("Replica", func() {
 		Context("when marshaling/unmarshaling message", func() {
 			It("should equal itself after json marshaling and then unmarshaling", func() {
 				message := Message{
-					Message: RandomMessage(RandomMessageType()),
+					Message: RandomMessage(RandomMessageType(true)),
 					Shard:   Shard{},
 				}
 
@@ -67,7 +67,7 @@ var _ = Describe("Replica", func() {
 
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				message := Message{
-					Message: RandomMessage(RandomMessageType()),
+					Message: RandomMessage(RandomMessageType(true)),
 					Shard:   Shard{},
 				}
 

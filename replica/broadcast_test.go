@@ -47,7 +47,7 @@ var _ = Describe("Broadcaster", func() {
 				broadcaster, broadcastMessages, _ := newMockBroadcaster()
 				signer := newSigner(broadcaster, shard, *key)
 
-				msg := RandomMessage(RandomMessageType())
+				msg := RandomMessage(RandomMessageType(true))
 				signer.Broadcast(msg)
 
 				var message Message
@@ -71,7 +71,7 @@ var _ = Describe("Broadcaster", func() {
 				broadcaster, _, castMessages := newMockBroadcaster()
 				signer := newSigner(broadcaster, shard, *key)
 
-				msg := RandomMessage(RandomMessageType())
+				msg := RandomMessage(RandomMessageType(true))
 				signer.Cast(id.Signatory{}, msg)
 
 				var message Message
