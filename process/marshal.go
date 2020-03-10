@@ -558,10 +558,6 @@ func (inbox *Inbox) UnmarshalJSON(data []byte) error {
 					msg := new(Precommit)
 					err = json.Unmarshal(raw, msg)
 					inbox.messages[height][round][sig] = msg
-				case ResyncMessageType:
-					msg := new(Resync)
-					err = json.Unmarshal(raw, msg)
-					inbox.messages[height][round][sig] = msg
 				}
 				if err != nil {
 					return err
@@ -677,10 +673,6 @@ func (inbox *Inbox) UnmarshalBinary(data []byte) error {
 					sigMap[sig] = message
 				case PrecommitMessageType:
 					message := new(Precommit)
-					err = message.UnmarshalBinary(messageBytes)
-					sigMap[sig] = message
-				case ResyncMessageType:
-					message := new(Resync)
 					err = message.UnmarshalBinary(messageBytes)
 					sigMap[sig] = message
 				}

@@ -132,7 +132,7 @@ func RandomResync() *process.Resync {
 }
 
 func RandomMessageType() process.MessageType {
-	index := rand.Intn(4)
+	index := rand.Intn(3)
 	switch index {
 	case 0:
 		return process.ProposeMessageType
@@ -140,10 +140,8 @@ func RandomMessageType() process.MessageType {
 		return process.PrevoteMessageType
 	case 2:
 		return process.PrecommitMessageType
-	case 3:
-		return process.ResyncMessageType
 	default:
-		panic("unexpect message type")
+		panic("unexpected message type")
 	}
 }
 
