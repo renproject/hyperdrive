@@ -192,6 +192,10 @@ func NewProcessOrigin(f int) ProcessOrigin {
 	}
 }
 
+func (p ProcessOrigin) UpdateState(state process.State) {
+	p.State = state
+}
+
 func (p ProcessOrigin) ToProcess() *process.Process {
 	return process.New(
 		logrus.StandardLogger(),

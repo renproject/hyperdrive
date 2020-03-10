@@ -158,21 +158,53 @@ var _ = Describe("Process", func() {
 				})
 			})
 
-			Context("when not receive anything during the timeout", func() {
+			Context("when we do not receive a propose during the timeout", func() {
 				It("should broadcast a nil prevote", func() {
-					// Init a default process to be modified
+					By("before reboot")
+
+					// Initialise a default process.
 					processOrigin := NewProcessOrigin(100)
 
-					// Replace the broadcaster and start the process
+					// Replace the broadcaster and start the process.
 					scheduler := NewMockScheduler(RandomSignatory())
 					processOrigin.Scheduler = scheduler
 					process := processOrigin.ToProcess()
 					process.Start()
 
-					// Expect the proposer broadcast a propose message with zero height and round
+					// Store state for later use.
+					stateBytes, err := process.MarshalBinary()
+					Expect(err).ToNot(HaveOccurred())
+
+					// Expect the validator to broadcast a nil prevote message.
 					var message Message
 					Eventually(processOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
 					prevote, ok := message.(*Prevote)
+					Expect(ok).Should(BeTrue())
+					Expect(prevote.Height()).Should(Equal(block.Height(1)))
+					Expect(prevote.Round()).Should(BeZero())
+					Expect(prevote.BlockHash().Equal(block.InvalidHash)).Should(BeTrue())
+
+					By("after reboot")
+
+					// Initialise a new process using the stored state and
+					// ensure it times out and broadcasts a nil prevote.
+					newProcessOrigin := NewProcessOrigin(100)
+
+					state := DefaultState(100)
+					err = state.UnmarshalBinary(stateBytes)
+					Expect(err).ToNot(HaveOccurred())
+
+					newProcessOrigin.UpdateState(state)
+
+					// Replace the broadcaster and start the new process.
+					newScheduler := NewMockScheduler(RandomSignatory())
+					newProcessOrigin.Scheduler = newScheduler
+					newProcess := newProcessOrigin.ToProcess()
+					newProcess.Start()
+
+					// Expect the validator to broadcast a nil prevote message.
+					Eventually(newProcessOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
+					prevote, ok = message.(*Prevote)
 					Expect(ok).Should(BeTrue())
 					Expect(prevote.Height()).Should(Equal(block.Height(1)))
 					Expect(prevote.Round()).Should(BeZero())
