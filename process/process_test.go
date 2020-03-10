@@ -642,10 +642,13 @@ var _ = Describe("Process", func() {
 					for m := range processOrigin.BroadcastMessages {
 						switch m.(type) {
 						case *Propose:
+							Expect(m).To(Equal(propose))
 							resentProposal = true
 						case *Prevote:
+							Expect(m).To(Equal(prevote))
 							resentPrevote = true
 						case *Precommit:
+							Expect(m).To(Equal(precommit))
 							resentPrecommit = true
 						}
 						if resentProposal && resentPrevote && resentPrecommit {
@@ -688,10 +691,13 @@ var _ = Describe("Process", func() {
 					for m := range processOrigin.BroadcastMessages {
 						switch m.(type) {
 						case *Propose:
+							Expect(m).To(Equal(propose))
 							resentProposal = true
 						case *Prevote:
+							Expect(m).To(Equal(prevote))
 							resentPrevote = true
 						case *Precommit:
+							Expect(m).To(Equal(precommit))
 							resentPrecommit = true
 						}
 						if resentProposal && resentPrevote && resentPrecommit {
@@ -703,6 +709,70 @@ var _ = Describe("Process", func() {
 				go process.Start()
 				<-done
 			})
+		})
+	})
+
+	Context("when the process receives a resync message", func() {
+		It("should broadcast latest messages to the sender", func() {
+			// Initialise a default process.
+			processOrigin := NewProcessOrigin(100)
+
+			// Replace the scheduler.
+			privateKey := newEcdsaKey()
+			scheduler := NewMockScheduler(id.NewSignatory(privateKey.PublicKey))
+			processOrigin.Scheduler = scheduler
+
+			// Insert random messages.
+			propose := RandomPropose()
+			Expect(Sign(propose, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
+			prevote := NewPrevote(propose.Height(), propose.Round(), propose.BlockHash(), nil)
+			Expect(Sign(prevote, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
+			precommit := NewPrecommit(propose.Height(), propose.Round(), propose.BlockHash())
+			Expect(Sign(precommit, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
+
+			processOrigin.Blockchain.InsertBlockAtHeight(propose.Height(), propose.Block())
+			processOrigin.State.CurrentHeight = propose.Height() + 1
+			processOrigin.State.CurrentRound = 0
+			processOrigin.State.Proposals.Insert(propose)
+			processOrigin.State.Prevotes.Insert(prevote)
+			processOrigin.State.Precommits.Insert(precommit)
+
+			// Start the process.
+			process := processOrigin.ToProcess()
+			process.Start()
+
+			// Handle a resync message.
+			message := NewResync(0, 0)
+			Expect(Sign(message, *privateKey)).NotTo(HaveOccurred())
+			process.HandleMessage(message)
+
+			// Ensure the process broadcasts latest messages.
+			done := make(chan struct{})
+			resentProposal := false
+			resentPrevote := false
+			resentPrecommit := false
+			go func() {
+				defer close(done)
+				for m := range processOrigin.BroadcastMessages {
+					switch m.(type) {
+					case *Propose:
+						Expect(m).To(Equal(propose))
+						resentProposal = true
+					case *Prevote:
+						Expect(m).To(Equal(prevote))
+						resentPrevote = true
+					case *Precommit:
+						Expect(m).To(Equal(precommit))
+						resentPrecommit = true
+					}
+					if resentProposal && resentPrevote && resentPrecommit {
+						return
+					}
+				}
+			}()
+
+			go process.Start()
+			<-done
 		})
 	})
 })
