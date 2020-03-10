@@ -60,7 +60,7 @@ func NewMockBlockIterator(store *MockPersistentStorage, err error) *MockBlockIte
 func (m *MockBlockIterator) NextBlock(kind block.Kind, height block.Height, shard replica.Shard) (block.Txs, block.Plan, block.State) {
 	// Return an invalid block if we are a faulty proposer.
 	if m.err != nil {
-		return nil, nil, nil
+		return nil, nil, testutil.RandomBytesSlice()
 	}
 
 	blockchain := m.store.MockBlockchain(shard)
