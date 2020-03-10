@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -69,6 +70,12 @@ type Message interface {
 	// marshaling/unmarshaling when type information is elided.
 	Type() MessageType
 }
+
+var (
+	// ErrBlockHashNotProvided is returned when querying the block hash for a
+	// message type that does not implement the function.
+	ErrBlockHashNotProvided = errors.New("block hash not provided")
+)
 
 // Sign a message using an ECDSA private key. The resulting signature will be
 // stored inside the message.
@@ -348,7 +355,7 @@ func (resync *Resync) Round() block.Round {
 }
 
 func (resync *Resync) BlockHash() id.Hash {
-	return id.Hash{}
+	panic(ErrBlockHashNotProvided)
 }
 
 func (resync *Resync) Type() MessageType {
