@@ -84,7 +84,7 @@ var _ = Describe("Hyperdrive", func() {
 				It("should keep producing new blocks", func() {
 					option := DefaultOption
 					shuffledIndices := mrand.Perm(3*f + 1)
-					option.disableNodes = shuffledIndices[:f]
+					option.disabledNodes = shuffledIndices[:f]
 
 					network := NewNetwork(f, r, shards, option)
 					network.Start()
@@ -285,7 +285,7 @@ var _ = Describe("Hyperdrive", func() {
 						// Start the network with more than f nodes offline
 						options := DefaultOption
 						shuffledIndices := mrand.Perm(3*f + 1)
-						options.disableNodes = shuffledIndices[:f+1]
+						options.disabledNodes = shuffledIndices[:f+1]
 
 						network := NewNetwork(f, r, shards, options)
 						network.Start()
@@ -302,7 +302,7 @@ var _ = Describe("Hyperdrive", func() {
 						// Start the network with more than f nodes offline
 						options := DefaultOption
 						shuffledIndices := mrand.Perm(3*f + 1)
-						options.disableNodes = shuffledIndices[:f+1]
+						options.disabledNodes = shuffledIndices[:f+1]
 
 						network := NewNetwork(f, r, shards, options)
 						network.Start()
@@ -329,8 +329,8 @@ type networkOptions struct {
 	minBootDelay     int   // minimum delay when booting the node in seconds
 	maxBootDelay     int   // maximum delay when booting the node in seconds
 	debugLogger      []int // indices of nodes that use a debug logger, nil to disable all
-	disableNodes     []int // indices of nodes we want to disable when the network starts, nil to enable all
-	invalidProposers []int // indices of nodes we want to intentionally propose invalid blocks, nil for no invalid proposers
+	disabledNodes    []int // indices of nodes that are disabled when the network starts, nil to enable all
+	invalidProposers []int // indices of nodes that intentionally propose invalid blocks, nil for no invalid proposers
 }
 
 var DefaultOption = networkOptions{
@@ -339,7 +339,7 @@ var DefaultOption = networkOptions{
 	minBootDelay:     0,
 	maxBootDelay:     3,
 	debugLogger:      nil,
-	disableNodes:     nil,
+	disabledNodes:    nil,
 	invalidProposers: nil,
 }
 
@@ -417,7 +417,7 @@ func NewNetwork(f, r int, shards replica.Shards, options networkOptions) Network
 
 func (network Network) Start() {
 	phi.ParForAll(network.nodes, func(i int) {
-		if Contain(network.options.disableNodes, i) {
+		if Contain(network.options.disabledNodes, i) {
 			return
 		}
 		SleepRandomSeconds(network.options.minBootDelay, network.options.maxBootDelay)
