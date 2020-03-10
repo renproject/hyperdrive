@@ -295,6 +295,95 @@ var _ = Describe("Messages", func() {
 		})
 	})
 
+	Context("Resync", func() {
+		Context("when initializing", func() {
+			It("should return a message with fields equal to those passed during creation", func() {
+				test := func() bool {
+					height := block.Height(rand.Int63())
+					round := block.Round(rand.Int63())
+
+					prevote := NewResync(height, round)
+
+					Expect(prevote.Height()).Should(Equal(height))
+					Expect(prevote.Round()).Should(Equal(round))
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+
+		Context("when stringifying", func() {
+			It("should return equal strings", func() {
+				test := func() bool {
+					msg := RandomResync()
+					newMsg := msg
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			Context("when unequal", func() {
+				It("should return unequal strings", func() {
+					test := func() bool {
+						msg1, msg2 := RandomResync(), RandomResync()
+						return msg1.String() != msg2.String()
+					}
+
+					Expect(quick.Check(test, nil)).Should(Succeed())
+				})
+			})
+		})
+
+		Context("when marshaling random", func() {
+			It("should equal itself after json marshaling and then unmarshaling", func() {
+				test := func() bool {
+					msg := RandomResync()
+					data, err := json.Marshal(msg)
+					Expect(err).NotTo(HaveOccurred())
+
+					var newMsg Resync
+					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			It("should equal itself after binary marshaling and then unmarshaling", func() {
+				test := func() bool {
+					msg := RandomResync()
+					data, err := msg.MarshalBinary()
+					Expect(err).NotTo(HaveOccurred())
+
+					var newMsg Resync
+					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+
+		Context("when signing and verifying", func() {
+			It("should verify if a message if has been signed properly", func() {
+				test := func() bool {
+					resync := RandomResync()
+					Expect(Verify(resync)).ShouldNot(Succeed())
+
+					privateKey, err := ecdsa.GenerateKey(crypto.S256(), cRand.Reader)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(Sign(resync, *privateKey)).Should(Succeed())
+					Expect(Verify(resync)).Should(Succeed())
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+	})
+
 	Context("when initializing a new inbox", func() {
 		It("should have the given f and message type", func() {
 			test := func() bool {
