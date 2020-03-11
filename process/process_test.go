@@ -364,12 +364,12 @@ var _ = Describe("Process", func() {
 		})
 	})
 
-	Context("when the process is in prevote step", func() {
-		Context("when receive 2*f +1 prevote of any proposal for the first time", func() {
-			It("should send a nil precommit when nothing changes after the timeout", func() {
+	Context("when the process is in the prevote step", func() {
+		Context("when it receives 2*f+1 prevotes for any proposal for the first time", func() {
+			It("should send a nil precommit if no consensus is reached within the timeout", func() {
 				By("before reboot")
 
-				// Initialise a new process at thee prevote step.
+				// Initialise a new process at the prevote step.
 				f := rand.Intn(100) + 1
 				height, round := block.Height(rand.Int()), block.Round(rand.Int())
 				processOrigin := NewProcessOrigin(f)
@@ -427,8 +427,8 @@ var _ = Describe("Process", func() {
 			})
 		})
 
-		Context("when receive 2*f +1 nil prevote of current height and round", func() {
-			It("should broadcast a nl precommit and move to precommit state", func() {
+		Context("when it receives 2*f+1 nil prevotes for the current height and round", func() {
+			It("should broadcast a nil precommit and move to the precommit step", func() {
 				f := rand.Intn(100) + 1
 				height, round := block.Height(rand.Int()), block.Round(rand.Int())
 				processOrigin := NewProcessOrigin(f)
@@ -456,7 +456,7 @@ var _ = Describe("Process", func() {
 		})
 	})
 
-	Context("when the process receive at least 2*f + 1 of any precommit", func() {
+	Context("when the process receives at least 2*f+1 precommits", func() {
 		Context("when starting a timer before executing the OnTimeoutPrecommit function", func() {
 			It("should start a round when nothing changes after the timeout", func() {
 				for _, step := range []Step{StepPropose, StepPrevote, StepPrecommit} {
