@@ -31,6 +31,7 @@ var _ = Describe("Messages", func() {
 
 					propose := NewPropose(height, round, block, validRound)
 
+					Expect(propose.Type()).Should(Equal(MessageType(ProposeMessageType)))
 					Expect(propose.Height()).Should(Equal(height))
 					Expect(propose.Round()).Should(Equal(round))
 					Expect(propose.ValidRound()).Should(Equal(validRound))
@@ -123,6 +124,7 @@ var _ = Describe("Messages", func() {
 
 					prevote := NewPrevote(height, round, blockHash, nil)
 
+					Expect(prevote.Type()).Should(Equal(MessageType(PrevoteMessageType)))
 					Expect(prevote.Height()).Should(Equal(height))
 					Expect(prevote.Round()).Should(Equal(round))
 					Expect(prevote.BlockHash().Equal(blockHash)).Should(BeTrue())
@@ -214,6 +216,7 @@ var _ = Describe("Messages", func() {
 
 					precommit := NewPrecommit(height, round, blockHash)
 
+					Expect(precommit.Type()).Should(Equal(MessageType(PrecommitMessageType)))
 					Expect(precommit.Height()).Should(Equal(height))
 					Expect(precommit.Round()).Should(Equal(round))
 					Expect(precommit.BlockHash().Equal(blockHash)).Should(BeTrue())
@@ -295,10 +298,104 @@ var _ = Describe("Messages", func() {
 		})
 	})
 
+	Context("Resync", func() {
+		Context("when initializing", func() {
+			It("should return a message with fields equal to those passed during creation", func() {
+				test := func() bool {
+					height := block.Height(rand.Int63())
+					round := block.Round(rand.Int63())
+
+					resync := NewResync(height, round)
+
+					Expect(resync.Type()).Should(Equal(MessageType(ResyncMessageType)))
+					Expect(resync.Height()).Should(Equal(height))
+					Expect(resync.Round()).Should(Equal(round))
+					Expect(func() {
+						resync.BlockHash()
+					}).Should(Panic())
+
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+
+		Context("when stringifying", func() {
+			It("should return equal strings", func() {
+				test := func() bool {
+					msg := RandomResync()
+					newMsg := msg
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			Context("when unequal", func() {
+				It("should return unequal strings", func() {
+					test := func() bool {
+						msg1, msg2 := RandomResync(), RandomResync()
+						return msg1.String() != msg2.String()
+					}
+
+					Expect(quick.Check(test, nil)).Should(Succeed())
+				})
+			})
+		})
+
+		Context("when marshaling random", func() {
+			It("should equal itself after json marshaling and then unmarshaling", func() {
+				test := func() bool {
+					msg := RandomResync()
+					data, err := json.Marshal(msg)
+					Expect(err).NotTo(HaveOccurred())
+
+					var newMsg Resync
+					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+
+			It("should equal itself after binary marshaling and then unmarshaling", func() {
+				test := func() bool {
+					msg := RandomResync()
+					data, err := msg.MarshalBinary()
+					Expect(err).NotTo(HaveOccurred())
+
+					var newMsg Resync
+					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
+					return msg.String() == newMsg.String()
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+
+		Context("when signing and verifying", func() {
+			It("should verify if a message if has been signed properly", func() {
+				test := func() bool {
+					resync := RandomResync()
+					Expect(Verify(resync)).ShouldNot(Succeed())
+
+					privateKey, err := ecdsa.GenerateKey(crypto.S256(), cRand.Reader)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(Sign(resync, *privateKey)).Should(Succeed())
+					Expect(Verify(resync)).Should(Succeed())
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+	})
+
 	Context("when initializing a new inbox", func() {
 		It("should have the given f and message type", func() {
 			test := func() bool {
-				messageType := RandomMessageType()
+				messageType := RandomMessageType(false)
 				f := rand.Int() + 1
 				inbox := RandomInbox(f, messageType)
 				Expect(inbox.F()).Should(Equal(f))
@@ -310,7 +407,7 @@ var _ = Describe("Messages", func() {
 
 		It("should panic when passing a invalid f", func() {
 			test := func() bool {
-				messageType := RandomMessageType()
+				messageType := RandomMessageType(false)
 
 				// Should panic when passing 0
 				Expect(func() {
@@ -341,7 +438,7 @@ var _ = Describe("Messages", func() {
 	Context("when marshaling a random inbox", func() {
 		It("should equal itself after json marshaling and then unmarshaling", func() {
 			test := func() bool {
-				messageType := RandomMessageType()
+				messageType := RandomMessageType(false)
 				f := rand.Int() + 1
 				inbox := RandomInbox(f, messageType)
 				Expect(inbox.F()).Should(Equal(f))
@@ -357,7 +454,7 @@ var _ = Describe("Messages", func() {
 
 		It("should equal itself after binary marshaling and then unmarshaling", func() {
 			test := func() bool {
-				messageType := RandomMessageType()
+				messageType := RandomMessageType(false)
 				f := rand.Int() + 1
 				inbox := RandomInbox(f, messageType)
 				Expect(inbox.F()).Should(Equal(f))
@@ -377,7 +474,7 @@ var _ = Describe("Messages", func() {
 			It("should return n=1, firstTime=true, firstTimeExceedingF=false, and firstTimeExceeding2F=false", func() {
 				test := func() bool {
 					f := rand.Intn(100) + 1
-					messageType := RandomMessageType()
+					messageType := RandomMessageType(false)
 					inbox := NewInbox(f, messageType)
 					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _ := inbox.Insert(RandomMessage(messageType))
 					Expect(n).Should(Equal(1))
@@ -395,7 +492,7 @@ var _ = Describe("Messages", func() {
 			It("should return n=F+1, firstTime=false, firstTimeExceedingF=true, and firstTimeExceeding2F=false", func() {
 				test := func(height block.Height, round block.Round) bool {
 					f := rand.Intn(100) + 1
-					messageType := RandomMessageType()
+					messageType := RandomMessageType(false)
 					inbox := NewInbox(f, messageType)
 
 					// Expect n, false, false, false when inserting no more than F messages
@@ -431,7 +528,7 @@ var _ = Describe("Messages", func() {
 			It("should return n=2F+1, firstTime=false, firstTimeExceedingF=false, and firstTimeExceeding2F=true", func() {
 				test := func(height block.Height, round block.Round) bool {
 					f := rand.Intn(100) + 1
-					messageType := RandomMessageType()
+					messageType := RandomMessageType(false)
 					inbox := NewInbox(f, messageType)
 
 					// Expect n, false, false,false when inserting no more than F messages
@@ -461,7 +558,7 @@ var _ = Describe("Messages", func() {
 			It("should return n=i, firstTime=false, firstTimeExceedingF=false, and firstTimeExceeding2F=false", func() {
 				test := func(height block.Height, round block.Round) bool {
 					f := rand.Intn(100) + 1
-					messageType := RandomMessageType()
+					messageType := RandomMessageType(false)
 					inbox := NewInbox(f, messageType)
 
 					// Expect n, false, false,false when inserting no more than F messages
@@ -491,7 +588,7 @@ var _ = Describe("Messages", func() {
 			It("should return the number of votes", func() {
 				test := func(height block.Height, round block.Round) bool {
 					f := rand.Intn(100) + 1
-					messageType := RandomMessageType()
+					messageType := RandomMessageType(false)
 					inbox := NewInbox(f, messageType)
 
 					source := map[block.Height]map[block.Round]map[id.Hash]int{}
@@ -530,7 +627,7 @@ var _ = Describe("Messages", func() {
 			It("should return the message if exist", func() {
 				test := func(height block.Height, round block.Round) bool {
 					f := rand.Intn(100) + 1
-					messageType := RandomMessageType()
+					messageType := RandomMessageType(false)
 					inbox := NewInbox(f, messageType)
 
 					noMessages := rand.Intn(100)
@@ -559,7 +656,7 @@ var _ = Describe("Messages", func() {
 			It("should return correct number of message of that round", func() {
 				test := func(height block.Height, round block.Round) bool {
 					f := rand.Intn(100) + 1
-					messageType := RandomMessageType()
+					messageType := RandomMessageType(false)
 					inbox := NewInbox(f, messageType)
 
 					source := map[block.Height]map[block.Round]int{}
@@ -593,7 +690,7 @@ var _ = Describe("Messages", func() {
 		It("should return correct number of messages", func() {
 			test := func() bool {
 				f := rand.Intn(100) + 1
-				messageType := RandomMessageType()
+				messageType := RandomMessageType(false)
 				inbox := NewInbox(f, messageType)
 				message := RandomMessage(messageType)
 

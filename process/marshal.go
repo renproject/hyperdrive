@@ -437,6 +437,78 @@ func (precommit *Precommit) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements the `json.Marshaler` interface for the `Resync` type.
+func (resync Resync) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Sig       id.Signature `json:"sig"`
+		Signatory id.Signatory `json:"signatory"`
+		Height    block.Height `json:"height"`
+		Round     block.Round  `json:"round"`
+	}{
+		resync.sig,
+		resync.signatory,
+		resync.height,
+		resync.round,
+	})
+}
+
+// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Resync`
+// type.
+func (resync *Resync) UnmarshalJSON(data []byte) error {
+	tmp := struct {
+		Sig       id.Signature `json:"sig"`
+		Signatory id.Signatory `json:"signatory"`
+		Height    block.Height `json:"height"`
+		Round     block.Round  `json:"round"`
+	}{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	resync.sig = tmp.Sig
+	resync.signatory = tmp.Signatory
+	resync.height = tmp.Height
+	resync.round = tmp.Round
+	return nil
+}
+
+// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
+// `Resync` type.
+func (resync Resync) MarshalBinary() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := binary.Write(buf, binary.LittleEndian, resync.sig); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write resync.sig: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, resync.signatory); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write resync.signatory: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, resync.height); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write resync.height: %v", err)
+	}
+	if err := binary.Write(buf, binary.LittleEndian, resync.round); err != nil {
+		return buf.Bytes(), fmt.Errorf("cannot write resync.round: %v", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
+// `Resync` type.
+func (resync *Resync) UnmarshalBinary(data []byte) error {
+	buf := bytes.NewBuffer(data)
+	if err := binary.Read(buf, binary.LittleEndian, &resync.sig); err != nil {
+		return fmt.Errorf("cannot read resync.sig: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &resync.signatory); err != nil {
+		return fmt.Errorf("cannot read resync.signatory: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &resync.height); err != nil {
+		return fmt.Errorf("cannot read resync.height: %v", err)
+	}
+	if err := binary.Read(buf, binary.LittleEndian, &resync.round); err != nil {
+		return fmt.Errorf("cannot read resync.round: %v", err)
+	}
+	return nil
+}
+
 // MarshalJSON implements the `json.Marshaler` interface for the `Inbox` type.
 func (inbox Inbox) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {

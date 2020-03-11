@@ -51,6 +51,12 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		m.Message = precommit
+	case process.ResyncMessageType:
+		resync := new(process.Resync)
+		if err := resync.UnmarshalJSON(tmp.Message); err != nil {
+			return err
+		}
+		m.Message = resync
 	}
 	m.Shard = tmp.Shard
 
@@ -106,6 +112,10 @@ func (m *Message) UnmarshalBinary(data []byte) error {
 		precommit := new(process.Precommit)
 		err = precommit.UnmarshalBinary(messageBytes)
 		m.Message = precommit
+	case process.ResyncMessageType:
+		resync := new(process.Resync)
+		err = resync.UnmarshalBinary(messageBytes)
+		m.Message = resync
 	default:
 		return fmt.Errorf("unexpected message type %d", messageType)
 	}

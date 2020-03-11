@@ -46,4 +46,17 @@ var _ = Describe("Marshaling", func() {
 			}
 		})
 	})
+
+	Context("when marshaling the same resync multiple times", func() {
+		It("should return the same bytes", func() {
+			resync := RandomMessage(ResyncMessageType)
+			resyncBytes, err := resync.MarshalBinary()
+			Expect(err).ToNot(HaveOccurred())
+			for i := 0; i < 100; i++ {
+				tmpResyncBytes, err := resync.MarshalBinary()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(tmpResyncBytes).Should(Equal(resyncBytes))
+			}
+		})
+	})
 })
