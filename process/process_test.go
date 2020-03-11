@@ -73,8 +73,12 @@ var _ = Describe("Process", func() {
 					process := processOrigin.ToProcess()
 					process.Start()
 
-					// Expect the proposer broadcast a propose message with height 1 and round 0
 					var message Message
+					Eventually(processOrigin.BroadcastMessages).Should(Receive(&message))
+					_, ok := message.(*Resync)
+					Expect(ok).Should(BeTrue())
+
+					// Expect the proposer broadcast a propose message with height 1 and round 0
 					Eventually(processOrigin.BroadcastMessages).Should(Receive(&message))
 					proposal, ok := message.(*Propose)
 					Expect(ok).Should(BeTrue())
@@ -158,21 +162,62 @@ var _ = Describe("Process", func() {
 				})
 			})
 
-			Context("when not receive anything during the timeout", func() {
+			Context("when we do not receive a propose during the timeout", func() {
 				It("should broadcast a nil prevote", func() {
-					// Init a default process to be modified
+					By("before reboot")
+
+					// Initialise a default process.
 					processOrigin := NewProcessOrigin(100)
 
-					// Replace the broadcaster and start the process
+					// Replace the broadcaster and start the process.
 					scheduler := NewMockScheduler(RandomSignatory())
 					processOrigin.Scheduler = scheduler
 					process := processOrigin.ToProcess()
 					process.Start()
 
-					// Expect the proposer broadcast a propose message with zero height and round
+					// Store state for later use.
+					stateBytes, err := process.MarshalBinary()
+					Expect(err).ToNot(HaveOccurred())
+
+					// Expect the validator to broadcast a nil prevote message.
 					var message Message
+					Eventually(processOrigin.BroadcastMessages).Should(Receive(&message))
+					_, ok := message.(*Resync)
+					Expect(ok).Should(BeTrue())
+
+					// Expect the proposer broadcast a propose message with zero height and round
 					Eventually(processOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
 					prevote, ok := message.(*Prevote)
+					Expect(ok).Should(BeTrue())
+					Expect(prevote.Height()).Should(Equal(block.Height(1)))
+					Expect(prevote.Round()).Should(BeZero())
+					Expect(prevote.BlockHash().Equal(block.InvalidHash)).Should(BeTrue())
+
+					By("after reboot")
+
+					// Initialise a new process using the stored state and
+					// ensure it times out and broadcasts a nil prevote.
+					newProcessOrigin := NewProcessOrigin(100)
+
+					state := DefaultState(100)
+					err = state.UnmarshalBinary(stateBytes)
+					Expect(err).ToNot(HaveOccurred())
+
+					newProcessOrigin.UpdateState(state)
+
+					// Replace the broadcaster and start the new process.
+					newScheduler := NewMockScheduler(RandomSignatory())
+					newProcessOrigin.Scheduler = newScheduler
+					newProcess := newProcessOrigin.ToProcess()
+					newProcess.Start()
+
+					Eventually(newProcessOrigin.BroadcastMessages).Should(Receive(&message))
+					_, ok = message.(*Resync)
+					Expect(ok).Should(BeTrue())
+
+					// Expect the validator to broadcast a nil prevote message.
+					Eventually(newProcessOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
+					prevote, ok = message.(*Prevote)
 					Expect(ok).Should(BeTrue())
 					Expect(prevote.Height()).Should(Equal(block.Height(1)))
 					Expect(prevote.Round()).Should(BeZero())
@@ -229,7 +274,80 @@ var _ = Describe("Process", func() {
 			})
 		})
 
-		Context("when the process is in precommit", func() {
+		Context("when the process is in the precommit step", func() {
+			Context("when it receives 2*f+1 precommits for any proposal for the first time", func() {
+				It("should move to the next round if no consensus is reached within the timeout", func() {
+					By("before reboot")
+
+					// Initialise a new process at the precommit step.
+					f := rand.Intn(100) + 1
+					height, round := block.Height(rand.Int()), block.Round(rand.Int())
+					processOrigin := NewProcessOrigin(f)
+					processOrigin.State.CurrentStep = StepPrecommit
+					processOrigin.State.CurrentHeight = height
+					processOrigin.State.CurrentRound = round
+					processOrigin.Blockchain.InsertBlockAtHeight(height-1, RandomBlock(block.Standard))
+
+					process := processOrigin.ToProcess()
+					process.Start()
+
+					// Handle random precommits.
+					for i := 0; i < 2*f+1; i++ {
+						precommit := NewPrecommit(height, round, RandomBlock(RandomBlockKind()).Hash())
+						privateKey := newEcdsaKey()
+						Expect(Sign(precommit, *privateKey)).NotTo(HaveOccurred())
+						process.HandleMessage(precommit)
+					}
+
+					// Store state for later use.
+					stateBytes, err := process.MarshalBinary()
+					Expect(err).ToNot(HaveOccurred())
+
+					var message Message
+					Eventually(processOrigin.BroadcastMessages).Should(Receive(&message))
+					_, ok := message.(*Resync)
+					Expect(ok).Should(BeTrue())
+
+					// Expect the validator to broadcast a propose and move to
+					// the next round.
+					Eventually(processOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
+					propose, ok := message.(*Propose)
+					Expect(ok).Should(BeTrue())
+					Expect(propose.Height()).Should(Equal(height))
+					Expect(propose.Round()).Should(Equal(round + 1))
+
+					By("after reboot")
+
+					// Initialise a new process using the stored state and
+					// ensure it times out and broadcasts a nil proposal.
+					newProcessOrigin := NewProcessOrigin(f)
+					newProcessOrigin.State.CurrentStep = StepPrecommit
+					newProcessOrigin.State.CurrentHeight = height
+					newProcessOrigin.State.CurrentRound = round
+					newProcessOrigin.Blockchain.InsertBlockAtHeight(height-1, RandomBlock(block.Standard))
+
+					state := DefaultState(f)
+					err = state.UnmarshalBinary(stateBytes)
+					Expect(err).ToNot(HaveOccurred())
+					newProcessOrigin.UpdateState(state)
+
+					newProcess := newProcessOrigin.ToProcess()
+					newProcess.Start()
+
+					Eventually(newProcessOrigin.BroadcastMessages).Should(Receive(&message))
+					_, ok = message.(*Resync)
+					Expect(ok).Should(BeTrue())
+
+					// Expect the validator to broadcast a propose and move to
+					// the next round.
+					Eventually(newProcessOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
+					propose, ok = message.(*Propose)
+					Expect(ok).Should(BeTrue())
+					Expect(propose.Height()).Should(Equal(height))
+					Expect(propose.Round()).Should(Equal(round + 1))
+				})
+			})
+
 			It("should put the proposal in the validBlock", func() {
 				f := rand.Intn(100) + 1
 				processOrigin := NewProcessOrigin(f)
@@ -267,9 +385,12 @@ var _ = Describe("Process", func() {
 		})
 	})
 
-	Context("when the process is in prevote step", func() {
-		Context("when receive 2*f +1 prevote of any proposal for the first time", func() {
-			It("should send a nil precommit when nothing changes after the timeout", func() {
+	Context("when the process is in the prevote step", func() {
+		Context("when it receives 2*f+1 prevotes for any proposal for the first time", func() {
+			It("should send a nil precommit if no consensus is reached within the timeout", func() {
+				By("before reboot")
+
+				// Initialise a new process at the prevote step.
 				f := rand.Intn(100) + 1
 				height, round := block.Height(rand.Int()), block.Round(rand.Int())
 				processOrigin := NewProcessOrigin(f)
@@ -277,7 +398,9 @@ var _ = Describe("Process", func() {
 				processOrigin.State.CurrentHeight = height
 				processOrigin.State.CurrentRound = round
 				process := processOrigin.ToProcess()
+				process.Start()
 
+				// Handle random prevotes.
 				for i := 0; i < 2*f+1; i++ {
 					prevote := NewPrevote(height, round, RandomBlock(RandomBlockKind()).Hash(), nil)
 					privateKey := newEcdsaKey()
@@ -285,10 +408,47 @@ var _ = Describe("Process", func() {
 					process.HandleMessage(prevote)
 				}
 
-				// Expect the proposer broadcast a precommit message with
+				// Store state for later use.
+				stateBytes, err := process.MarshalBinary()
+				Expect(err).ToNot(HaveOccurred())
+
 				var message Message
+				Eventually(processOrigin.BroadcastMessages).Should(Receive(&message))
+				_, ok := message.(*Resync)
+				Expect(ok).Should(BeTrue())
+
+				// Expect the validator to broadcast a nil precommit.
 				Eventually(processOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
 				precommit, ok := message.(*Precommit)
+				Expect(ok).Should(BeTrue())
+				Expect(precommit.Height()).Should(Equal(height))
+				Expect(precommit.Round()).Should(Equal(round))
+				Expect(precommit.BlockHash().Equal(block.InvalidHash)).Should(BeTrue())
+
+				By("after reboot")
+
+				// Initialise a new process using the stored state and
+				// ensure it times out and broadcasts a nil precommit.
+				newProcessOrigin := NewProcessOrigin(100)
+				newProcessOrigin.State.CurrentStep = StepPrevote
+				newProcessOrigin.State.CurrentHeight = height
+				newProcessOrigin.State.CurrentRound = round
+
+				state := DefaultState(100)
+				err = state.UnmarshalBinary(stateBytes)
+				Expect(err).ToNot(HaveOccurred())
+				newProcessOrigin.UpdateState(state)
+
+				newProcess := newProcessOrigin.ToProcess()
+				newProcess.Start()
+
+				Eventually(newProcessOrigin.BroadcastMessages).Should(Receive(&message))
+				_, ok = message.(*Resync)
+				Expect(ok).Should(BeTrue())
+
+				// Expect the validator to broadcast a nil precommit message.
+				Eventually(newProcessOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
+				precommit, ok = message.(*Precommit)
 				Expect(ok).Should(BeTrue())
 				Expect(precommit.Height()).Should(Equal(height))
 				Expect(precommit.Round()).Should(Equal(round))
@@ -296,8 +456,8 @@ var _ = Describe("Process", func() {
 			})
 		})
 
-		Context("when receive 2*f +1 nil prevote of current height and round", func() {
-			It("should broadcast a nl precommit and move to precommit state", func() {
+		Context("when it receives 2*f+1 nil prevotes for the current height and round", func() {
+			It("should broadcast a nil precommit and move to the precommit step", func() {
 				f := rand.Intn(100) + 1
 				height, round := block.Height(rand.Int()), block.Round(rand.Int())
 				processOrigin := NewProcessOrigin(f)
@@ -325,7 +485,7 @@ var _ = Describe("Process", func() {
 		})
 	})
 
-	Context("when the process receive at least 2*f + 1 of any precommit", func() {
+	Context("when the process receives at least 2*f+1 precommits", func() {
 		Context("when starting a timer before executing the OnTimeoutPrecommit function", func() {
 			It("should start a round when nothing changes after the timeout", func() {
 				for _, step := range []Step{StepPropose, StepPrevote, StepPrecommit} {
@@ -594,6 +754,27 @@ var _ = Describe("Process", func() {
 	})
 
 	Context("when starting the process", func() {
+		It("should send a resync message", func() {
+			processOrigin := NewProcessOrigin(100)
+			process := processOrigin.ToProcess()
+			process.Start()
+
+			// Expect the process to broadcast a resync message.
+			var message Message
+			Eventually(processOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
+			_, ok := message.(*Resync)
+			Expect(ok).Should(BeTrue())
+		})
+
+		It("should panic if the step is invalid", func() {
+			processOrigin := NewProcessOrigin(100)
+			processOrigin.State.CurrentStep = Step(100)
+			process := processOrigin.ToProcess()
+			Expect(func() {
+				process.Start()
+			}).Should(Panic())
+		})
+
 		Context("when the process has messages from a previous height", func() {
 			It("should resend the most recent proposal, prevote, and precommit", func() {
 				processOrigin := NewProcessOrigin(100)
@@ -622,10 +803,13 @@ var _ = Describe("Process", func() {
 					for m := range processOrigin.BroadcastMessages {
 						switch m.(type) {
 						case *Propose:
+							Expect(m).To(Equal(propose))
 							resentProposal = true
 						case *Prevote:
+							Expect(m).To(Equal(prevote))
 							resentPrevote = true
 						case *Precommit:
+							Expect(m).To(Equal(precommit))
 							resentPrecommit = true
 						}
 						if resentProposal && resentPrevote && resentPrecommit {
@@ -668,10 +852,13 @@ var _ = Describe("Process", func() {
 					for m := range processOrigin.BroadcastMessages {
 						switch m.(type) {
 						case *Propose:
+							Expect(m).To(Equal(propose))
 							resentProposal = true
 						case *Prevote:
+							Expect(m).To(Equal(prevote))
 							resentPrevote = true
 						case *Precommit:
+							Expect(m).To(Equal(precommit))
 							resentPrecommit = true
 						}
 						if resentProposal && resentPrevote && resentPrecommit {
@@ -683,6 +870,70 @@ var _ = Describe("Process", func() {
 				go process.Start()
 				<-done
 			})
+		})
+	})
+
+	Context("when the process receives a resync message", func() {
+		It("should broadcast latest messages to the sender", func() {
+			// Initialise a default process.
+			processOrigin := NewProcessOrigin(100)
+
+			// Replace the scheduler.
+			privateKey := newEcdsaKey()
+			scheduler := NewMockScheduler(id.NewSignatory(privateKey.PublicKey))
+			processOrigin.Scheduler = scheduler
+
+			// Insert random messages.
+			propose := RandomPropose()
+			Expect(Sign(propose, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
+			prevote := NewPrevote(propose.Height(), propose.Round(), propose.BlockHash(), nil)
+			Expect(Sign(prevote, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
+			precommit := NewPrecommit(propose.Height(), propose.Round(), propose.BlockHash())
+			Expect(Sign(precommit, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
+
+			processOrigin.Blockchain.InsertBlockAtHeight(propose.Height(), propose.Block())
+			processOrigin.State.CurrentHeight = propose.Height() + 1
+			processOrigin.State.CurrentRound = 0
+			processOrigin.State.Proposals.Insert(propose)
+			processOrigin.State.Prevotes.Insert(prevote)
+			processOrigin.State.Precommits.Insert(precommit)
+
+			// Start the process.
+			process := processOrigin.ToProcess()
+			process.Start()
+
+			// Handle a resync message.
+			message := NewResync(0, 0)
+			Expect(Sign(message, *privateKey)).NotTo(HaveOccurred())
+			process.HandleMessage(message)
+
+			// Ensure the process broadcasts latest messages.
+			done := make(chan struct{})
+			resentProposal := false
+			resentPrevote := false
+			resentPrecommit := false
+			go func() {
+				defer close(done)
+				for m := range processOrigin.BroadcastMessages {
+					switch m.(type) {
+					case *Propose:
+						Expect(m).To(Equal(propose))
+						resentProposal = true
+					case *Prevote:
+						Expect(m).To(Equal(prevote))
+						resentPrevote = true
+					case *Precommit:
+						Expect(m).To(Equal(precommit))
+						resentPrecommit = true
+					}
+					if resentProposal && resentPrevote && resentPrecommit {
+						return
+					}
+				}
+			}()
+
+			go process.Start()
+			<-done
 		})
 	})
 })
