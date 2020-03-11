@@ -5,7 +5,7 @@ version: 2.1
 
 _defaults: &defaults
     docker:
-      - image: circleci/golang:1.11
+      - image: circleci/golang:1.13
 
 jobs:
   build:
