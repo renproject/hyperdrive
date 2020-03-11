@@ -261,7 +261,72 @@ var _ = Describe("Process", func() {
 			})
 		})
 
-		Context("when the process is in precommit", func() {
+		Context("when the process is in the precommit step", func() {
+			Context("when it receives 2*f+1 precommits for any proposal for the first time", func() {
+				It("should move to the next round if no consensus is reached within the timeout", func() {
+					By("before reboot")
+
+					// Initialise a new process at the precommit step.
+					f := rand.Intn(100) + 1
+					height, round := block.Height(rand.Int()), block.Round(rand.Int())
+					processOrigin := NewProcessOrigin(f)
+					processOrigin.State.CurrentStep = StepPrecommit
+					processOrigin.State.CurrentHeight = height
+					processOrigin.State.CurrentRound = round
+					processOrigin.Blockchain.InsertBlockAtHeight(height-1, RandomBlock(block.Standard))
+
+					process := processOrigin.ToProcess()
+					process.Start()
+
+					// Handle random precommits.
+					for i := 0; i < 2*f+1; i++ {
+						precommit := NewPrecommit(height, round, RandomBlock(RandomBlockKind()).Hash())
+						privateKey := newEcdsaKey()
+						Expect(Sign(precommit, *privateKey)).NotTo(HaveOccurred())
+						process.HandleMessage(precommit)
+					}
+
+					// Store state for later use.
+					stateBytes, err := process.MarshalBinary()
+					Expect(err).ToNot(HaveOccurred())
+
+					// Expect the validator to broadcast a propose and move to
+					// the next round.
+					var message Message
+					Eventually(processOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
+					propose, ok := message.(*Propose)
+					Expect(ok).Should(BeTrue())
+					Expect(propose.Height()).Should(Equal(height))
+					Expect(propose.Round()).Should(Equal(round + 1))
+
+					By("after reboot")
+
+					// Initialise a new process using the stored state and
+					// ensure it times out and broadcasts a nil proposal.
+					newProcessOrigin := NewProcessOrigin(f)
+					newProcessOrigin.State.CurrentStep = StepPrecommit
+					newProcessOrigin.State.CurrentHeight = height
+					newProcessOrigin.State.CurrentRound = round
+					newProcessOrigin.Blockchain.InsertBlockAtHeight(height-1, RandomBlock(block.Standard))
+
+					state := DefaultState(f)
+					err = state.UnmarshalBinary(stateBytes)
+					Expect(err).ToNot(HaveOccurred())
+					newProcessOrigin.UpdateState(state)
+
+					newProcess := newProcessOrigin.ToProcess()
+					newProcess.Start()
+
+					// Expect the validator to broadcast a propose and move to
+					// the next round.
+					Eventually(newProcessOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
+					propose, ok = message.(*Propose)
+					Expect(ok).Should(BeTrue())
+					Expect(propose.Height()).Should(Equal(height))
+					Expect(propose.Round()).Should(Equal(round + 1))
+				})
+			})
+
 			It("should put the proposal in the validBlock", func() {
 				f := rand.Intn(100) + 1
 				processOrigin := NewProcessOrigin(f)
