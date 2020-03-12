@@ -95,6 +95,7 @@ var _ = Describe("Block", func() {
 					var newHeader Header
 					Expect(surge.FromBinary(data, &newHeader)).Should(Succeed())
 					Expect(header.String()).Should(Equal(newHeader.String()))
+
 					return reflect.DeepEqual(header, newHeader)
 				}
 				Expect(quick.Check(test, nil)).Should(Succeed())
