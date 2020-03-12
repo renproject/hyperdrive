@@ -569,11 +569,20 @@ func (inbox *Inbox) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-func (state State) Marshal(w io.Writer, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
+func (state State) SizeHint() int {
+	return surge.SizeHint(state.CurrentHeight) +
+		surge.SizeHint(state.CurrentRound) +
+		surge.SizeHint(state.CurrentStep) +
+		surge.SizeHint(state.LockedBlock) +
+		surge.SizeHint(state.LockedRound) +
+		surge.SizeHint(state.ValidBlock) +
+		surge.SizeHint(state.ValidRound) +
+		surge.SizeHint(state.Proposals) +
+		surge.SizeHint(state.Prevotes) +
+		surge.SizeHint(state.Precommits)
+}
 
+func (state State) Marshal(w io.Writer, m int) (int, error) {
 	m, err := surge.Marshal(w, state.CurrentHeight, m)
 	if err != nil {
 		return m, err
@@ -606,10 +615,6 @@ func (state State) Marshal(w io.Writer, m int) (int, error) {
 }
 
 func (state *State) Unmarshal(r io.Reader, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
 	m, err := surge.Unmarshal(r, &state.CurrentHeight, m)
 	if err != nil {
 		return m, err
@@ -632,11 +637,11 @@ func (state *State) Unmarshal(r io.Reader, m int) (int, error) {
 	if m, err = surge.Unmarshal(r, &state.ValidRound, m); err != nil {
 		return m, err
 	}
-	if m, err = surge.Unmarshal(r, &state.Proposals, m); err != nil {
+	if m, err = surge.Unmarshal(r, state.Proposals, m); err != nil {
 		return m, err
 	}
-	if m, err = surge.Unmarshal(r, &state.Prevotes, m); err != nil {
+	if m, err = surge.Unmarshal(r, state.Prevotes, m); err != nil {
 		return m, err
 	}
-	return surge.Unmarshal(r, &state.Precommits, m)
+	return surge.Unmarshal(r, state.Precommits, m)
 }
