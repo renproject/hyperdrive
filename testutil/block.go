@@ -65,7 +65,7 @@ func RandomBlockHeaderJSON(kind block.Kind) BlockHeaderJSON {
 	var signatories id.Signatories
 	switch kind {
 	case block.Standard:
-		signatories = nil
+		signatories = id.Signatories{}
 	case block.Rebase, block.Base:
 		for len(signatories) == 0 {
 			signatories = RandomSignatories()
