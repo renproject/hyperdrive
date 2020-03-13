@@ -1,6 +1,8 @@
 package replica_test
 
 import (
+	"github.com/renproject/surge"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/hyperdrive/replica"
@@ -15,11 +17,11 @@ var _ = Describe("Marshaling", func() {
 					Message: RandomMessage(RandomMessageType(true)),
 					Shard:   Shard{},
 				}
-				messageBytes, err := message.MarshalBinary()
+				messageBytes, err := surge.ToBinary(message)
 				Expect(err).ToNot(HaveOccurred())
 
 				var newMessage Message
-				Expect(newMessage.UnmarshalBinary(messageBytes)).To(Succeed())
+				Expect(surge.FromBinary(messageBytes, &newMessage)).To(Succeed())
 				Expect(newMessage).To(Equal(message))
 			}
 		})

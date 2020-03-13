@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/testutil"
+	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
 
 	. "github.com/onsi/ginkgo"
@@ -54,12 +55,12 @@ var _ = Describe("Replica", func() {
 					Shard:   Shard{},
 				}
 
-				data, err := message.MarshalBinary()
+				data, err := surge.ToBinary(message)
 				Expect(err).NotTo(HaveOccurred())
 				newMessage := Message{}
-				Expect(newMessage.UnmarshalBinary(data)).Should(Succeed())
+				Expect(surge.FromBinary(data, &newMessage)).Should(Succeed())
 
-				newData, err := newMessage.MarshalBinary()
+				newData, err := surge.ToBinary(newMessage)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(bytes.Equal(data, newData)).Should(BeTrue())
 			})

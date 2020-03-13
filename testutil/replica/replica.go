@@ -16,6 +16,7 @@ import (
 	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/id"
 	"github.com/renproject/phi"
+	"github.com/renproject/surge"
 )
 
 func Contain(list []int, target int) bool {
@@ -182,7 +183,7 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 		return
 	}
 
-	messageBytes, err := message.MarshalBinary()
+	messageBytes, err := surge.ToBinary(message)
 	if err != nil {
 		panic(err)
 	}
@@ -200,7 +201,7 @@ func (m *MockBroadcaster) Cast(to id.Signatory, message replica.Message) {
 		return
 	}
 
-	messageBytes, err := message.MarshalBinary()
+	messageBytes, err := surge.ToBinary(message)
 	if err != nil {
 		panic(err)
 	}
