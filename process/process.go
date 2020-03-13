@@ -127,14 +127,14 @@ func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchai
 
 // SizeHint returns the number of bytes required to store this process in
 // binary.
-func (p Process) SizeHint() int {
+func (p *Process) SizeHint() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.state.SizeHint()
 }
 
 // Marshal the process into binary.
-func (p Process) Marshal(w io.Writer, m int) (int, error) {
+func (p *Process) Marshal(w io.Writer, m int) (int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.state.Marshal(w, m)
