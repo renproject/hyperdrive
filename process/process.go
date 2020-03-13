@@ -2,6 +2,7 @@ package process
 
 import (
 	"encoding/json"
+	"io"
 	"sync"
 	"time"
 
@@ -13,6 +14,18 @@ import (
 
 // Step in the consensus algorithm.
 type Step uint8
+
+func (Step) SizeHint() int {
+	return 1
+}
+
+func (step Step) Marshal(w io.Writer, m int) (int, error) {
+	return surge.Marshal(w, uint8(step), m)
+}
+
+func (step *Step) Unmarshal(r io.Reader, m int) (int, error) {
+	return surge.Unmarshal(r, (*uint8)(step), m)
+}
 
 // Define all Steps.
 const (

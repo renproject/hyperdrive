@@ -9,15 +9,15 @@ import (
 	"math/rand"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/process"
-	. "github.com/renproject/hyperdrive/testutil"
-
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/id"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	. "github.com/renproject/hyperdrive/process"
+	. "github.com/renproject/hyperdrive/testutil"
 )
 
 var _ = Describe("Process", func() {

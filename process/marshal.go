@@ -1,9 +1,6 @@
 package process
 
 import (
-	"bytes"
-	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"io"
 
@@ -11,52 +8,6 @@ import (
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
 )
-
-// MarshalJSON implements the `json.Marshaler` interface for the `Propose` type.
-func (propose Propose) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Sig          id.Signature `json:"sig"`
-		Signatory    id.Signatory `json:"signatory"`
-		Height       block.Height `json:"height"`
-		Round        block.Round  `json:"round"`
-		Block        block.Block  `json:"block"`
-		ValidRound   block.Round  `json:"validRound"`
-		LatestCommit LatestCommit `json:"latestCommit"`
-	}{
-		propose.sig,
-		propose.signatory,
-		propose.height,
-		propose.round,
-		propose.block,
-		propose.validRound,
-		propose.latestCommit,
-	})
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Propose`
-// type.
-func (propose *Propose) UnmarshalJSON(data []byte) error {
-	tmp := struct {
-		Sig          id.Signature `json:"sig"`
-		Signatory    id.Signatory `json:"signatory"`
-		Height       block.Height `json:"height"`
-		Round        block.Round  `json:"round"`
-		Block        block.Block  `json:"block"`
-		ValidRound   block.Round  `json:"validRound"`
-		LatestCommit LatestCommit `json:"latestCommit"`
-	}{}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-	propose.sig = tmp.Sig
-	propose.signatory = tmp.Signatory
-	propose.height = tmp.Height
-	propose.round = tmp.Round
-	propose.block = tmp.Block
-	propose.validRound = tmp.ValidRound
-	propose.latestCommit = tmp.LatestCommit
-	return nil
-}
 
 func (propose Propose) SizeHint() int {
 	return surge.SizeHint(propose.sig) +
@@ -148,48 +99,6 @@ func (propose *Propose) UnmarshalBinary(data []byte) error {
 	return surge.FromBinary(data, propose)
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the `Prevote` type.
-func (prevote Prevote) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Sig        id.Signature `json:"sig"`
-		Signatory  id.Signatory `json:"signatory"`
-		Height     block.Height `json:"height"`
-		Round      block.Round  `json:"round"`
-		BlockHash  id.Hash      `json:"blockHash"`
-		NilReasons NilReasons   `json:"nilReasons"`
-	}{
-		prevote.sig,
-		prevote.signatory,
-		prevote.height,
-		prevote.round,
-		prevote.blockHash,
-		prevote.nilReasons,
-	})
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Prevote`
-// type.
-func (prevote *Prevote) UnmarshalJSON(data []byte) error {
-	tmp := struct {
-		Sig        id.Signature `json:"sig"`
-		Signatory  id.Signatory `json:"signatory"`
-		Height     block.Height `json:"height"`
-		Round      block.Round  `json:"round"`
-		BlockHash  id.Hash      `json:"blockHash"`
-		NilReasons NilReasons   `json:"nilReasons"`
-	}{}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-	prevote.sig = tmp.Sig
-	prevote.signatory = tmp.Signatory
-	prevote.height = tmp.Height
-	prevote.round = tmp.Round
-	prevote.blockHash = tmp.BlockHash
-	prevote.nilReasons = tmp.NilReasons
-	return nil
-}
-
 func (prevote Prevote) SizeHint() int {
 	return surge.SizeHint(prevote.sig) +
 		surge.SizeHint(prevote.signatory) +
@@ -259,45 +168,6 @@ func (prevote *Prevote) UnmarshalBinary(data []byte) error {
 	return surge.FromBinary(data, prevote)
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the `Precommit`
-// type.
-func (precommit Precommit) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Sig       id.Signature `json:"sig"`
-		Signatory id.Signatory `json:"signatory"`
-		Height    block.Height `json:"height"`
-		Round     block.Round  `json:"round"`
-		BlockHash id.Hash      `json:"blockHash"`
-	}{
-		precommit.sig,
-		precommit.signatory,
-		precommit.height,
-		precommit.round,
-		precommit.blockHash,
-	})
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Precommit`
-// type.
-func (precommit *Precommit) UnmarshalJSON(data []byte) error {
-	tmp := struct {
-		Sig       id.Signature `json:"sig"`
-		Signatory id.Signatory `json:"signatory"`
-		Height    block.Height `json:"height"`
-		Round     block.Round  `json:"round"`
-		BlockHash id.Hash      `json:"blockHash"`
-	}{}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-	precommit.sig = tmp.Sig
-	precommit.signatory = tmp.Signatory
-	precommit.height = tmp.Height
-	precommit.round = tmp.Round
-	precommit.blockHash = tmp.BlockHash
-	return nil
-}
-
 func (precommit Precommit) SizeHint() int {
 	return surge.SizeHint(precommit.sig) +
 		surge.SizeHint(precommit.signatory) +
@@ -360,213 +230,176 @@ func (precommit *Precommit) UnmarshalBinary(data []byte) error {
 	return surge.FromBinary(data, precommit)
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the `Inbox` type.
-func (inbox Inbox) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		F        int                                                       `json:"f"`
-		Messages map[block.Height]map[block.Round]map[id.Signatory]Message `json:"messages"`
-	}{
-		inbox.f,
-		inbox.messages,
-	})
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Inbox`
-// type. Before unmarshaling into an inbox, you must initialise it. Unmarshaling
-// will panic if the inbox in not initialised, or if it is initialised with the
-// wrong message type.
-func (inbox *Inbox) UnmarshalJSON(data []byte) error {
-	tmp := struct {
-		F        int                                                               `json:"f"`
-		Messages map[block.Height]map[block.Round]map[id.Signatory]json.RawMessage `json:"messages"`
-	}{}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-	inbox.f = tmp.F
-	inbox.messages = map[block.Height]map[block.Round]map[id.Signatory]Message{}
-
-	for height, roundMap := range tmp.Messages {
-		if roundMap != nil {
-			inbox.messages[height] = map[block.Round]map[id.Signatory]Message{}
-		}
-		for round, sigMap := range roundMap {
-			if sigMap != nil {
-				inbox.messages[height][round] = map[id.Signatory]Message{}
-			}
-			for sig, raw := range sigMap {
-				var err error
-				switch inbox.messageType {
-				case ProposeMessageType:
-					msg := new(Propose)
-					err = json.Unmarshal(raw, msg)
-					inbox.messages[height][round][sig] = msg
-				case PrevoteMessageType:
-					msg := new(Prevote)
-					err = json.Unmarshal(raw, msg)
-					inbox.messages[height][round][sig] = msg
-				case PrecommitMessageType:
-					msg := new(Precommit)
-					err = json.Unmarshal(raw, msg)
-					inbox.messages[height][round][sig] = msg
-				}
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
 func (inbox Inbox) SizeHint() int {
 	return surge.SizeHint(uint32(inbox.f)) + surge.SizeHint(inbox.messages)
 }
 
 func (inbox Inbox) Marshal(w io.Writer, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
-	m, err := surge.Marshal(w, uint32(inbox.f), m)
+	// Write f.
+	m, err := surge.Marshal(w, int64(inbox.f), m)
 	if err != nil {
 		return m, err
 	}
-	return surge.Marshal(w, inbox.messages, m)
+	// Write message type.
+	if m, err = surge.Marshal(w, inbox.messageType, m); err != nil {
+		return m, err
+	}
+
+	// Write the number of heights.
+	if m, err = surge.Marshal(w, uint32(len(inbox.messages)), m); err != nil {
+		return m, err
+	}
+
+	// Write rounds for each height.
+	for height, rounds := range inbox.messages {
+		// Write the height.
+		if m, err = surge.Marshal(w, height, m); err != nil {
+			return m, err
+		}
+		{
+			// Write the number of rounds at this height.
+			if m, err = surge.Marshal(w, uint32(len(rounds)), m); err != nil {
+				return m, err
+			}
+			// Write middle map.
+			for round, signatories := range rounds {
+				// Write middle key.
+				if m, err := surge.Marshal(w, round, m); err != nil {
+					return m, err
+				}
+				// Write middle value.
+				{
+					// Write middle map length.
+					if m, err = surge.Marshal(w, uint32(len(signatories)), m); err != nil {
+						return m, err
+					}
+					// Write middle map.
+					for signatory, message := range signatories {
+						if m, err = surge.Marshal(w, signatory, m); err != nil {
+							return m, err
+						}
+						if m, err = surge.Marshal(w, message, m); err != nil {
+							return m, err
+						}
+					}
+				}
+			}
+		}
+	}
+	return m, nil
 }
 
 func (inbox *Inbox) Unmarshal(r io.Reader, m int) (int, error) {
+	// Read f.
+	var f int64
+	m, err := surge.Unmarshal(r, &f, m)
+	if err != nil {
+		return m, fmt.Errorf("cannot unmarshal f: %v", err)
+	}
+	inbox.f = int(f)
+	// Read message type.
+	if m, err = surge.Unmarshal(r, &inbox.messageType, m); err != nil {
+		return m, err
+	}
+
+	// Read the number of heights.
+	numHeights := uint32(0)
+	if m, err = surge.Unmarshal(r, &numHeights, m); err != nil {
+		return m, fmt.Errorf("cannot unmarshal number of heights: %v", err)
+	}
+	if int(numHeights) < 0 {
+		return m, fmt.Errorf("cannot unmarshal number of heights: unexpected negative length")
+	}
+	m -= int(numHeights)
 	if m <= 0 {
 		return m, surge.ErrMaxBytesExceeded
 	}
+	// Read rounds for each height.
+	inbox.messages = map[block.Height]map[block.Round]map[id.Signatory]Message{}
+	for j := uint32(0); j < numHeights; j++ {
+		// Read the height.
+		height := block.Height(0)
+		if m, err = surge.Unmarshal(r, &height, m); err != nil {
+			return m, fmt.Errorf("cannot unmarshal height: %v", err)
+		}
+		// Read the number of rounds at this height.
+		numRounds := uint32(0)
+		if m, err = surge.Unmarshal(r, &numRounds, m); err != nil {
+			return m, fmt.Errorf("cannot unmarshal number of rounds: %v", err)
+		}
+		if int(numRounds) < 0 {
+			return m, fmt.Errorf("cannot unmarshal number of rounds: unexpected negative length")
+		}
+		m -= int(numRounds)
+		if m <= 0 {
+			return m, surge.ErrMaxBytesExceeded
+		}
 
-	var f uint32
-	m, err := surge.Unmarshal(r, &f, m)
-	if err != nil {
-		return m, err
+		inbox.messages[height] = map[block.Round]map[id.Signatory]Message{}
+		for i2 := uint32(0); i2 < numRounds; i2++ {
+			// Read middle key.
+			k2 := block.Round(0)
+			if m, err = surge.Unmarshal(r, &k2, m); err != nil {
+				return m, fmt.Errorf("cannot unmarshal middle key: %v", err)
+			}
+			// Read middle map length.
+			l3 := uint32(0)
+			if m, err = surge.Unmarshal(r, &l3, m); err != nil {
+				return m, fmt.Errorf("cannot unmarshal middle length: %v", err)
+			}
+			if int(l3) < 0 {
+				return m, fmt.Errorf("expected negative length")
+			}
+			m -= int(l3)
+			if m <= 0 {
+				return m, surge.ErrMaxBytesExceeded
+			}
+			inbox.messages[height][k2] = map[id.Signatory]Message{}
+			for i3 := uint32(0); i3 < l3; i3++ {
+				// Read inner key.
+				k3 := id.Signatory{}
+				if m, err = surge.Unmarshal(r, &k3, m); err != nil {
+					return m, fmt.Errorf("cannot unmarshal inner key: %v", err)
+				}
+				// Read inner value.
+				switch inbox.messageType {
+				case ProposeMessageType:
+					message := new(Propose)
+					if m, err = message.Unmarshal(r, m); err != nil {
+						return m, fmt.Errorf("cannot unmarshal propose: %v", err)
+					}
+					inbox.messages[height][k2][k3] = message
+				case PrevoteMessageType:
+					message := new(Prevote)
+					if m, err = message.Unmarshal(r, m); err != nil {
+						return m, fmt.Errorf("cannot unmarshal prevote: %v", err)
+					}
+					inbox.messages[height][k2][k3] = message
+				case PrecommitMessageType:
+					message := new(Precommit)
+					if m, err = message.Unmarshal(r, m); err != nil {
+						return m, fmt.Errorf("cannot unmarshal precommit: %v", err)
+					}
+					inbox.messages[height][k2][k3] = message
+				default:
+					return m, fmt.Errorf("unsupported MessageType=%v", inbox.messageType)
+				}
+			}
+		}
 	}
-	inbox.f = int(f)
-	return surge.Unmarshal(r, &inbox.messages, m)
+	return m, nil
 }
 
 // MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
 // `Inbox` type.
 func (inbox Inbox) MarshalBinary() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	if err := binary.Write(buf, binary.LittleEndian, uint64(inbox.f)); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write inbox.f: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(inbox.messages))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write inbox.messages len: %v", err)
-	}
-	for height, roundMap := range inbox.messages {
-		if err := binary.Write(buf, binary.LittleEndian, height); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write inbox.messages height: %v", err)
-		}
-		if err := binary.Write(buf, binary.LittleEndian, uint64(len(roundMap))); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write inbox.messages roundMap len: %v", err)
-		}
-		for round, sigMap := range roundMap {
-			if err := binary.Write(buf, binary.LittleEndian, round); err != nil {
-				return buf.Bytes(), fmt.Errorf("cannot write inbox.messages round: %v", err)
-			}
-			if err := binary.Write(buf, binary.LittleEndian, uint64(len(sigMap))); err != nil {
-				return buf.Bytes(), fmt.Errorf("cannot write inbox.messages sigMap len: %v", err)
-			}
-			for sig, message := range sigMap {
-				if err := binary.Write(buf, binary.LittleEndian, sig); err != nil {
-					return buf.Bytes(), fmt.Errorf("cannot write inbox.messages sig: %v", err)
-				}
-				messageData, err := message.MarshalBinary()
-				if err != nil {
-					return buf.Bytes(), fmt.Errorf("cannot marshal message: %v", err)
-				}
-				if err := binary.Write(buf, binary.LittleEndian, uint64(len(messageData))); err != nil {
-					return buf.Bytes(), fmt.Errorf("cannot write message len: %v", err)
-				}
-				if err := binary.Write(buf, binary.LittleEndian, messageData); err != nil {
-					return buf.Bytes(), fmt.Errorf("cannot write message data: %v", err)
-				}
-			}
-		}
-	}
-	return buf.Bytes(), nil
+	return surge.ToBinary(inbox)
 }
 
 // UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
 // `Inbox` type. See the `UnmarshalJSON` method for more information.
 func (inbox *Inbox) UnmarshalBinary(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	var f uint64
-	if err := binary.Read(buf, binary.LittleEndian, &f); err != nil {
-		return fmt.Errorf("cannot read inbox.f: %v", err)
-	}
-	inbox.f = int(f)
-	var heightMapLen uint64
-	if err := binary.Read(buf, binary.LittleEndian, &heightMapLen); err != nil {
-		return fmt.Errorf("cannot read inbox.messages len: %v", err)
-	}
-	heightMap := make(map[block.Height]map[block.Round]map[id.Signatory]Message, heightMapLen)
-	for i := uint64(0); i < heightMapLen; i++ {
-		var height block.Height
-		if err := binary.Read(buf, binary.LittleEndian, &height); err != nil {
-			return fmt.Errorf("cannot read inbox.messages height: %v", err)
-		}
-		var roundMapLen uint64
-		if err := binary.Read(buf, binary.LittleEndian, &roundMapLen); err != nil {
-			return fmt.Errorf("cannot read inbox.messages roundMap len: %v", err)
-		}
-		roundMap := make(map[block.Round]map[id.Signatory]Message, roundMapLen)
-		for j := uint64(0); j < roundMapLen; j++ {
-			var round block.Round
-			if err := binary.Read(buf, binary.LittleEndian, &round); err != nil {
-				return fmt.Errorf("cannot read inbox.messages round: %v", err)
-			}
-			var sigMapLen uint64
-			if err := binary.Read(buf, binary.LittleEndian, &sigMapLen); err != nil {
-				return fmt.Errorf("cannot read inbox.messages sigMap len: %v", err)
-			}
-			sigMap := make(map[id.Signatory]Message, sigMapLen)
-			for k := uint64(0); k < sigMapLen; k++ {
-				var sig id.Signatory
-				if err := binary.Read(buf, binary.LittleEndian, &sig); err != nil {
-					return fmt.Errorf("cannot read inbox.messages sig: %v", err)
-				}
-				var numBytes uint64
-				if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-					return fmt.Errorf("cannot read inbox.messages message len: %v", err)
-				}
-				messageBytes := make([]byte, numBytes)
-				if _, err := buf.Read(messageBytes); err != nil {
-					return fmt.Errorf("cannot read inbox.messages message data: %v", err)
-				}
-
-				var err error
-				switch inbox.messageType {
-				case ProposeMessageType:
-					message := new(Propose)
-					err = message.UnmarshalBinary(messageBytes)
-					sigMap[sig] = message
-				case PrevoteMessageType:
-					message := new(Prevote)
-					err = message.UnmarshalBinary(messageBytes)
-					sigMap[sig] = message
-				case PrecommitMessageType:
-					message := new(Precommit)
-					err = message.UnmarshalBinary(messageBytes)
-					sigMap[sig] = message
-				}
-				if err != nil {
-					return fmt.Errorf("cannot unmarshal inbox.messages message: %v", err)
-				}
-			}
-			roundMap[round] = sigMap
-		}
-		heightMap[height] = roundMap
-	}
-	inbox.messages = heightMap
-	return nil
+	return surge.FromBinary(data, inbox)
 }
 
 func (state State) SizeHint() int {
