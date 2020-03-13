@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	cRand "crypto/rand"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/id"
+	"github.com/renproject/surge"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -29,36 +29,19 @@ var _ = Describe("Process", func() {
 	}
 
 	Context("when marshaling/unmarshaling process", func() {
-		It("should equal itself after json marshaling and then unmarshaling", func() {
-			processOrigin := NewProcessOrigin(100)
-			processOrigin.State.CurrentHeight = block.Height(100) // make sure it's not proposing block.
-			process := processOrigin.ToProcess()
-
-			data, err := json.Marshal(process)
-			Expect(err).NotTo(HaveOccurred())
-			newProcess := processOrigin.ToProcess()
-			Expect(json.Unmarshal(data, &newProcess)).Should(Succeed())
-
-			// Since state cannot be accessed from the process. We try to compared the
-			// marshalling bytes to check if they we get the same process.
-			newData, err := json.Marshal(newProcess)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(bytes.Equal(data, newData)).Should(BeTrue())
-		})
-
 		It("should equal itself after binary marshaling and then unmarshaling", func() {
 			processOrigin := NewProcessOrigin(100)
 			processOrigin.State.CurrentHeight = block.Height(100) // make sure it's not proposing block.
 			process := processOrigin.ToProcess()
 
-			data, err := process.MarshalBinary()
+			data, err := surge.ToBinary(process)
 			Expect(err).NotTo(HaveOccurred())
 			newProcess := processOrigin.ToProcess()
-			Expect(newProcess.UnmarshalBinary(data)).Should(Succeed())
+			Expect(surge.FromBinary(data, &newProcess)).Should(Succeed())
 
 			// Since state cannot be accessed from the process. We try to compared the
 			// marshalling bytes to check if they we get the same process.
-			newData, err := newProcess.MarshalBinary()
+			newData, err := surge.ToBinary(newProcess)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bytes.Equal(data, newData)).Should(BeTrue())
 		})
