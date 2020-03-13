@@ -415,9 +415,27 @@ var (
 	InvalidHash      = id.Hash{}
 	InvalidSignature = id.Signature{}
 	InvalidSignatory = id.Signatory{}
-	InvalidBlock     = Block{}
-	InvalidRound     = Round(-1)
-	InvalidHeight    = Height(-1)
+	InvalidHeader    = Header{
+		kind:         Invalid,
+		parentHash:   id.Hash{},
+		baseHash:     id.Hash{},
+		txsRef:       id.Hash{},
+		planRef:      id.Hash{},
+		prevStateRef: id.Hash{},
+		height:       InvalidHeight,
+		round:        InvalidRound,
+		timestamp:    Timestamp(0),
+		signatories:  id.Signatories{},
+	}
+	InvalidBlock = Block{
+		hash:      id.Hash{},
+		header:    InvalidHeader,
+		txs:       []byte{},
+		plan:      []byte{},
+		prevState: []byte{},
+	}
+	InvalidRound  = Round(-1)
+	InvalidHeight = Height(-1)
 )
 
 // ComputeHash of a block based on its header, transactions, execution plan and
