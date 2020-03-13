@@ -10,13 +10,13 @@ import (
 	"testing/quick"
 	"time"
 
+	"github.com/renproject/id"
+	"github.com/renproject/surge"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/hyperdrive/block"
 	. "github.com/renproject/hyperdrive/testutil"
-	"github.com/renproject/surge"
-
-	"github.com/renproject/id"
 )
 
 var _ = Describe("Block", func() {
