@@ -158,7 +158,7 @@ func NewMockBroadcaster(keys []*ecdsa.PrivateKey, min, max int) *MockBroadcaster
 	signatories := map[id.Signatory]int{}
 	for i, key := range keys {
 		sig := id.NewSignatory(key.PublicKey)
-		messages := make(chan []byte, 128)
+		messages := make(chan []byte, 1024)
 		cons[sig] = messages
 		signatories[sig] = i
 	}
