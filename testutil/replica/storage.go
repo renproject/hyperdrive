@@ -1,7 +1,6 @@
 package testutil_replica
 
 import (
-	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/replica"
 	"github.com/renproject/hyperdrive/testutil"
+	"github.com/renproject/surge"
 )
 
 type MockPersistentStorage struct {
@@ -33,7 +33,7 @@ func (store *MockPersistentStorage) SaveProcess(p *process.Process, shard replic
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
-	data, err := json.Marshal(p)
+	data, err := surge.ToBinary(p)
 	if err != nil {
 		panic(fmt.Sprintf("fail to marshal the process, err = %v", err))
 	}
@@ -48,7 +48,7 @@ func (store *MockPersistentStorage) RestoreProcess(p *process.Process, shard rep
 	if !ok {
 		return
 	}
-	err := json.Unmarshal(data, p)
+	err := surge.FromBinary(data, p)
 	if err != nil {
 		panic(err)
 	}

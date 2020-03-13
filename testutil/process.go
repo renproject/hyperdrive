@@ -362,7 +362,7 @@ func (timer *MockTimer) Timeout(step process.Step, round block.Round) time.Durat
 }
 
 func GetStateFromProcess(p *process.Process, f int) process.State {
-	data, err := p.MarshalBinary()
+	data, err := surge.ToBinary(p)
 	if err != nil {
 		panic(err)
 	}
