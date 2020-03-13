@@ -8,7 +8,8 @@ import (
 	"github.com/renproject/surge"
 )
 
-// MarshalJSON implements the `json.Marshaler` interface for the `Header` type.
+// MarshalJSON is implemented because it is not uncommon that blocks and block
+// headers need to be made available through external APIs.
 func (header Header) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Kind         Kind           `json:"kind"`
@@ -35,8 +36,8 @@ func (header Header) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Header`
-// type.
+// UnmarshalJSON is implemented because it is not uncommon that blocks and block
+// headers need to be made available through external APIs.
 func (header *Header) UnmarshalJSON(data []byte) error {
 	tmp := struct {
 		Kind         Kind           `json:"kind"`
@@ -66,6 +67,7 @@ func (header *Header) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// SizeHint of how many bytes will be needed to represent a header in binary.
 func (header Header) SizeHint() int {
 	return surge.SizeHint(header.kind) +
 		surge.SizeHint(header.parentHash) +
@@ -79,11 +81,8 @@ func (header Header) SizeHint() int {
 		surge.SizeHint(header.signatories)
 }
 
+// Marshal this header into binary.
 func (header Header) Marshal(w io.Writer, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
 	m, err := surge.Marshal(w, header.kind, m)
 	if err != nil {
 		return m, err
@@ -115,11 +114,8 @@ func (header Header) Marshal(w io.Writer, m int) (int, error) {
 	return surge.Marshal(w, header.signatories, m)
 }
 
+// Unmarshal into this header from binary.
 func (header *Header) Unmarshal(r io.Reader, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
 	m, err := surge.Unmarshal(r, &header.kind, m)
 	if err != nil {
 		return m, err
@@ -151,7 +147,8 @@ func (header *Header) Unmarshal(r io.Reader, m int) (int, error) {
 	return surge.Unmarshal(r, &header.signatories, m)
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the `Block` type.
+// MarshalJSON is implemented because it is not uncommon that blocks and block
+// headers need to be made available through external APIs.
 func (block Block) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Hash      id.Hash `json:"hash"`
@@ -168,8 +165,8 @@ func (block Block) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Block`
-// type.
+// UnmarshalJSON is implemented because it is not uncommon that blocks and block
+// headers need to be made available through external APIs.
 func (block *Block) UnmarshalJSON(data []byte) error {
 	tmp := struct {
 		Hash      id.Hash `json:"hash"`
@@ -189,6 +186,7 @@ func (block *Block) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// SizeHint of how many bytes will be needed to represent a header in binary.
 func (block Block) SizeHint() int {
 	return surge.SizeHint(block.hash) +
 		surge.SizeHint(block.header) +
@@ -197,11 +195,8 @@ func (block Block) SizeHint() int {
 		surge.SizeHint(block.prevState)
 }
 
+// Marshal this block into binary.
 func (block Block) Marshal(w io.Writer, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
 	m, err := surge.Marshal(w, block.hash, m)
 	if err != nil {
 		return m, err
@@ -218,11 +213,8 @@ func (block Block) Marshal(w io.Writer, m int) (int, error) {
 	return surge.Marshal(w, block.prevState, m)
 }
 
+// Unmarshal into this block from binary.
 func (block *Block) Unmarshal(r io.Reader, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
 	m, err := surge.Unmarshal(r, &block.hash, m)
 	if err != nil {
 		return m, err
