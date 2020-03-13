@@ -68,11 +68,11 @@ var _ = Describe("Messages", func() {
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomPropose()
-					data, err := msg.MarshalBinary()
+					data, err := surge.ToBinary(msg)
 					Expect(err).NotTo(HaveOccurred())
 
 					var newMsg Propose
-					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
+					Expect(surge.FromBinary(data, &newMsg)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 
@@ -145,11 +145,11 @@ var _ = Describe("Messages", func() {
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomPrevote()
-					data, err := msg.MarshalBinary()
+					data, err := surge.ToBinary(msg)
 					Expect(err).NotTo(HaveOccurred())
 
 					var newMsg Prevote
-					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
+					Expect(surge.FromBinary(data, &newMsg)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 
@@ -222,11 +222,11 @@ var _ = Describe("Messages", func() {
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomPrecommit()
-					data, err := msg.MarshalBinary()
+					data, err := surge.ToBinary(msg)
 					Expect(err).NotTo(HaveOccurred())
 
 					var newMsg Precommit
-					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
+					Expect(surge.FromBinary(data, &newMsg)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 

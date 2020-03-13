@@ -49,22 +49,6 @@ var _ = Describe("Replica", func() {
 
 	Context("replica", func() {
 		Context("when marshaling/unmarshaling message", func() {
-			It("should equal itself after json marshaling and then unmarshaling", func() {
-				message := Message{
-					Message: RandomMessage(RandomMessageType()),
-					Shard:   Shard{},
-				}
-
-				data, err := json.Marshal(message)
-				Expect(err).NotTo(HaveOccurred())
-				newMessage := Message{}
-				Expect(json.Unmarshal(data, &newMessage)).Should(Succeed())
-
-				newData, err := json.Marshal(newMessage)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(bytes.Equal(data, newData)).Should(BeTrue())
-			})
-
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				message := Message{
 					Message: RandomMessage(RandomMessageType()),

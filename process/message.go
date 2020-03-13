@@ -16,14 +16,18 @@ import (
 // types that are supported during consensus rounds.
 type MessageType uint64
 
+// SizeHint of how many bytes will be needed to represent message types in
+// binary.
 func (mt MessageType) SizeHint() int {
 	return surge.SizeHint(uint64(mt))
 }
 
+// Marshal this message type into binary.
 func (mt MessageType) Marshal(w io.Writer, m int) (int, error) {
 	return surge.Marshal(w, uint64(mt), m)
 }
 
+// Unmarshal into this message type from binary.
 func (mt *MessageType) Unmarshal(r io.Reader, m int) (int, error) {
 	return surge.Unmarshal(r, (*uint64)(mt), m)
 }
@@ -488,14 +492,6 @@ func (inbox *Inbox) QueryByHeightRound(height block.Height, round block.Round) (
 	return
 }
 
-func (inbox *Inbox) F() int {
-	return inbox.f
-}
-
-func (inbox *Inbox) MessageType() MessageType {
-	return inbox.messageType
-}
-
 // Reset the inbox to a specific height. All messages for height lower than the
 // specified height are dropped. This is necessary to ensure that, over time,
 // the storage space of the inbox is bounded.
@@ -505,4 +501,12 @@ func (inbox *Inbox) Reset(height block.Height) {
 			delete(inbox.messages, blockHeight)
 		}
 	}
+}
+
+func (inbox *Inbox) F() int {
+	return inbox.f
+}
+
+func (inbox *Inbox) MessageType() MessageType {
+	return inbox.messageType
 }

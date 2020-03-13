@@ -15,14 +15,18 @@ import (
 // Step in the consensus algorithm.
 type Step uint8
 
+// SizeHint of how many bytes will be needed to represent steps in
+// binary.
 func (Step) SizeHint() int {
 	return 1
 }
 
+// Marshal this step into binary.
 func (step Step) Marshal(w io.Writer, m int) (int, error) {
 	return surge.Marshal(w, uint8(step), m)
 }
 
+// Unmarshal into this step from binary.
 func (step *Step) Unmarshal(r io.Reader, m int) (int, error) {
 	return surge.Unmarshal(r, (*uint8)(step), m)
 }

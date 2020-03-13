@@ -9,6 +9,8 @@ import (
 	"github.com/renproject/surge"
 )
 
+// SizeHint of how many bytes will be needed to represent this propose in
+// binary.
 func (propose Propose) SizeHint() int {
 	return surge.SizeHint(propose.sig) +
 		surge.SizeHint(propose.signatory) +
@@ -21,6 +23,7 @@ func (propose Propose) SizeHint() int {
 		surge.SizeHint(propose.signatory)
 }
 
+// Marshal this propose into binary.
 func (propose Propose) Marshal(w io.Writer, m int) (int, error) {
 	if m <= 0 {
 		return m, surge.ErrMaxBytesExceeded
@@ -54,11 +57,8 @@ func (propose Propose) Marshal(w io.Writer, m int) (int, error) {
 	return surge.Marshal(w, propose.signatory, m)
 }
 
+// Unmarshal into this propose from binary.
 func (propose *Propose) Unmarshal(r io.Reader, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
 	m, err := surge.Unmarshal(r, &propose.sig, m)
 	if err != nil {
 		return m, err
@@ -87,18 +87,8 @@ func (propose *Propose) Unmarshal(r io.Reader, m int) (int, error) {
 	return surge.Unmarshal(r, &propose.signatory, m)
 }
 
-// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// `Propose` type.
-func (propose Propose) MarshalBinary() ([]byte, error) {
-	return surge.ToBinary(propose)
-}
-
-// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// `Propose` type.
-func (propose *Propose) UnmarshalBinary(data []byte) error {
-	return surge.FromBinary(data, propose)
-}
-
+// SizeHint of how many bytes will be needed to represent this prevote in
+// binary.
 func (prevote Prevote) SizeHint() int {
 	return surge.SizeHint(prevote.sig) +
 		surge.SizeHint(prevote.signatory) +
@@ -108,11 +98,8 @@ func (prevote Prevote) SizeHint() int {
 		surge.SizeHint(prevote.nilReasons)
 }
 
+// Marshal this prevote into binary.
 func (prevote Prevote) Marshal(w io.Writer, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
 	m, err := surge.Marshal(w, prevote.sig, m)
 	if err != nil {
 		return m, err
@@ -132,11 +119,8 @@ func (prevote Prevote) Marshal(w io.Writer, m int) (int, error) {
 	return surge.Marshal(w, prevote.nilReasons, m)
 }
 
+// Unmarshal into this prevote from binary.
 func (prevote *Prevote) Unmarshal(r io.Reader, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
 	m, err := surge.Unmarshal(r, &prevote.sig, m)
 	if err != nil {
 		return m, err
@@ -156,18 +140,8 @@ func (prevote *Prevote) Unmarshal(r io.Reader, m int) (int, error) {
 	return surge.Unmarshal(r, &prevote.nilReasons, m)
 }
 
-// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// `Prevote` type.
-func (prevote Prevote) MarshalBinary() ([]byte, error) {
-	return surge.ToBinary(prevote)
-}
-
-// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// `Prevote` type.
-func (prevote *Prevote) UnmarshalBinary(data []byte) error {
-	return surge.FromBinary(data, prevote)
-}
-
+// SizeHint of how many bytes will be needed to represent this precommit in
+// binary.
 func (precommit Precommit) SizeHint() int {
 	return surge.SizeHint(precommit.sig) +
 		surge.SizeHint(precommit.signatory) +
@@ -176,11 +150,8 @@ func (precommit Precommit) SizeHint() int {
 		surge.SizeHint(precommit.blockHash)
 }
 
+// Marshal this precommit into binary.
 func (precommit Precommit) Marshal(w io.Writer, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
 	m, err := surge.Marshal(w, precommit.sig, m)
 	if err != nil {
 		return m, err
@@ -197,11 +168,8 @@ func (precommit Precommit) Marshal(w io.Writer, m int) (int, error) {
 	return surge.Marshal(w, precommit.blockHash, m)
 }
 
+// Unmarshal into this precommit from binary.
 func (precommit *Precommit) Unmarshal(r io.Reader, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
 	m, err := surge.Unmarshal(r, &precommit.sig, m)
 	if err != nil {
 		return m, err
@@ -218,22 +186,12 @@ func (precommit *Precommit) Unmarshal(r io.Reader, m int) (int, error) {
 	return surge.Unmarshal(r, &precommit.blockHash, m)
 }
 
-// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// `Precommit` type.
-func (precommit Precommit) MarshalBinary() ([]byte, error) {
-	return surge.ToBinary(precommit)
-}
-
-// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// `Precommit` type.
-func (precommit *Precommit) UnmarshalBinary(data []byte) error {
-	return surge.FromBinary(data, precommit)
-}
-
+// SizeHint of how many bytes will be needed to represent this inbox in binary.
 func (inbox Inbox) SizeHint() int {
 	return surge.SizeHint(uint32(inbox.f)) + surge.SizeHint(inbox.messages)
 }
 
+// Marshal this inbox into binary.
 func (inbox Inbox) Marshal(w io.Writer, m int) (int, error) {
 	// Write f.
 	m, err := surge.Marshal(w, int64(inbox.f), m)
@@ -244,44 +202,37 @@ func (inbox Inbox) Marshal(w io.Writer, m int) (int, error) {
 	if m, err = surge.Marshal(w, inbox.messageType, m); err != nil {
 		return m, err
 	}
-
 	// Write the number of heights.
 	if m, err = surge.Marshal(w, uint32(len(inbox.messages)), m); err != nil {
 		return m, err
 	}
-
 	// Write rounds for each height.
 	for height, rounds := range inbox.messages {
 		// Write the height.
 		if m, err = surge.Marshal(w, height, m); err != nil {
 			return m, err
 		}
-		{
-			// Write the number of rounds at this height.
-			if m, err = surge.Marshal(w, uint32(len(rounds)), m); err != nil {
+		// Write the number of rounds at this height.
+		if m, err = surge.Marshal(w, uint32(len(rounds)), m); err != nil {
+			return m, err
+		}
+		// Write the rounds at this height.
+		for round, signatories := range rounds {
+			// Write the round.
+			if m, err := surge.Marshal(w, round, m); err != nil {
 				return m, err
 			}
-			// Write middle map.
-			for round, signatories := range rounds {
-				// Write middle key.
-				if m, err := surge.Marshal(w, round, m); err != nil {
+			// Write number of signatories.
+			if m, err = surge.Marshal(w, uint32(len(signatories)), m); err != nil {
+				return m, err
+			}
+			// Write signatory/message pairs.
+			for signatory, message := range signatories {
+				if m, err = surge.Marshal(w, signatory, m); err != nil {
 					return m, err
 				}
-				// Write middle value.
-				{
-					// Write middle map length.
-					if m, err = surge.Marshal(w, uint32(len(signatories)), m); err != nil {
-						return m, err
-					}
-					// Write middle map.
-					for signatory, message := range signatories {
-						if m, err = surge.Marshal(w, signatory, m); err != nil {
-							return m, err
-						}
-						if m, err = surge.Marshal(w, message, m); err != nil {
-							return m, err
-						}
-					}
+				if m, err = surge.Marshal(w, message, m); err != nil {
+					return m, err
 				}
 			}
 		}
@@ -289,6 +240,7 @@ func (inbox Inbox) Marshal(w io.Writer, m int) (int, error) {
 	return m, nil
 }
 
+// Unmarshal into this inbox from binary.
 func (inbox *Inbox) Unmarshal(r io.Reader, m int) (int, error) {
 	// Read f.
 	var f int64
@@ -301,7 +253,6 @@ func (inbox *Inbox) Unmarshal(r io.Reader, m int) (int, error) {
 	if m, err = surge.Unmarshal(r, &inbox.messageType, m); err != nil {
 		return m, err
 	}
-
 	// Read the number of heights.
 	numHeights := uint32(0)
 	if m, err = surge.Unmarshal(r, &numHeights, m); err != nil {
@@ -316,7 +267,7 @@ func (inbox *Inbox) Unmarshal(r io.Reader, m int) (int, error) {
 	}
 	// Read rounds for each height.
 	inbox.messages = map[block.Height]map[block.Round]map[id.Signatory]Message{}
-	for j := uint32(0); j < numHeights; j++ {
+	for i := uint32(0); i < numHeights; i++ {
 		// Read the height.
 		height := block.Height(0)
 		if m, err = surge.Unmarshal(r, &height, m); err != nil {
@@ -336,51 +287,51 @@ func (inbox *Inbox) Unmarshal(r io.Reader, m int) (int, error) {
 		}
 
 		inbox.messages[height] = map[block.Round]map[id.Signatory]Message{}
-		for i2 := uint32(0); i2 < numRounds; i2++ {
-			// Read middle key.
-			k2 := block.Round(0)
-			if m, err = surge.Unmarshal(r, &k2, m); err != nil {
+		for j := uint32(0); j < numRounds; j++ {
+			// Read the round.
+			round := block.Round(0)
+			if m, err = surge.Unmarshal(r, &round, m); err != nil {
 				return m, fmt.Errorf("cannot unmarshal middle key: %v", err)
 			}
-			// Read middle map length.
-			l3 := uint32(0)
-			if m, err = surge.Unmarshal(r, &l3, m); err != nil {
+			// Read the number of signatories in this round.
+			numSignatories := uint32(0)
+			if m, err = surge.Unmarshal(r, &numSignatories, m); err != nil {
 				return m, fmt.Errorf("cannot unmarshal middle length: %v", err)
 			}
-			if int(l3) < 0 {
+			if int(numSignatories) < 0 {
 				return m, fmt.Errorf("expected negative length")
 			}
-			m -= int(l3)
+			m -= int(numSignatories)
 			if m <= 0 {
 				return m, surge.ErrMaxBytesExceeded
 			}
-			inbox.messages[height][k2] = map[id.Signatory]Message{}
-			for i3 := uint32(0); i3 < l3; i3++ {
-				// Read inner key.
-				k3 := id.Signatory{}
-				if m, err = surge.Unmarshal(r, &k3, m); err != nil {
+			inbox.messages[height][round] = map[id.Signatory]Message{}
+			for k := uint32(0); k < numSignatories; k++ {
+				// Read the signatory.
+				signatory := id.Signatory{}
+				if m, err = surge.Unmarshal(r, &signatory, m); err != nil {
 					return m, fmt.Errorf("cannot unmarshal inner key: %v", err)
 				}
-				// Read inner value.
+				// Read the message from this signatory.
 				switch inbox.messageType {
 				case ProposeMessageType:
 					message := new(Propose)
 					if m, err = message.Unmarshal(r, m); err != nil {
 						return m, fmt.Errorf("cannot unmarshal propose: %v", err)
 					}
-					inbox.messages[height][k2][k3] = message
+					inbox.messages[height][round][signatory] = message
 				case PrevoteMessageType:
 					message := new(Prevote)
 					if m, err = message.Unmarshal(r, m); err != nil {
 						return m, fmt.Errorf("cannot unmarshal prevote: %v", err)
 					}
-					inbox.messages[height][k2][k3] = message
+					inbox.messages[height][round][signatory] = message
 				case PrecommitMessageType:
 					message := new(Precommit)
 					if m, err = message.Unmarshal(r, m); err != nil {
 						return m, fmt.Errorf("cannot unmarshal precommit: %v", err)
 					}
-					inbox.messages[height][k2][k3] = message
+					inbox.messages[height][round][signatory] = message
 				default:
 					return m, fmt.Errorf("unsupported MessageType=%v", inbox.messageType)
 				}
@@ -390,18 +341,7 @@ func (inbox *Inbox) Unmarshal(r io.Reader, m int) (int, error) {
 	return m, nil
 }
 
-// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// `Inbox` type.
-func (inbox Inbox) MarshalBinary() ([]byte, error) {
-	return surge.ToBinary(inbox)
-}
-
-// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// `Inbox` type. See the `UnmarshalJSON` method for more information.
-func (inbox *Inbox) UnmarshalBinary(data []byte) error {
-	return surge.FromBinary(data, inbox)
-}
-
+// SizeHint of how many bytes will be needed to represent state in binary.
 func (state State) SizeHint() int {
 	return surge.SizeHint(state.CurrentHeight) +
 		surge.SizeHint(state.CurrentRound) +
@@ -415,6 +355,7 @@ func (state State) SizeHint() int {
 		surge.SizeHint(state.Precommits)
 }
 
+// Marshal this state into binary.
 func (state State) Marshal(w io.Writer, m int) (int, error) {
 	m, err := surge.Marshal(w, state.CurrentHeight, m)
 	if err != nil {
@@ -447,6 +388,7 @@ func (state State) Marshal(w io.Writer, m int) (int, error) {
 	return surge.Marshal(w, state.Precommits, m)
 }
 
+// Unmarshal into this state from binary.
 func (state *State) Unmarshal(r io.Reader, m int) (int, error) {
 	m, err := surge.Unmarshal(r, &state.CurrentHeight, m)
 	if err != nil {
