@@ -46,10 +46,7 @@ func (propose Propose) Marshal(w io.Writer, m int) (int, error) {
 	if m, err = surge.Marshal(w, propose.latestCommit.Block, m); err != nil {
 		return m, err
 	}
-	if m, err = surge.Marshal(w, propose.latestCommit.Precommits, m); err != nil {
-		return m, err
-	}
-	return surge.Marshal(w, propose.signatory, m)
+	return surge.Marshal(w, propose.latestCommit.Precommits, m)
 }
 
 // Unmarshal into this propose from binary.
@@ -76,10 +73,7 @@ func (propose *Propose) Unmarshal(r io.Reader, m int) (int, error) {
 	if m, err = surge.Unmarshal(r, &propose.latestCommit.Block, m); err != nil {
 		return m, err
 	}
-	if m, err = surge.Unmarshal(r, &propose.latestCommit.Precommits, m); err != nil {
-		return m, err
-	}
-	return surge.Unmarshal(r, &propose.signatory, m)
+	return surge.Unmarshal(r, &propose.latestCommit.Precommits, m)
 }
 
 // SizeHint of how many bytes will be needed to represent this prevote in
