@@ -1,7 +1,6 @@
 package process
 
 import (
-	"encoding/json"
 	"io"
 	"sync"
 	"time"
@@ -125,36 +124,26 @@ func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchai
 	return p
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the Process type,
-// by marshaling its isolated State.
-func (p Process) MarshalJSON() ([]byte, error) {
+// SizeHint returns the number of bytes required to store this process in
+// binary.
+func (p Process) SizeHint() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return json.Marshal(p.state)
+	return p.state.SizeHint()
 }
 
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Process
-// type, by unmarshaling its isolated State.
-func (p *Process) UnmarshalJSON(data []byte) error {
+// Marshal the process into binary.
+func (p Process) Marshal(w io.Writer, m int) (int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return json.Unmarshal(data, &p.state)
+	return p.state.Marshal(w, m)
 }
 
-// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// Process type, by marshaling its isolated State.
-func (p Process) MarshalBinary() ([]byte, error) {
+// Unmarshal into this process from binary.
+func (p *Process) Unmarshal(r io.Reader, m int) (int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return surge.ToBinary(p.state)
-}
-
-// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// Process type, by unmarshaling its isolated State.
-func (p *Process) UnmarshalBinary(data []byte) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return surge.FromBinary(data, &p.state)
+	return p.state.Unmarshal(r, m)
 }
 
 // Start the process
