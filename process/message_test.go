@@ -3,7 +3,6 @@ package process_test
 import (
 	"crypto/ecdsa"
 	cRand "crypto/rand"
-	"encoding/json"
 	"math/rand"
 	"reflect"
 	"testing/quick"
@@ -303,28 +302,14 @@ var _ = Describe("Messages", func() {
 		})
 
 		Context("when marshaling random", func() {
-			It("should equal itself after json marshaling and then unmarshaling", func() {
-				test := func() bool {
-					msg := RandomResync()
-					data, err := json.Marshal(msg)
-					Expect(err).NotTo(HaveOccurred())
-
-					var newMsg Resync
-					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
-					return msg.String() == newMsg.String()
-				}
-
-				Expect(quick.Check(test, nil)).Should(Succeed())
-			})
-
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomResync()
-					data, err := msg.MarshalBinary()
+					data, err := surge.ToBinary(msg)
 					Expect(err).NotTo(HaveOccurred())
 
 					var newMsg Resync
-					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
+					Expect(surge.FromBinary(data, &newMsg)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 
