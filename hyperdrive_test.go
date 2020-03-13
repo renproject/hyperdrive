@@ -268,7 +268,7 @@ var _ = Describe("Hyperdrive", func() {
 
 							Eventually(func() bool {
 								return network.HealthCheck(nil)
-							}, 30*time.Second).Should(BeTrue())
+							}, time.Minute).Should(BeTrue())
 						})
 					})
 				})
