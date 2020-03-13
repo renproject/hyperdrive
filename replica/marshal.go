@@ -8,12 +8,15 @@ import (
 	"github.com/renproject/surge"
 )
 
+// SizeHint returns the number of bytes requires to store this message in
+// binary.
 func (message Message) SizeHint() int {
 	return surge.SizeHint(message.Message.Type()) +
 		surge.SizeHint(message.Message) +
 		surge.SizeHint(message.Shard)
 }
 
+// Marshal this message into binary.
 func (message Message) Marshal(w io.Writer, m int) (int, error) {
 	m, err := surge.Marshal(w, uint64(message.Message.Type()), m)
 	if err != nil {
@@ -25,6 +28,7 @@ func (message Message) Marshal(w io.Writer, m int) (int, error) {
 	return surge.Marshal(w, message.Shard, m)
 }
 
+// Unmarshal into this message from binary.
 func (message *Message) Unmarshal(r io.Reader, m int) (int, error) {
 	var messageType process.MessageType
 	m, err := surge.Unmarshal(r, &messageType, m)
@@ -57,12 +61,4 @@ func (message *Message) Unmarshal(r io.Reader, m int) (int, error) {
 	}
 
 	return surge.Unmarshal(r, &message.Shard, m)
-}
-
-func (message Message) MarshalBinary() ([]byte, error) {
-	return surge.ToBinary(message)
-}
-
-func (message *Message) UnmarshalBinary(data []byte) error {
-	return surge.FromBinary(data, message)
 }
