@@ -446,11 +446,14 @@ func (state *State) Unmarshal(r io.Reader, m int) (int, error) {
 	if m, err = surge.Unmarshal(r, &state.ValidRound, m); err != nil {
 		return m, err
 	}
+	state.Proposals = new(Inbox)
 	if m, err = surge.Unmarshal(r, state.Proposals, m); err != nil {
 		return m, err
 	}
+	state.Prevotes = new(Inbox)
 	if m, err = surge.Unmarshal(r, state.Prevotes, m); err != nil {
 		return m, err
 	}
+	state.Precommits = new(Inbox)
 	return surge.Unmarshal(r, state.Precommits, m)
 }
