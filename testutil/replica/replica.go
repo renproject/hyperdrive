@@ -215,7 +215,7 @@ func (m *MockBroadcaster) sendMessage(receiver id.Signatory, message []byte) {
 	// If the receiver is offline, it cannot receive any messages from other
 	// nodes.
 	if m.active[receiver] {
-		messages <- message
+		go func() { messages <- message }()
 	}
 }
 
