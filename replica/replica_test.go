@@ -4,19 +4,18 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
-	"encoding/json"
 	"io/ioutil"
 	"reflect"
 	"testing/quick"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/testutil"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/testutil"
 	"github.com/sirupsen/logrus"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	. "github.com/renproject/hyperdrive/testutil"
 )
 
 var _ = Describe("Replica", func() {
