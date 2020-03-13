@@ -12,7 +12,7 @@ var _ = Describe("Marshaling", func() {
 		It("should equal itself after binary marshaling/unmarshaling", func() {
 			for i := 0; i < 10; i++ {
 				message := Message{
-					Message: RandomMessage(RandomMessageType()),
+					Message: RandomMessage(RandomMessageType(true)),
 					Shard:   Shard{},
 				}
 				messageBytes, err := message.MarshalBinary()

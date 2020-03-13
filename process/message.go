@@ -3,6 +3,7 @@ package process
 import (
 	"crypto/ecdsa"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 
@@ -43,6 +44,9 @@ const (
 	// PrecommitMessageType is used by messages that are precommitting for block
 	// hashes (or nil precommitting).
 	PrecommitMessageType = 3
+	// ResyncMessageType is used by messages that query others for previous
+	// messages.
+	ResyncMessageType = 4
 )
 
 // Messages is a wrapper around the `[]Message` type.
@@ -83,6 +87,12 @@ type Message interface {
 	Type() MessageType
 }
 
+var (
+	// ErrBlockHashNotProvided is returned when querying the block hash for a
+	// message type that does not implement the function.
+	ErrBlockHashNotProvided = errors.New("block hash not provided")
+)
+
 // Sign a message using an ECDSA private key. The resulting signature will be
 // stored inside the message.
 func Sign(m Message, privKey ecdsa.PrivateKey) error {
@@ -104,6 +114,9 @@ func Sign(m Message, privKey ecdsa.PrivateKey) error {
 		m.signatory = signatory
 		copy(m.sig[:], sig)
 	case *Precommit:
+		m.signatory = signatory
+		copy(m.sig[:], sig)
+	case *Resync:
 		m.signatory = signatory
 		copy(m.sig[:], sig)
 	default:
@@ -321,6 +334,56 @@ func (precommit *Precommit) Type() MessageType {
 
 func (precommit *Precommit) String() string {
 	return fmt.Sprintf("Precommit(Height=%v,Round=%v,BlockHash=%v)", precommit.Height(), precommit.Round(), precommit.BlockHash())
+}
+
+// Resyncs is a wrapper around the `[]Resync` type.
+type Resyncs []Resync
+
+// Resync previous messages.
+type Resync struct {
+	signatory id.Signatory
+	sig       id.Signature
+	height    block.Height
+	round     block.Round
+}
+
+func NewResync(height block.Height, round block.Round) *Resync {
+	return &Resync{
+		height: height,
+		round:  round,
+	}
+}
+
+func (resync *Resync) Signatory() id.Signatory {
+	return resync.signatory
+}
+
+func (resync *Resync) SigHash() id.Hash {
+	return sha256.Sum256([]byte(resync.String()))
+}
+
+func (resync *Resync) Sig() id.Signature {
+	return resync.sig
+}
+
+func (resync *Resync) Height() block.Height {
+	return resync.height
+}
+
+func (resync *Resync) Round() block.Round {
+	return resync.round
+}
+
+func (resync *Resync) BlockHash() id.Hash {
+	panic(ErrBlockHashNotProvided)
+}
+
+func (resync *Resync) Type() MessageType {
+	return ResyncMessageType
+}
+
+func (resync *Resync) String() string {
+	return fmt.Sprintf("Resync(Height=%v,Round=%v)", resync.Height(), resync.Round())
 }
 
 // An Inbox is storage container for one type message. Any type of message can

@@ -72,10 +72,11 @@ type Scheduler interface {
 	Schedule(block.Height, block.Round) id.Signatory
 }
 
-// A Broadcaster sends a Message to as many Processes in the network as
-// possible.
+// A Broadcaster sends a Message to a either specific Process or as many
+// Processes in the network as possible.
 type Broadcaster interface {
 	Broadcast(Message)
+	Cast(id.Signatory, Message)
 }
 
 // A Timer determines the timeout duration at a given Step and `block.Round`.
@@ -146,7 +147,7 @@ func (p *Process) Unmarshal(r io.Reader, m int) (int, error) {
 	return p.state.Unmarshal(r, m)
 }
 
-// Start the process
+// Start the process.
 func (p *Process) Start() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -158,27 +159,27 @@ func (p *Process) Start() {
 	numPrecommits := p.state.Precommits.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
 	p.logger.Debugf("propose inbox len=%v, prevote inbox len=%v, precommit inbox len=%v", numProposes, numPrevotes, numPrecommits)
 
-	// Resend the messages of latest height
-	if !p.state.Equal(DefaultState(p.state.Prevotes.f)) {
-		p.logger.Debugf("resending messages at current height=%v and current round=%v", p.state.CurrentHeight, p.state.CurrentRound)
-		p.resend(p.state.CurrentHeight, p.state.CurrentRound)
-		if p.state.CurrentRound > 0 {
-			p.logger.Debugf("resending messages at current height=%v and previous round=%v", p.state.CurrentHeight, p.state.CurrentRound-1)
-			p.resend(p.state.CurrentHeight, p.state.CurrentRound-1)
-		} else if p.state.CurrentHeight > 0 {
-			maxRound := block.Round(0)
-			for round := range p.state.Proposals.messages[p.state.CurrentHeight-1] {
-				if round > maxRound {
-					maxRound = round
-				}
-			}
-			p.logger.Debugf("resending messages at previous height=%v and previous round=%v", p.state.CurrentHeight-1, maxRound)
-			p.resend(p.state.CurrentHeight-1, maxRound)
-		}
-	}
+	// Resend our latest messages to others.
+	p.resendLatestMessages(nil)
 
-	if p.state.CurrentStep <= StepPropose {
+	// Query others for previous messages.
+	resync := NewResync(p.state.CurrentHeight, p.state.CurrentRound)
+	p.broadcaster.Broadcast(resync)
+
+	// Start the Process from previous state.
+	switch p.state.CurrentStep {
+	case StepNil, StepPropose:
 		p.startRound(p.state.CurrentRound)
+	case StepPrevote:
+		if numPrevotes >= 2*p.state.Prevotes.f+1 {
+			p.scheduleTimeoutPrevote(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrevote, p.state.CurrentRound))
+		}
+	case StepPrecommit:
+		if numPrecommits >= 2*p.state.Precommits.f+1 {
+			p.scheduleTimeoutPrecommit(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrecommit, p.state.CurrentRound))
+		}
+	default:
+		panic("unknown step value")
 	}
 }
 
@@ -203,21 +204,59 @@ func (p *Process) HandleMessage(m Message) {
 		p.handlePrevote(m)
 	case *Precommit:
 		p.handlePrecommit(m)
+	case *Resync:
+		p.handleResync(m)
 	}
 }
 
-func (p *Process) resend(height block.Height, round block.Round) {
+// resend sends any messages stored at the given height and round to the `to`
+// signatory. If no signatory is provided, we broadcast the message to all known
+// peers.
+func (p *Process) resend(to *id.Signatory, height block.Height, round block.Round) {
 	proposal := p.state.Proposals.QueryByHeightRoundSignatory(height, round, p.signatory)
 	prevote := p.state.Prevotes.QueryByHeightRoundSignatory(height, round, p.signatory)
 	precommit := p.state.Precommits.QueryByHeightRoundSignatory(height, round, p.signatory)
 	if proposal != nil {
-		p.broadcaster.Broadcast(proposal)
+		// Resend messages to all peers if no signatory is provided.
+		if to == nil {
+			p.broadcaster.Broadcast(proposal)
+		} else {
+			p.broadcaster.Cast(*to, proposal)
+		}
 	}
 	if prevote != nil {
-		p.broadcaster.Broadcast(prevote)
+		if to == nil {
+			p.broadcaster.Broadcast(prevote)
+		} else {
+			p.broadcaster.Cast(*to, prevote)
+		}
 	}
 	if precommit != nil {
-		p.broadcaster.Broadcast(precommit)
+		if to == nil {
+			p.broadcaster.Broadcast(precommit)
+		} else {
+			p.broadcaster.Cast(*to, precommit)
+		}
+	}
+}
+
+func (p *Process) resendLatestMessages(to *id.Signatory) {
+	if !p.state.Equal(DefaultState(p.state.Prevotes.f)) {
+		p.logger.Debugf("resending messages at current height=%v and current round=%v", p.state.CurrentHeight, p.state.CurrentRound)
+		p.resend(to, p.state.CurrentHeight, p.state.CurrentRound)
+		if p.state.CurrentRound > 0 {
+			p.logger.Debugf("resending messages at current height=%v and previous round=%v", p.state.CurrentHeight, p.state.CurrentRound-1)
+			p.resend(to, p.state.CurrentHeight, p.state.CurrentRound-1)
+		} else if p.state.CurrentHeight > 0 {
+			maxRound := block.Round(0)
+			for round := range p.state.Proposals.messages[p.state.CurrentHeight-1] {
+				if round > maxRound {
+					maxRound = round
+				}
+			}
+			p.logger.Debugf("resending messages at previous height=%v and previous round=%v", p.state.CurrentHeight-1, maxRound)
+			p.resend(to, p.state.CurrentHeight-1, maxRound)
+		}
 	}
 }
 
@@ -374,6 +413,13 @@ func (p *Process) handlePrecommit(precommit *Precommit) {
 	}
 
 	p.checkProposeInCurrentHeightWithPrecommits(precommit.Round())
+}
+
+func (p *Process) handleResync(resync *Resync) {
+	p.logger.Debugf("received resync at height=%v and round=%v", resync.height, resync.round)
+
+	// Resend our latest messages to the requestor.
+	p.resendLatestMessages(&resync.signatory)
 }
 
 // timeoutPropose checks if we have move to a new height, a new round or a new

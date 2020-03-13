@@ -61,6 +61,8 @@ func RandomMessage(t process.MessageType) process.Message {
 		return RandomPrevote()
 	case process.PrecommitMessageType:
 		return RandomPrecommit()
+	case process.ResyncMessageType:
+		return RandomResync()
 	default:
 		panic("unknown message type")
 	}
@@ -79,6 +81,8 @@ func RandomMessageWithHeightAndRound(height block.Height, round block.Round, t p
 	case process.PrecommitMessageType:
 		hash := RandomHash()
 		msg = process.NewPrecommit(height, round, hash)
+	case process.ResyncMessageType:
+		msg = process.NewResync(height, round)
 	default:
 		panic("unknown message type")
 	}
@@ -122,8 +126,19 @@ func RandomPrecommit() *process.Precommit {
 	return process.NewPrecommit(height, round, hash)
 }
 
-func RandomMessageType() process.MessageType {
-	index := rand.Intn(3)
+func RandomResync() *process.Resync {
+	height := block.Height(rand.Int63())
+	round := block.Round(rand.Int63())
+	return process.NewResync(height, round)
+}
+
+func RandomMessageType(includeResync bool) process.MessageType {
+	var index int
+	if includeResync {
+		index = rand.Intn(4)
+	} else {
+		index = rand.Intn(3)
+	}
 	switch index {
 	case 0:
 		return process.ProposeMessageType
@@ -131,8 +146,10 @@ func RandomMessageType() process.MessageType {
 		return process.PrevoteMessageType
 	case 2:
 		return process.PrecommitMessageType
+	case 3:
+		return process.ResyncMessageType
 	default:
-		panic("unexpect message type")
+		panic("unexpected message type")
 	}
 }
 
@@ -151,6 +168,7 @@ type ProcessOrigin struct {
 	Blockchain        process.Blockchain
 	State             process.State
 	BroadcastMessages chan process.Message
+	CastMessages      chan process.Message
 
 	Proposer    process.Proposer
 	Validator   process.Validator
@@ -166,7 +184,8 @@ func NewProcessOrigin(f int) ProcessOrigin {
 		panic(err)
 	}
 	sig := id.NewSignatory(privateKey.PublicKey)
-	messages := make(chan process.Message, 128)
+	broadcastMessages := make(chan process.Message, 128)
+	castMessages := make(chan process.Message, 128)
 	signatories := make(id.Signatories, f)
 	for i := range signatories {
 		key, err := ecdsa.GenerateKey(crypto.S256(), cRand.Reader)
@@ -182,15 +201,20 @@ func NewProcessOrigin(f int) ProcessOrigin {
 		Signatory:         sig,
 		Blockchain:        NewMockBlockchain(signatories),
 		State:             process.DefaultState(f),
-		BroadcastMessages: messages,
+		BroadcastMessages: broadcastMessages,
+		CastMessages:      castMessages,
 
 		Proposer:    NewMockProposer(privateKey),
 		Validator:   NewMockValidator(nil),
 		Scheduler:   NewMockScheduler(sig),
-		Broadcaster: NewMockBroadcaster(messages),
+		Broadcaster: NewMockBroadcaster(broadcastMessages, castMessages),
 		Timer:       NewMockTimer(1 * time.Second),
 		Observer:    MockObserver{},
 	}
+}
+
+func (p *ProcessOrigin) UpdateState(state process.State) {
+	p.State = state
 }
 
 func (p ProcessOrigin) ToProcess() *process.Process {
@@ -322,17 +346,23 @@ func (m MockObserver) DidReceiveSufficientNilPrevotes(process.Messages, int) {
 }
 
 type MockBroadcaster struct {
-	messages chan<- process.Message
+	broadcastMessages chan<- process.Message
+	castMessages      chan<- process.Message
 }
 
-func NewMockBroadcaster(messages chan<- process.Message) process.Broadcaster {
+func NewMockBroadcaster(broadcastMessages, castMessages chan<- process.Message) process.Broadcaster {
 	return &MockBroadcaster{
-		messages: messages,
+		broadcastMessages: broadcastMessages,
+		castMessages:      castMessages,
 	}
 }
 
 func (m *MockBroadcaster) Broadcast(message process.Message) {
-	m.messages <- message
+	m.broadcastMessages <- message
+}
+
+func (m *MockBroadcaster) Cast(to id.Signatory, message process.Message) {
+	m.castMessages <- message
 }
 
 type MockScheduler struct {

@@ -84,7 +84,7 @@ var _ = Describe("Hyperdrive", func() {
 				It("should keep producing new blocks", func() {
 					option := DefaultOption
 					shuffledIndices := mrand.Perm(3*f + 1)
-					option.disableNodes = shuffledIndices[:f]
+					option.disabledNodes = shuffledIndices[:f]
 
 					network := NewNetwork(f, r, shards, option)
 					network.Start()
@@ -241,25 +241,30 @@ var _ = Describe("Hyperdrive", func() {
 
 					Context("when they successfully reconnect to the network", func() {
 						It("should start producing blocks again", func() {
-							network := NewNetwork(f, r, shards, DefaultOption)
+							options := DefaultOption
+							options.debugLogger = []int{0}
+							options.timeoutProposers = []int{mrand.Intn(3*f + 1)} // Pick a random node to timeout when proposing blocks.
+							network := NewNetwork(f, r, shards, options)
 							network.Start()
 							defer network.Stop()
 
-							// Wait for all nodes reach consensus
+							// Wait for all nodes to reach consensus.
 							Eventually(func() bool {
 								return network.HealthCheck(nil)
 							}, 30*time.Second).Should(BeTrue())
 
-							// Crash f + 1 random nodes and expect no blocks produced after that
+							// Crash f+1 random nodes and expect no blocks to be
+							// produced.
 							shuffledIndices := mrand.Perm(3*f + 1)
 							crashedNodes := shuffledIndices[:f+1]
 							phi.ParForAll(crashedNodes, func(i int) {
+								SleepRandomSeconds(0, 2)
 								index := crashedNodes[i]
 								network.StopNode(index)
 							})
 							Expect(network.HealthCheck(nil)).Should(BeFalse())
 
-							// Restart the nodes after some time
+							// Restart the nodes at different times.
 							phi.ParForAll(crashedNodes, func(i int) {
 								SleepRandomSeconds(5, 10)
 								index := crashedNodes[i]
@@ -268,7 +273,7 @@ var _ = Describe("Hyperdrive", func() {
 
 							Eventually(func() bool {
 								return network.HealthCheck(nil)
-							}, time.Minute).Should(BeTrue())
+							}, 120*time.Second).Should(BeTrue())
 						})
 					})
 				})
@@ -280,7 +285,7 @@ var _ = Describe("Hyperdrive", func() {
 						// Start the network with more than f nodes offline
 						options := DefaultOption
 						shuffledIndices := mrand.Perm(3*f + 1)
-						options.disableNodes = shuffledIndices[:f+1]
+						options.disabledNodes = shuffledIndices[:f+1]
 
 						network := NewNetwork(f, r, shards, options)
 						network.Start()
@@ -297,7 +302,7 @@ var _ = Describe("Hyperdrive", func() {
 						// Start the network with more than f nodes offline
 						options := DefaultOption
 						shuffledIndices := mrand.Perm(3*f + 1)
-						options.disableNodes = shuffledIndices[:f+1]
+						options.disabledNodes = shuffledIndices[:f+1]
 
 						network := NewNetwork(f, r, shards, options)
 						network.Start()
@@ -319,22 +324,23 @@ var _ = Describe("Hyperdrive", func() {
 })
 
 type networkOptions struct {
-	minNetworkDelay int   // minimum network latency when sending messages in milliseconds
-	maxNetworkDelay int   // maximum network latency when sending messages in milliseconds
-	minBootDelay    int   // minimum delay when booting the node in seconds
-	maxBootDelay    int   // maximum delay when booting the node in seconds
-	debugLogger     []int // indexes of the nodes which we want to enable the debug logger, nil for disable all
-	disableNodes    []int // indexes of the nodes which we want to disable at the starting of the network, nil for enable all
-
+	minNetworkDelay  int   // minimum network latency when sending messages in milliseconds
+	maxNetworkDelay  int   // maximum network latency when sending messages in milliseconds
+	minBootDelay     int   // minimum delay when booting the node in seconds
+	maxBootDelay     int   // maximum delay when booting the node in seconds
+	debugLogger      []int // indices of nodes that use a debug logger, nil to disable all
+	disabledNodes    []int // indices of nodes that are disabled when the network starts, nil to enable all
+	timeoutProposers []int // indices of nodes that timeout prior to proposing blocks, nil for no invalid proposers
 }
 
 var DefaultOption = networkOptions{
-	minNetworkDelay: 100,
-	maxNetworkDelay: 500,
-	minBootDelay:    0,
-	maxBootDelay:    3,
-	debugLogger:     nil,
-	disableNodes:    nil,
+	minNetworkDelay:  100,
+	maxNetworkDelay:  500,
+	minBootDelay:     0,
+	maxBootDelay:     3,
+	debugLogger:      nil,
+	disabledNodes:    nil,
+	timeoutProposers: nil,
 }
 
 type Network struct {
@@ -378,11 +384,19 @@ func NewNetwork(f, r int, shards replica.Shards, options networkOptions) Network
 	for i := range nodes {
 		logger := logrus.New()
 		if Contain(options.debugLogger, i) {
+			logger.Infof("✏️ node %d has debug logs enabled", i)
 			logger.SetLevel(logrus.DebugLevel)
 		}
 		store := NewMockPersistentStorage(shards)
 		store.Init(genesisBlock)
-		nodes[i] = NewNode(logger.WithField("node", i), shards, keys[i], broadcaster, store, i < 3*f+1)
+
+		var timeoutProposer bool
+		if Contain(options.timeoutProposers, i) {
+			logger.Infof("✏️ node %d will time out when proposing", i)
+			timeoutProposer = true
+		}
+		iter := NewMockBlockIterator(store, timeoutProposer)
+		nodes[i] = NewNode(logger.WithField("node", i), shards, keys[i], iter, broadcaster, store, i < 3*f+1)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -403,7 +417,7 @@ func NewNetwork(f, r int, shards replica.Shards, options networkOptions) Network
 
 func (network Network) Start() {
 	phi.ParForAll(network.nodes, func(i int) {
-		if Contain(network.options.disableNodes, i) {
+		if Contain(network.options.disabledNodes, i) {
 			return
 		}
 		SleepRandomSeconds(network.options.minBootDelay, network.options.maxBootDelay)
@@ -438,11 +452,16 @@ func (network *Network) StartNode(i int) {
 		logger.SetLevel(logrus.DebugLevel)
 	}
 	store := network.nodes[i].storage
+	var timeoutProposer bool
+	if Contain(network.options.timeoutProposers, i) {
+		timeoutProposer = true
+	}
+	iter := NewMockBlockIterator(store, timeoutProposer)
 
 	network.nodesMu.Lock()
 	defer network.nodesMu.Unlock()
 
-	network.nodes[i] = NewNode(logger.WithField("node", i), network.shards, network.nodes[i].key, network.Broadcaster, store, i >= network.r)
+	network.nodes[i] = NewNode(logger.WithField("node", i), network.shards, network.nodes[i].key, iter, network.Broadcaster, store, i >= network.r)
 	network.startNode(i)
 }
 
@@ -466,7 +485,11 @@ func (network *Network) startNode(i int) {
 
 		for {
 			select {
-			case message := <-messages:
+			case messageBytes := <-messages:
+				var message replica.Message
+				if err := message.UnmarshalBinary(messageBytes); err != nil {
+					panic(err)
+				}
 				hyperdrive.HandleMessage(message)
 				select {
 				case <-innerCtx.Done():
@@ -529,7 +552,7 @@ func (network *Network) HealthCheck(indexes []int) bool {
 			if node.observer.IsSignatory(shard) {
 				block := node.storage.LatestBlock(shard)
 				if block.Header().Height() <= currentBlockHeights[i] {
-					log.Printf("⚠️ node %v didn't progress ,old height = %v, new height = %v", i, currentBlockHeights[i], block.Header().Height())
+					node.logger.Infof("⚠️ node %d did not progress, old height = %d, new height = %d", i, currentBlockHeights[i], block.Header().Height())
 					return false
 				}
 			}
@@ -552,14 +575,13 @@ func (node Node) Signatory() id.Signatory {
 	return id.NewSignatory(node.key.PublicKey)
 }
 
-func NewNode(logger logrus.FieldLogger, shards Shards, pk *ecdsa.PrivateKey, broadcaster *MockBroadcaster, store *MockPersistentStorage, isSignatory bool) *Node {
+func NewNode(logger logrus.FieldLogger, shards Shards, pk *ecdsa.PrivateKey, iter *MockBlockIterator, broadcaster *MockBroadcaster, store *MockPersistentStorage, isSignatory bool) *Node {
 	option := Options{
 		Logger:      logger,
 		BackOffExp:  1,
 		BackOffBase: 3 * time.Second,
 		BackOffMax:  3 * time.Second,
 	}
-	iter := NewMockBlockIterator(store)
 	validator := NewMockValidator(store)
 	observer := NewMockObserver(store, isSignatory)
 	hd := New(option, store, store, iter, validator, observer, broadcaster, shards, *pk)

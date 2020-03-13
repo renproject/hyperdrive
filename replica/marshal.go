@@ -15,10 +15,6 @@ func (message Message) SizeHint() int {
 }
 
 func (message Message) Marshal(w io.Writer, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
 	m, err := surge.Marshal(w, uint64(message.Message.Type()), m)
 	if err != nil {
 		return m, err
@@ -30,12 +26,8 @@ func (message Message) Marshal(w io.Writer, m int) (int, error) {
 }
 
 func (message *Message) Unmarshal(r io.Reader, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
 	var messageType process.MessageType
-	m, err := surge.Unmarshal(r, (*uint64)(&messageType), m)
+	m, err := surge.Unmarshal(r, &messageType, m)
 	if err != nil {
 		return m, err
 	}
@@ -53,6 +45,10 @@ func (message *Message) Unmarshal(r io.Reader, m int) (int, error) {
 		precommit := new(process.Precommit)
 		m, err = precommit.Unmarshal(r, m)
 		message.Message = precommit
+	case process.ResyncMessageType:
+		resync := new(process.Resync)
+		m, err = resync.Unmarshal(r, m)
+		message.Message = resync
 	default:
 		return m, fmt.Errorf("unexpected message type %d", messageType)
 	}

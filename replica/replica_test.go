@@ -50,7 +50,7 @@ var _ = Describe("Replica", func() {
 		Context("when marshaling/unmarshaling message", func() {
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				message := Message{
-					Message: RandomMessage(RandomMessageType()),
+					Message: RandomMessage(RandomMessageType(true)),
 					Shard:   Shard{},
 				}
 
@@ -70,7 +70,7 @@ var _ = Describe("Replica", func() {
 				test := func(shard, wrongShard Shard) bool {
 					store, _, keys := initStorage(shard)
 					pstore := mockProcessStorage{}
-					broadcaster, _ := newMockBroadcaster()
+					broadcaster, _, _ := newMockBroadcaster()
 					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
 
 					pMessage := RandomMessage(process.ProposeMessageType)
@@ -98,7 +98,7 @@ var _ = Describe("Replica", func() {
 				test := func(shard, wrongShard Shard) bool {
 					store, _, _ := initStorage(shard)
 					pstore := mockProcessStorage{}
-					broadcaster, _ := newMockBroadcaster()
+					broadcaster, _, _ := newMockBroadcaster()
 					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
 					logger := logrus.StandardLogger()
 					logger.SetOutput(ioutil.Discard)
@@ -127,7 +127,7 @@ var _ = Describe("Replica", func() {
 				test := func(shard Shard) bool {
 					store, _, _ := initStorage(shard)
 					pstore := mockProcessStorage{}
-					broadcaster, _ := newMockBroadcaster()
+					broadcaster, _, _ := newMockBroadcaster()
 					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
 
 					pMessage := RandomSignedMessage(process.ProposeMessageType)
@@ -151,16 +151,3 @@ var _ = Describe("Replica", func() {
 		})
 	})
 })
-
-func parseType(s string) reflect.Type {
-	switch s {
-	case "propose":
-		return reflect.TypeOf(process.Propose{})
-	case "prevote":
-		return reflect.TypeOf(process.Prevote{})
-	case "precommit":
-		return reflect.TypeOf(process.Precommit{})
-	default:
-		panic("unknown message type")
-	}
-}

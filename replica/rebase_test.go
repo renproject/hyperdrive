@@ -83,7 +83,7 @@ var _ = Describe("shardRebaser", func() {
 				rebaser.DidCommitBlock(initHeight)
 				messages := make(process.Messages, 10)
 				for i := 0; i < len(messages); i++ {
-					messages[i] = RandomMessage(RandomMessageType())
+					messages[i] = RandomMessage(RandomMessageType(true))
 				}
 				rebaser.DidReceiveSufficientNilPrevotes(messages, 0)
 

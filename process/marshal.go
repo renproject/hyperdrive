@@ -12,28 +12,23 @@ import (
 // SizeHint of how many bytes will be needed to represent this propose in
 // binary.
 func (propose Propose) SizeHint() int {
-	return surge.SizeHint(propose.sig) +
-		surge.SizeHint(propose.signatory) +
+	return surge.SizeHint(propose.signatory) +
+		surge.SizeHint(propose.sig) +
 		surge.SizeHint(propose.height) +
 		surge.SizeHint(propose.round) +
 		surge.SizeHint(propose.block) +
 		surge.SizeHint(propose.validRound) +
 		surge.SizeHint(propose.latestCommit.Block) +
-		surge.SizeHint(propose.latestCommit.Precommits) +
-		surge.SizeHint(propose.signatory)
+		surge.SizeHint(propose.latestCommit.Precommits)
 }
 
 // Marshal this propose into binary.
 func (propose Propose) Marshal(w io.Writer, m int) (int, error) {
-	if m <= 0 {
-		return m, surge.ErrMaxBytesExceeded
-	}
-
-	m, err := surge.Marshal(w, propose.sig, m)
+	m, err := surge.Marshal(w, propose.signatory, m)
 	if err != nil {
 		return m, err
 	}
-	if m, err = surge.Marshal(w, propose.signatory, m); err != nil {
+	if m, err = surge.Marshal(w, propose.sig, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Marshal(w, propose.height, m); err != nil {
@@ -59,11 +54,11 @@ func (propose Propose) Marshal(w io.Writer, m int) (int, error) {
 
 // Unmarshal into this propose from binary.
 func (propose *Propose) Unmarshal(r io.Reader, m int) (int, error) {
-	m, err := surge.Unmarshal(r, &propose.sig, m)
+	m, err := surge.Unmarshal(r, &propose.signatory, m)
 	if err != nil {
 		return m, err
 	}
-	if m, err = surge.Unmarshal(r, &propose.signatory, m); err != nil {
+	if m, err = surge.Unmarshal(r, &propose.sig, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Unmarshal(r, &propose.height, m); err != nil {
@@ -90,8 +85,8 @@ func (propose *Propose) Unmarshal(r io.Reader, m int) (int, error) {
 // SizeHint of how many bytes will be needed to represent this prevote in
 // binary.
 func (prevote Prevote) SizeHint() int {
-	return surge.SizeHint(prevote.sig) +
-		surge.SizeHint(prevote.signatory) +
+	return surge.SizeHint(prevote.signatory) +
+		surge.SizeHint(prevote.sig) +
 		surge.SizeHint(prevote.height) +
 		surge.SizeHint(prevote.round) +
 		surge.SizeHint(prevote.blockHash) +
@@ -100,11 +95,11 @@ func (prevote Prevote) SizeHint() int {
 
 // Marshal this prevote into binary.
 func (prevote Prevote) Marshal(w io.Writer, m int) (int, error) {
-	m, err := surge.Marshal(w, prevote.sig, m)
+	m, err := surge.Marshal(w, prevote.signatory, m)
 	if err != nil {
 		return m, err
 	}
-	if m, err = surge.Marshal(w, prevote.signatory, m); err != nil {
+	if m, err = surge.Marshal(w, prevote.sig, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Marshal(w, prevote.height, m); err != nil {
@@ -121,11 +116,11 @@ func (prevote Prevote) Marshal(w io.Writer, m int) (int, error) {
 
 // Unmarshal into this prevote from binary.
 func (prevote *Prevote) Unmarshal(r io.Reader, m int) (int, error) {
-	m, err := surge.Unmarshal(r, &prevote.sig, m)
+	m, err := surge.Unmarshal(r, &prevote.signatory, m)
 	if err != nil {
 		return m, err
 	}
-	if m, err = surge.Unmarshal(r, &prevote.signatory, m); err != nil {
+	if m, err = surge.Unmarshal(r, &prevote.sig, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Unmarshal(r, &prevote.height, m); err != nil {
@@ -143,8 +138,8 @@ func (prevote *Prevote) Unmarshal(r io.Reader, m int) (int, error) {
 // SizeHint of how many bytes will be needed to represent this precommit in
 // binary.
 func (precommit Precommit) SizeHint() int {
-	return surge.SizeHint(precommit.sig) +
-		surge.SizeHint(precommit.signatory) +
+	return surge.SizeHint(precommit.signatory) +
+		surge.SizeHint(precommit.sig) +
 		surge.SizeHint(precommit.height) +
 		surge.SizeHint(precommit.round) +
 		surge.SizeHint(precommit.blockHash)
@@ -152,11 +147,11 @@ func (precommit Precommit) SizeHint() int {
 
 // Marshal this precommit into binary.
 func (precommit Precommit) Marshal(w io.Writer, m int) (int, error) {
-	m, err := surge.Marshal(w, precommit.sig, m)
+	m, err := surge.Marshal(w, precommit.signatory, m)
 	if err != nil {
 		return m, err
 	}
-	if m, err = surge.Marshal(w, precommit.signatory, m); err != nil {
+	if m, err = surge.Marshal(w, precommit.sig, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Marshal(w, precommit.height, m); err != nil {
@@ -170,11 +165,11 @@ func (precommit Precommit) Marshal(w io.Writer, m int) (int, error) {
 
 // Unmarshal into this precommit from binary.
 func (precommit *Precommit) Unmarshal(r io.Reader, m int) (int, error) {
-	m, err := surge.Unmarshal(r, &precommit.sig, m)
+	m, err := surge.Unmarshal(r, &precommit.signatory, m)
 	if err != nil {
 		return m, err
 	}
-	if m, err = surge.Unmarshal(r, &precommit.signatory, m); err != nil {
+	if m, err = surge.Unmarshal(r, &precommit.sig, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Unmarshal(r, &precommit.height, m); err != nil {
@@ -184,6 +179,45 @@ func (precommit *Precommit) Unmarshal(r io.Reader, m int) (int, error) {
 		return m, err
 	}
 	return surge.Unmarshal(r, &precommit.blockHash, m)
+}
+
+// SizeHint of how many bytes will be needed to represent this resync in
+// binary.
+func (resync Resync) SizeHint() int {
+	return surge.SizeHint(resync.signatory) +
+		surge.SizeHint(resync.sig) +
+		surge.SizeHint(resync.height) +
+		surge.SizeHint(resync.round)
+}
+
+// Marshal this resync into binary.
+func (resync Resync) Marshal(w io.Writer, m int) (int, error) {
+	m, err := surge.Marshal(w, resync.signatory, m)
+	if err != nil {
+		return m, err
+	}
+	if m, err = surge.Marshal(w, resync.sig, m); err != nil {
+		return m, err
+	}
+	if m, err = surge.Marshal(w, resync.height, m); err != nil {
+		return m, err
+	}
+	return surge.Marshal(w, resync.round, m)
+}
+
+// Unmarshal into this resync from binary.
+func (resync *Resync) Unmarshal(r io.Reader, m int) (int, error) {
+	m, err := surge.Unmarshal(r, &resync.signatory, m)
+	if err != nil {
+		return m, err
+	}
+	if m, err = surge.Unmarshal(r, &resync.sig, m); err != nil {
+		return m, err
+	}
+	if m, err = surge.Unmarshal(r, &resync.height, m); err != nil {
+		return m, err
+	}
+	return surge.Unmarshal(r, &resync.round, m)
 }
 
 // SizeHint of how many bytes will be needed to represent this inbox in binary.
