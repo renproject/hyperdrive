@@ -9,6 +9,6 @@ require (
 	github.com/renproject/abi v0.4.1
 	github.com/renproject/id v0.2.2
 	github.com/renproject/phi v0.1.0
-	github.com/renproject/surge v1.1.1
+	github.com/renproject/surge v1.1.2
 	github.com/sirupsen/logrus v1.4.2
 )
