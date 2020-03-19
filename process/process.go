@@ -328,10 +328,13 @@ func (p *Process) handlePropose(propose *Propose) {
 		}
 	}
 
-	// Resend our prevote from the valid round in case of missed messages.
+	// Resend our prevote from the valid round if it exists in case of missed
+	// messages.
 	if propose.ValidRound() > block.InvalidRound {
 		prevote := p.state.Prevotes.QueryByHeightRoundSignatory(propose.Height(), propose.ValidRound(), p.signatory)
-		p.broadcaster.Broadcast(prevote)
+		if prevote != nil {
+			p.broadcaster.Broadcast(prevote)
+		}
 	}
 
 	// upon f+1 *{currentHeight, round, *, *} and round > currentRound
