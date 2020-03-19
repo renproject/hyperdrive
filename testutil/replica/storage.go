@@ -30,13 +30,13 @@ func NewMockPersistentStorage(shards replica.Shards) *MockPersistentStorage {
 }
 
 func (store *MockPersistentStorage) SaveProcess(p *process.Process, shard replica.Shard) {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-
 	data, err := surge.ToBinary(p)
 	if err != nil {
 		panic(fmt.Sprintf("fail to marshal the process, err = %v", err))
+
 	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
 	store.processes[shard] = data
 }
 
@@ -48,8 +48,7 @@ func (store *MockPersistentStorage) RestoreProcess(p *process.Process, shard rep
 	if !ok {
 		return
 	}
-	err := surge.FromBinary(data, p)
-	if err != nil {
+	if err := surge.FromBinary(data, p); err != nil {
 		panic(err)
 	}
 }
@@ -101,6 +100,6 @@ func (store *MockPersistentStorage) Init(gb block.Block) {
 
 	for _, bc := range store.blockchains {
 		bc.InsertBlockAtHeight(block.Height(0), gb)
-		bc.InsertBlockStatAtHeight(block.Height(0), nil)
+		bc.InsertBlockStateAtHeight(block.Height(0), nil)
 	}
 }
