@@ -29,10 +29,10 @@ func NewMockPersistentStorage(shards replica.Shards) *MockPersistentStorage {
 	}
 }
 
-func (store *MockPersistentStorage) SaveProcess(p *process.Process, shard replica.Shard) {
-	data, err := surge.ToBinary(p)
+func (store *MockPersistentStorage) SaveState(state *process.State, shard replica.Shard) {
+	data, err := surge.ToBinary(state)
 	if err != nil {
-		panic(fmt.Sprintf("fail to marshal the process, err = %v", err))
+		panic(fmt.Sprintf("failed to marshal state: %v", err))
 
 	}
 	store.mu.Lock()
@@ -40,7 +40,7 @@ func (store *MockPersistentStorage) SaveProcess(p *process.Process, shard replic
 	store.processes[shard] = data
 }
 
-func (store *MockPersistentStorage) RestoreProcess(p *process.Process, shard replica.Shard) {
+func (store *MockPersistentStorage) RestoreState(state *process.State, shard replica.Shard) {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
 
@@ -48,8 +48,8 @@ func (store *MockPersistentStorage) RestoreProcess(p *process.Process, shard rep
 	if !ok {
 		return
 	}
-	if err := surge.FromBinary(data, p); err != nil {
-		panic(err)
+	if err := surge.FromBinary(data, state); err != nil {
+		panic(fmt.Sprintf("failed to unmarshal state: %v", err))
 	}
 }
 

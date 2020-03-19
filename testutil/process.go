@@ -170,12 +170,13 @@ type ProcessOrigin struct {
 	BroadcastMessages chan process.Message
 	CastMessages      chan process.Message
 
-	Proposer    process.Proposer
-	Validator   process.Validator
-	Scheduler   process.Scheduler
-	Broadcaster process.Broadcaster
-	Timer       process.Timer
-	Observer    process.Observer
+	SaveRestorer process.SaveRestorer
+	Proposer     process.Proposer
+	Validator    process.Validator
+	Scheduler    process.Scheduler
+	Broadcaster  process.Broadcaster
+	Timer        process.Timer
+	Observer     process.Observer
 }
 
 func NewProcessOrigin(f int) ProcessOrigin {
@@ -204,12 +205,13 @@ func NewProcessOrigin(f int) ProcessOrigin {
 		BroadcastMessages: broadcastMessages,
 		CastMessages:      castMessages,
 
-		Proposer:    NewMockProposer(privateKey),
-		Validator:   NewMockValidator(nil),
-		Scheduler:   NewMockScheduler(sig),
-		Broadcaster: NewMockBroadcaster(broadcastMessages, castMessages),
-		Timer:       NewMockTimer(1 * time.Second),
-		Observer:    MockObserver{},
+		SaveRestorer: NewMockSaveRestorer(),
+		Proposer:     NewMockProposer(privateKey),
+		Validator:    NewMockValidator(nil),
+		Scheduler:    NewMockScheduler(sig),
+		Broadcaster:  NewMockBroadcaster(broadcastMessages, castMessages),
+		Timer:        NewMockTimer(1 * time.Second),
+		Observer:     MockObserver{},
 	}
 }
 
@@ -223,6 +225,7 @@ func (p ProcessOrigin) ToProcess() *process.Process {
 		p.Signatory,
 		p.Blockchain,
 		p.State,
+		p.SaveRestorer,
 		p.Proposer,
 		p.Validator,
 		p.Observer,
@@ -307,6 +310,18 @@ func (bc *MockBlockchain) LatestBlock(kind block.Kind) block.Block {
 	}
 
 	return b
+}
+
+type MockSaveRestorer struct {
+}
+
+func NewMockSaveRestorer() process.SaveRestorer {
+	return &MockSaveRestorer{}
+}
+
+func (m *MockSaveRestorer) Save(state *process.State) {
+}
+func (m *MockSaveRestorer) Restore(state *process.State) {
 }
 
 type MockProposer struct {

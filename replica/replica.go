@@ -53,11 +53,23 @@ type Message struct {
 }
 
 // ProcessStorage saves and restores `process.State` to persistent memory. This
-// guarantess that in the event of an unexpected shutdown, the Replica will only
+// guarantees that in the event of an unexpected shutdown, the Replica will only
 // drop the `process.Message` that was currently being handling.
 type ProcessStorage interface {
-	SaveProcess(p *process.Process, shard Shard)
-	RestoreProcess(p *process.Process, shard Shard)
+	SaveState(state *process.State, shard Shard)
+	RestoreState(state *process.State, shard Shard)
+}
+
+type saveRestorer struct {
+	pStorage ProcessStorage
+	shard    Shard
+}
+
+func (saveRestorer *saveRestorer) Save(state *process.State) {
+	saveRestorer.pStorage.SaveState(state, saveRestorer.shard)
+}
+func (saveRestorer *saveRestorer) Restore(state *process.State) {
+	saveRestorer.pStorage.RestoreState(state, saveRestorer.shard)
 }
 
 // Options define a set of properties that can be used to parameterise the
@@ -96,7 +108,6 @@ type Replica struct {
 	options      Options
 	shard        Shard
 	p            *process.Process
-	pStorage     ProcessStorage
 	blockStorage BlockStorage
 
 	scheduler *roundRobinScheduler
@@ -121,6 +132,10 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		id.NewSignatory(privKey.PublicKey),
 		blockStorage.Blockchain(shard),
 		process.DefaultState((len(latestBase.Header().Signatories())-1)/3),
+		&saveRestorer{
+			pStorage: pStorage,
+			shard:    shard,
+		},
 		shardRebaser,
 		shardRebaser,
 		shardRebaser,
@@ -128,13 +143,12 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		scheduler,
 		newBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
 	)
-	pStorage.RestoreProcess(p, shard)
+	p.Restore()
 
 	return Replica{
 		options:      options,
 		shard:        shard,
 		p:            p,
-		pStorage:     pStorage,
 		blockStorage: blockStorage,
 
 		scheduler: scheduler,
@@ -173,7 +187,7 @@ func (replica *Replica) HandleMessage(m Message) {
 	// Handle the underlying `process.Message` and immediately save the
 	// `process.Process` afterwards to protect against unexpected crashes
 	replica.p.HandleMessage(m.Message)
-	replica.pStorage.SaveProcess(replica.p, replica.shard)
+	replica.p.Save()
 }
 
 func (replica *Replica) Rebase(sigs id.Signatories) {
