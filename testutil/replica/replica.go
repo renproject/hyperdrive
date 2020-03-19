@@ -126,14 +126,14 @@ func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
 		panic("DidCommitBlock should be called only when the block has been added to storage")
 	}
 	digest := sha256.Sum256(b.Txs())
-	blockchain.InsertBlockStatAtHeight(height, digest[:])
+	blockchain.InsertBlockStateAtHeight(height, digest[:])
 
 	// Insert executed state of the previous height
 	prevBlock, ok := blockchain.BlockAtHeight(height - 1)
 	if !ok {
 		panic(fmt.Sprintf("cannot find block of height %v, %v", height-1, prevBlock))
 	}
-	blockchain.InsertBlockStatAtHeight(height-1, prevBlock.PreviousState())
+	blockchain.InsertBlockStateAtHeight(height-1, prevBlock.PreviousState())
 }
 
 func (observer *MockObserver) IsSignatory(replica.Shard) bool {
