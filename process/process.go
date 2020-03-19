@@ -103,17 +103,17 @@ type Process struct {
 	blockchain Blockchain
 	state      State
 
-	restorer    SaveRestorer
-	proposer    Proposer
-	validator   Validator
-	scheduler   Scheduler
-	broadcaster Broadcaster
-	timer       Timer
-	observer    Observer
+	saveRestorer SaveRestorer
+	proposer     Proposer
+	validator    Validator
+	scheduler    Scheduler
+	broadcaster  Broadcaster
+	timer        Timer
+	observer     Observer
 }
 
 // New Process initialised to the default state, starting in the first round.
-func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, restorer SaveRestorer, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler Scheduler, timer Timer) *Process {
+func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, saveRestorer SaveRestorer, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler Scheduler, timer Timer) *Process {
 	p := &Process{
 		logger: logger,
 		mu:     new(sync.Mutex),
@@ -122,29 +122,29 @@ func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchai
 		blockchain: blockchain,
 		state:      state,
 
-		restorer:    restorer,
-		proposer:    proposer,
-		validator:   validator,
-		observer:    observer,
-		broadcaster: broadcaster,
-		scheduler:   scheduler,
-		timer:       timer,
+		saveRestorer: saveRestorer,
+		proposer:     proposer,
+		validator:    validator,
+		observer:     observer,
+		broadcaster:  broadcaster,
+		scheduler:    scheduler,
+		timer:        timer,
 	}
 	return p
 }
 
-// Save the current state of the process using the restorer.
+// Save the current state of the process using the saveRestorer.
 func (p *Process) Save() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.restorer.Save(&p.state)
+	p.saveRestorer.Save(&p.state)
 }
 
-// Restore the current state of the process using the restorer.
+// Restore the current state of the process using the saveRestorer.
 func (p *Process) Restore() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.restorer.Restore(&p.state)
+	p.saveRestorer.Restore(&p.state)
 }
 
 // SizeHint returns the number of bytes required to store this process in
