@@ -261,7 +261,7 @@ func (bc *MockBlockchain) InsertBlockAtHeight(height block.Height, block block.B
 	bc.blocks[height] = block
 }
 
-func (bc *MockBlockchain) InsertBlockStatAtHeight(height block.Height, state block.State) {
+func (bc *MockBlockchain) InsertBlockStateAtHeight(height block.Height, state block.State) {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
