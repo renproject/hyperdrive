@@ -11,6 +11,7 @@ import (
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/id"
+	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
 )
 
@@ -391,12 +392,12 @@ func (timer *MockTimer) Timeout(step process.Step, round block.Round) time.Durat
 }
 
 func GetStateFromProcess(p *process.Process, f int) process.State {
-	data, err := p.MarshalBinary()
+	data, err := surge.ToBinary(p)
 	if err != nil {
 		panic(err)
 	}
 	state := process.DefaultState(f)
-	if err := state.UnmarshalBinary(data); err != nil {
+	if err := surge.FromBinary(data, &state); err != nil {
 		panic(err)
 	}
 	return state

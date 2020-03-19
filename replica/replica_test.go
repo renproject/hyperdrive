@@ -4,19 +4,19 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
-	"encoding/json"
 	"io/ioutil"
 	"reflect"
 	"testing/quick"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/testutil"
-
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/testutil"
+	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	. "github.com/renproject/hyperdrive/testutil"
 )
 
 var _ = Describe("Replica", func() {
@@ -49,34 +49,18 @@ var _ = Describe("Replica", func() {
 
 	Context("replica", func() {
 		Context("when marshaling/unmarshaling message", func() {
-			It("should equal itself after json marshaling and then unmarshaling", func() {
-				message := Message{
-					Message: RandomMessage(RandomMessageType(true)),
-					Shard:   Shard{},
-				}
-
-				data, err := json.Marshal(message)
-				Expect(err).NotTo(HaveOccurred())
-				newMessage := Message{}
-				Expect(json.Unmarshal(data, &newMessage)).Should(Succeed())
-
-				newData, err := json.Marshal(newMessage)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(bytes.Equal(data, newData)).Should(BeTrue())
-			})
-
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				message := Message{
 					Message: RandomMessage(RandomMessageType(true)),
 					Shard:   Shard{},
 				}
 
-				data, err := message.MarshalBinary()
+				data, err := surge.ToBinary(message)
 				Expect(err).NotTo(HaveOccurred())
 				newMessage := Message{}
-				Expect(newMessage.UnmarshalBinary(data)).Should(Succeed())
+				Expect(surge.FromBinary(data, &newMessage)).Should(Succeed())
 
-				newData, err := newMessage.MarshalBinary()
+				newData, err := surge.ToBinary(newMessage)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(bytes.Equal(data, newData)).Should(BeTrue())
 			})

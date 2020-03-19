@@ -7,9 +7,11 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/renproject/id"
+	"github.com/renproject/surge"
 )
 
 // Kind defines the different kinds of blocks that exist. This is used for
@@ -34,6 +36,21 @@ const (
 	// same header signatories as their parent.
 	Base
 )
+
+// SizeHint of how many bytes will be needed to represent kindedness in binary.
+func (kind Kind) SizeHint() int {
+	return surge.SizeHint(uint8(kind))
+}
+
+// Marshal to binary.
+func (kind Kind) Marshal(w io.Writer, m int) (int, error) {
+	return surge.Marshal(w, uint8(kind), m)
+}
+
+// Unmarshal from binary.
+func (kind *Kind) Unmarshal(r io.Reader, m int) (int, error) {
+	return surge.Unmarshal(r, (*uint8)(kind), m)
+}
 
 // String implements the `fmt.Stringer` interface for the `Kind` type.
 func (kind Kind) String() string {
@@ -73,11 +90,11 @@ type Header struct {
 func NewHeader(kind Kind, parentHash, baseHash, txsRef, planRef, prevStateRef id.Hash, height Height, round Round, timestamp Timestamp, signatories id.Signatories) Header {
 	switch kind {
 	case Standard:
-		if signatories != nil {
+		if signatories != nil && len(signatories) != 0 {
 			panic("pre-condition violation: standard blocks must not declare signatories")
 		}
 	case Rebase, Base:
-		if len(signatories) == 0 {
+		if signatories == nil || len(signatories) == 0 {
 			panic(fmt.Sprintf("pre-condition violation: %v blocks must declare signatories", kind))
 		}
 	default:
@@ -194,6 +211,22 @@ func (txs Txs) String() string {
 	return base64.RawStdEncoding.EncodeToString(txs)
 }
 
+// SizeHint of how many bytes will be needed to represent transactions in
+// binary.
+func (txs Txs) SizeHint() int {
+	return surge.SizeHint([]byte(txs))
+}
+
+// Marshal to binary.
+func (txs Txs) Marshal(w io.Writer, m int) (int, error) {
+	return surge.Marshal(w, []byte(txs), m)
+}
+
+// Unmarshal from binary.
+func (txs *Txs) Unmarshal(r io.Reader, m int) (int, error) {
+	return surge.Unmarshal(r, (*[]byte)(txs), m)
+}
+
 // Plan stores application-specific data used that is required for the execution
 // of transactions in the block. This plan is usually pre-computed data that is
 // needed by players in the secure multi-party computation. It is separated from
@@ -212,6 +245,21 @@ func (plan Plan) String() string {
 	return base64.RawStdEncoding.EncodeToString(plan)
 }
 
+// SizeHint of how many bytes will be needed to represent a plan in binary.
+func (plan Plan) SizeHint() int {
+	return surge.SizeHint([]byte(plan))
+}
+
+// Marshal to binary.
+func (plan Plan) Marshal(w io.Writer, m int) (int, error) {
+	return surge.Marshal(w, []byte(plan), m)
+}
+
+// Unmarshal from binary.
+func (plan *Plan) Unmarshal(r io.Reader, m int) (int, error) {
+	return surge.Unmarshal(r, (*[]byte)(plan), m)
+}
+
 // State stores application-specific state after the execution of a block. The
 // block at height H+1 will store the state after the execution of block H. This
 // is required because of the nature of execution when using an interactive
@@ -226,6 +274,21 @@ func (state State) Hash() id.Hash {
 // String implements the `fmt.Stringer` interface for the `State` type.
 func (state State) String() string {
 	return base64.RawStdEncoding.EncodeToString(state)
+}
+
+// SizeHint of how many bytes will be needed to represent state in binary.
+func (state State) SizeHint() int {
+	return surge.SizeHint([]byte(state))
+}
+
+// Marshal to binary.
+func (state State) Marshal(w io.Writer, m int) (int, error) {
+	return surge.Marshal(w, []byte(state), m)
+}
+
+// Unmarshal from binary.
+func (state *State) Unmarshal(r io.Reader, m int) (int, error) {
+	return surge.Unmarshal(r, (*[]byte)(state), m)
 }
 
 // Blocks is a wrapper around the `[]Block` type.
@@ -296,20 +359,83 @@ func (block Block) Equal(other Block) bool {
 // Timestamp represents seconds since Unix epoch.
 type Timestamp uint64
 
+// SizeHint of how many bytes will be needed to represent time in binary.
+func (t Timestamp) SizeHint() int {
+	return surge.SizeHint(uint64(t))
+}
+
+// Marshal to binary.
+func (t Timestamp) Marshal(w io.Writer, m int) (int, error) {
+	return surge.Marshal(w, uint64(t), m)
+}
+
+// Unmarshal from binary.
+func (t *Timestamp) Unmarshal(r io.Reader, m int) (int, error) {
+	return surge.Unmarshal(r, (*uint64)(t), m)
+}
+
 // Height of a block.
 type Height int64
 
+// SizeHint of how many bytes will be needed to represent height in binary.
+func (h Height) SizeHint() int {
+	return surge.SizeHint(int64(h))
+}
+
+// Marshal to binary.
+func (h Height) Marshal(w io.Writer, m int) (int, error) {
+	return surge.Marshal(w, int64(h), m)
+}
+
+// Unmarshal from binary.
+func (h *Height) Unmarshal(r io.Reader, m int) (int, error) {
+	return surge.Unmarshal(r, (*int64)(h), m)
+}
+
 // Round in which a block was proposed.
 type Round int64
+
+// SizeHint of how many bytes will be needed to represent time in binary.
+func (round Round) SizeHint() int {
+	return surge.SizeHint(int64(round))
+}
+
+// Marshal to binary.
+func (round Round) Marshal(w io.Writer, m int) (int, error) {
+	return surge.Marshal(w, int64(round), m)
+}
+
+// Unmarshal from binary.
+func (round *Round) Unmarshal(r io.Reader, m int) (int, error) {
+	return surge.Unmarshal(r, (*int64)(round), m)
+}
 
 // Define some default invalid values.
 var (
 	InvalidHash      = id.Hash{}
 	InvalidSignature = id.Signature{}
 	InvalidSignatory = id.Signatory{}
-	InvalidBlock     = Block{}
-	InvalidRound     = Round(-1)
-	InvalidHeight    = Height(-1)
+	InvalidHeader    = Header{
+		kind:         Invalid,
+		parentHash:   id.Hash{},
+		baseHash:     id.Hash{},
+		txsRef:       id.Hash{},
+		planRef:      id.Hash{},
+		prevStateRef: id.Hash{},
+		height:       InvalidHeight,
+		round:        InvalidRound,
+		timestamp:    Timestamp(0),
+		signatories:  id.Signatories{},
+	}
+	InvalidBlock = Block{
+		hash:      id.Hash{},
+		header:    InvalidHeader,
+		txs:       []byte{},
+		plan:      []byte{},
+		prevState: []byte{},
+	}
+	InvalidRound  = Round(-1)
+	InvalidHeight = Height(-1)
 )
 
 // ComputeHash of a block based on its header, transactions, execution plan and

@@ -5,8 +5,10 @@ import (
 	"crypto/ecdsa"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"time"
 
+	"github.com/renproject/abi"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/id"
@@ -26,6 +28,18 @@ func (shard Shard) Equal(other Shard) bool {
 // String implements the `fmt.Stringer` interface.
 func (shard Shard) String() string {
 	return base64.RawStdEncoding.EncodeToString(shard[:])
+}
+
+func (shard Shard) SizeHint() int {
+	return 32
+}
+
+func (shard Shard) Marshal(w io.Writer, m int) (int, error) {
+	return abi.Bytes32(shard).Marshal(w, m)
+}
+
+func (shard *Shard) Unmarshal(r io.Reader, m int) (int, error) {
+	return (*abi.Bytes32)(shard).Unmarshal(r, m)
 }
 
 type Messages []Message

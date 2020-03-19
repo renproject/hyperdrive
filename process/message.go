@@ -3,19 +3,35 @@ package process
 import (
 	"crypto/ecdsa"
 	"crypto/sha256"
-	"encoding"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/id"
+	"github.com/renproject/surge"
 )
 
 // MessageType distinguished between the three valid (and one invalid) messages
 // types that are supported during consensus rounds.
 type MessageType uint64
+
+// SizeHint of how many bytes will be needed to represent message types in
+// binary.
+func (mt MessageType) SizeHint() int {
+	return surge.SizeHint(uint64(mt))
+}
+
+// Marshal this message type into binary.
+func (mt MessageType) Marshal(w io.Writer, m int) (int, error) {
+	return surge.Marshal(w, uint64(mt), m)
+}
+
+// Unmarshal into this message type from binary.
+func (mt *MessageType) Unmarshal(r io.Reader, m int) (int, error) {
+	return surge.Unmarshal(r, (*uint64)(mt), m)
+}
 
 const (
 	// NilMessageType is invalid and must not be used.
@@ -39,11 +55,11 @@ type Messages []Message
 // The Message interface defines the common behaviour of all messages that are
 // broadcast throughout the network during consensus rounds.
 type Message interface {
+	// Stringer allows Messages to format themselves as strings. This is mostly
+	// used for generating sighashes.
 	fmt.Stringer
-	json.Marshaler
-	json.Unmarshaler
-	encoding.BinaryMarshaler
-	encoding.BinaryUnmarshaler
+	// Surger allows Messages to un/marshal themselves from/to binary.
+	surge.Surger
 
 	// The Signatory that sent the message.
 	Signatory() id.Signatory
@@ -152,12 +168,16 @@ type LatestCommit struct {
 	Precommits []Precommit
 }
 
-func NewPropose(height block.Height, round block.Round, block block.Block, validRound block.Round) *Propose {
+func NewPropose(height block.Height, round block.Round, b block.Block, validRound block.Round) *Propose {
 	return &Propose{
 		height:     height,
 		round:      round,
-		block:      block,
+		block:      b,
 		validRound: validRound,
+		latestCommit: LatestCommit{
+			Block:      block.InvalidBlock,
+			Precommits: []Precommit{},
+		},
 	}
 }
 
@@ -256,7 +276,7 @@ func (prevote *Prevote) Type() MessageType {
 }
 
 func (prevote *Prevote) String() string {
-	nilReasonsBytes, err := prevote.NilReasons().MarshalBinary()
+	nilReasonsBytes, err := surge.ToBinary(prevote.NilReasons())
 	if err != nil {
 		return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash())
 	}
@@ -535,14 +555,6 @@ func (inbox *Inbox) QueryByHeightRound(height block.Height, round block.Round) (
 	return
 }
 
-func (inbox *Inbox) F() int {
-	return inbox.f
-}
-
-func (inbox *Inbox) MessageType() MessageType {
-	return inbox.messageType
-}
-
 // Reset the inbox to a specific height. All messages for height lower than the
 // specified height are dropped. This is necessary to ensure that, over time,
 // the storage space of the inbox is bounded.
@@ -552,4 +564,12 @@ func (inbox *Inbox) Reset(height block.Height) {
 			delete(inbox.messages, blockHeight)
 		}
 	}
+}
+
+func (inbox *Inbox) F() int {
+	return inbox.f
+}
+
+func (inbox *Inbox) MessageType() MessageType {
+	return inbox.messageType
 }
