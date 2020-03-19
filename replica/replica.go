@@ -60,18 +60,6 @@ type ProcessStorage interface {
 	RestoreState(state *process.State, shard Shard)
 }
 
-type saveRestorer struct {
-	pStorage ProcessStorage
-	shard    Shard
-}
-
-func (saveRestorer *saveRestorer) Save(state *process.State) {
-	saveRestorer.pStorage.SaveState(state, saveRestorer.shard)
-}
-func (saveRestorer *saveRestorer) Restore(state *process.State) {
-	saveRestorer.pStorage.RestoreState(state, saveRestorer.shard)
-}
-
 // Options define a set of properties that can be used to parameterise the
 // Replica and its behaviour.
 type Options struct {
@@ -132,10 +120,7 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		id.NewSignatory(privKey.PublicKey),
 		blockStorage.Blockchain(shard),
 		process.DefaultState((len(latestBase.Header().Signatories())-1)/3),
-		&saveRestorer{
-			pStorage: pStorage,
-			shard:    shard,
-		},
+		newSaveRestorer(pStorage, shard),
 		shardRebaser,
 		shardRebaser,
 		shardRebaser,
@@ -193,6 +178,25 @@ func (replica *Replica) HandleMessage(m Message) {
 func (replica *Replica) Rebase(sigs id.Signatories) {
 	replica.scheduler.rebase(sigs)
 	replica.rebaser.rebase(sigs)
+}
+
+type saveRestorer struct {
+	pStorage ProcessStorage
+	shard    Shard
+}
+
+func newSaveRestorer(pStorage ProcessStorage, shard Shard) saveRestorer {
+	return saveRestorer{
+		pStorage: pStorage,
+		shard:    shard,
+	}
+}
+
+func (saveRestorer *saveRestorer) Save(state *process.State) {
+	saveRestorer.pStorage.SaveState(state, saveRestorer.shard)
+}
+func (saveRestorer *saveRestorer) Restore(state *process.State) {
+	saveRestorer.pStorage.RestoreState(state, saveRestorer.shard)
 }
 
 type baseBlockCache struct {
