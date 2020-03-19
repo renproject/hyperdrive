@@ -766,15 +766,6 @@ var _ = Describe("Process", func() {
 			Expect(ok).Should(BeTrue())
 		})
 
-		It("should panic if the step is invalid", func() {
-			processOrigin := NewProcessOrigin(100)
-			processOrigin.State.CurrentStep = Step(100)
-			process := processOrigin.ToProcess()
-			Expect(func() {
-				process.Start()
-			}).Should(Panic())
-		})
-
 		Context("when the process has messages from a previous height", func() {
 			It("should resend the most recent proposal, prevote, and precommit", func() {
 				processOrigin := NewProcessOrigin(100)
