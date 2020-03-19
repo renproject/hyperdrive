@@ -185,8 +185,8 @@ type saveRestorer struct {
 	shard    Shard
 }
 
-func newSaveRestorer(pStorage ProcessStorage, shard Shard) saveRestorer {
-	return saveRestorer{
+func newSaveRestorer(pStorage ProcessStorage, shard Shard) *saveRestorer {
+	return &saveRestorer{
 		pStorage: pStorage,
 		shard:    shard,
 	}
