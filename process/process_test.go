@@ -66,7 +66,7 @@ var _ = Describe("Process", func() {
 
 	Context("when a new process is initialized", func() {
 		Context("when the process is the proposer", func() {
-			Context("when validBlock is nil", func() {
+			Context("when the valid block is nil", func() {
 				It("should propose a block generated proposer and broadcast it", func() {
 					// Init a default process to be modified
 					processOrigin := NewProcessOrigin(100)
@@ -87,7 +87,7 @@ var _ = Describe("Process", func() {
 				})
 			})
 
-			Context("when validBlock isn't nil", func() {
+			Context("when the valid block is not nil", func() {
 				It("should propose the valid block we have and broadcast it", func() {
 					// Init a default process to be modified
 					processOrigin := NewProcessOrigin(100)
@@ -107,24 +107,25 @@ var _ = Describe("Process", func() {
 		})
 
 		Context("when the process is not proposer", func() {
-			Context("when receive a propose from the proposer before the timeout expire", func() {
+			Context("when we receive a propose from the proposer before the timeout expires", func() {
 				Context("when the block is valid", func() {
 					It("should broadcast a prevote to the proposal", func() {
-						// Init a default process to be modified
+						// Initialise a default process.
 						processOrigin := NewProcessOrigin(100)
 
-						// Replace the scheduler and start the process
+						// Replace the scheduler and start the process.
 						privateKey := newEcdsaKey()
 						scheduler := NewMockScheduler(id.NewSignatory(privateKey.PublicKey))
 						processOrigin.Scheduler = scheduler
 						process := processOrigin.ToProcess()
 
-						// Generate a valid proposal
+						// Generate a valid proposal.
 						message := NewPropose(1, 0, RandomBlock(block.Standard), block.InvalidRound)
 						Expect(Sign(message, *privateKey)).NotTo(HaveOccurred())
 						process.HandleMessage(message)
 
-						// Expect the proposer broadcast a propose message with zero height and round
+						// Expect the proposer broadcasts a propose message with
+						// zero height and round.
 						var propose Message
 						Eventually(processOrigin.BroadcastMessages).Should(Receive(&propose))
 						proposal, ok := propose.(*Prevote)
@@ -136,28 +137,63 @@ var _ = Describe("Process", func() {
 
 				Context("when the block is invalid", func() {
 					It("should broadcast a nil prevote", func() {
-						// Init a default process to be modified
+						// Initialise a default process.
 						processOrigin := NewProcessOrigin(100)
 
-						// Replace the broadcaster and start the process
+						// Replace the broadcaster and start the process.
 						privateKey := newEcdsaKey()
 						scheduler := NewMockScheduler(id.NewSignatory(privateKey.PublicKey))
 						processOrigin.Scheduler = scheduler
 						processOrigin.Validator = NewMockValidator(fmt.Errorf(""))
 						process := processOrigin.ToProcess()
 
-						// Generate a invalid proposal
+						// Generate an invalid proposal.
 						message := NewPropose(1, 0, RandomBlock(block.Standard), block.InvalidRound)
 						Expect(Sign(message, *privateKey)).NotTo(HaveOccurred())
 						process.HandleMessage(message)
 
-						// Expect the proposer broadcast a propose message with zero height and round
+						// Ensure we receive a propose message with the zero
+						// height and round.
 						var propose Message
 						Eventually(processOrigin.BroadcastMessages).Should(Receive(&propose))
 						proposal, ok := propose.(*Prevote)
 						Expect(ok).Should(BeTrue())
 						Expect(proposal.Height()).Should(Equal(block.Height(1)))
 						Expect(proposal.Round()).Should(BeZero())
+					})
+				})
+
+				Context("when the valid block is not nil", func() {
+					It("should broadcast our prevote from that round", func() {
+						// Initialise a default process.
+						processOrigin := NewProcessOrigin(100)
+
+						// Replace the broadcaster.
+						privateKey := newEcdsaKey()
+						scheduler := NewMockScheduler(id.NewSignatory(privateKey.PublicKey))
+						processOrigin.Scheduler = scheduler
+						processOrigin.Validator = NewMockValidator(fmt.Errorf(""))
+
+						// Insert a prevote for the valid round as this is the
+						// message we will be expected to resend later.
+						validRound := RandomRound()
+						prevote := NewPrevote(1, validRound, RandomBlock(block.Standard).Hash(), nil)
+						Expect(Sign(prevote, *processOrigin.PrivateKey)).ShouldNot(HaveOccurred())
+						processOrigin.State.Prevotes.Insert(prevote)
+
+						// Start the process.
+						process := processOrigin.ToProcess()
+
+						// Generate a valid proposal with a valid round.
+						propose := NewPropose(1, 0, RandomBlock(block.Standard), validRound)
+						Expect(Sign(propose, *privateKey)).NotTo(HaveOccurred())
+						process.HandleMessage(propose)
+
+						// Ensure we broadcast a prevote message for the valid
+						// round.
+						Eventually(processOrigin.BroadcastMessages).Should(Receive(&prevote))
+						Expect(prevote.Height()).Should(Equal(block.Height(1)))
+						Expect(prevote.Round()).Should(Equal(validRound))
 					})
 				})
 			})
