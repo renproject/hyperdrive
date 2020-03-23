@@ -343,11 +343,21 @@ func (p *Process) handlePropose(propose *Propose) {
 		p.startRound(propose.Round())
 	}
 
-	p.checkProposeInCurrentHeightAndRoundWithPrevotes()
-	if firstTime {
-		p.checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime()
+	if propose.Height() == p.state.CurrentHeight {
+		if propose.Round() == p.state.CurrentRound {
+			// These conditions can only be true when the Propose was for the
+			// current height and round, so we only call them if the Propose was
+			// in fact for the current height and round.
+			p.checkProposeInCurrentHeightAndRoundWithPrevotes()
+			if firstTime {
+				p.checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime()
+			}
+		}
+		// This condition can only be true when the Propose was for the
+		// current height, so we only call it if the Propose was in fact for
+		// the current height.
+		p.checkProposeInCurrentHeightWithPrecommits(propose.Round())
 	}
-	p.checkProposeInCurrentHeightWithPrecommits(propose.Round())
 }
 
 func (p *Process) handlePrevote(prevote *Prevote) {
@@ -388,9 +398,14 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 		p.startRound(prevote.Round())
 	}
 
-	p.checkProposeInCurrentHeightAndRoundWithPrevotes()
-	if firstTimeExceeding2FOnBlockHash {
-		p.checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime()
+	if prevote.Height() == p.state.CurrentHeight && prevote.Round() == p.state.CurrentRound {
+		// These conditions can only be true when the Prevote was for the
+		// current height and round, so we only call them if the Prevote was
+		// in fact for the current height and round.
+		p.checkProposeInCurrentHeightAndRoundWithPrevotes()
+		if firstTimeExceeding2FOnBlockHash {
+			p.checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime()
+		}
 	}
 }
 
@@ -412,7 +427,12 @@ func (p *Process) handlePrecommit(precommit *Precommit) {
 		p.startRound(precommit.Round())
 	}
 
-	p.checkProposeInCurrentHeightWithPrecommits(precommit.Round())
+	if precommit.Height() == p.state.CurrentHeight {
+		// This condition can only be true when the Precommit was for the
+		// current height, so we only call it if the Precommit was in fact for
+		// the current height.
+		p.checkProposeInCurrentHeightWithPrecommits(precommit.Round())
+	}
 }
 
 func (p *Process) handleResync(resync *Resync) {
@@ -532,14 +552,15 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 	}
 }
 
-// checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime must only be
-// called when a Propose or Prevote has been seen for the first time, and it is
-// possible that a Propose and 2f+1 Prevotes has been seen for the first time at
-// the current `block.Height` and `block.Round`. This can happen when a Propose
-// is seen for the first time at the current `block.Height` and `block.Round`,
-// or, when a Prevote is seen for the first time at the current `block.Height`
-// and `block.Round`. It is ok to call this function multiple times
-// pre-emptively, but this call must only succeed once.
+// checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime checks and
+// reacts to a Propose and Prevote 2f+1 Prevotes having been seen for the first
+// time at the current `block.Height` and `block.Round`. This can happen when a
+// Propose is seen for the first time at the current `block.Height` and
+// `block.Round`, or, when a Prevote is seen for the first time at the current
+// `block.Height` and `block.Round`. This function can be called multiple times
+// pre-emptively (when it is not yet the case that a Propose and 2f+1 Prevotes
+// has been seen for the first time at the current `block.Height` and
+// `block.Round`), but it must only be called once when the condition is true.
 func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime() {
 	// upon Propose{currentHeight, currentRound, block, *} from Schedule(currentHeight, currentRound)
 	m := p.state.Proposals.QueryByHeightRoundSignatory(p.state.CurrentHeight, p.state.CurrentRound, p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound))
