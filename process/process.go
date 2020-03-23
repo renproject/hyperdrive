@@ -533,11 +533,13 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 }
 
 // checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime must only be
-// called when a Propose and 2f+1 Prevotes has been seen for the first time at
+// called when a Propose or Prevote has been seen for the first time, and it is
+// possible that a Propose and 2f+1 Prevotes has been seen for the first time at
 // the current `block.Height` and `block.Round`. This can happen when a Propose
 // is seen for the first time at the current `block.Height` and `block.Round`,
 // or, when a Prevote is seen for the first time at the current `block.Height`
-// and `block.Round`.
+// and `block.Round`. It is ok to call this function multiple times
+// pre-emptively, but this call must only succeed once.
 func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime() {
 	// upon Propose{currentHeight, currentRound, block, *} from Schedule(currentHeight, currentRound)
 	m := p.state.Proposals.QueryByHeightRoundSignatory(p.state.CurrentHeight, p.state.CurrentRound, p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound))
