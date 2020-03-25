@@ -189,19 +189,14 @@ func (p *Process) Start() {
 	p.broadcaster.Broadcast(resync)
 
 	// Start the Process from previous state.
-	switch p.state.CurrentStep {
-	case StepNil, StepPropose:
+	if p.state.CurrentStep == StepNil || p.state.CurrentStep == StepPropose {
 		p.startRound(p.state.CurrentRound)
-	case StepPrevote:
-		if numPrevotes >= 2*p.state.Prevotes.f+1 {
-			p.scheduleTimeoutPrevote(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrevote, p.state.CurrentRound))
-		}
-	case StepPrecommit:
-		if numPrecommits >= 2*p.state.Precommits.f+1 {
-			p.scheduleTimeoutPrecommit(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrecommit, p.state.CurrentRound))
-		}
-	default:
-		panic("unknown step value")
+	}
+	if numPrevotes >= 2*p.state.Prevotes.f+1 && p.state.CurrentStep == StepPrevote {
+		p.scheduleTimeoutPrevote(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrevote, p.state.CurrentRound))
+	}
+	if numPrecommits >= 2*p.state.Precommits.f+1 {
+		p.scheduleTimeoutPrecommit(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrecommit, p.state.CurrentRound))
 	}
 }
 
@@ -329,7 +324,7 @@ func (p *Process) handlePropose(propose *Propose) {
 	p.syncLatestCommit(propose.latestCommit)
 
 	p.logger.Debugf("received propose at height=%v and round=%v", propose.height, propose.round)
-	n, firstTime, _, _, _ := p.state.Proposals.Insert(propose)
+	_, firstTime, _, _, _ := p.state.Proposals.Insert(propose)
 
 	// upon Propose{currentHeight, currentRound, block, -1}
 	if propose.Height() == p.state.CurrentHeight && propose.Round() == p.state.CurrentRound && propose.ValidRound() == block.InvalidRound {
@@ -362,7 +357,17 @@ func (p *Process) handlePropose(propose *Propose) {
 		}
 	}
 
+	// Resend our prevote from the valid round if it exists in case of missed
+	// messages.
+	if propose.ValidRound() > block.InvalidRound {
+		prevote := p.state.Prevotes.QueryByHeightRoundSignatory(propose.Height(), propose.ValidRound(), p.signatory)
+		if prevote != nil {
+			p.broadcaster.Broadcast(prevote)
+		}
+	}
+
 	// upon f+1 *{currentHeight, round, *, *} and round > currentRound
+	n := p.numberOfMessagesAtCurrentHeight(propose.Round())
 	if n > p.state.Prevotes.F() && propose.Height() == p.state.CurrentHeight && propose.Round() > p.state.CurrentRound {
 		p.startRound(propose.Round())
 	}
@@ -380,7 +385,7 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 		prevoteDebugStr = prevote.blockHash.String()
 	}
 	p.logger.Debugf("received prevote=%v at height=%v and round=%v", prevoteDebugStr, prevote.height, prevote.round)
-	n, _, _, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash := p.state.Prevotes.Insert(prevote)
+	_, _, _, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash := p.state.Prevotes.Insert(prevote)
 	if firstTimeExceeding2F && prevote.Height() == p.state.CurrentHeight && prevote.Round() == p.state.CurrentRound && p.state.CurrentStep == StepPrevote {
 		// upon 2f+1 Prevote{currentHeight, currentRound, *} while step = StepPrevote for the first time
 		p.scheduleTimeoutPrevote(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrevote, p.state.CurrentRound))
@@ -407,6 +412,7 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 	}
 
 	// upon f+1 *{currentHeight, round, *, *} and round > currentRound
+	n := p.numberOfMessagesAtCurrentHeight(prevote.Round())
 	if n > p.state.Prevotes.F() && prevote.Height() == p.state.CurrentHeight && prevote.Round() > p.state.CurrentRound {
 		p.startRound(prevote.Round())
 	}
@@ -424,12 +430,13 @@ func (p *Process) handlePrecommit(precommit *Precommit) {
 	}
 	p.logger.Debugf("received precommit=%v at height=%v and round=%v", precommitDebugStr, precommit.height, precommit.round)
 	// upon 2f+1 Precommit{currentHeight, currentRound, *} for the first time
-	n, _, _, firstTimeExceeding2F, _ := p.state.Precommits.Insert(precommit)
+	_, _, _, firstTimeExceeding2F, _ := p.state.Precommits.Insert(precommit)
 	if firstTimeExceeding2F && precommit.Height() == p.state.CurrentHeight && precommit.Round() == p.state.CurrentRound {
 		p.scheduleTimeoutPrecommit(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrecommit, p.state.CurrentRound))
 	}
 
 	// upon f+1 *{currentHeight, round, *, *} and round > currentRound
+	n := p.numberOfMessagesAtCurrentHeight(precommit.Round())
 	if n > p.state.Precommits.F() && precommit.Height() == p.state.CurrentHeight && precommit.Round() > p.state.CurrentRound {
 		p.startRound(precommit.Round())
 	}
@@ -621,6 +628,13 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 			}
 		}
 	}
+}
+
+func (p *Process) numberOfMessagesAtCurrentHeight(round block.Round) int {
+	numUniqueProposals := p.state.Proposals.QueryByHeightRound(p.state.CurrentHeight, round)
+	numUniquePrevotes := p.state.Prevotes.QueryByHeightRound(p.state.CurrentHeight, round)
+	numUniquePrecommits := p.state.Precommits.QueryByHeightRound(p.state.CurrentHeight, round)
+	return numUniqueProposals + numUniquePrevotes + numUniquePrecommits
 }
 
 func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
