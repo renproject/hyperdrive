@@ -1,7 +1,7 @@
 package replica_test
 
 import (
-	"encoding/json"
+	"github.com/renproject/surge"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -17,26 +17,11 @@ var _ = Describe("Marshaling", func() {
 					Message: RandomMessage(RandomMessageType(true)),
 					Shard:   Shard{},
 				}
-				messageBytes, err := message.MarshalBinary()
+				messageBytes, err := surge.ToBinary(message)
 				Expect(err).ToNot(HaveOccurred())
 
 				var newMessage Message
-				Expect(newMessage.UnmarshalBinary(messageBytes)).To(Succeed())
-				Expect(newMessage).To(Equal(message))
-			}
-		})
-
-		It("should equal itself after json marshaling/unmarshaling", func() {
-			for i := 0; i < 10; i++ {
-				message := Message{
-					Message: RandomMessage(RandomMessageType(true)),
-					Shard:   Shard{},
-				}
-				messageBytes, err := json.Marshal(message)
-				Expect(err).ToNot(HaveOccurred())
-
-				var newMessage Message
-				Expect(json.Unmarshal(messageBytes, &newMessage)).To(Succeed())
+				Expect(surge.FromBinary(messageBytes, &newMessage)).To(Succeed())
 				Expect(newMessage).To(Equal(message))
 			}
 		})

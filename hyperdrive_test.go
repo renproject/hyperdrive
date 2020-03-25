@@ -16,6 +16,7 @@ import (
 	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/id"
 	"github.com/renproject/phi"
+	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
 
 	. "github.com/onsi/ginkgo"
@@ -487,7 +488,7 @@ func (network *Network) startNode(i int) {
 			select {
 			case messageBytes := <-messages:
 				var message replica.Message
-				if err := message.UnmarshalBinary(messageBytes); err != nil {
+				if err := surge.FromBinary(messageBytes, &message); err != nil {
 					panic(err)
 				}
 				hyperdrive.HandleMessage(message)

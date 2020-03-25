@@ -16,6 +16,7 @@ import (
 	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/id"
 	"github.com/renproject/phi"
+	"github.com/renproject/surge"
 )
 
 func Contain(list []int, target int) bool {
@@ -125,14 +126,14 @@ func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
 		panic("DidCommitBlock should be called only when the block has been added to storage")
 	}
 	digest := sha256.Sum256(b.Txs())
-	blockchain.InsertBlockStatAtHeight(height, digest[:])
+	blockchain.InsertBlockStateAtHeight(height, digest[:])
 
 	// Insert executed state of the previous height
 	prevBlock, ok := blockchain.BlockAtHeight(height - 1)
 	if !ok {
 		panic(fmt.Sprintf("cannot find block of height %v, %v", height-1, prevBlock))
 	}
-	blockchain.InsertBlockStatAtHeight(height-1, prevBlock.PreviousState())
+	blockchain.InsertBlockStateAtHeight(height-1, prevBlock.PreviousState())
 }
 
 func (observer *MockObserver) IsSignatory(replica.Shard) bool {
@@ -157,7 +158,7 @@ func NewMockBroadcaster(keys []*ecdsa.PrivateKey, min, max int) *MockBroadcaster
 	signatories := map[id.Signatory]int{}
 	for i, key := range keys {
 		sig := id.NewSignatory(key.PublicKey)
-		messages := make(chan []byte, 128)
+		messages := make(chan []byte, 1024)
 		cons[sig] = messages
 		signatories[sig] = i
 	}
@@ -182,7 +183,7 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 		return
 	}
 
-	messageBytes, err := message.MarshalBinary()
+	messageBytes, err := surge.ToBinary(message)
 	if err != nil {
 		panic(err)
 	}
@@ -200,7 +201,7 @@ func (m *MockBroadcaster) Cast(to id.Signatory, message replica.Message) {
 		return
 	}
 
-	messageBytes, err := message.MarshalBinary()
+	messageBytes, err := surge.ToBinary(message)
 	if err != nil {
 		panic(err)
 	}
@@ -214,7 +215,7 @@ func (m *MockBroadcaster) sendMessage(receiver id.Signatory, message []byte) {
 	// If the receiver is offline, it cannot receive any messages from other
 	// nodes.
 	if m.active[receiver] {
-		messages <- message
+		go func() { messages <- message }()
 	}
 }
 

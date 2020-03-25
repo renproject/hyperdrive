@@ -1,17 +1,34 @@
 package process
 
 import (
-	"encoding/json"
+	"io"
 	"sync"
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/id"
+	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
 )
 
 // Step in the consensus algorithm.
 type Step uint8
+
+// SizeHint of how many bytes will be needed to represent steps in
+// binary.
+func (Step) SizeHint() int {
+	return 1
+}
+
+// Marshal this step into binary.
+func (step Step) Marshal(w io.Writer, m int) (int, error) {
+	return surge.Marshal(w, uint8(step), m)
+}
+
+// Unmarshal into this step from binary.
+func (step *Step) Unmarshal(r io.Reader, m int) (int, error) {
+	return surge.Unmarshal(r, (*uint8)(step), m)
+}
 
 // Define all Steps.
 const (
@@ -31,6 +48,12 @@ type Blockchain interface {
 	InsertBlockAtHeight(block.Height, block.Block)
 	BlockAtHeight(block.Height) (block.Block, bool)
 	BlockExistsAtHeight(block.Height) bool
+}
+
+// A SaveRestorer defines a storage interface for the State.
+type SaveRestorer interface {
+	Save(*State)
+	Restore(*State)
 }
 
 // A Proposer builds a `block.Block` for proposals.
@@ -80,16 +103,17 @@ type Process struct {
 	blockchain Blockchain
 	state      State
 
-	proposer    Proposer
-	validator   Validator
-	scheduler   Scheduler
-	broadcaster Broadcaster
-	timer       Timer
-	observer    Observer
+	saveRestorer SaveRestorer
+	proposer     Proposer
+	validator    Validator
+	scheduler    Scheduler
+	broadcaster  Broadcaster
+	timer        Timer
+	observer     Observer
 }
 
 // New Process initialised to the default state, starting in the first round.
-func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler Scheduler, timer Timer) *Process {
+func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, saveRestorer SaveRestorer, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler Scheduler, timer Timer) *Process {
 	p := &Process{
 		logger: logger,
 		mu:     new(sync.Mutex),
@@ -98,46 +122,51 @@ func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchai
 		blockchain: blockchain,
 		state:      state,
 
-		proposer:    proposer,
-		validator:   validator,
-		observer:    observer,
-		broadcaster: broadcaster,
-		scheduler:   scheduler,
-		timer:       timer,
+		saveRestorer: saveRestorer,
+		proposer:     proposer,
+		validator:    validator,
+		observer:     observer,
+		broadcaster:  broadcaster,
+		scheduler:    scheduler,
+		timer:        timer,
 	}
 	return p
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the Process type,
-// by marshaling its isolated State.
-func (p Process) MarshalJSON() ([]byte, error) {
+// Save the current state of the process using the saveRestorer.
+func (p *Process) Save() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return json.Marshal(p.state)
+	p.saveRestorer.Save(&p.state)
 }
 
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the Process
-// type, by unmarshaling its isolated State.
-func (p *Process) UnmarshalJSON(data []byte) error {
+// Restore the current state of the process using the saveRestorer.
+func (p *Process) Restore() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return json.Unmarshal(data, &p.state)
+	p.saveRestorer.Restore(&p.state)
 }
 
-// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// Process type, by marshaling its isolated State.
-func (p Process) MarshalBinary() ([]byte, error) {
+// SizeHint returns the number of bytes required to store this process in
+// binary.
+func (p *Process) SizeHint() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.state.MarshalBinary()
+	return p.state.SizeHint()
 }
 
-// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// Process type, by unmarshaling its isolated State.
-func (p *Process) UnmarshalBinary(data []byte) error {
+// Marshal the process into binary.
+func (p *Process) Marshal(w io.Writer, m int) (int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.state.UnmarshalBinary(data)
+	return p.state.Marshal(w, m)
+}
+
+// Unmarshal into this process from binary.
+func (p *Process) Unmarshal(r io.Reader, m int) (int, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.state.Unmarshal(r, m)
 }
 
 // Start the process.

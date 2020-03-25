@@ -8,6 +8,7 @@ import (
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/replica"
 	"github.com/renproject/hyperdrive/testutil"
+	"github.com/renproject/surge"
 )
 
 type MockPersistentStorage struct {
@@ -28,18 +29,18 @@ func NewMockPersistentStorage(shards replica.Shards) *MockPersistentStorage {
 	}
 }
 
-func (store *MockPersistentStorage) SaveProcess(p *process.Process, shard replica.Shard) {
+func (store *MockPersistentStorage) SaveState(state *process.State, shard replica.Shard) {
+	data, err := surge.ToBinary(state)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal state: %v", err))
+
+	}
 	store.mu.Lock()
 	defer store.mu.Unlock()
-
-	data, err := p.MarshalBinary()
-	if err != nil {
-		panic(fmt.Sprintf("fail to marshal the process, err = %v", err))
-	}
 	store.processes[shard] = data
 }
 
-func (store *MockPersistentStorage) RestoreProcess(p *process.Process, shard replica.Shard) {
+func (store *MockPersistentStorage) RestoreState(state *process.State, shard replica.Shard) {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
 
@@ -47,8 +48,8 @@ func (store *MockPersistentStorage) RestoreProcess(p *process.Process, shard rep
 	if !ok {
 		return
 	}
-	if err := p.UnmarshalBinary(data); err != nil {
-		panic(err)
+	if err := surge.FromBinary(data, state); err != nil {
+		panic(fmt.Sprintf("failed to unmarshal state: %v", err))
 	}
 }
 
@@ -99,6 +100,6 @@ func (store *MockPersistentStorage) Init(gb block.Block) {
 
 	for _, bc := range store.blockchains {
 		bc.InsertBlockAtHeight(block.Height(0), gb)
-		bc.InsertBlockStatAtHeight(block.Height(0), nil)
+		bc.InsertBlockStateAtHeight(block.Height(0), nil)
 	}
 }

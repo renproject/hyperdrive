@@ -4,20 +4,20 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	cRand "crypto/rand"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"time"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/process"
-	. "github.com/renproject/hyperdrive/testutil"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/id"
+	"github.com/renproject/surge"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	. "github.com/renproject/hyperdrive/process"
+	. "github.com/renproject/hyperdrive/testutil"
 )
 
 var _ = Describe("Process", func() {
@@ -29,36 +29,19 @@ var _ = Describe("Process", func() {
 	}
 
 	Context("when marshaling/unmarshaling process", func() {
-		It("should equal itself after json marshaling and then unmarshaling", func() {
-			processOrigin := NewProcessOrigin(100)
-			processOrigin.State.CurrentHeight = block.Height(100) // make sure it's not proposing block.
-			process := processOrigin.ToProcess()
-
-			data, err := json.Marshal(process)
-			Expect(err).NotTo(HaveOccurred())
-			newProcess := processOrigin.ToProcess()
-			Expect(json.Unmarshal(data, &newProcess)).Should(Succeed())
-
-			// Since state cannot be accessed from the process. We try to compared the
-			// marshalling bytes to check if they we get the same process.
-			newData, err := json.Marshal(newProcess)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(bytes.Equal(data, newData)).Should(BeTrue())
-		})
-
 		It("should equal itself after binary marshaling and then unmarshaling", func() {
 			processOrigin := NewProcessOrigin(100)
 			processOrigin.State.CurrentHeight = block.Height(100) // make sure it's not proposing block.
 			process := processOrigin.ToProcess()
 
-			data, err := process.MarshalBinary()
+			data, err := surge.ToBinary(process)
 			Expect(err).NotTo(HaveOccurred())
 			newProcess := processOrigin.ToProcess()
-			Expect(newProcess.UnmarshalBinary(data)).Should(Succeed())
+			Expect(surge.FromBinary(data, newProcess)).Should(Succeed())
 
 			// Since state cannot be accessed from the process. We try to compared the
 			// marshalling bytes to check if they we get the same process.
-			newData, err := newProcess.MarshalBinary()
+			newData, err := surge.ToBinary(newProcess)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bytes.Equal(data, newData)).Should(BeTrue())
 		})
@@ -212,7 +195,7 @@ var _ = Describe("Process", func() {
 					process.Start()
 
 					// Store state for later use.
-					stateBytes, err := process.MarshalBinary()
+					stateBytes, err := surge.ToBinary(process)
 					Expect(err).ToNot(HaveOccurred())
 
 					// Expect the validator to broadcast a nil prevote message.
@@ -236,7 +219,7 @@ var _ = Describe("Process", func() {
 					newProcessOrigin := NewProcessOrigin(100)
 
 					state := DefaultState(100)
-					err = state.UnmarshalBinary(stateBytes)
+					err = surge.FromBinary(stateBytes, &state)
 					Expect(err).ToNot(HaveOccurred())
 
 					newProcessOrigin.UpdateState(state)
@@ -336,7 +319,7 @@ var _ = Describe("Process", func() {
 					}
 
 					// Store state for later use.
-					stateBytes, err := process.MarshalBinary()
+					stateBytes, err := surge.ToBinary(process)
 					Expect(err).ToNot(HaveOccurred())
 
 					var message Message
@@ -363,7 +346,7 @@ var _ = Describe("Process", func() {
 					newProcessOrigin.Blockchain.InsertBlockAtHeight(height-1, RandomBlock(block.Standard))
 
 					state := DefaultState(f)
-					err = state.UnmarshalBinary(stateBytes)
+					err = surge.FromBinary(stateBytes, &state)
 					Expect(err).ToNot(HaveOccurred())
 					newProcessOrigin.UpdateState(state)
 
@@ -445,7 +428,7 @@ var _ = Describe("Process", func() {
 				}
 
 				// Store state for later use.
-				stateBytes, err := process.MarshalBinary()
+				stateBytes, err := surge.ToBinary(process)
 				Expect(err).ToNot(HaveOccurred())
 
 				var message Message
@@ -471,7 +454,7 @@ var _ = Describe("Process", func() {
 				newProcessOrigin.State.CurrentRound = round
 
 				state := DefaultState(100)
-				err = state.UnmarshalBinary(stateBytes)
+				err = surge.FromBinary(stateBytes, &state)
 				Expect(err).ToNot(HaveOccurred())
 				newProcessOrigin.UpdateState(state)
 

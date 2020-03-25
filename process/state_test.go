@@ -1,15 +1,15 @@
 package process_test
 
 import (
-	"encoding/json"
 	"testing/quick"
+
+	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/surge"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/hyperdrive/process"
 	. "github.com/renproject/hyperdrive/testutil"
-
-	"github.com/renproject/hyperdrive/block"
 )
 
 var _ = Describe("States", func() {
@@ -18,11 +18,11 @@ var _ = Describe("States", func() {
 			It("should equal itself after marshaling and then unmarshaling", func() {
 				test := func() bool {
 					state := RandomState()
-					data, err := json.Marshal(state)
+					data, err := surge.ToBinary(state)
 					Expect(err).NotTo(HaveOccurred())
 
 					var newState State
-					Expect(json.Unmarshal(data, &newState)).Should(Succeed())
+					Expect(surge.FromBinary(data, &newState)).Should(Succeed())
 					return state.Equal(newState) && newState.Equal(state)
 				}
 
