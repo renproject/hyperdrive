@@ -323,8 +323,17 @@ func (p *Process) startRound(round block.Round) {
 func (p *Process) handlePropose(propose *Propose) {
 	p.syncLatestCommit(propose.latestCommit)
 
-	p.logger.Debugf("received propose at height=%v and round=%v", propose.height, propose.round)
-	_, firstTime, _, _, _ := p.state.Proposals.Insert(propose)
+	// Before inserting the Propose, we need to check whether or not the Propose
+	// is from the scheduled Proposer. Otherwise, we can safely ignore it.
+	var firstTime bool
+	if propose.Signatory().Equal(p.scheduler.Schedule(propose.Height(), propose.Round())) {
+		p.logger.Debugf("received propose at height=%v and round=%v", propose.height, propose.round)
+		_, firstTime, _, _, _ = p.state.Proposals.Insert(propose)
+	} else {
+		// Ignore out-of-turn Proposes.
+		p.logger.Warnf("received propose at height=%v and round=%v from out-of-turn proposer=%v", propose.height, propose.round, propose.signatory)
+		return
+	}
 
 	// upon Propose{currentHeight, currentRound, block, -1}
 	if propose.Height() == p.state.CurrentHeight && propose.Round() == p.state.CurrentRound && propose.ValidRound() == block.InvalidRound {
