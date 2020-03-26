@@ -176,6 +176,9 @@ func (replica *Replica) HandleMessage(m Message) {
 }
 
 func (replica *Replica) Rebase(sigs id.Signatories) {
+	if len(sigs)%3 != 1 {
+		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", len(sigs)))
+	}
 	replica.scheduler.rebase(sigs)
 	replica.rebaser.rebase(sigs)
 }
