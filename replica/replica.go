@@ -149,7 +149,16 @@ func (replica *Replica) Start() {
 }
 
 func (replica *Replica) HandleMessage(m Message) {
-	// Check that Message is from our Shard
+	// Ignore messagse from heights that the process has already progressed
+	// through. Messages at these earlier heights have no affect on consensus,
+	// and so there is no point wasting time processing them.
+	if m.Message.Height() < replica.p.CurrentHeight() {
+		replica.options.Logger.Debugf("ignore message: expected height>=%v, got height=%v", replica.p.CurrentHeight(), m.Message.Height())
+		return
+	}
+
+	// Check that Message is from our shard. If it is not, then there is no
+	// point processing the message.
 	if !replica.shard.Equal(m.Shard) {
 		replica.options.Logger.Warnf("bad message: expected shard=%v, got shard=%v", replica.shard, m.Shard)
 		return

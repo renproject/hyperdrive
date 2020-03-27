@@ -133,6 +133,13 @@ func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchai
 	return p
 }
 
+// CurrentHeight of the Process.
+func (p *Process) CurrentHeight() block.Height {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.state.CurrentHeight
+}
+
 // Save the current state of the process using the saveRestorer.
 func (p *Process) Save() {
 	p.mu.Lock()
