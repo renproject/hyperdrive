@@ -344,6 +344,9 @@ func (p *Process) handlePropose(propose *Propose) {
 
 	// upon Propose{currentHeight, currentRound, block, -1}
 	if propose.Height() == p.state.CurrentHeight && propose.Round() == p.state.CurrentRound && propose.ValidRound() == block.InvalidRound {
+
+		println("PROPOSE")
+
 		// from Schedule{currentHeight, currentRound}
 		if propose.Signatory().Equal(p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound)) {
 			// while currentStep = StepPropose

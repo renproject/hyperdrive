@@ -678,7 +678,7 @@ var _ = Describe("Process", func() {
 				})
 
 				Context("when the proposal is invalid", func() {
-					FIt("should broadcast a nil prevote", func() {
+					It("should broadcast a nil prevote", func() {
 						// Init a default process to be modified
 						f := rand.Intn(100) + 1
 						height, round := block.Height(rand.Int()), block.Round(rand.Int()+1) // Round needs to be great than 0
@@ -690,8 +690,7 @@ var _ = Describe("Process", func() {
 						process := processOrigin.ToProcess()
 
 						// Send the proposal
-						validRound := block.Round(rand.Intn(int(round)))
-						propose := NewPropose(height, round, RandomBlock(RandomBlockKind()), validRound)
+						propose := NewPropose(height, round, block.InvalidBlock, block.InvalidRound)
 						Expect(Sign(propose, *processOrigin.PrivateKey)).Should(Succeed())
 						process.HandleMessage(propose)
 
