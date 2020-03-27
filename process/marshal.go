@@ -1,834 +1,453 @@
 package process
 
 import (
-	"bytes"
-	"encoding/binary"
-	"encoding/json"
 	"fmt"
-	"sort"
+	"io"
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/id"
+	"github.com/renproject/surge"
 )
 
-// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// `NilReasons` type.
-func (nilReasons NilReasons) MarshalBinary() ([]byte, error) {
-	// Sort map to remove non-determinism.
-	keys := []string{}
-	for key := range nilReasons {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	buf := new(bytes.Buffer)
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(nilReasons))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write nilReasons len: %v", err)
-	}
-	for _, key := range keys {
-		keyBytes := []byte(key)
-		if err := binary.Write(buf, binary.LittleEndian, uint64(len(keyBytes))); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write nilReasons key len: %v", err)
-		}
-		if err := binary.Write(buf, binary.LittleEndian, keyBytes); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write nilReasons key data: %v", err)
-		}
-		val := nilReasons[key]
-		if err := binary.Write(buf, binary.LittleEndian, uint64(len(val))); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write nilReasons val len: %v", err)
-		}
-		if err := binary.Write(buf, binary.LittleEndian, val); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write nilReasons val data: %v", err)
-		}
-	}
-	return buf.Bytes(), nil
+// SizeHint of how many bytes will be needed to represent this propose in
+// binary.
+func (propose Propose) SizeHint() int {
+	return surge.SizeHint(propose.signatory) +
+		surge.SizeHint(propose.sig) +
+		surge.SizeHint(propose.height) +
+		surge.SizeHint(propose.round) +
+		surge.SizeHint(propose.block) +
+		surge.SizeHint(propose.validRound) +
+		surge.SizeHint(propose.latestCommit.Block) +
+		surge.SizeHint(propose.latestCommit.Precommits)
 }
 
-// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// `NilReasons` type.
-func (nilReasons *NilReasons) UnmarshalBinary(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	var lenNilReasons uint64
-	if err := binary.Read(buf, binary.LittleEndian, &lenNilReasons); err != nil {
-		return fmt.Errorf("cannot read nilReasons len: %v", err)
-	}
-	if lenNilReasons > 0 {
-		nilReasonsMap := make(NilReasons, lenNilReasons)
-		for i := uint64(0); i < lenNilReasons; i++ {
-			var lenKey uint64
-			if err := binary.Read(buf, binary.LittleEndian, &lenKey); err != nil {
-				return fmt.Errorf("cannot read nilReasons key len: %v", err)
-			}
-			keyBytes := make([]byte, lenKey)
-			if err := binary.Read(buf, binary.LittleEndian, &keyBytes); err != nil {
-				return fmt.Errorf("cannot read nilReasons key data: %v", err)
-			}
-			var lenVal uint64
-			if err := binary.Read(buf, binary.LittleEndian, &lenVal); err != nil {
-				return fmt.Errorf("cannot read nilReasons val len: %v", err)
-			}
-			val := make([]byte, lenVal)
-			if err := binary.Read(buf, binary.LittleEndian, &val); err != nil {
-				return fmt.Errorf("cannot read nilReasons val data: %v", err)
-			}
-			nilReasonsMap[string(keyBytes)] = val
-		}
-		*nilReasons = nilReasonsMap
-	}
-	return nil
-}
-
-// MarshalJSON implements the `json.Marshaler` interface for the `Propose` type.
-func (propose Propose) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Sig          id.Signature `json:"sig"`
-		Signatory    id.Signatory `json:"signatory"`
-		Height       block.Height `json:"height"`
-		Round        block.Round  `json:"round"`
-		Block        block.Block  `json:"block"`
-		ValidRound   block.Round  `json:"validRound"`
-		LatestCommit LatestCommit `json:"latestCommit"`
-	}{
-		propose.sig,
-		propose.signatory,
-		propose.height,
-		propose.round,
-		propose.block,
-		propose.validRound,
-		propose.latestCommit,
-	})
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Propose`
-// type.
-func (propose *Propose) UnmarshalJSON(data []byte) error {
-	tmp := struct {
-		Sig          id.Signature `json:"sig"`
-		Signatory    id.Signatory `json:"signatory"`
-		Height       block.Height `json:"height"`
-		Round        block.Round  `json:"round"`
-		Block        block.Block  `json:"block"`
-		ValidRound   block.Round  `json:"validRound"`
-		LatestCommit LatestCommit `json:"latestCommit"`
-	}{}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-	propose.sig = tmp.Sig
-	propose.signatory = tmp.Signatory
-	propose.height = tmp.Height
-	propose.round = tmp.Round
-	propose.block = tmp.Block
-	propose.validRound = tmp.ValidRound
-	propose.latestCommit = tmp.LatestCommit
-	return nil
-}
-
-// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// `Propose` type.
-func (propose Propose) MarshalBinary() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	if err := binary.Write(buf, binary.LittleEndian, propose.sig); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write propose.sig: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, propose.signatory); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write propose.signatory: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, propose.height); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write propose.height: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, propose.round); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write propose.round: %v", err)
-	}
-	blockData, err := propose.block.MarshalBinary()
+// Marshal this propose into binary.
+func (propose Propose) Marshal(w io.Writer, m int) (int, error) {
+	m, err := surge.Marshal(w, propose.signatory, m)
 	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal propose.block: %v", err)
+		return m, err
 	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(blockData))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write propose.block len: %v", err)
+	if m, err = surge.Marshal(w, propose.sig, m); err != nil {
+		return m, err
 	}
-	if err := binary.Write(buf, binary.LittleEndian, blockData); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write propose.block data: %v", err)
+	if m, err = surge.Marshal(w, propose.height, m); err != nil {
+		return m, err
 	}
-	if err := binary.Write(buf, binary.LittleEndian, propose.validRound); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write propose.validRound: %v", err)
+	if m, err = surge.Marshal(w, propose.round, m); err != nil {
+		return m, err
 	}
-	latestCommitBlockData, err := propose.latestCommit.Block.MarshalBinary()
+	if m, err = surge.Marshal(w, propose.block, m); err != nil {
+		return m, err
+	}
+	if m, err = surge.Marshal(w, propose.validRound, m); err != nil {
+		return m, err
+	}
+	if m, err = surge.Marshal(w, propose.latestCommit.Block, m); err != nil {
+		return m, err
+	}
+	return surge.Marshal(w, propose.latestCommit.Precommits, m)
+}
+
+// Unmarshal into this propose from binary.
+func (propose *Propose) Unmarshal(r io.Reader, m int) (int, error) {
+	m, err := surge.Unmarshal(r, &propose.signatory, m)
 	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal propose.latestCommit.Block: %v", err)
+		return m, err
 	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(latestCommitBlockData))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write propose.latestCommit.Block len: %v", err)
+	if m, err = surge.Unmarshal(r, &propose.sig, m); err != nil {
+		return m, err
 	}
-	if err := binary.Write(buf, binary.LittleEndian, latestCommitBlockData); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write propose.latestCommit.Block data: %v", err)
+	if m, err = surge.Unmarshal(r, &propose.height, m); err != nil {
+		return m, err
 	}
-	lenPrecommits := len(propose.latestCommit.Precommits)
-	if err := binary.Write(buf, binary.LittleEndian, uint64(lenPrecommits)); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write propose.latestCommit.Precommits len: %v", err)
+	if m, err = surge.Unmarshal(r, &propose.round, m); err != nil {
+		return m, err
 	}
-	for i := 0; i < lenPrecommits; i++ {
-		latestPrecommitBytes, err := propose.latestCommit.Precommits[i].MarshalBinary()
-		if err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot marshal propose.latestCommit precommit: %v", err)
-		}
-		if err := binary.Write(buf, binary.LittleEndian, uint64(len(latestPrecommitBytes))); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write propose.latestCommit precommit len: %v", err)
-		}
-		if err := binary.Write(buf, binary.LittleEndian, latestPrecommitBytes); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write propose.latestCommit precommit data: %v", err)
-		}
+	if m, err = surge.Unmarshal(r, &propose.block, m); err != nil {
+		return m, err
 	}
-	return buf.Bytes(), nil
+	if m, err = surge.Unmarshal(r, &propose.validRound, m); err != nil {
+		return m, err
+	}
+	if m, err = surge.Unmarshal(r, &propose.latestCommit.Block, m); err != nil {
+		return m, err
+	}
+	return surge.Unmarshal(r, &propose.latestCommit.Precommits, m)
 }
 
-// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// `Propose` type.
-func (propose *Propose) UnmarshalBinary(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	if err := binary.Read(buf, binary.LittleEndian, &propose.sig); err != nil {
-		return fmt.Errorf("cannot read propose.sig: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &propose.signatory); err != nil {
-		return fmt.Errorf("cannot read propose.signatory: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &propose.height); err != nil {
-		return fmt.Errorf("cannot read propose.height: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &propose.round); err != nil {
-		return fmt.Errorf("cannot read propose.round: %v", err)
-	}
-	var numBytes uint64
-	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read propose.block len: %v", err)
-	}
-	blockBytes := make([]byte, numBytes)
-	if _, err := buf.Read(blockBytes); err != nil {
-		return fmt.Errorf("cannot read propose.block data: %v", err)
-	}
-	if err := propose.block.UnmarshalBinary(blockBytes); err != nil {
-		return fmt.Errorf("cannot unmarshal propose.block: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &propose.validRound); err != nil {
-		return fmt.Errorf("cannot read propose.validRound: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read propose.latestCommit.Block len: %v", err)
-	}
-	latestCommitBlockBytes := make([]byte, numBytes)
-	if _, err := buf.Read(latestCommitBlockBytes); err != nil {
-		return fmt.Errorf("cannot read propose.latestCommit.Block data: %v", err)
-	}
-	if err := propose.latestCommit.Block.UnmarshalBinary(latestCommitBlockBytes); err != nil {
-		return fmt.Errorf("cannot unmarshal propose.latestCommit.Block: %v", err)
-	}
-	var lenPrecommits uint64
-	if err := binary.Read(buf, binary.LittleEndian, &lenPrecommits); err != nil {
-		return fmt.Errorf("cannot read propose.latestCommit.Precommits len: %v", err)
-	}
-	if lenPrecommits > 0 {
-		propose.latestCommit.Precommits = make([]Precommit, lenPrecommits)
-	}
-	for i := uint64(0); i < lenPrecommits; i++ {
-		if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-			return fmt.Errorf("cannot read propose.latestCommit precommit len: %v", err)
-		}
-		latestPrecommitBlockBytes := make([]byte, numBytes)
-		if _, err := buf.Read(latestPrecommitBlockBytes); err != nil {
-			return fmt.Errorf("cannot read propose.latestCommit precommit data: %v", err)
-		}
-		if err := propose.latestCommit.Precommits[i].UnmarshalBinary(latestPrecommitBlockBytes); err != nil {
-			return fmt.Errorf("cannot unmarshal propose.latestCommit precommit: %v", err)
-		}
-	}
-	return nil
+// SizeHint of how many bytes will be needed to represent this prevote in
+// binary.
+func (prevote Prevote) SizeHint() int {
+	return surge.SizeHint(prevote.signatory) +
+		surge.SizeHint(prevote.sig) +
+		surge.SizeHint(prevote.height) +
+		surge.SizeHint(prevote.round) +
+		surge.SizeHint(prevote.blockHash) +
+		surge.SizeHint(prevote.nilReasons)
 }
 
-// MarshalJSON implements the `json.Marshaler` interface for the `Prevote` type.
-func (prevote Prevote) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Sig        id.Signature `json:"sig"`
-		Signatory  id.Signatory `json:"signatory"`
-		Height     block.Height `json:"height"`
-		Round      block.Round  `json:"round"`
-		BlockHash  id.Hash      `json:"blockHash"`
-		NilReasons NilReasons   `json:"nilReasons"`
-	}{
-		prevote.sig,
-		prevote.signatory,
-		prevote.height,
-		prevote.round,
-		prevote.blockHash,
-		prevote.nilReasons,
-	})
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Prevote`
-// type.
-func (prevote *Prevote) UnmarshalJSON(data []byte) error {
-	tmp := struct {
-		Sig        id.Signature `json:"sig"`
-		Signatory  id.Signatory `json:"signatory"`
-		Height     block.Height `json:"height"`
-		Round      block.Round  `json:"round"`
-		BlockHash  id.Hash      `json:"blockHash"`
-		NilReasons NilReasons   `json:"nilReasons"`
-	}{}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-	prevote.sig = tmp.Sig
-	prevote.signatory = tmp.Signatory
-	prevote.height = tmp.Height
-	prevote.round = tmp.Round
-	prevote.blockHash = tmp.BlockHash
-	prevote.nilReasons = tmp.NilReasons
-	return nil
-}
-
-// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// `Prevote` type.
-func (prevote Prevote) MarshalBinary() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	if err := binary.Write(buf, binary.LittleEndian, prevote.sig); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write prevote.sig: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, prevote.signatory); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write prevote.signatory: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, prevote.height); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write prevote.height: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, prevote.round); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write prevote.round: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, prevote.blockHash); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write prevote.blockHash: %v", err)
-	}
-	nilReasonsBytes, err := prevote.nilReasons.MarshalBinary()
+// Marshal this prevote into binary.
+func (prevote Prevote) Marshal(w io.Writer, m int) (int, error) {
+	m, err := surge.Marshal(w, prevote.signatory, m)
 	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal prevote.nilReasons: %v", err)
+		return m, err
 	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(nilReasonsBytes))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write nilReasonsBytes len: %v", err)
+	if m, err = surge.Marshal(w, prevote.sig, m); err != nil {
+		return m, err
 	}
-	if err := binary.Write(buf, binary.LittleEndian, nilReasonsBytes); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write nilReasonsBytes data: %v", err)
+	if m, err = surge.Marshal(w, prevote.height, m); err != nil {
+		return m, err
 	}
-	return buf.Bytes(), nil
+	if m, err = surge.Marshal(w, prevote.round, m); err != nil {
+		return m, err
+	}
+	if m, err = surge.Marshal(w, prevote.blockHash, m); err != nil {
+		return m, err
+	}
+	return surge.Marshal(w, prevote.nilReasons, m)
 }
 
-// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// `Prevote` type.
-func (prevote *Prevote) UnmarshalBinary(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	if err := binary.Read(buf, binary.LittleEndian, &prevote.sig); err != nil {
-		return fmt.Errorf("cannot read prevote.sig: %v", err)
+// Unmarshal into this prevote from binary.
+func (prevote *Prevote) Unmarshal(r io.Reader, m int) (int, error) {
+	m, err := surge.Unmarshal(r, &prevote.signatory, m)
+	if err != nil {
+		return m, err
 	}
-	if err := binary.Read(buf, binary.LittleEndian, &prevote.signatory); err != nil {
-		return fmt.Errorf("cannot read prevote.signatory: %v", err)
+	if m, err = surge.Unmarshal(r, &prevote.sig, m); err != nil {
+		return m, err
 	}
-	if err := binary.Read(buf, binary.LittleEndian, &prevote.height); err != nil {
-		return fmt.Errorf("cannot read prevote.height: %v", err)
+	if m, err = surge.Unmarshal(r, &prevote.height, m); err != nil {
+		return m, err
 	}
-	if err := binary.Read(buf, binary.LittleEndian, &prevote.round); err != nil {
-		return fmt.Errorf("cannot read prevote.round: %v", err)
+	if m, err = surge.Unmarshal(r, &prevote.round, m); err != nil {
+		return m, err
 	}
-	if err := binary.Read(buf, binary.LittleEndian, &prevote.blockHash); err != nil {
-		return fmt.Errorf("cannot read prevote.blockHash: %v", err)
+	if m, err = surge.Unmarshal(r, &prevote.blockHash, m); err != nil {
+		return m, err
 	}
-	var lenNilReasonsBytes uint64
-	if err := binary.Read(buf, binary.LittleEndian, &lenNilReasonsBytes); err != nil {
-		return fmt.Errorf("cannot read nilReasonsBytes len: %v", err)
+	return surge.Unmarshal(r, &prevote.nilReasons, m)
+}
+
+// SizeHint of how many bytes will be needed to represent this precommit in
+// binary.
+func (precommit Precommit) SizeHint() int {
+	return surge.SizeHint(precommit.signatory) +
+		surge.SizeHint(precommit.sig) +
+		surge.SizeHint(precommit.height) +
+		surge.SizeHint(precommit.round) +
+		surge.SizeHint(precommit.blockHash)
+}
+
+// Marshal this precommit into binary.
+func (precommit Precommit) Marshal(w io.Writer, m int) (int, error) {
+	m, err := surge.Marshal(w, precommit.signatory, m)
+	if err != nil {
+		return m, err
 	}
-	if lenNilReasonsBytes > 0 {
-		nilReasonsBytes := make([]byte, lenNilReasonsBytes)
-		if err := binary.Read(buf, binary.LittleEndian, &nilReasonsBytes); err != nil {
-			return fmt.Errorf("cannot read nilReasonsBytes data: %v", err)
+	if m, err = surge.Marshal(w, precommit.sig, m); err != nil {
+		return m, err
+	}
+	if m, err = surge.Marshal(w, precommit.height, m); err != nil {
+		return m, err
+	}
+	if m, err = surge.Marshal(w, precommit.round, m); err != nil {
+		return m, err
+	}
+	return surge.Marshal(w, precommit.blockHash, m)
+}
+
+// Unmarshal into this precommit from binary.
+func (precommit *Precommit) Unmarshal(r io.Reader, m int) (int, error) {
+	m, err := surge.Unmarshal(r, &precommit.signatory, m)
+	if err != nil {
+		return m, err
+	}
+	if m, err = surge.Unmarshal(r, &precommit.sig, m); err != nil {
+		return m, err
+	}
+	if m, err = surge.Unmarshal(r, &precommit.height, m); err != nil {
+		return m, err
+	}
+	if m, err = surge.Unmarshal(r, &precommit.round, m); err != nil {
+		return m, err
+	}
+	return surge.Unmarshal(r, &precommit.blockHash, m)
+}
+
+// SizeHint of how many bytes will be needed to represent this resync in
+// binary.
+func (resync Resync) SizeHint() int {
+	return surge.SizeHint(resync.signatory) +
+		surge.SizeHint(resync.sig) +
+		surge.SizeHint(resync.height) +
+		surge.SizeHint(resync.round)
+}
+
+// Marshal this resync into binary.
+func (resync Resync) Marshal(w io.Writer, m int) (int, error) {
+	m, err := surge.Marshal(w, resync.signatory, m)
+	if err != nil {
+		return m, err
+	}
+	if m, err = surge.Marshal(w, resync.sig, m); err != nil {
+		return m, err
+	}
+	if m, err = surge.Marshal(w, resync.height, m); err != nil {
+		return m, err
+	}
+	return surge.Marshal(w, resync.round, m)
+}
+
+// Unmarshal into this resync from binary.
+func (resync *Resync) Unmarshal(r io.Reader, m int) (int, error) {
+	m, err := surge.Unmarshal(r, &resync.signatory, m)
+	if err != nil {
+		return m, err
+	}
+	if m, err = surge.Unmarshal(r, &resync.sig, m); err != nil {
+		return m, err
+	}
+	if m, err = surge.Unmarshal(r, &resync.height, m); err != nil {
+		return m, err
+	}
+	return surge.Unmarshal(r, &resync.round, m)
+}
+
+// SizeHint of how many bytes will be needed to represent this inbox in binary.
+func (inbox Inbox) SizeHint() int {
+	return surge.SizeHint(uint32(inbox.f)) + surge.SizeHint(inbox.messages)
+}
+
+// Marshal this inbox into binary.
+func (inbox Inbox) Marshal(w io.Writer, m int) (int, error) {
+	// Write f.
+	m, err := surge.Marshal(w, int64(inbox.f), m)
+	if err != nil {
+		return m, err
+	}
+	// Write message type.
+	if m, err = surge.Marshal(w, inbox.messageType, m); err != nil {
+		return m, err
+	}
+	// Write the number of heights.
+	if m, err = surge.Marshal(w, uint32(len(inbox.messages)), m); err != nil {
+		return m, err
+	}
+	// Write rounds for each height.
+	for height, rounds := range inbox.messages {
+		// Write the height.
+		if m, err = surge.Marshal(w, height, m); err != nil {
+			return m, err
 		}
-		if err := prevote.nilReasons.UnmarshalBinary(nilReasonsBytes); err != nil {
-			return fmt.Errorf("cannot unmarshal nilReasonsBytes: %v", err)
+		// Write the number of rounds at this height.
+		if m, err = surge.Marshal(w, uint32(len(rounds)), m); err != nil {
+			return m, err
 		}
-	}
-	return nil
-}
-
-// MarshalJSON implements the `json.Marshaler` interface for the `Precommit`
-// type.
-func (precommit Precommit) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Sig       id.Signature `json:"sig"`
-		Signatory id.Signatory `json:"signatory"`
-		Height    block.Height `json:"height"`
-		Round     block.Round  `json:"round"`
-		BlockHash id.Hash      `json:"blockHash"`
-	}{
-		precommit.sig,
-		precommit.signatory,
-		precommit.height,
-		precommit.round,
-		precommit.blockHash,
-	})
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Precommit`
-// type.
-func (precommit *Precommit) UnmarshalJSON(data []byte) error {
-	tmp := struct {
-		Sig       id.Signature `json:"sig"`
-		Signatory id.Signatory `json:"signatory"`
-		Height    block.Height `json:"height"`
-		Round     block.Round  `json:"round"`
-		BlockHash id.Hash      `json:"blockHash"`
-	}{}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-	precommit.sig = tmp.Sig
-	precommit.signatory = tmp.Signatory
-	precommit.height = tmp.Height
-	precommit.round = tmp.Round
-	precommit.blockHash = tmp.BlockHash
-	return nil
-}
-
-// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// `Precommit` type.
-func (precommit Precommit) MarshalBinary() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	if err := binary.Write(buf, binary.LittleEndian, precommit.sig); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write precommit.sig: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, precommit.signatory); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write precommit.signatory: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, precommit.height); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write precommit.height: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, precommit.round); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write precommit.round: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, precommit.blockHash); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write precommit.blockHash: %v", err)
-	}
-	return buf.Bytes(), nil
-}
-
-// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// `Precommit` type.
-func (precommit *Precommit) UnmarshalBinary(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	if err := binary.Read(buf, binary.LittleEndian, &precommit.sig); err != nil {
-		return fmt.Errorf("cannot read precommit.sig: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &precommit.signatory); err != nil {
-		return fmt.Errorf("cannot read precommit.signatory: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &precommit.height); err != nil {
-		return fmt.Errorf("cannot read precommit.height: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &precommit.round); err != nil {
-		return fmt.Errorf("cannot read precommit.round: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &precommit.blockHash); err != nil {
-		return fmt.Errorf("cannot read precommit.blockHash: %v", err)
-	}
-
-	return nil
-}
-
-// MarshalJSON implements the `json.Marshaler` interface for the `Resync` type.
-func (resync Resync) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Sig       id.Signature `json:"sig"`
-		Signatory id.Signatory `json:"signatory"`
-		Height    block.Height `json:"height"`
-		Round     block.Round  `json:"round"`
-	}{
-		resync.sig,
-		resync.signatory,
-		resync.height,
-		resync.round,
-	})
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Resync`
-// type.
-func (resync *Resync) UnmarshalJSON(data []byte) error {
-	tmp := struct {
-		Sig       id.Signature `json:"sig"`
-		Signatory id.Signatory `json:"signatory"`
-		Height    block.Height `json:"height"`
-		Round     block.Round  `json:"round"`
-	}{}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-	resync.sig = tmp.Sig
-	resync.signatory = tmp.Signatory
-	resync.height = tmp.Height
-	resync.round = tmp.Round
-	return nil
-}
-
-// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// `Resync` type.
-func (resync Resync) MarshalBinary() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	if err := binary.Write(buf, binary.LittleEndian, resync.sig); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write resync.sig: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, resync.signatory); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write resync.signatory: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, resync.height); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write resync.height: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, resync.round); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write resync.round: %v", err)
-	}
-	return buf.Bytes(), nil
-}
-
-// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// `Resync` type.
-func (resync *Resync) UnmarshalBinary(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	if err := binary.Read(buf, binary.LittleEndian, &resync.sig); err != nil {
-		return fmt.Errorf("cannot read resync.sig: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &resync.signatory); err != nil {
-		return fmt.Errorf("cannot read resync.signatory: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &resync.height); err != nil {
-		return fmt.Errorf("cannot read resync.height: %v", err)
-	}
-	if err := binary.Read(buf, binary.LittleEndian, &resync.round); err != nil {
-		return fmt.Errorf("cannot read resync.round: %v", err)
-	}
-	return nil
-}
-
-// MarshalJSON implements the `json.Marshaler` interface for the `Inbox` type.
-func (inbox Inbox) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		F        int                                                       `json:"f"`
-		Messages map[block.Height]map[block.Round]map[id.Signatory]Message `json:"messages"`
-	}{
-		inbox.f,
-		inbox.messages,
-	})
-}
-
-// UnmarshalJSON implements the `json.Unmarshaler` interface for the `Inbox`
-// type. Before unmarshaling into an inbox, you must initialise it. Unmarshaling
-// will panic if the inbox in not initialised, or if it is initialised with the
-// wrong message type.
-func (inbox *Inbox) UnmarshalJSON(data []byte) error {
-	tmp := struct {
-		F        int                                                               `json:"f"`
-		Messages map[block.Height]map[block.Round]map[id.Signatory]json.RawMessage `json:"messages"`
-	}{}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-	inbox.f = tmp.F
-	inbox.messages = map[block.Height]map[block.Round]map[id.Signatory]Message{}
-
-	for height, roundMap := range tmp.Messages {
-		if roundMap != nil {
-			inbox.messages[height] = map[block.Round]map[id.Signatory]Message{}
-		}
-		for round, sigMap := range roundMap {
-			if sigMap != nil {
-				inbox.messages[height][round] = map[id.Signatory]Message{}
+		// Write the rounds at this height.
+		for round, signatories := range rounds {
+			// Write the round.
+			if m, err := surge.Marshal(w, round, m); err != nil {
+				return m, err
 			}
-			for sig, raw := range sigMap {
-				var err error
-				switch inbox.messageType {
-				case ProposeMessageType:
-					msg := new(Propose)
-					err = json.Unmarshal(raw, msg)
-					inbox.messages[height][round][sig] = msg
-				case PrevoteMessageType:
-					msg := new(Prevote)
-					err = json.Unmarshal(raw, msg)
-					inbox.messages[height][round][sig] = msg
-				case PrecommitMessageType:
-					msg := new(Precommit)
-					err = json.Unmarshal(raw, msg)
-					inbox.messages[height][round][sig] = msg
+			// Write number of signatories.
+			if m, err = surge.Marshal(w, uint32(len(signatories)), m); err != nil {
+				return m, err
+			}
+			// Write signatory/message pairs.
+			for signatory, message := range signatories {
+				if m, err = surge.Marshal(w, signatory, m); err != nil {
+					return m, err
 				}
-				if err != nil {
-					return err
+				if m, err = surge.Marshal(w, message, m); err != nil {
+					return m, err
 				}
 			}
 		}
 	}
-
-	return nil
+	return m, nil
 }
 
-// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// `Inbox` type.
-func (inbox Inbox) MarshalBinary() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	if err := binary.Write(buf, binary.LittleEndian, uint64(inbox.f)); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write inbox.f: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(inbox.messages))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write inbox.messages len: %v", err)
-	}
-	for height, roundMap := range inbox.messages {
-		if err := binary.Write(buf, binary.LittleEndian, height); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write inbox.messages height: %v", err)
-		}
-		if err := binary.Write(buf, binary.LittleEndian, uint64(len(roundMap))); err != nil {
-			return buf.Bytes(), fmt.Errorf("cannot write inbox.messages roundMap len: %v", err)
-		}
-		for round, sigMap := range roundMap {
-			if err := binary.Write(buf, binary.LittleEndian, round); err != nil {
-				return buf.Bytes(), fmt.Errorf("cannot write inbox.messages round: %v", err)
-			}
-			if err := binary.Write(buf, binary.LittleEndian, uint64(len(sigMap))); err != nil {
-				return buf.Bytes(), fmt.Errorf("cannot write inbox.messages sigMap len: %v", err)
-			}
-			for sig, message := range sigMap {
-				if err := binary.Write(buf, binary.LittleEndian, sig); err != nil {
-					return buf.Bytes(), fmt.Errorf("cannot write inbox.messages sig: %v", err)
-				}
-				messageData, err := message.MarshalBinary()
-				if err != nil {
-					return buf.Bytes(), fmt.Errorf("cannot marshal message: %v", err)
-				}
-				if err := binary.Write(buf, binary.LittleEndian, uint64(len(messageData))); err != nil {
-					return buf.Bytes(), fmt.Errorf("cannot write message len: %v", err)
-				}
-				if err := binary.Write(buf, binary.LittleEndian, messageData); err != nil {
-					return buf.Bytes(), fmt.Errorf("cannot write message data: %v", err)
-				}
-			}
-		}
-	}
-	return buf.Bytes(), nil
-}
-
-// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// `Inbox` type. See the `UnmarshalJSON` method for more information.
-func (inbox *Inbox) UnmarshalBinary(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	var f uint64
-	if err := binary.Read(buf, binary.LittleEndian, &f); err != nil {
-		return fmt.Errorf("cannot read inbox.f: %v", err)
+// Unmarshal into this inbox from binary.
+func (inbox *Inbox) Unmarshal(r io.Reader, m int) (int, error) {
+	// Read f.
+	var f int64
+	m, err := surge.Unmarshal(r, &f, m)
+	if err != nil {
+		return m, fmt.Errorf("cannot unmarshal f: %v", err)
 	}
 	inbox.f = int(f)
-	var heightMapLen uint64
-	if err := binary.Read(buf, binary.LittleEndian, &heightMapLen); err != nil {
-		return fmt.Errorf("cannot read inbox.messages len: %v", err)
+	// Read message type.
+	if m, err = surge.Unmarshal(r, &inbox.messageType, m); err != nil {
+		return m, err
 	}
-	heightMap := make(map[block.Height]map[block.Round]map[id.Signatory]Message, heightMapLen)
-	for i := uint64(0); i < heightMapLen; i++ {
-		var height block.Height
-		if err := binary.Read(buf, binary.LittleEndian, &height); err != nil {
-			return fmt.Errorf("cannot read inbox.messages height: %v", err)
+	// Read the number of heights.
+	numHeights := uint32(0)
+	if m, err = surge.Unmarshal(r, &numHeights, m); err != nil {
+		return m, fmt.Errorf("cannot unmarshal number of heights: %v", err)
+	}
+	if int(numHeights) < 0 {
+		return m, fmt.Errorf("cannot unmarshal number of heights: unexpected negative length")
+	}
+	m -= int(numHeights)
+	if m <= 0 {
+		return m, surge.ErrMaxBytesExceeded
+	}
+	// Read rounds for each height.
+	inbox.messages = map[block.Height]map[block.Round]map[id.Signatory]Message{}
+	for i := uint32(0); i < numHeights; i++ {
+		// Read the height.
+		height := block.Height(0)
+		if m, err = surge.Unmarshal(r, &height, m); err != nil {
+			return m, fmt.Errorf("cannot unmarshal height: %v", err)
 		}
-		var roundMapLen uint64
-		if err := binary.Read(buf, binary.LittleEndian, &roundMapLen); err != nil {
-			return fmt.Errorf("cannot read inbox.messages roundMap len: %v", err)
+		// Read the number of rounds at this height.
+		numRounds := uint32(0)
+		if m, err = surge.Unmarshal(r, &numRounds, m); err != nil {
+			return m, fmt.Errorf("cannot unmarshal number of rounds: %v", err)
 		}
-		roundMap := make(map[block.Round]map[id.Signatory]Message, roundMapLen)
-		for j := uint64(0); j < roundMapLen; j++ {
-			var round block.Round
-			if err := binary.Read(buf, binary.LittleEndian, &round); err != nil {
-				return fmt.Errorf("cannot read inbox.messages round: %v", err)
-			}
-			var sigMapLen uint64
-			if err := binary.Read(buf, binary.LittleEndian, &sigMapLen); err != nil {
-				return fmt.Errorf("cannot read inbox.messages sigMap len: %v", err)
-			}
-			sigMap := make(map[id.Signatory]Message, sigMapLen)
-			for k := uint64(0); k < sigMapLen; k++ {
-				var sig id.Signatory
-				if err := binary.Read(buf, binary.LittleEndian, &sig); err != nil {
-					return fmt.Errorf("cannot read inbox.messages sig: %v", err)
-				}
-				var numBytes uint64
-				if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-					return fmt.Errorf("cannot read inbox.messages message len: %v", err)
-				}
-				messageBytes := make([]byte, numBytes)
-				if _, err := buf.Read(messageBytes); err != nil {
-					return fmt.Errorf("cannot read inbox.messages message data: %v", err)
-				}
+		if int(numRounds) < 0 {
+			return m, fmt.Errorf("cannot unmarshal number of rounds: unexpected negative length")
+		}
+		m -= int(numRounds)
+		if m <= 0 {
+			return m, surge.ErrMaxBytesExceeded
+		}
 
-				var err error
+		inbox.messages[height] = map[block.Round]map[id.Signatory]Message{}
+		for j := uint32(0); j < numRounds; j++ {
+			// Read the round.
+			round := block.Round(0)
+			if m, err = surge.Unmarshal(r, &round, m); err != nil {
+				return m, fmt.Errorf("cannot unmarshal middle key: %v", err)
+			}
+			// Read the number of signatories in this round.
+			numSignatories := uint32(0)
+			if m, err = surge.Unmarshal(r, &numSignatories, m); err != nil {
+				return m, fmt.Errorf("cannot unmarshal middle length: %v", err)
+			}
+			if int(numSignatories) < 0 {
+				return m, fmt.Errorf("expected negative length")
+			}
+			m -= int(numSignatories)
+			if m <= 0 {
+				return m, surge.ErrMaxBytesExceeded
+			}
+			inbox.messages[height][round] = map[id.Signatory]Message{}
+			for k := uint32(0); k < numSignatories; k++ {
+				// Read the signatory.
+				signatory := id.Signatory{}
+				if m, err = surge.Unmarshal(r, &signatory, m); err != nil {
+					return m, fmt.Errorf("cannot unmarshal inner key: %v", err)
+				}
+				// Read the message from this signatory.
 				switch inbox.messageType {
 				case ProposeMessageType:
 					message := new(Propose)
-					err = message.UnmarshalBinary(messageBytes)
-					sigMap[sig] = message
+					if m, err = message.Unmarshal(r, m); err != nil {
+						return m, fmt.Errorf("cannot unmarshal propose: %v", err)
+					}
+					inbox.messages[height][round][signatory] = message
 				case PrevoteMessageType:
 					message := new(Prevote)
-					err = message.UnmarshalBinary(messageBytes)
-					sigMap[sig] = message
+					if m, err = message.Unmarshal(r, m); err != nil {
+						return m, fmt.Errorf("cannot unmarshal prevote: %v", err)
+					}
+					inbox.messages[height][round][signatory] = message
 				case PrecommitMessageType:
 					message := new(Precommit)
-					err = message.UnmarshalBinary(messageBytes)
-					sigMap[sig] = message
-				}
-				if err != nil {
-					return fmt.Errorf("cannot unmarshal inbox.messages message: %v", err)
+					if m, err = message.Unmarshal(r, m); err != nil {
+						return m, fmt.Errorf("cannot unmarshal precommit: %v", err)
+					}
+					inbox.messages[height][round][signatory] = message
+				default:
+					return m, fmt.Errorf("unsupported MessageType=%v", inbox.messageType)
 				}
 			}
-			roundMap[round] = sigMap
 		}
-		heightMap[height] = roundMap
 	}
-	inbox.messages = heightMap
-	return nil
+	return m, nil
 }
 
-// MarshalBinary implements the `encoding.BinaryMarshaler` interface for the
-// `State` type.
-func (state State) MarshalBinary() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	if err := binary.Write(buf, binary.LittleEndian, state.CurrentHeight); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.CurrentHeight: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, state.CurrentRound); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.CurrentRound: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, state.CurrentStep); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.CurrentStep: %v", err)
-	}
-	lockedBlockData, err := state.LockedBlock.MarshalBinary()
-	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal state.LockedBlock: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(lockedBlockData))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.LockedBlock len: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, lockedBlockData); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.LockedBlock data: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, state.LockedRound); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.LockedRound: %v", err)
-	}
-	validBlockData, err := state.ValidBlock.MarshalBinary()
-	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal state.ValidBlock: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(validBlockData))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.ValidBlock len: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, validBlockData); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.ValidBlock data: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, state.ValidRound); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.ValidRound: %v", err)
-	}
-	proposalsData, err := state.Proposals.MarshalBinary()
-	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal state.Proposals: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(proposalsData))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.Proposals len: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, proposalsData); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.Proposals data: %v", err)
-	}
-	prevotesData, err := state.Prevotes.MarshalBinary()
-	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal state.Prevotes: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(prevotesData))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.Prevotes len: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, prevotesData); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.Prevotes data: %v", err)
-	}
-	precommitsData, err := state.Precommits.MarshalBinary()
-	if err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot marshal state.Precommits: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, uint64(len(precommitsData))); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.Precommits len: %v", err)
-	}
-	if err := binary.Write(buf, binary.LittleEndian, precommitsData); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write state.Precommits data: %v", err)
-	}
-	return buf.Bytes(), nil
+// SizeHint of how many bytes will be needed to represent state in binary.
+func (state State) SizeHint() int {
+	return surge.SizeHint(state.CurrentHeight) +
+		surge.SizeHint(state.CurrentRound) +
+		surge.SizeHint(state.CurrentStep) +
+		surge.SizeHint(state.LockedBlock) +
+		surge.SizeHint(state.LockedRound) +
+		surge.SizeHint(state.ValidBlock) +
+		surge.SizeHint(state.ValidRound) +
+		surge.SizeHint(state.Proposals) +
+		surge.SizeHint(state.Prevotes) +
+		surge.SizeHint(state.Precommits)
 }
 
-// UnmarshalBinary implements the `encoding.BinaryUnmarshaler` interface for the
-// `State` type.
-func (state *State) UnmarshalBinary(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	if err := binary.Read(buf, binary.LittleEndian, &state.CurrentHeight); err != nil {
-		return fmt.Errorf("cannot read state.CurrentHeight: %v", err)
+// Marshal this state into binary.
+func (state State) Marshal(w io.Writer, m int) (int, error) {
+	m, err := surge.Marshal(w, state.CurrentHeight, m)
+	if err != nil {
+		return m, err
 	}
-	if err := binary.Read(buf, binary.LittleEndian, &state.CurrentRound); err != nil {
-		return fmt.Errorf("cannot read state.CurrentRound: %v", err)
+	if m, err = surge.Marshal(w, state.CurrentRound, m); err != nil {
+		return m, err
 	}
-	if err := binary.Read(buf, binary.LittleEndian, &state.CurrentStep); err != nil {
-		return fmt.Errorf("cannot read state.CurrentStep: %v", err)
+	if m, err = surge.Marshal(w, state.CurrentStep, m); err != nil {
+		return m, err
 	}
-	var numBytes uint64
-	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read state.LockedBlock len: %v", err)
+	if m, err = surge.Marshal(w, state.LockedBlock, m); err != nil {
+		return m, err
 	}
-	lockedBlockBytes := make([]byte, numBytes)
-	if _, err := buf.Read(lockedBlockBytes); err != nil {
-		return fmt.Errorf("cannot read state.LockedBlock data: %v", err)
+	if m, err = surge.Marshal(w, state.LockedRound, m); err != nil {
+		return m, err
 	}
-	if err := state.LockedBlock.UnmarshalBinary(lockedBlockBytes); err != nil {
-		return fmt.Errorf("cannot unmarshal state.LockedBlock: %v", err)
+	if m, err = surge.Marshal(w, state.ValidBlock, m); err != nil {
+		return m, err
 	}
-	if err := binary.Read(buf, binary.LittleEndian, &state.LockedRound); err != nil {
-		return fmt.Errorf("cannot read state.LockedRound: %v", err)
+	if m, err = surge.Marshal(w, state.ValidRound, m); err != nil {
+		return m, err
 	}
-	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read state.ValidBlock len: %v", err)
+	if m, err = surge.Marshal(w, state.Proposals, m); err != nil {
+		return m, err
 	}
-	validBlockBytes := make([]byte, numBytes)
-	if _, err := buf.Read(validBlockBytes); err != nil {
-		return fmt.Errorf("cannot read state.ValidBlock data: %v", err)
+	if m, err = surge.Marshal(w, state.Prevotes, m); err != nil {
+		return m, err
 	}
-	if err := state.ValidBlock.UnmarshalBinary(validBlockBytes); err != nil {
-		return fmt.Errorf("cannot unmarshal state.ValidBlock: %v", err)
+	return surge.Marshal(w, state.Precommits, m)
+}
+
+// Unmarshal into this state from binary.
+func (state *State) Unmarshal(r io.Reader, m int) (int, error) {
+	m, err := surge.Unmarshal(r, &state.CurrentHeight, m)
+	if err != nil {
+		return m, err
 	}
-	if err := binary.Read(buf, binary.LittleEndian, &state.ValidRound); err != nil {
-		return fmt.Errorf("cannot read state.ValidRound: %v", err)
+	if m, err = surge.Unmarshal(r, &state.CurrentRound, m); err != nil {
+		return m, err
 	}
-	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read state.Proposals len: %v", err)
+	if m, err = surge.Unmarshal(r, &state.CurrentStep, m); err != nil {
+		return m, err
 	}
-	proposalsBytes := make([]byte, numBytes)
-	if _, err := buf.Read(proposalsBytes); err != nil {
-		return fmt.Errorf("cannot read state.Proposals data: %v", err)
+	if m, err = surge.Unmarshal(r, &state.LockedBlock, m); err != nil {
+		return m, err
 	}
-	if err := state.Proposals.UnmarshalBinary(proposalsBytes); err != nil {
-		return fmt.Errorf("cannot unmarshal state.Proposals: %v", err)
+	if m, err = surge.Unmarshal(r, &state.LockedRound, m); err != nil {
+		return m, err
 	}
-	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read state.Prevotes len: %v", err)
+	if m, err = surge.Unmarshal(r, &state.ValidBlock, m); err != nil {
+		return m, err
 	}
-	prevotesBytes := make([]byte, numBytes)
-	if _, err := buf.Read(prevotesBytes); err != nil {
-		return fmt.Errorf("cannot read state.Prevotes data: %v", err)
+	if m, err = surge.Unmarshal(r, &state.ValidRound, m); err != nil {
+		return m, err
 	}
-	if err := state.Prevotes.UnmarshalBinary(prevotesBytes); err != nil {
-		return fmt.Errorf("cannot unmarshal state.Prevotes: %v", err)
+	state.Proposals = new(Inbox)
+	if m, err = surge.Unmarshal(r, state.Proposals, m); err != nil {
+		return m, err
 	}
-	if err := binary.Read(buf, binary.LittleEndian, &numBytes); err != nil {
-		return fmt.Errorf("cannot read state.Precommits len: %v", err)
+	state.Prevotes = new(Inbox)
+	if m, err = surge.Unmarshal(r, state.Prevotes, m); err != nil {
+		return m, err
 	}
-	precommitsBytes := make([]byte, numBytes)
-	if _, err := buf.Read(precommitsBytes); err != nil {
-		return fmt.Errorf("cannot read state.Precommits data: %v", err)
-	}
-	if err := state.Precommits.UnmarshalBinary(precommitsBytes); err != nil {
-		return fmt.Errorf("cannot unmarshal state.Precommits: %v", err)
-	}
-	return nil
+	state.Precommits = new(Inbox)
+	return surge.Unmarshal(r, state.Precommits, m)
 }

@@ -60,3 +60,4 @@ func (state *State) Equal(other State) bool {
 		state.ValidBlock.Equal(other.ValidBlock) &&
 		state.ValidRound == other.ValidRound
 }
+

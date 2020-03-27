@@ -3,19 +3,19 @@ package process_test
 import (
 	"crypto/ecdsa"
 	cRand "crypto/rand"
-	"encoding/json"
 	"math/rand"
 	"reflect"
 	"testing/quick"
+
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/id"
+	"github.com/renproject/surge"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/hyperdrive/process"
 	. "github.com/renproject/hyperdrive/testutil"
-
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/renproject/hyperdrive/block"
-	"github.com/renproject/id"
 )
 
 var _ = Describe("Messages", func() {
@@ -66,28 +66,14 @@ var _ = Describe("Messages", func() {
 		})
 
 		Context("when marshaling random", func() {
-			It("should equal itself after json marshaling and then unmarshaling", func() {
-				test := func() bool {
-					msg := RandomPropose()
-					data, err := json.Marshal(msg)
-					Expect(err).NotTo(HaveOccurred())
-
-					var newMsg Propose
-					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
-					return msg.String() == newMsg.String()
-				}
-
-				Expect(quick.Check(test, nil)).Should(Succeed())
-			})
-
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomPropose()
-					data, err := msg.MarshalBinary()
+					data, err := surge.ToBinary(msg)
 					Expect(err).NotTo(HaveOccurred())
 
 					var newMsg Propose
-					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
+					Expect(surge.FromBinary(data, &newMsg)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 
@@ -158,28 +144,14 @@ var _ = Describe("Messages", func() {
 		})
 
 		Context("when marshaling random", func() {
-			It("should equal itself after json marshaling and then unmarshaling", func() {
-				test := func() bool {
-					msg := RandomPrevote()
-					data, err := json.Marshal(msg)
-					Expect(err).NotTo(HaveOccurred())
-
-					var newMsg Prevote
-					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
-					return msg.String() == newMsg.String()
-				}
-
-				Expect(quick.Check(test, nil)).Should(Succeed())
-			})
-
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomPrevote()
-					data, err := msg.MarshalBinary()
+					data, err := surge.ToBinary(msg)
 					Expect(err).NotTo(HaveOccurred())
 
 					var newMsg Prevote
-					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
+					Expect(surge.FromBinary(data, &newMsg)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 
@@ -250,28 +222,14 @@ var _ = Describe("Messages", func() {
 		})
 
 		Context("when marshaling random", func() {
-			It("should equal itself after json marshaling and then unmarshaling", func() {
-				test := func() bool {
-					msg := RandomPrecommit()
-					data, err := json.Marshal(msg)
-					Expect(err).NotTo(HaveOccurred())
-
-					var newMsg Precommit
-					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
-					return msg.String() == newMsg.String()
-				}
-
-				Expect(quick.Check(test, nil)).Should(Succeed())
-			})
-
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomPrecommit()
-					data, err := msg.MarshalBinary()
+					data, err := surge.ToBinary(msg)
 					Expect(err).NotTo(HaveOccurred())
 
 					var newMsg Precommit
-					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
+					Expect(surge.FromBinary(data, &newMsg)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 
@@ -344,28 +302,14 @@ var _ = Describe("Messages", func() {
 		})
 
 		Context("when marshaling random", func() {
-			It("should equal itself after json marshaling and then unmarshaling", func() {
-				test := func() bool {
-					msg := RandomResync()
-					data, err := json.Marshal(msg)
-					Expect(err).NotTo(HaveOccurred())
-
-					var newMsg Resync
-					Expect(json.Unmarshal(data, &newMsg)).Should(Succeed())
-					return msg.String() == newMsg.String()
-				}
-
-				Expect(quick.Check(test, nil)).Should(Succeed())
-			})
-
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				test := func() bool {
 					msg := RandomResync()
-					data, err := msg.MarshalBinary()
+					data, err := surge.ToBinary(msg)
 					Expect(err).NotTo(HaveOccurred())
 
 					var newMsg Resync
-					Expect(newMsg.UnmarshalBinary(data)).Should(Succeed())
+					Expect(surge.FromBinary(data, &newMsg)).Should(Succeed())
 					return msg.String() == newMsg.String()
 				}
 
@@ -436,33 +380,20 @@ var _ = Describe("Messages", func() {
 	})
 
 	Context("when marshaling a random inbox", func() {
-		It("should equal itself after json marshaling and then unmarshaling", func() {
-			test := func() bool {
-				messageType := RandomMessageType(false)
-				f := rand.Int() + 1
-				inbox := RandomInbox(f, messageType)
-				Expect(inbox.F()).Should(Equal(f))
-				data, err := json.Marshal(inbox)
-				Expect(err).NotTo(HaveOccurred())
-
-				newInbox := NewInbox(1, messageType)
-				Expect(json.Unmarshal(data, &newInbox)).Should(Succeed())
-				return reflect.DeepEqual(inbox, newInbox)
-			}
-			Expect(quick.Check(test, nil)).Should(Succeed())
-		})
-
 		It("should equal itself after binary marshaling and then unmarshaling", func() {
 			test := func() bool {
 				messageType := RandomMessageType(false)
 				f := rand.Int() + 1
 				inbox := RandomInbox(f, messageType)
 				Expect(inbox.F()).Should(Equal(f))
-				data, err := inbox.MarshalBinary()
+				data, err := surge.ToBinary(inbox)
 				Expect(err).NotTo(HaveOccurred())
 
 				newInbox := NewInbox(1, messageType)
-				Expect(newInbox.UnmarshalBinary(data)).Should(Succeed())
+				Expect(surge.FromBinary(data, newInbox)).Should(Succeed())
+				Expect(inbox.F()).To(Equal(newInbox.F()))
+				Expect(inbox.MessageType()).To(Equal(newInbox.MessageType()))
+
 				return reflect.DeepEqual(inbox, newInbox)
 			}
 			Expect(quick.Check(test, nil)).Should(Succeed())

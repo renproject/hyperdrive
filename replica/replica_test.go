@@ -4,19 +4,19 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
-	"encoding/json"
 	"io/ioutil"
 	"reflect"
 	"testing/quick"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	. "github.com/renproject/hyperdrive/testutil"
-
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/testutil"
+	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	. "github.com/renproject/hyperdrive/testutil"
 )
 
 var _ = Describe("Replica", func() {
@@ -49,34 +49,18 @@ var _ = Describe("Replica", func() {
 
 	Context("replica", func() {
 		Context("when marshaling/unmarshaling message", func() {
-			It("should equal itself after json marshaling and then unmarshaling", func() {
-				message := Message{
-					Message: RandomMessage(RandomMessageType(true)),
-					Shard:   Shard{},
-				}
-
-				data, err := json.Marshal(message)
-				Expect(err).NotTo(HaveOccurred())
-				newMessage := Message{}
-				Expect(json.Unmarshal(data, &newMessage)).Should(Succeed())
-
-				newData, err := json.Marshal(newMessage)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(bytes.Equal(data, newData)).Should(BeTrue())
-			})
-
 			It("should equal itself after binary marshaling and then unmarshaling", func() {
 				message := Message{
 					Message: RandomMessage(RandomMessageType(true)),
 					Shard:   Shard{},
 				}
 
-				data, err := message.MarshalBinary()
+				data, err := surge.ToBinary(message)
 				Expect(err).NotTo(HaveOccurred())
 				newMessage := Message{}
-				Expect(newMessage.UnmarshalBinary(data)).Should(Succeed())
+				Expect(surge.FromBinary(data, &newMessage)).Should(Succeed())
 
-				newData, err := newMessage.MarshalBinary()
+				newData, err := surge.ToBinary(newMessage)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(bytes.Equal(data, newData)).Should(BeTrue())
 			})
@@ -91,19 +75,26 @@ var _ = Describe("Replica", func() {
 					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
 
 					pMessage := RandomMessage(process.ProposeMessageType)
-					key := keys[0]
-					Expect(process.Sign(pMessage, *key)).Should(Succeed())
-					message := Message{
-						Shard:   shard,
-						Message: pMessage,
-					}
-					replica.HandleMessage(message)
+					numStored := 0
+					// Only one proposer is valid, so only one propose should
+					// end up stored in the Process state.
+					for _, key := range keys {
+						Expect(process.Sign(pMessage, *key)).Should(Succeed())
+						message := Message{
+							Shard:   shard,
+							Message: pMessage,
+						}
+						replica.HandleMessage(message)
 
-					// Expect the message not been inserted into the specific inbox,
-					// which indicating the message not passed to the process.
-					state := testutil.GetStateFromProcess(replica.p, 2)
-					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
-					Expect(reflect.DeepEqual(stored, pMessage)).Should(BeTrue())
+						// Expect the message not been inserted into the specific inbox,
+						// which indicating the message not passed to the process.
+						state := testutil.GetStateFromProcess(replica.p, 2)
+						stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
+						if reflect.DeepEqual(stored, pMessage) {
+							numStored++
+						}
+					}
+					Expect(numStored).To(Equal(1))
 
 					return true
 				}

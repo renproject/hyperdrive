@@ -105,8 +105,8 @@ func (m mockObserver) DidReceiveSufficientNilPrevotes(process.Messages, int) {
 type mockProcessStorage struct {
 }
 
-func (m mockProcessStorage) SaveProcess(p *process.Process, shard Shard) {
+func (m mockProcessStorage) SaveState(state *process.State, shard Shard) {
 }
 
-func (m mockProcessStorage) RestoreProcess(p *process.Process, shard Shard) {
+func (m mockProcessStorage) RestoreState(state *process.State, shard Shard) {
 }

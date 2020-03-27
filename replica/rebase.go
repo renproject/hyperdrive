@@ -128,27 +128,24 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 	}
 	switch proposedBlock.Header().Kind() {
 	case block.Standard:
-		if proposedBlock.Header().Signatories() != nil {
-			return nilReasons, fmt.Errorf("expected standard block to have nil signatories")
+		if proposedBlock.Header().Signatories() != nil && len(proposedBlock.Header().Signatories()) != 0 {
+			return nilReasons, fmt.Errorf("expected standard block to have nil/empty signatories")
 		}
 
 	case block.Rebase:
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
 			return nilReasons, fmt.Errorf("unexpected signatories in rebase block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
 		}
-		// TODO: Transactions are expected to be nil (the plan is not expected
-		// to be nil, because there are "default" computations that might need
-		// to be done every block).
 
 	case block.Base:
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
 			return nilReasons, fmt.Errorf("unexpected signatories in base block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
 		}
-		if proposedBlock.Txs() != nil {
-			return nilReasons, fmt.Errorf("expected base block to have nil txs")
+		if proposedBlock.Txs() != nil && len(proposedBlock.Txs()) != 0 {
+			return nilReasons, fmt.Errorf("expected base block to have nil/empty txs")
 		}
-		if proposedBlock.Plan() != nil {
-			return nilReasons, fmt.Errorf("expected base block to have nil plan")
+		if proposedBlock.Plan() != nil && len(proposedBlock.Plan()) != 0 {
+			return nilReasons, fmt.Errorf("expected base block to have nil/empty plan")
 		}
 
 	default:
