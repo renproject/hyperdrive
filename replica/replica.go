@@ -153,8 +153,10 @@ func (replica *Replica) HandleMessage(m Message) {
 	// through. Messages at these earlier heights have no affect on consensus,
 	// and so there is no point wasting time processing them.
 	if m.Message.Height() < replica.p.CurrentHeight() {
-		replica.options.Logger.Debugf("ignore message: expected height>=%v, got height=%v", replica.p.CurrentHeight(), m.Message.Height())
-		return
+		if _, ok := m.Message.(*process.Resync); !ok {
+			replica.options.Logger.Debugf("ignore message: expected height>=%v, got height=%v", replica.p.CurrentHeight(), m.Message.Height())
+			return
+		}
 	}
 
 	// Check that Message is from our shard. If it is not, then there is no
