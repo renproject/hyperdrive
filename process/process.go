@@ -80,6 +80,12 @@ type Scheduler interface {
 
 // A Broadcaster sends a Message to a either specific Process or as many
 // Processes in the network as possible.
+//
+// For the consensus algorithm to work correctly, it is assumed that all honest
+// processes will eventually deliver all messages to all other honest processes.
+// The specific message ordering is not important. In practice, the Prevote
+// messages are the only messages that must guarantee delivery when guaranteeing
+// correctness.
 type Broadcaster interface {
 	Broadcast(Message)
 	Cast(id.Signatory, Message)
@@ -536,6 +542,15 @@ func (p *Process) scheduleTimeoutPrecommit(height block.Height, round block.Roun
 	}()
 }
 
+// checkProposeInCurrentHeightAndRoundWithPrevotes must only be called when a
+// Propose or Prevote has been seen for the first time, and it is possible that
+// a Propose and 2f+1 Prevotes have been seen where the Propose is at the
+// current `block.Height` and `block.Round`, and the 2f+1 Prevotes are at the
+// current `block.Height` and valid `block.Round` of the Propose. This can
+// happen when a Propose is seen for the first time at the current
+// `block.Height` and `block.Round`, or, when a Prevote is seen for the first
+// time at the current `block.Height` and any `block.Round`. It is ok to call
+// this function multiple times.
 func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 	// upon Propose{currentHeight, currentRound, block, validRound} from Schedule(currentHeight, currentRound)
 	m := p.state.Proposals.QueryByHeightRoundSignatory(p.state.CurrentHeight, p.state.CurrentRound, p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound))
@@ -618,6 +633,14 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime
 	}
 }
 
+// checkProposeInCurrentHeightWithPrecommits must only be called when a Propose
+// or Precommit has been seen for the first time, and it is possible that a
+// Propose and 2f+1 Precommits have been seen where the Propose is at the
+// current `block.Height` and any `block.Round`, and the 2f+1 Precommits are at
+// the current `block.Height` and the as `block.Round` as the Propose. This can
+// happen when a Propose is seen for the first time at the current
+// `block.Height`, or when a Precommit is seen for the first time at the current
+// `block.Height`. It is ok to call this function multiple times.
 func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 	// upon Propose{currentHeight, round, block, *} from Schedule(currentHeight, round)
 	m := p.state.Proposals.QueryByHeightRoundSignatory(p.state.CurrentHeight, round, p.scheduler.Schedule(p.state.CurrentHeight, round))

@@ -10,6 +10,12 @@ import (
 
 // A Broadcaster is used to send signed, shard-specific, Messages to one or all
 // Replicas in the network.
+//
+// For the consensus algorithm to work correctly, it is assumed that all honest
+// replicas will eventually deliver all messages to all other honest replicas.
+// The specific message ordering is not important. In practice, the Prevote
+// messages are the only messages that must guarantee delivery when guaranteeing
+// correctness.
 type Broadcaster interface {
 	Broadcast(Message)
 	Cast(id.Signatory, Message)
