@@ -109,7 +109,7 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	options.setZerosToDefaults()
 	latestBase := blockStorage.LatestBaseBlock(shard)
 	scheduler := newRoundRobinScheduler(latestBase.Header().Signatories())
-	if len(latestBase.Header().Signatories())%3 != 1 {
+	if len(latestBase.Header().Signatories())%3 != 1 || len(latestBase.Header().Signatories()) < 4 {
 		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", len(latestBase.Header().Signatories())))
 	}
 	shardRebaser := newShardRebaser(blockStorage, blockIterator, validator, observer, shard)
@@ -187,7 +187,7 @@ func (replica *Replica) HandleMessage(m Message) {
 }
 
 func (replica *Replica) Rebase(sigs id.Signatories) {
-	if len(sigs)%3 != 1 {
+	if len(sigs)%3 != 1 || len(sigs) < 4 {
 		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", len(sigs)))
 	}
 	replica.scheduler.rebase(sigs)
