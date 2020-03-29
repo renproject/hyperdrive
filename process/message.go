@@ -446,12 +446,6 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 
 	previousN := len(inbox.messages[height][round])
 	_, ok := inbox.messages[height][round][signatory]
-	if ok {
-		// We do not override existing messages. This means that it is
-		// impossible for N to change, and thus for any "first time" triggers to
-		// become true.
-		return previousN, false, false, false, false
-	}
 
 	inbox.messages[height][round][signatory] = message
 

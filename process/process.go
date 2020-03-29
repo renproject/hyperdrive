@@ -133,13 +133,6 @@ func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchai
 	return p
 }
 
-// CurrentHeight of the Process.
-func (p *Process) CurrentHeight() block.Height {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.state.CurrentHeight
-}
-
 // Save the current state of the process using the saveRestorer.
 func (p *Process) Save() {
 	p.mu.Lock()
@@ -330,17 +323,8 @@ func (p *Process) startRound(round block.Round) {
 func (p *Process) handlePropose(propose *Propose) {
 	p.syncLatestCommit(propose.latestCommit)
 
-	// Before inserting the Propose, we need to check whether or not the Propose
-	// is from the scheduled Proposer. Otherwise, we can safely ignore it.
-	var firstTime bool
-	if propose.Signatory().Equal(p.scheduler.Schedule(propose.Height(), propose.Round())) {
-		p.logger.Debugf("received propose at height=%v and round=%v", propose.height, propose.round)
-		_, firstTime, _, _, _ = p.state.Proposals.Insert(propose)
-	} else {
-		// Ignore out-of-turn Proposes.
-		p.logger.Warnf("received propose at height=%v and round=%v from out-of-turn proposer=%v", propose.height, propose.round, propose.signatory)
-		return
-	}
+	p.logger.Debugf("received propose at height=%v and round=%v", propose.height, propose.round)
+	_, firstTime, _, _, _ := p.state.Proposals.Insert(propose)
 
 	// upon Propose{currentHeight, currentRound, block, -1}
 	if propose.Height() == p.state.CurrentHeight && propose.Round() == p.state.CurrentRound && propose.ValidRound() == block.InvalidRound {

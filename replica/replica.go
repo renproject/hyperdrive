@@ -109,7 +109,7 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	options.setZerosToDefaults()
 	latestBase := blockStorage.LatestBaseBlock(shard)
 	scheduler := newRoundRobinScheduler(latestBase.Header().Signatories())
-	if len(latestBase.Header().Signatories())%3 != 1 || len(latestBase.Header().Signatories()) < 4 {
+	if len(latestBase.Header().Signatories())%3 != 1 {
 		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", len(latestBase.Header().Signatories())))
 	}
 	shardRebaser := newShardRebaser(blockStorage, blockIterator, validator, observer, shard)
@@ -149,18 +149,7 @@ func (replica *Replica) Start() {
 }
 
 func (replica *Replica) HandleMessage(m Message) {
-	// Ignore messagse from heights that the process has already progressed
-	// through. Messages at these earlier heights have no affect on consensus,
-	// and so there is no point wasting time processing them.
-	if m.Message.Height() < replica.p.CurrentHeight() {
-		if _, ok := m.Message.(*process.Resync); !ok {
-			replica.options.Logger.Debugf("ignore message: expected height>=%v, got height=%v", replica.p.CurrentHeight(), m.Message.Height())
-			return
-		}
-	}
-
-	// Check that Message is from our shard. If it is not, then there is no
-	// point processing the message.
+	// Check that Message is from our Shard
 	if !replica.shard.Equal(m.Shard) {
 		replica.options.Logger.Warnf("bad message: expected shard=%v, got shard=%v", replica.shard, m.Shard)
 		return
@@ -187,9 +176,6 @@ func (replica *Replica) HandleMessage(m Message) {
 }
 
 func (replica *Replica) Rebase(sigs id.Signatories) {
-	if len(sigs)%3 != 1 || len(sigs) < 4 {
-		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", len(sigs)))
-	}
 	replica.scheduler.rebase(sigs)
 	replica.rebaser.rebase(sigs)
 }

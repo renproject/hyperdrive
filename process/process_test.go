@@ -543,12 +543,7 @@ var _ = Describe("Process", func() {
 	Context("when receiving f+1 of any message whose round is higher", func() {
 		It("should start that round", func() {
 			for _, t := range []MessageType{
-				// NOTE: You should only ever receive 1 Propose for a height
-				// and round, so this test is not meaningful for Propose
-				// messages.
-				//
-				//	ProposeMessageType,
-				//
+				ProposeMessageType,
 				PrevoteMessageType,
 				PrecommitMessageType,
 			} {
