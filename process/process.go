@@ -62,6 +62,22 @@ type Proposer interface {
 }
 
 // A Validator validates a `block.Block` that has been proposed.
+//
+// When the Validator decides that a `block.Block` is invalid, it must provide
+// `NilReasons` (that is, reasons explaining why the `block.Block` is invalid).
+// This is expected to be used for debugging, but it can also be used to help
+// the proposer "prune" invalid transactions from future `Propose` messages
+// (when `DidReceiveSufficientNilPrevotes` triggers). This can be useful in
+// fast-forwarding, because a proposer might have missed a `block.Block` and be
+// attempting to `Propose` transactions that are already committed in that
+// `block.Block`.
+//
+// The `checkHistory` argument tells the Validator whether, or not, it must also
+// check the parental history of the `block.Block` (that is, are all parent
+// blocks present and known to be valid too). This is important, because when
+// fast-forwarding, it is (by definition) not required to check all parental
+// history. An implementor can "disable" fast-forwarding by also validating as
+// if `checkHistory` was true.
 type Validator interface {
 	IsBlockValid(block block.Block, checkHistory bool) (NilReasons, error)
 }
