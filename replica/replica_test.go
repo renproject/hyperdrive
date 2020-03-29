@@ -75,19 +75,26 @@ var _ = Describe("Replica", func() {
 					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
 
 					pMessage := RandomMessage(process.ProposeMessageType)
-					key := keys[0]
-					Expect(process.Sign(pMessage, *key)).Should(Succeed())
-					message := Message{
-						Shard:   shard,
-						Message: pMessage,
-					}
-					replica.HandleMessage(message)
+					numStored := 0
+					// Only one proposer is valid, so only one propose should
+					// end up stored in the Process state.
+					for _, key := range keys {
+						Expect(process.Sign(pMessage, *key)).Should(Succeed())
+						message := Message{
+							Shard:   shard,
+							Message: pMessage,
+						}
+						replica.HandleMessage(message)
 
-					// Expect the message not been inserted into the specific inbox,
-					// which indicating the message not passed to the process.
-					state := testutil.GetStateFromProcess(replica.p, 2)
-					stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
-					Expect(reflect.DeepEqual(stored, pMessage)).Should(BeTrue())
+						// Expect the message not been inserted into the specific inbox,
+						// which indicating the message not passed to the process.
+						state := testutil.GetStateFromProcess(replica.p, 2)
+						stored := state.Proposals.QueryByHeightRoundSignatory(pMessage.Height(), pMessage.Round(), pMessage.Signatory())
+						if reflect.DeepEqual(stored, pMessage) {
+							numStored++
+						}
+					}
+					Expect(numStored).To(Equal(1))
 
 					return true
 				}

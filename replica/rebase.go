@@ -136,9 +136,6 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
 			return nilReasons, fmt.Errorf("unexpected signatories in rebase block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
 		}
-		// TODO: Transactions are expected to be nil (the plan is not expected
-		// to be nil, because there are "default" computations that might need
-		// to be done every block).
 
 	case block.Base:
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
