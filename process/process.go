@@ -344,9 +344,6 @@ func (p *Process) handlePropose(propose *Propose) {
 
 	// upon Propose{currentHeight, currentRound, block, -1}
 	if propose.Height() == p.state.CurrentHeight && propose.Round() == p.state.CurrentRound && propose.ValidRound() == block.InvalidRound {
-
-		println("PROPOSE")
-
 		// from Schedule{currentHeight, currentRound}
 		if propose.Signatory().Equal(p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound)) {
 			// while currentStep = StepPropose
@@ -446,12 +443,12 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 		p.startRound(prevote.Round())
 	}
 
-	if prevote.Height() == p.state.CurrentHeight && prevote.Round() == p.state.CurrentRound {
+	if prevote.Height() == p.state.CurrentHeight {
 		// These conditions can only be true when the Prevote was for the
-		// current height and round, so we only call them if the Prevote was
-		// in fact for the current height and round.
+		// current height (not necessarily the current round), so we only call
+		// them if the Prevote was in fact for the current height and round.
 		p.checkProposeInCurrentHeightAndRoundWithPrevotes()
-		if firstTimeExceeding2FOnBlockHash {
+		if prevote.Round() == p.state.CurrentRound && firstTimeExceeding2FOnBlockHash {
 			p.checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime()
 		}
 	}

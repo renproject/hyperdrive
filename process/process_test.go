@@ -601,7 +601,7 @@ var _ = Describe("Process", func() {
 							processOrigin.State.CurrentHeight = height
 							processOrigin.State.CurrentRound = round
 							processOrigin.State.CurrentStep = StepPropose
-							processOrigin.State.LockedRound = block.Round(rand.Intn(int(validRound + 1)))
+							processOrigin.State.LockedRound = block.Round(rand.Intn(int(validRound)))
 							process := processOrigin.ToProcess()
 
 							// Send the proposal
@@ -657,13 +657,13 @@ var _ = Describe("Process", func() {
 							for i := 0; i < 2*f+1; i++ {
 								prevote := NewPrevote(height, validRound, propose.BlockHash(), nil)
 								privateKey := newEcdsaKey()
-								Expect(Sign(prevote, *privateKey)).Should(Succeed())
+								Expect(Sign(prevote, *privateKey)).To(Succeed())
 								process.HandleMessage(prevote)
 							}
 
-							// Expect the process broadcast a nil prevote
+							// Expect the process broadcast prevote
 							var message Message
-							Eventually(processOrigin.BroadcastMessages, 2*time.Second).Should(Receive(&message))
+							Eventually(processOrigin.BroadcastMessages, time.Second).Should(Receive(&message))
 							prevote, ok := message.(*Prevote)
 							Expect(ok).Should(BeTrue())
 							Expect(prevote.Height()).Should(Equal(height))
