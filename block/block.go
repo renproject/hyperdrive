@@ -4,6 +4,7 @@
 package block
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
@@ -310,7 +311,7 @@ type Block struct {
 // Block Hash will automatically be computed and set.
 func New(header Header, txs Txs, plan Plan, prevState State) Block {
 	return Block{
-		hash:      ComputeHash(header, txs, plan, prevState),
+		hash:      NewBlockHash(header, txs, plan, prevState),
 		header:    header,
 		txs:       txs,
 		plan:      plan,
@@ -438,9 +439,23 @@ var (
 	InvalidHeight = Height(-1)
 )
 
-// ComputeHash of a block based on its header, transactions, execution plan and
+// NewBlockHash of a block based on its header, transactions, execution plan and
 // state before execution (i.e. state after execution of its parent). This
 // function returns a hash that can be used when creating a block.
-func ComputeHash(header Header, txs Txs, plan Plan, prevState State) id.Hash {
-	return sha256.Sum256([]byte(fmt.Sprintf("BlockHash(Header=%v,Txs=%v,Plan=%v,PreviousState=%v)", header, txs, plan, prevState)))
+func NewBlockHash(header Header, txs Txs, plan Plan, prevState State) id.Hash {
+	buf := new(bytes.Buffer)
+	buf.Grow(header.SizeHint() + surge.SizeHint([]byte(txs)) + surge.SizeHint([]byte(plan)) + surge.SizeHint([]byte(prevState)))
+	if _, err := surge.Marshal(buf, header, surge.MaxBytes); err != nil {
+		return id.Hash{} // Return the empty hash on an error.
+	}
+	if _, err := surge.Marshal(buf, []byte(txs), surge.MaxBytes); err != nil {
+		return id.Hash{} // Return the empty hash on an error.
+	}
+	if _, err := surge.Marshal(buf, []byte(plan), surge.MaxBytes); err != nil {
+		return id.Hash{} // Return the empty hash on an error.
+	}
+	if _, err := surge.Marshal(buf, []byte(prevState), surge.MaxBytes); err != nil {
+		return id.Hash{} // Return the empty hash on an error.
+	}
+	return sha256.Sum256(buf.Bytes())
 }
