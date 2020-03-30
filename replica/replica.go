@@ -70,6 +70,10 @@ type Options struct {
 	BackOffExp  float64
 	BackOffBase time.Duration
 	BackOffMax  time.Duration
+
+	// MaxMessageQueueSize is the maximum number of "future" messages that the
+	// Replica will buffer in memory.
+	MaxMessageQueueSize int
 }
 
 func (options *Options) setZerosToDefaults() {
@@ -84,6 +88,9 @@ func (options *Options) setZerosToDefaults() {
 	}
 	if options.BackOffMax == time.Duration(0) {
 		options.BackOffMax = 5 * time.Minute
+	}
+	if options.MaxMessageQueueSize == 0 {
+		options.MaxMessageQueueSize = 512
 	}
 }
 
@@ -102,7 +109,7 @@ type Replica struct {
 	rebaser   *shardRebaser
 	cache     baseBlockCache
 
-	messagesSinceLastSave int
+	messageQueue MessageQueue
 }
 
 func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shard Shard, privKey ecdsa.PrivateKey) Replica {
@@ -140,7 +147,7 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		rebaser:   shardRebaser,
 		cache:     newBaseBlockCache(latestBase),
 
-		messagesSinceLastSave: 0,
+		messageQueue: NewMessageQueue(options.MaxMessageQueueSize),
 	}
 }
 
@@ -149,6 +156,13 @@ func (replica *Replica) Start() {
 }
 
 func (replica *Replica) HandleMessage(m Message) {
+	// Check that Message is from our shard. If it is not, then there is no
+	// point processing the message.
+	if !replica.shard.Equal(m.Shard) {
+		replica.options.Logger.Warnf("bad message: expected shard=%v, got shard=%v", replica.shard, m.Shard)
+		return
+	}
+
 	// Ignore messagse from heights that the process has already progressed
 	// through. Messages at these earlier heights have no affect on consensus,
 	// and so there is no point wasting time processing them.
@@ -158,12 +172,27 @@ func (replica *Replica) HandleMessage(m Message) {
 			return
 		}
 	}
-
-	// Check that Message is from our shard. If it is not, then there is no
-	// point processing the message.
-	if !replica.shard.Equal(m.Shard) {
-		replica.options.Logger.Warnf("bad message: expected shard=%v, got shard=%v", replica.shard, m.Shard)
-		return
+	if m.Message.Type() == process.ResyncMessageType {
+		if m.Message.Height() > replica.p.CurrentHeight() {
+			// We cannot respond to resync messages from future heights with
+			// anything that is useful, so we ignore it.
+			replica.options.Logger.Debugf("ignore message: resync height=%v compared to current height=%v", m.Message.Height(), replica.p.CurrentHeight())
+			return
+		}
+		// Filter resync messages by timestamp. If they're too old, or too far
+		// in the future, then ignore them. The total window of time is 20
+		// seconds, approximately the latency expected for globally distributed
+		// message passing.
+		now := block.Timestamp(time.Now().Unix())
+		timestamp := m.Message.(*process.Resync).Timestamp()
+		delta := now - timestamp
+		if delta < 0 {
+			delta = -delta
+		}
+		if delta > 10 {
+			replica.options.Logger.Debugf("ignore message: resync timestamp=%v compared to now=%v", timestamp, now)
+			return
+		}
 	}
 
 	// Check that the Message sender is from our Shard (this can be a moderately
@@ -173,17 +202,34 @@ func (replica *Replica) HandleMessage(m Message) {
 	if !replica.cache.signatoryInBaseBlock(m.Message.Signatory()) {
 		return
 	}
-
 	// Verify that the Message is actually signed by the claimed `id.Signatory`
 	if err := process.Verify(m.Message); err != nil {
 		replica.options.Logger.Warnf("bad message: unverified: %v", err)
 		return
 	}
 
-	// Handle the underlying `process.Message` and immediately save the
-	// `process.Process` afterwards to protect against unexpected crashes
-	replica.p.HandleMessage(m.Message)
-	replica.p.Save()
+	// Messages from future heights are buffered.
+	if m.Message.Height() > replica.p.CurrentHeight() && m.Message.Type() != process.ProposeMessageType {
+		// We only want to buffer non-Propose messages, because Propose messages
+		// can have a LatestCommit message to fast-forward the process.
+		replica.messageQueue.Push(m.Message)
+	} else {
+		// Handle the underlying `process.Message` and immediately save the
+		// `process.Process` afterwards to protect against unexpected crashes
+		replica.p.HandleMessage(m.Message)
+	}
+	defer replica.p.Save()
+
+	queued := replica.messageQueue.PopUntil(replica.p.CurrentHeight())
+	for queued != nil && len(queued) > 0 {
+		for _, message := range queued {
+			// Handle the underlying `process.Message` and immediately save the
+			// `process.Process` afterwards to protect against unexpected
+			// crashes
+			replica.p.HandleMessage(message)
+		}
+		queued = replica.messageQueue.PopUntil(replica.p.CurrentHeight())
+	}
 }
 
 func (replica *Replica) Rebase(sigs id.Signatories) {

@@ -162,7 +162,7 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 	if !proposedBlock.Header().PrevStateRef().Equal(proposedBlock.PreviousState().Hash()) {
 		return nilReasons, fmt.Errorf("unexpected plan hash for proposed block")
 	}
-	if !proposedBlock.Hash().Equal(block.ComputeHash(proposedBlock.Header(), proposedBlock.Txs(), proposedBlock.Plan(), proposedBlock.PreviousState())) {
+	if !proposedBlock.Hash().Equal(block.NewBlockHash(proposedBlock.Header(), proposedBlock.Txs(), proposedBlock.Plan(), proposedBlock.PreviousState())) {
 		return nilReasons, fmt.Errorf("unexpected block hash for proposed block")
 	}
 
