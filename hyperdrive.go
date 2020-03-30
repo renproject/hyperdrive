@@ -9,6 +9,7 @@ import (
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/replica"
+	"github.com/renproject/hyperdrive/schedule"
 	"github.com/renproject/id"
 	"github.com/renproject/phi"
 )
@@ -143,7 +144,8 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	replicas := make(map[Shard]Replica, len(shards))
 	for _, shard := range shards {
 		if observer.IsSignatory(shard) {
-			replicas[shard] = replica.New(options, pStorage, blockStorage, blockIterator, validator, observer, broadcaster, shard, privKey)
+			rr := schedule.RoundRobin(blockStorage.LatestBaseBlock(shard).Header().Signatories())
+			replicas[shard] = replica.New(options, pStorage, blockStorage, blockIterator, validator, observer, broadcaster, rr, shard, privKey)
 		}
 	}
 	return &hyperdrive{

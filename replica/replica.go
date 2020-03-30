@@ -11,6 +11,7 @@ import (
 	"github.com/renproject/abi"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/hyperdrive/schedule"
 	"github.com/renproject/id"
 	"github.com/sirupsen/logrus"
 )
@@ -98,17 +99,16 @@ type Replica struct {
 	p            *process.Process
 	blockStorage BlockStorage
 
-	scheduler *roundRobinScheduler
+	scheduler schedule.Scheduler
 	rebaser   *shardRebaser
 	cache     baseBlockCache
 
 	messagesSinceLastSave int
 }
 
-func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shard Shard, privKey ecdsa.PrivateKey) Replica {
+func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, scheduler schedule.Scheduler, shard Shard, privKey ecdsa.PrivateKey) Replica {
 	options.setZerosToDefaults()
 	latestBase := blockStorage.LatestBaseBlock(shard)
-	scheduler := newRoundRobinScheduler(latestBase.Header().Signatories())
 	if len(latestBase.Header().Signatories())%3 != 1 || len(latestBase.Header().Signatories()) < 4 {
 		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", len(latestBase.Header().Signatories())))
 	}
@@ -212,7 +212,7 @@ func (replica *Replica) Rebase(sigs id.Signatories) {
 	if len(sigs)%3 != 1 || len(sigs) < 4 {
 		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", len(sigs)))
 	}
-	replica.scheduler.rebase(sigs)
+	replica.scheduler.Rebase(sigs)
 	replica.rebaser.rebase(sigs)
 }
 
