@@ -181,7 +181,8 @@ func (resync Resync) SizeHint() int {
 	return surge.SizeHint(resync.signatory) +
 		surge.SizeHint(resync.sig) +
 		surge.SizeHint(resync.height) +
-		surge.SizeHint(resync.round)
+		surge.SizeHint(resync.round) +
+		surge.SizeHint(resync.timestamp)
 }
 
 // Marshal this resync into binary.
@@ -196,7 +197,10 @@ func (resync Resync) Marshal(w io.Writer, m int) (int, error) {
 	if m, err = surge.Marshal(w, resync.height, m); err != nil {
 		return m, err
 	}
-	return surge.Marshal(w, resync.round, m)
+	if m, err = surge.Marshal(w, resync.round, m); err != nil {
+		return m, err
+	}
+	return surge.Marshal(w, resync.timestamp, m)
 }
 
 // Unmarshal into this resync from binary.
@@ -211,7 +215,10 @@ func (resync *Resync) Unmarshal(r io.Reader, m int) (int, error) {
 	if m, err = surge.Unmarshal(r, &resync.height, m); err != nil {
 		return m, err
 	}
-	return surge.Unmarshal(r, &resync.round, m)
+	if m, err = surge.Unmarshal(r, &resync.round, m); err != nil {
+		return m, err
+	}
+	return surge.Unmarshal(r, &resync.timestamp, m)
 }
 
 // SizeHint of how many bytes will be needed to represent this inbox in binary.

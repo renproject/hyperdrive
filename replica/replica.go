@@ -172,6 +172,28 @@ func (replica *Replica) HandleMessage(m Message) {
 			return
 		}
 	}
+	if m.Message.Type() == process.ResyncMessageType {
+		if m.Message.Height() > replica.p.CurrentHeight() {
+			// We cannot respond to resync messages from future heights with
+			// anything that is useful, so we ignore it.
+			replica.options.Logger.Debugf("ignore message: resync height=%v compared to current height=%v", m.Message.Height(), replica.p.CurrentHeight())
+			return
+		}
+		// Filter resync messages by timestamp. If they're too old, or too far
+		// in the future, then ignore them. The total window of time is 20
+		// seconds, approximately the latency expected for globally distributed
+		// message passing.
+		now := block.Timestamp(time.Now().Unix())
+		timestamp := m.Message.(*process.Resync).Timestamp()
+		delta := now - timestamp
+		if delta < 0 {
+			delta = -delta
+		}
+		if delta > 10 {
+			replica.options.Logger.Debugf("ignore message: resync timestamp=%v compared to now=%v", timestamp, now)
+			return
+		}
+	}
 
 	// Check that the Message sender is from our Shard (this can be a moderately
 	// expensive operation, so we cache the result until a new `block.Base` is
