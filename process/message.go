@@ -466,16 +466,19 @@ func (inbox *Inbox) QueryMessagesByHeightRound(height block.Height, round block.
 
 // QueryMessagesByHeightWithHighestRound returns all unique messages that have
 // been received at the specified height and at the heighest round observed (for
-// the specified height). The specific block hash of the messages are ignored
-// and might be different from each other.
+// the specified height). Only rounds with >2F messages are considered. The
+// specific block hash of the messages are ignored and might be different from
+// each other.
 func (inbox *Inbox) QueryMessagesByHeightWithHighestRound(height block.Height) []Message {
 	if _, ok := inbox.messages[height]; !ok {
 		return nil
 	}
 	highestRound := block.Round(-1)
 	for round := range inbox.messages[height] {
-		if round > highestRound {
-			highestRound = round
+		if len(inbox.messages[height][round]) > 2*inbox.f {
+			if round > highestRound {
+				highestRound = round
+			}
 		}
 	}
 	if highestRound == -1 {
