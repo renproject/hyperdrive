@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
@@ -345,12 +346,14 @@ type Resync struct {
 	sig       id.Signature
 	height    block.Height
 	round     block.Round
+	timestamp block.Timestamp
 }
 
 func NewResync(height block.Height, round block.Round) *Resync {
 	return &Resync{
-		height: height,
-		round:  round,
+		height:    height,
+		round:     round,
+		timestamp: block.Timestamp(time.Now().Unix()),
 	}
 }
 
@@ -374,6 +377,10 @@ func (resync *Resync) Round() block.Round {
 	return resync.round
 }
 
+func (resync *Resync) Timestamp() block.Timestamp {
+	return resync.timestamp
+}
+
 func (resync *Resync) BlockHash() id.Hash {
 	panic(ErrBlockHashNotProvided)
 }
@@ -383,7 +390,7 @@ func (resync *Resync) Type() MessageType {
 }
 
 func (resync *Resync) String() string {
-	return fmt.Sprintf("Resync(Height=%v,Round=%v)", resync.Height(), resync.Round())
+	return fmt.Sprintf("Resync(Height=%v,Round=%v,Timestamp=%v)", resync.Height(), resync.Round(), resync.Timestamp())
 }
 
 // An Inbox is storage container for one type message. Any type of message can
