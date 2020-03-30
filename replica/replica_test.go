@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/hyperdrive/schedule"
 	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
@@ -72,7 +73,8 @@ var _ = Describe("Replica", func() {
 					store, _, keys := initStorage(shard)
 					pstore := mockProcessStorage{}
 					broadcaster, _, _ := newMockBroadcaster()
-					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
+					scheduler := schedule.RoundRobin(store.LatestBaseBlock(shard).Header().Signatories())
+					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, scheduler, shard, *newEcdsaKey())
 
 					pMessage := RandomMessage(process.ProposeMessageType)
 					numStored := 0
@@ -107,7 +109,8 @@ var _ = Describe("Replica", func() {
 					store, _, _ := initStorage(shard)
 					pstore := mockProcessStorage{}
 					broadcaster, _, _ := newMockBroadcaster()
-					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
+					scheduler := schedule.RoundRobin(store.LatestBaseBlock(shard).Header().Signatories())
+					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, scheduler, shard, *newEcdsaKey())
 					logger := logrus.StandardLogger()
 					logger.SetOutput(ioutil.Discard)
 					replica.options.Logger = logger
@@ -136,7 +139,8 @@ var _ = Describe("Replica", func() {
 					store, _, _ := initStorage(shard)
 					pstore := mockProcessStorage{}
 					broadcaster, _, _ := newMockBroadcaster()
-					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, shard, *newEcdsaKey())
+					scheduler := schedule.RoundRobin(store.LatestBaseBlock(shard).Header().Signatories())
+					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, scheduler, shard, *newEcdsaKey())
 
 					pMessage := RandomSignedMessage(process.ProposeMessageType)
 					message := Message{

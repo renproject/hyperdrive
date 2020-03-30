@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/schedule"
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
@@ -88,12 +89,6 @@ type Observer interface {
 	DidReceiveSufficientNilPrevotes(messages Messages, f int)
 }
 
-// A Scheduler determines which `id.Signatory` should be broadcasting
-// proposals in at a given `block.Height` and `block.Round`.
-type Scheduler interface {
-	Schedule(block.Height, block.Round) id.Signatory
-}
-
 // A Broadcaster sends a Message to a either specific Process or as many
 // Processes in the network as possible.
 //
@@ -128,14 +123,14 @@ type Process struct {
 	saveRestorer SaveRestorer
 	proposer     Proposer
 	validator    Validator
-	scheduler    Scheduler
+	scheduler    schedule.Scheduler
 	broadcaster  Broadcaster
 	timer        Timer
 	observer     Observer
 }
 
 // New Process initialised to the default state, starting in the first round.
-func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, saveRestorer SaveRestorer, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler Scheduler, timer Timer) *Process {
+func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, saveRestorer SaveRestorer, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler schedule.Scheduler, timer Timer) *Process {
 	p := &Process{
 		logger: logger,
 		mu:     new(sync.Mutex),
