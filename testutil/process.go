@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/hyperdrive/schedule"
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
@@ -173,7 +174,7 @@ type ProcessOrigin struct {
 	SaveRestorer process.SaveRestorer
 	Proposer     process.Proposer
 	Validator    process.Validator
-	Scheduler    process.Scheduler
+	Scheduler    schedule.Scheduler
 	Broadcaster  process.Broadcaster
 	Timer        process.Timer
 	Observer     process.Observer
@@ -384,12 +385,16 @@ type MockScheduler struct {
 	sig id.Signatory
 }
 
-func NewMockScheduler(sig id.Signatory) process.Scheduler {
+func NewMockScheduler(sig id.Signatory) schedule.Scheduler {
 	return &MockScheduler{sig: sig}
 }
 
 func (m *MockScheduler) Schedule(block.Height, block.Round) id.Signatory {
 	return m.sig
+}
+
+func (m *MockScheduler) Rebase(sigs id.Signatories) {
+	panic("MockScheduler.Rebase is not supported")
 }
 
 type MockTimer struct {
