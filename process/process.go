@@ -326,12 +326,23 @@ func (p *Process) startRound(round block.Round) {
 			panic("fail to get previous block from storage")
 		}
 		messages := p.state.Precommits.QueryMessagesByHeightWithHighestRound(p.state.CurrentHeight - 1)
-		commits := make([]Precommit, 0, len(messages))
+		commits := make([]Precommit, 0, 2*p.state.Precommits.F()+1)
 		for _, message := range messages {
 			commit := message.(*Precommit)
 			if commit.blockHash.Equal(previousBlock.Hash()) {
 				commits = append(commits, *commit)
+				if len(commits) >= 2*p.state.Precommits.F()+1 {
+					// Restrict the len of commits to 2F+1, as is expected by
+					// the nodes that will be receiving this message.
+					break
+				}
 			}
+			if len(commits) == 2*p.state.Proposals.f+1 {
+				break
+			}
+		}
+		if len(commits) < 2*p.state.Precommits.F()+1 {
+			commits = []Precommit{}
 		}
 		propose.latestCommit = LatestCommit{
 			Block:      previousBlock,
@@ -711,7 +722,14 @@ func (p *Process) numberOfMessagesAtCurrentHeight(round block.Round) int {
 }
 
 func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
-	// Check that the latest commit is from the future
+	// Check that they have not included too many signatories. This is required
+	// to protect against DoS attacks performed by including a massive number of
+	// Precommits.
+	if latestCommit.Precommits == nil || len(latestCommit.Precommits) != 2*p.state.Proposals.f+1 {
+		return
+	}
+
+	// Check that the latest commit is from the future.
 	if latestCommit.Block.Header().Height() <= p.state.CurrentHeight {
 		return
 	}
