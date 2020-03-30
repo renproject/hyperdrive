@@ -25,6 +25,7 @@ type MessageQueue interface {
 	Push(process.Message)
 	PopUntil(block.Height) []process.Message
 	Peek() block.Height
+	Len() int
 }
 
 type messageQueue struct {
@@ -154,4 +155,11 @@ func (mq *messageQueue) Peek() block.Height {
 		return block.InvalidHeight
 	}
 	return mq.queue[0].Height()
+}
+
+func (mq *messageQueue) Len() int {
+	mq.mu.Lock()
+	defer mq.mu.Unlock()
+
+	return len(mq.queue)
 }
