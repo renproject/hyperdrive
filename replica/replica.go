@@ -171,11 +171,11 @@ func (replica *Replica) HandleMessage(m Message) {
 		// message passing.
 		now := block.Timestamp(time.Now().Unix())
 		timestamp := m.Message.(*process.Resync).Timestamp()
-		if now < timestamp-10 {
-			replica.options.Logger.Debugf("ignore message: resync timestamp=%v compared to now=%v", timestamp, now)
-			return
+		delta := now - timestamp
+		if delta < 0 {
+			delta = -delta
 		}
-		if now > timestamp+10 {
+		if delta > 10 {
 			replica.options.Logger.Debugf("ignore message: resync timestamp=%v compared to now=%v", timestamp, now)
 			return
 		}
