@@ -12,7 +12,7 @@ type Catcher interface {
 	// honest Process should only ever propose one Block. A malicious Process
 	// might try to break consensus by proposing two different Blocks, resulting
 	// in two conflicting Proposes in the same Height and Round.
-	DidReceiveMessageConflict(original, conflicting Message)
+	DidReceiveMessageConflict(conflicting, message Message)
 }
 
 type catchAndIgnore struct{}
@@ -25,4 +25,4 @@ func CatchAndIgnore() Catcher {
 }
 
 // DidReceiveMessageConflict does nothing.
-func (catchAndIgnore) DidReceiveMessageConflict(original, conflicting Message) {}
+func (catchAndIgnore) DidReceiveMessageConflict(conflicting, message Message) {}
