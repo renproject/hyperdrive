@@ -233,6 +233,7 @@ func (p ProcessOrigin) ToProcess() *process.Process {
 		p.Broadcaster,
 		p.Scheduler,
 		p.Timer,
+		process.CatchAndIgnore(),
 	)
 }
 

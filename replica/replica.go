@@ -113,7 +113,7 @@ type Replica struct {
 	messageQueue MessageQueue
 }
 
-func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, scheduler schedule.Scheduler, shard Shard, privKey ecdsa.PrivateKey) Replica {
+func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, scheduler schedule.Scheduler, catcher process.Catcher, shard Shard, privKey ecdsa.PrivateKey) Replica {
 	options.setZerosToDefaults()
 	latestBase := blockStorage.LatestBaseBlock(shard)
 	if len(latestBase.Header().Signatories())%3 != 1 || len(latestBase.Header().Signatories()) < 4 {
@@ -134,6 +134,7 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		newSigner(broadcaster, shard, privKey),
 		scheduler,
 		newBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
+		catcher,
 	)
 	p.Restore()
 

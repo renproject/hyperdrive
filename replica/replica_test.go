@@ -74,7 +74,7 @@ var _ = Describe("Replica", func() {
 					pstore := mockProcessStorage{}
 					broadcaster, _, _ := newMockBroadcaster()
 					scheduler := schedule.RoundRobin(store.LatestBaseBlock(shard).Header().Signatories())
-					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, scheduler, shard, *newEcdsaKey())
+					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, scheduler, process.CatchAndIgnore(), shard, *newEcdsaKey())
 
 					pMessage := RandomMessage(process.ProposeMessageType)
 					numStored := 0
@@ -110,7 +110,7 @@ var _ = Describe("Replica", func() {
 					pstore := mockProcessStorage{}
 					broadcaster, _, _ := newMockBroadcaster()
 					scheduler := schedule.RoundRobin(store.LatestBaseBlock(shard).Header().Signatories())
-					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, scheduler, shard, *newEcdsaKey())
+					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, scheduler, process.CatchAndIgnore(), shard, *newEcdsaKey())
 					logger := logrus.StandardLogger()
 					logger.SetOutput(ioutil.Discard)
 					replica.options.Logger = logger
@@ -140,7 +140,7 @@ var _ = Describe("Replica", func() {
 					pstore := mockProcessStorage{}
 					broadcaster, _, _ := newMockBroadcaster()
 					scheduler := schedule.RoundRobin(store.LatestBaseBlock(shard).Header().Signatories())
-					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, scheduler, shard, *newEcdsaKey())
+					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, scheduler, process.CatchAndIgnore(), shard, *newEcdsaKey())
 
 					pMessage := RandomSignedMessage(process.ProposeMessageType)
 					message := Message{

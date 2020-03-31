@@ -127,10 +127,11 @@ type Process struct {
 	broadcaster  Broadcaster
 	timer        Timer
 	observer     Observer
+	catcher      Catcher
 }
 
 // New Process initialised to the default state, starting in the first round.
-func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, saveRestorer SaveRestorer, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler schedule.Scheduler, timer Timer) *Process {
+func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, saveRestorer SaveRestorer, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler schedule.Scheduler, timer Timer, catcher Catcher) *Process {
 	p := &Process{
 		logger: logger,
 		mu:     new(sync.Mutex),
@@ -142,10 +143,11 @@ func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchai
 		saveRestorer: saveRestorer,
 		proposer:     proposer,
 		validator:    validator,
-		observer:     observer,
-		broadcaster:  broadcaster,
 		scheduler:    scheduler,
+		broadcaster:  broadcaster,
 		timer:        timer,
+		observer:     observer,
+		catcher:      catcher,
 	}
 	return p
 }
