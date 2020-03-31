@@ -438,7 +438,10 @@ func NewInbox(f int, messageType MessageType) *Inbox {
 // This method is used extensively for tracking the different conditions under
 // which the state machine is allowed to transition between various states. Its
 // correctness is fundamental to the correctness of the overall implementation.
-func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedingF, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash bool) {
+//
+// The last return value is any conflicting message that already existed before
+// the Insert method was called. See the Catcher for more information.
+func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedingF, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash bool, conflicting Message) {
 	if message.Type() != inbox.messageType {
 		panic(fmt.Sprintf("pre-condition violation: expected type %v, got type %T", inbox.messageType, message))
 	}
@@ -452,12 +455,17 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	}
 
 	previousN := len(inbox.messages[height][round])
-	_, ok := inbox.messages[height][round][signatory]
+	conflicting, ok := inbox.messages[height][round][signatory]
 	if ok {
 		// We do not override existing messages. This means that it is
 		// impossible for N to change, and thus for any "first time" triggers to
 		// become true.
-		return previousN, false, false, false, false
+		if conflicting.SigHash().Equal(message.SigHash()) {
+			// Messages are exact duplicates of each other.
+			return previousN, false, false, false, false, nil
+		}
+		// Messages are in conflict.
+		return previousN, false, false, false, false, conflicting
 	}
 
 	inbox.messages[height][round][signatory] = message
@@ -472,6 +480,7 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	firstTimeExceedingF = (previousN == inbox.F()) && (n == inbox.F()+1)
 	firstTimeExceeding2F = (previousN == 2*inbox.F()) && (n == 2*inbox.F()+1)
 	firstTimeExceeding2FOnBlockHash = !ok && (nOnBlockHash == 2*inbox.F()+1)
+	conflicting = nil
 	return
 }
 

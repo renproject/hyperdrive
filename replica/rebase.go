@@ -154,13 +154,19 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 
 	// Check the expected `block.Hash`
 	if !proposedBlock.Header().TxsRef().Equal(proposedBlock.Txs().Hash()) {
-		return nilReasons, fmt.Errorf("unexpected txs hash for proposed block")
+		if !(proposedBlock.Txs() == nil && proposedBlock.Header().TxsRef().Equal(id.Hash{})) {
+			return nilReasons, fmt.Errorf("unexpected txs hash for proposed block")
+		}
 	}
 	if !proposedBlock.Header().PlanRef().Equal(proposedBlock.Plan().Hash()) {
-		return nilReasons, fmt.Errorf("unexpected plan hash for proposed block")
+		if !(proposedBlock.Plan() == nil && proposedBlock.Header().PlanRef().Equal(id.Hash{})) {
+			return nilReasons, fmt.Errorf("unexpected plan hash for proposed block")
+		}
 	}
 	if !proposedBlock.Header().PrevStateRef().Equal(proposedBlock.PreviousState().Hash()) {
-		return nilReasons, fmt.Errorf("unexpected plan hash for proposed block")
+		if !(proposedBlock.PreviousState() == nil && proposedBlock.Header().PrevStateRef().Equal(id.Hash{})) {
+			return nilReasons, fmt.Errorf("unexpected previous state hash for proposed block")
+		}
 	}
 	if !proposedBlock.Hash().Equal(block.NewBlockHash(proposedBlock.Header(), proposedBlock.Txs(), proposedBlock.Plan(), proposedBlock.PreviousState())) {
 		return nilReasons, fmt.Errorf("unexpected block hash for proposed block")

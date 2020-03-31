@@ -145,7 +145,7 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	for _, shard := range shards {
 		if observer.IsSignatory(shard) {
 			rr := schedule.RoundRobin(blockStorage.LatestBaseBlock(shard).Header().Signatories())
-			replicas[shard] = replica.New(options, pStorage, blockStorage, blockIterator, validator, observer, broadcaster, rr, shard, privKey)
+			replicas[shard] = replica.New(options, pStorage, blockStorage, blockIterator, validator, observer, broadcaster, rr, process.CatchAndIgnore(), shard, privKey)
 		}
 	}
 	return &hyperdrive{

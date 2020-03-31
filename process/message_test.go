@@ -407,7 +407,7 @@ var _ = Describe("Messages", func() {
 					f := rand.Intn(100) + 1
 					messageType := RandomMessageType(false)
 					inbox := NewInbox(f, messageType)
-					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _ := inbox.Insert(RandomMessage(messageType))
+					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _, _ := inbox.Insert(RandomMessage(messageType))
 					Expect(n).Should(Equal(1))
 					Expect(firstTime).Should(BeTrue())
 					Expect(firstTimeExceedingF).Should(BeFalse())
@@ -429,7 +429,7 @@ var _ = Describe("Messages", func() {
 					// Expect n, false, false, false when inserting no more than F messages
 					for i := 1; i <= f; i++ {
 						msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
-						n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _ := inbox.Insert(msg)
+						n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _, _ := inbox.Insert(msg)
 						Expect(n).Should(Equal(i))
 						if i == 1 {
 							Expect(firstTime).Should(BeTrue())
@@ -442,7 +442,7 @@ var _ = Describe("Messages", func() {
 
 					// Expect F+1, false, true, false when inserting F+1 message
 					msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
-					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _ := inbox.Insert(msg)
+					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _, _ := inbox.Insert(msg)
 
 					Expect(n).Should(Equal(f + 1))
 					Expect(firstTime).Should(BeFalse())
@@ -465,14 +465,14 @@ var _ = Describe("Messages", func() {
 					// Expect n, false, false,false when inserting no more than F messages
 					for i := 1; i <= 2*f; i++ {
 						msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
-						n, _, _, firstTimeExceeding2F, _ := inbox.Insert(msg)
+						n, _, _, firstTimeExceeding2F, _, _ := inbox.Insert(msg)
 						Expect(n).Should(Equal(i))
 						Expect(firstTimeExceeding2F).Should(BeFalse())
 					}
 
 					// Expect 2F+1, false, true, false when inserting F+1 message
 					msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
-					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _ := inbox.Insert(msg)
+					n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _, _ := inbox.Insert(msg)
 
 					Expect(n).Should(Equal(2*f + 1))
 					Expect(firstTime).Should(BeFalse())
@@ -495,14 +495,14 @@ var _ = Describe("Messages", func() {
 					// Expect n, false, false,false when inserting no more than F messages
 					for i := 1; i <= 2*f+1; i++ {
 						msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
-						n, _, _, _, _ := inbox.Insert(msg)
+						n, _, _, _, _, _ := inbox.Insert(msg)
 						Expect(n).Should(Equal(i))
 					}
 
 					// Expect 3F+1, false, true, false when inserting F+1 message
 					for i := 1; i < rand.Intn(100); i++ {
 						msg := RandomSingedMessageWithHeightAndRound(height, round, messageType)
-						n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _ := inbox.Insert(msg)
+						n, firstTime, firstTimeExceedingF, firstTimeExceeding2F, _, _ := inbox.Insert(msg)
 
 						Expect(n).Should(Equal(2*f + 1 + i))
 						Expect(firstTime).Should(BeFalse())
@@ -528,8 +528,8 @@ var _ = Describe("Messages", func() {
 						msg := RandomSignedMessage(messageType)
 
 						// Inserting the same msg twice should not affect anything
-						_, _, _, _, _ = inbox.Insert(msg)
-						_, _, _, _, _ = inbox.Insert(msg)
+						_, _, _, _, _, _ = inbox.Insert(msg)
+						_, _, _, _, _, _ = inbox.Insert(msg)
 
 						if _, ok := source[msg.Height()]; !ok {
 							source[msg.Height()] = map[block.Round]map[id.Hash]int{}
@@ -570,8 +570,8 @@ var _ = Describe("Messages", func() {
 						Expect(nilMessage).Should(BeNil())
 
 						// Inserting the same msg twice should not affect anything
-						_, _, _, _, _ = inbox.Insert(msg)
-						_, _, _, _, _ = inbox.Insert(msg)
+						_, _, _, _, _, _ = inbox.Insert(msg)
+						_, _, _, _, _, _ = inbox.Insert(msg)
 
 						// It return the same message we inserted
 						storedMsg := inbox.QueryByHeightRoundSignatory(msg.Height(), msg.Round(), msg.Signatory())
@@ -596,8 +596,8 @@ var _ = Describe("Messages", func() {
 						msg := RandomSignedMessage(messageType)
 
 						// Inserting the same msg twice should not affect anything
-						_, _, _, _, _ = inbox.Insert(msg)
-						_, _, _, _, _ = inbox.Insert(msg)
+						_, _, _, _, _, _ = inbox.Insert(msg)
+						_, _, _, _, _, _ = inbox.Insert(msg)
 
 						if _, ok := source[msg.Height()]; !ok {
 							source[msg.Height()] = map[block.Round]int{}

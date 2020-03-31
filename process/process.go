@@ -127,10 +127,11 @@ type Process struct {
 	broadcaster  Broadcaster
 	timer        Timer
 	observer     Observer
+	catcher      Catcher
 }
 
 // New Process initialised to the default state, starting in the first round.
-func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, saveRestorer SaveRestorer, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler schedule.Scheduler, timer Timer) *Process {
+func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, saveRestorer SaveRestorer, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler schedule.Scheduler, timer Timer, catcher Catcher) *Process {
 	p := &Process{
 		logger: logger,
 		mu:     new(sync.Mutex),
@@ -142,10 +143,11 @@ func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchai
 		saveRestorer: saveRestorer,
 		proposer:     proposer,
 		validator:    validator,
-		observer:     observer,
-		broadcaster:  broadcaster,
 		scheduler:    scheduler,
+		broadcaster:  broadcaster,
 		timer:        timer,
+		observer:     observer,
+		catcher:      catcher,
 	}
 	return p
 }
@@ -359,9 +361,13 @@ func (p *Process) handlePropose(propose *Propose) {
 	// Before inserting the Propose, we need to check whether or not the Propose
 	// is from the scheduled Proposer. Otherwise, we can safely ignore it.
 	var firstTime bool
+	var conflicting Message
 	if propose.Signatory().Equal(p.scheduler.Schedule(propose.Height(), propose.Round())) {
 		p.logger.Debugf("received propose at height=%v and round=%v", propose.height, propose.round)
-		_, firstTime, _, _, _ = p.state.Proposals.Insert(propose)
+		_, firstTime, _, _, _, conflicting = p.state.Proposals.Insert(propose)
+		if conflicting != nil && p.catcher != nil {
+			p.catcher.DidReceiveMessageConflict(conflicting, propose)
+		}
 	} else {
 		// Ignore out-of-turn Proposes.
 		p.logger.Warnf("received propose at height=%v and round=%v from out-of-turn proposer=%v", propose.height, propose.round, propose.signatory)
@@ -439,7 +445,10 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 		prevoteDebugStr = prevote.blockHash.String()
 	}
 	p.logger.Debugf("received prevote=%v at height=%v and round=%v", prevoteDebugStr, prevote.height, prevote.round)
-	_, _, _, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash := p.state.Prevotes.Insert(prevote)
+	_, _, _, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash, conflicting := p.state.Prevotes.Insert(prevote)
+	if conflicting != nil && p.catcher != nil {
+		p.catcher.DidReceiveMessageConflict(conflicting, prevote)
+	}
 	if firstTimeExceeding2F && prevote.Height() == p.state.CurrentHeight && prevote.Round() == p.state.CurrentRound && p.state.CurrentStep == StepPrevote {
 		// upon 2f+1 Prevote{currentHeight, currentRound, *} while step = StepPrevote for the first time
 		p.scheduleTimeoutPrevote(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrevote, p.state.CurrentRound))
@@ -489,7 +498,10 @@ func (p *Process) handlePrecommit(precommit *Precommit) {
 	}
 	p.logger.Debugf("received precommit=%v at height=%v and round=%v", precommitDebugStr, precommit.height, precommit.round)
 	// upon 2f+1 Precommit{currentHeight, currentRound, *} for the first time
-	_, _, _, firstTimeExceeding2F, _ := p.state.Precommits.Insert(precommit)
+	_, _, _, firstTimeExceeding2F, _, conflicting := p.state.Precommits.Insert(precommit)
+	if conflicting != nil && p.catcher != nil {
+		p.catcher.DidReceiveMessageConflict(conflicting, precommit)
+	}
 	if firstTimeExceeding2F && precommit.Height() == p.state.CurrentHeight && precommit.Round() == p.state.CurrentRound {
 		p.scheduleTimeoutPrecommit(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrecommit, p.state.CurrentRound))
 	}
