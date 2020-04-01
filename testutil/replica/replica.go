@@ -78,6 +78,10 @@ func (m *MockBlockIterator) NextBlock(kind block.Kind, height block.Height, shar
 	}
 }
 
+func (m *MockBlockIterator) BaseBlocksInRange(begin, end id.Hash) int {
+	return 0 // MockBlockIterator does not support rebasing.
+}
+
 type MockValidator struct {
 	store *MockPersistentStorage
 }

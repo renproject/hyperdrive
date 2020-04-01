@@ -49,6 +49,7 @@ type Blockchain interface {
 	InsertBlockAtHeight(block.Height, block.Block)
 	BlockAtHeight(block.Height) (block.Block, bool)
 	BlockExistsAtHeight(block.Height) bool
+	LatestBaseBlock() block.Block
 }
 
 // A SaveRestorer defines a storage interface for the State.
@@ -756,10 +757,7 @@ func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
 
 	// Validate the commits
 	signatories := map[id.Signatory]struct{}{}
-	baseBlock, ok := p.blockchain.BlockAtHeight(0)
-	if !ok {
-		panic("no genesis block")
-	}
+	baseBlock := p.blockchain.LatestBaseBlock()
 	for _, sig := range baseBlock.Header().Signatories() {
 		signatories[sig] = struct{}{}
 	}

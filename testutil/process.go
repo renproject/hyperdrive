@@ -281,6 +281,17 @@ func (bc *MockBlockchain) BlockAtHeight(height block.Height) (block.Block, bool)
 	return block, ok
 }
 
+func (bc *MockBlockchain) LatestBaseBlock() block.Block {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+
+	block, ok := bc.blocks[0]
+	if !ok {
+		panic("no genesis block")
+	}
+	return block
+}
+
 func (bc *MockBlockchain) StateAtHeight(height block.Height) (block.State, bool) {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
