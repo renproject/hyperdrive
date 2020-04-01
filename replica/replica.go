@@ -195,23 +195,6 @@ func (replica *Replica) HandleMessage(m Message) {
 			return
 		}
 	}
-	if m.Message.Type() == process.ProposeMessageType {
-		if m.Message.Height() > replica.p.CurrentHeight()+1 {
-			// If the Propose is not at the next height, then we need to make
-			// sure that no base blocks have been missed. Otherwise, reject the
-			// Propose, and wait until the appropriate one has been seen.
-			baseBlockHash := replica.blockStorage.LatestBaseBlock(m.Shard).Hash()
-			blockHash := m.Message.BlockHash()
-			numBlocks := replica.rebaser.blockIterator.BaseBlocksInRange(baseBlockHash, blockHash)
-			if numBlocks > 0 {
-				// We have missed a base block, so we reject the Propose. This
-				// assumes that the first Propose after the base block will
-				// eventually be seen by the Process, as per the underlying
-				// network assumptions.
-				return
-			}
-		}
-	}
 
 	// Check that the Message sender is from our Shard (this can be a moderately
 	// expensive operation, so we cache the result until a new `block.Base` is
@@ -232,9 +215,25 @@ func (replica *Replica) HandleMessage(m Message) {
 		// can have a LatestCommit message to fast-forward the process.
 		replica.messageQueue.Push(m.Message)
 	} else {
-		// Handle the underlying `process.Message` and immediately save the
-		// `process.Process` afterwards to protect against unexpected crashes
-		replica.p.HandleMessage(m.Message)
+		numMissingBaseBlocks := 0
+		if m.Message.Height() > replica.p.CurrentHeight() {
+			// If the Propose is not at the next height, then we need to make
+			// sure that no base blocks have been missed. Otherwise, reject the
+			// Propose, and wait until the appropriate one has been seen.
+			baseBlockHash := replica.blockStorage.LatestBaseBlock(m.Shard).Hash()
+			blockHash := m.Message.BlockHash()
+			numMissingBaseBlocks = replica.rebaser.blockIterator.BaseBlocksInRange(baseBlockHash, blockHash)
+		}
+		if numMissingBaseBlocks > 0 {
+			// We have missed a base block, so we bufer the Propose for later.
+			// Proposes leading up to this will eventually be seen (thanks to
+			// the underlying network assumptions).
+			replica.messageQueue.Push(m.Message)
+		} else {
+			// Handle the underlying `process.Message` and immediately save the
+			// `process.Process` afterwards to protect against unexpected crashes
+			replica.p.HandleMessage(m.Message)
+		}
 	}
 	defer replica.p.Save()
 
