@@ -23,6 +23,11 @@ type BlockIterator interface {
 	// NextBlock returns the `block.Txs`, `block.Plan` and the parent
 	// `block.State` for the given `block.Height`.
 	NextBlock(block.Kind, block.Height, Shard) (block.Txs, block.Plan, block.State)
+
+	// BaseBlocksInRange must return an upper bound estimate for the number of
+	// base blocks between two blocks (identified by their block hash). This is
+	// used to prevent forking by old signatories.
+	BaseBlocksInRange(begin, end id.Hash) int
 }
 
 type Validator interface {
