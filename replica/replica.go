@@ -210,29 +210,31 @@ func (replica *Replica) HandleMessage(m Message) {
 	}
 
 	// Messages from future heights are buffered.
-	if m.Message.Height() > replica.p.CurrentHeight() && m.Message.Type() != process.ProposeMessageType {
-		// We only want to buffer non-Propose messages, because Propose messages
-		// can have a LatestCommit message to fast-forward the process.
-		replica.messageQueue.Push(m.Message)
-	} else {
-		numMissingBaseBlocks := 0
-		if m.Message.Height() > replica.p.CurrentHeight() {
-			// If the Propose is not at the next height, then we need to make
-			// sure that no base blocks have been missed. Otherwise, reject the
-			// Propose, and wait until the appropriate one has been seen.
-			baseBlockHash := replica.blockStorage.LatestBaseBlock(m.Shard).Hash()
-			blockHash := m.Message.BlockHash()
-			numMissingBaseBlocks = replica.rebaser.blockIterator.BaseBlocksInRange(baseBlockHash, blockHash)
-		}
-		if numMissingBaseBlocks > 0 {
-			// We have missed a base block, so we bufer the Propose for later.
-			// Proposes leading up to this will eventually be seen (thanks to
-			// the underlying network assumptions).
+	if m.Message.Height() > replica.p.CurrentHeight() {
+		if m.Message.Type() != process.ProposeMessageType {
+			// We only want to buffer non-Propose messages, because Propose messages
+			// can have a LatestCommit message to fast-forward the process.
 			replica.messageQueue.Push(m.Message)
 		} else {
-			// Handle the underlying `process.Message` and immediately save the
-			// `process.Process` afterwards to protect against unexpected crashes
-			replica.p.HandleMessage(m.Message)
+			numMissingBaseBlocks := 0
+			if m.Message.Height() > replica.p.CurrentHeight() {
+				// If the Propose is not at the next height, then we need to make
+				// sure that no base blocks have been missed. Otherwise, reject the
+				// Propose, and wait until the appropriate one has been seen.
+				baseBlockHash := replica.blockStorage.LatestBaseBlock(m.Shard).Hash()
+				blockHash := m.Message.BlockHash()
+				numMissingBaseBlocks = replica.rebaser.blockIterator.BaseBlocksInRange(baseBlockHash, blockHash)
+			}
+			if numMissingBaseBlocks == 0 {
+				// If we have missed a base block, we drop the Propose. The
+				// Propose that justifies the next base block will eventually be
+				// seen by this Replica and we can begin accepting Proposes from
+				// the new base.
+
+				// In this condition, we haven't missed any base blocks, so we
+				// can proceed as usual.
+				replica.p.HandleMessage(m.Message)
+			}
 		}
 	}
 	defer replica.p.Save()
