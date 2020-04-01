@@ -7,8 +7,10 @@ import (
 	"io/ioutil"
 	"reflect"
 	"testing/quick"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/schedule"
 	"github.com/renproject/hyperdrive/testutil"
@@ -159,6 +161,48 @@ var _ = Describe("Replica", func() {
 				}
 
 				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+	})
+
+	Context("when sending resync messages to replica", func() {
+		Context("when the resync message is greater than the current height", func() {
+			It("should resend nothing", func() {
+				store, _, _ := initStorage(Shard{})
+				pstore := mockProcessStorage{}
+				broadcaster, _, castMessages := newMockBroadcaster()
+				replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, schedule.RoundRobin(testutil.RandomSignatories()), nil, Shard{}, *newEcdsaKey())
+				logger := logrus.StandardLogger()
+				logger.SetOutput(ioutil.Discard)
+				replica.options.Logger = logger
+
+				replica.HandleMessage(Message{Message: process.NewResync(block.Height(999), block.Round(0)), Shard: Shard{}})
+				select {
+				case <-time.After(time.Second):
+				case <-castMessages:
+					Expect(func() { panic("should resent nothing") }).ToNot(Panic())
+				}
+			})
+		})
+
+		Context("when outside the current time", func() {
+			FIt("should resend nothing", func() {
+				store, _, _ := initStorage(Shard{})
+				pstore := mockProcessStorage{}
+				broadcaster, _, castMessages := newMockBroadcaster()
+				replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, schedule.RoundRobin(testutil.RandomSignatories()), nil, Shard{}, *newEcdsaKey())
+				logger := logrus.StandardLogger()
+				logger.SetOutput(ioutil.Discard)
+				replica.options.Logger = logger
+
+				resync := Message{Message: process.NewResync(block.Height(0), block.Round(0)), Shard: Shard{}}
+				time.Sleep(11 * time.Second)
+				replica.HandleMessage(resync)
+				select {
+				case <-time.After(time.Second):
+				case <-castMessages:
+					Expect(func() { panic("should resent nothing") }).ToNot(Panic())
+				}
 			})
 		})
 	})
