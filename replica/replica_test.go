@@ -186,7 +186,7 @@ var _ = Describe("Replica", func() {
 		})
 
 		Context("when outside the current time", func() {
-			FIt("should resend nothing", func() {
+			It("should resend nothing", func() {
 				store, _, _ := initStorage(Shard{})
 				pstore := mockProcessStorage{}
 				broadcaster, _, castMessages := newMockBroadcaster()
