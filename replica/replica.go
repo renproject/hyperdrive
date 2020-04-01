@@ -209,22 +209,28 @@ func (replica *Replica) HandleMessage(m Message) {
 		return
 	}
 
-	// Messages from future heights are buffered.
+	// Make sure that the Process state gets saved.
+	defer replica.p.Save()
+
+	// Messages from the current height can be handled immediately.
+	if m.Message.Height() == replica.p.CurrentHeight() {
+		replica.p.HandleMessage(m.Message)
+	}
+
+	// Messages from the future must be put into the height-ordered message
+	// queue.
 	if m.Message.Height() > replica.p.CurrentHeight() {
 		if m.Message.Type() != process.ProposeMessageType {
-			// We only want to buffer non-Propose messages, because Propose messages
+			// We only want to queue non-Propose messages, because Propose messages
 			// can have a LatestCommit message to fast-forward the process.
 			replica.messageQueue.Push(m.Message)
 		} else {
-			numMissingBaseBlocks := 0
-			if m.Message.Height() > replica.p.CurrentHeight() {
-				// If the Propose is not at the next height, then we need to make
-				// sure that no base blocks have been missed. Otherwise, reject the
-				// Propose, and wait until the appropriate one has been seen.
-				baseBlockHash := replica.blockStorage.LatestBaseBlock(m.Shard).Hash()
-				blockHash := m.Message.BlockHash()
-				numMissingBaseBlocks = replica.rebaser.blockIterator.BaseBlocksInRange(baseBlockHash, blockHash)
-			}
+			// If the Propose is not at the next height, then we need to make
+			// sure that no base blocks have been missed. Otherwise, reject the
+			// Propose, and wait until the appropriate one has been seen.
+			baseBlockHash := replica.blockStorage.LatestBaseBlock(m.Shard).Hash()
+			blockHash := m.Message.BlockHash()
+			numMissingBaseBlocks := replica.rebaser.blockIterator.BaseBlocksInRange(baseBlockHash, blockHash)
 			if numMissingBaseBlocks == 0 {
 				// If we have missed a base block, we drop the Propose. The
 				// Propose that justifies the next base block will eventually be
@@ -237,7 +243,6 @@ func (replica *Replica) HandleMessage(m Message) {
 			}
 		}
 	}
-	defer replica.p.Save()
 
 	queued := replica.messageQueue.PopUntil(replica.p.CurrentHeight())
 	for queued != nil && len(queued) > 0 {
