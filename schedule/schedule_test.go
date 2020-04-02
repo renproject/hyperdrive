@@ -58,8 +58,8 @@ var _ = Describe("Round-robin scheduler", func() {
 					signatories := testutil.RandomSignatories()
 					scheduler := schedule.RoundRobin(signatories)
 
-					// Call the Schedule method n time, incrementing the Round
-					// by exactly 1 each time.
+					// Call the Schedule method n times for each signatory,
+					// incrementing the Round by exactly 1 each time.
 					counts := map[id.Signatory]int{}
 					for i := 0; i < n*len(signatories); i++ {
 						proposer := scheduler.Schedule(block.Height(0), block.Round(i))
