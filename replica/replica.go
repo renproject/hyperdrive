@@ -247,9 +247,13 @@ func (replica *Replica) HandleMessage(m Message) {
 	queued := replica.messageQueue.PopUntil(replica.p.CurrentHeight())
 	for queued != nil && len(queued) > 0 {
 		for _, message := range queued {
-			// Handle the underlying `process.Message` and immediately save the
-			// `process.Process` afterwards to protect against unexpected
-			// crashes
+			// Handle the Message. After all Messages that can be handled have
+			// been handled, this function will end, and the Process will be
+			// saved. This protects the Process from crashing part way through
+			// handling a Message and ending up in a partially saved State
+			// caused by "saving on the go". We could save between each message,
+			// but this would have a large performance footprint (and is
+			// ultimately unnecessary, because we do not expect crashes).
 			replica.p.HandleMessage(message)
 		}
 		queued = replica.messageQueue.PopUntil(replica.p.CurrentHeight())
