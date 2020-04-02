@@ -225,8 +225,8 @@ func (replica *Replica) HandleMessage(m Message) {
 			// can have a LatestCommit message to fast-forward the process.
 			replica.messageQueue.Push(m.Message)
 		} else {
-			// If the Propose is not at the next height, then we need to make
-			// sure that no base blocks have been missed. Otherwise, reject the
+			// If the Propose is at a future height, then we need to make sure
+			// that no base blocks have been missed. Otherwise, reject the
 			// Propose, and wait until the appropriate one has been seen.
 			baseBlockHash := replica.blockStorage.LatestBaseBlock(m.Shard).Hash()
 			blockHash := m.Message.BlockHash()
