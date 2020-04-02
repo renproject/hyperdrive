@@ -1,4 +1,15 @@
-// Package schedule defines interfaces and implementations for
+// Package schedule defines interfaces and implementations for scheduling
+// different Processes as Block proposers. At any given Height and Round,
+// exactly one Process is expected to take responsibility for proposing a Block,
+// and this is determined by the Scheduler.
+//
+// It is important that all Processes agree on the schedule. That is, at any
+// given Height and Round, all Processes must arrive at the same decision
+// regarding which Process is expected to be the proposer. This is most commonly
+// done by making the schedule deterministic based and locally computable. This
+// means that Processes do not have to invoke a consensus algorithm in order to
+// agree on the schedule (although, this is possible to do, using Block N to
+// agree on the schedule for Block N+1).
 package schedule
 
 import (
@@ -80,7 +91,8 @@ func (rr *roundRobin) Schedule(height block.Height, round block.Round) id.Signat
 	return rr.signatories[(uint64(height)+uint64(round))%uint64(len(rr.signatories))]
 }
 
-// Rebase will replace the
+// Rebase will replace the underlying Signatories from which the round-robin
+// Scheduler will select proposers.
 func (rr *roundRobin) Rebase(signatories id.Signatories) {
 	rr.signatoriesMu.Lock()
 	defer rr.signatoriesMu.Unlock()
