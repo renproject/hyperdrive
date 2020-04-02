@@ -164,7 +164,7 @@ func (replica *Replica) HandleMessage(m Message) {
 		return
 	}
 
-	// Ignore messagse from heights that the process has already progressed
+	// Ignore messages from heights that the process has already progressed
 	// through. Messages at these earlier heights have no affect on consensus,
 	// and so there is no point wasting time processing them.
 	if m.Message.Height() < replica.p.CurrentHeight() {

@@ -738,7 +738,7 @@ func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
 	// Check that they have not included too many signatories. This is required
 	// to protect against DoS attacks performed by including a massive number of
 	// Precommits.
-	if latestCommit.Precommits == nil || len(latestCommit.Precommits) != 2*p.state.Proposals.f+1 {
+	if latestCommit.Precommits == nil || len(latestCommit.Precommits) != 2*p.state.Precommits.F()+1 {
 		return
 	}
 
