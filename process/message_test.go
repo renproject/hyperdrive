@@ -419,6 +419,41 @@ var _ = Describe("Messages", func() {
 			})
 		})
 
+		Context("when we insert an equal duplicate", func() {
+			It("should return conflicting=nil", func() {
+				test := func() bool {
+					f := rand.Intn(100) + 1
+					messageType := RandomMessageType(false)
+					message := RandomMessage(messageType)
+					inbox := NewInbox(f, messageType)
+					_, _, _, _, _, conflicting := inbox.Insert(message)
+					Expect(conflicting).To(BeNil())
+					_, _, _, _, _, conflicting = inbox.Insert(message)
+					Expect(conflicting).To(BeNil())
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+
+		Context("when we insert a non-equal duplicate", func() {
+			It("should return conflicting=non-nil", func() {
+				test := func() bool {
+					f := rand.Intn(100) + 1
+					messageType := RandomMessageType(false)
+					fst := RandomMessage(messageType)
+					snd := RandomMessageWithHeightAndRound(fst.Height(), fst.Round(), messageType)
+					inbox := NewInbox(f, messageType)
+					_, _, _, _, _, conflicting := inbox.Insert(fst)
+					Expect(conflicting).To(BeNil())
+					_, _, _, _, _, conflicting = inbox.Insert(snd)
+					Expect(conflicting).ToNot(BeNil())
+					return true
+				}
+				Expect(quick.Check(test, nil)).Should(Succeed())
+			})
+		})
+
 		Context("when F + 1 messages are inserted", func() {
 			It("should return n=F+1, firstTime=false, firstTimeExceedingF=true, and firstTimeExceeding2F=false", func() {
 				test := func(height block.Height, round block.Round) bool {
