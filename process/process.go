@@ -340,9 +340,6 @@ func (p *Process) startRound(round block.Round) {
 					break
 				}
 			}
-			if len(commits) == 2*p.state.Proposals.f+1 {
-				break
-			}
 		}
 		if len(commits) < 2*p.state.Precommits.F()+1 {
 			commits = []Precommit{}
