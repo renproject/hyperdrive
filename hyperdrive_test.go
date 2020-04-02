@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/replica"
 	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/id"
@@ -585,7 +586,7 @@ func NewNode(logger logrus.FieldLogger, shards Shards, pk *ecdsa.PrivateKey, ite
 	}
 	validator := NewMockValidator(store)
 	observer := NewMockObserver(store, isSignatory)
-	hd := New(option, store, store, iter, validator, observer, broadcaster, shards, *pk)
+	hd := New(option, store, store, iter, validator, observer, broadcaster, process.CatchAndIgnore(), shards, *pk)
 
 	return &Node{
 		logger:     logger,

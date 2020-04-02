@@ -140,12 +140,12 @@ type hyperdrive struct {
 //          hyper.HandleMessage(message)
 //      }
 //  }
-func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shards Shards, privKey ecdsa.PrivateKey) Hyperdrive {
+func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, catcher process.Catcher, shards Shards, privKey ecdsa.PrivateKey) Hyperdrive {
 	replicas := make(map[Shard]Replica, len(shards))
 	for _, shard := range shards {
 		if observer.IsSignatory(shard) {
 			rr := schedule.RoundRobin(blockStorage.LatestBaseBlock(shard).Header().Signatories())
-			replicas[shard] = replica.New(options, pStorage, blockStorage, blockIterator, validator, observer, broadcaster, rr, process.CatchAndIgnore(), shard, privKey)
+			replicas[shard] = replica.New(options, pStorage, blockStorage, blockIterator, validator, observer, broadcaster, rr, catcher, shard, privKey)
 		}
 	}
 	return &hyperdrive{
