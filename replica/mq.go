@@ -60,7 +60,7 @@ func (mq *messageQueue) Push(message process.Message) {
 	defer mq.mu.Unlock()
 
 	if _, ok := mq.once[message.Type()][message.Height()][message.Round()][message.Signatory()]; ok {
-		// Ignore messages that appear in the "once" filter to protecte against
+		// Ignore messages that appear in the "once" filter to protect against
 		// malicious duplicates.
 		return
 	}
