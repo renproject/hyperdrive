@@ -1,19 +1,43 @@
 package replica
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"io"
 
 	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/id"
 	"github.com/renproject/surge"
 )
+
+// SigHash of the Message including the Shard.
+func (message Message) SigHash() id.Hash {
+	m := surge.MaxBytes
+	buf := new(bytes.Buffer)
+	buf.Grow(surge.SizeHint(message.Message.Type()) +
+		surge.SizeHint(message.Message) +
+		surge.SizeHint(message.Shard))
+	m, err := surge.Marshal(buf, uint64(message.Message.Type()), m)
+	if err != nil {
+		panic(fmt.Errorf("bad message sighash: bad marshal: %v", err))
+	}
+	if m, err = surge.Marshal(buf, message.Message, m); err != nil {
+		panic(fmt.Errorf("bad message sighash: bad marshal: %v", err))
+	}
+	if m, err = surge.Marshal(buf, message.Shard, m); err != nil {
+		panic(fmt.Errorf("bad message sighash: bad marshal: %v", err))
+	}
+	return id.Hash(sha256.Sum256(buf.Bytes()))
+}
 
 // SizeHint returns the number of bytes requires to store this message in
 // binary.
 func (message Message) SizeHint() int {
 	return surge.SizeHint(message.Message.Type()) +
 		surge.SizeHint(message.Message) +
-		surge.SizeHint(message.Shard)
+		surge.SizeHint(message.Shard) +
+		surge.SizeHint(message.Signature)
 }
 
 // Marshal this message into binary.
@@ -25,7 +49,10 @@ func (message Message) Marshal(w io.Writer, m int) (int, error) {
 	if m, err = surge.Marshal(w, message.Message, m); err != nil {
 		return m, err
 	}
-	return surge.Marshal(w, message.Shard, m)
+	if m, err = surge.Marshal(w, message.Shard, m); err != nil {
+		return m, err
+	}
+	return surge.Marshal(w, message.Signature, m)
 }
 
 // Unmarshal into this message from binary.
@@ -60,5 +87,8 @@ func (message *Message) Unmarshal(r io.Reader, m int) (int, error) {
 		return m, err
 	}
 
-	return surge.Unmarshal(r, &message.Shard, m)
+	if m, err = surge.Unmarshal(r, &message.Shard, m); err != nil {
+		return m, err
+	}
+	return surge.Unmarshal(r, &message.Signature, m)
 }

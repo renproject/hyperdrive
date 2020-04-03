@@ -84,10 +84,7 @@ var _ = Describe("Replica", func() {
 					// end up stored in the Process state.
 					for _, key := range keys {
 						Expect(process.Sign(pMessage, *key)).Should(Succeed())
-						message := Message{
-							Shard:   shard,
-							Message: pMessage,
-						}
+						message := SignMessage(pMessage, shard, *key)
 						replica.HandleMessage(message)
 
 						// Expect the message not been inserted into the specific inbox,
@@ -108,7 +105,7 @@ var _ = Describe("Replica", func() {
 
 			It("should reject message of different shard", func() {
 				test := func(shard, wrongShard Shard) bool {
-					store, _, _ := initStorage(shard)
+					store, _, keys := initStorage(shard)
 					pstore := mockProcessStorage{}
 					broadcaster, _, _ := newMockBroadcaster()
 					scheduler := schedule.RoundRobin(store.LatestBaseBlock(shard).Header().Signatories())
@@ -118,10 +115,7 @@ var _ = Describe("Replica", func() {
 					replica.options.Logger = logger
 
 					pMessage := RandomSignedMessage(process.ProposeMessageType)
-					message := Message{
-						Shard:   wrongShard,
-						Message: pMessage,
-					}
+					message := SignMessage(pMessage, wrongShard, *keys[0])
 					replica.HandleMessage(message)
 
 					// Expect the message not been inserted into the specific inbox,
@@ -138,17 +132,14 @@ var _ = Describe("Replica", func() {
 
 			It("should reject message whose signatory is not valid", func() {
 				test := func(shard Shard) bool {
-					store, _, _ := initStorage(shard)
+					store, _, keys := initStorage(shard)
 					pstore := mockProcessStorage{}
 					broadcaster, _, _ := newMockBroadcaster()
 					scheduler := schedule.RoundRobin(store.LatestBaseBlock(shard).Header().Signatories())
 					replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, scheduler, process.CatchAndIgnore(), shard, *newEcdsaKey())
 
 					pMessage := RandomSignedMessage(process.ProposeMessageType)
-					message := Message{
-						Shard:   shard,
-						Message: pMessage,
-					}
+					message := SignMessage(pMessage, shard, *keys[0])
 					replica.HandleMessage(message)
 
 					// Expect the message not been inserted into the specific inbox,
@@ -168,7 +159,7 @@ var _ = Describe("Replica", func() {
 	Context("when sending resync messages to replica", func() {
 		Context("when the resync message is greater than the current height", func() {
 			It("should resend nothing", func() {
-				store, _, _ := initStorage(Shard{})
+				store, _, keys := initStorage(Shard{})
 				pstore := mockProcessStorage{}
 				broadcaster, _, castMessages := newMockBroadcaster()
 				replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, schedule.RoundRobin(testutil.RandomSignatories()), nil, Shard{}, *newEcdsaKey())
@@ -176,7 +167,8 @@ var _ = Describe("Replica", func() {
 				logger.SetOutput(ioutil.Discard)
 				replica.options.Logger = logger
 
-				replica.HandleMessage(Message{Message: process.NewResync(block.Height(999), block.Round(0)), Shard: Shard{}})
+				message := SignMessage(process.NewResync(block.Height(999), block.Round(0)), Shard{}, *keys[0])
+				replica.HandleMessage(message)
 				select {
 				case <-time.After(time.Second):
 				case <-castMessages:
@@ -187,7 +179,7 @@ var _ = Describe("Replica", func() {
 
 		Context("when outside the current time", func() {
 			It("should resend nothing", func() {
-				store, _, _ := initStorage(Shard{})
+				store, _, keys := initStorage(Shard{})
 				pstore := mockProcessStorage{}
 				broadcaster, _, castMessages := newMockBroadcaster()
 				replica := New(Options{}, pstore, store, mockBlockIterator{}, nil, nil, broadcaster, schedule.RoundRobin(testutil.RandomSignatories()), nil, Shard{}, *newEcdsaKey())
@@ -195,9 +187,9 @@ var _ = Describe("Replica", func() {
 				logger.SetOutput(ioutil.Discard)
 				replica.options.Logger = logger
 
-				resync := Message{Message: process.NewResync(block.Height(0), block.Round(0)), Shard: Shard{}}
+				message := SignMessage(process.NewResync(block.Height(0), block.Round(0)), Shard{}, *keys[0])
 				time.Sleep(11 * time.Second)
-				replica.HandleMessage(resync)
+				replica.HandleMessage(message)
 				select {
 				case <-time.After(time.Second):
 				case <-castMessages:

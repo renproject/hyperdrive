@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/id"
 )
@@ -42,19 +43,29 @@ func (broadcaster *signer) Broadcast(m process.Message) {
 	if err := process.Sign(m, broadcaster.privKey); err != nil {
 		panic(fmt.Errorf("invariant violation: error broadcasting message: %v", err))
 	}
-	broadcaster.broadcaster.Broadcast(Message{
-		Message: m,
-		Shard:   broadcaster.shard,
-	})
+	broadcaster.broadcaster.Broadcast(SignMessage(m, broadcaster.shard, broadcaster.privKey))
 }
 
 // Cast implements the `process.Broadcaster` interface.
 func (broadcaster *signer) Cast(to id.Signatory, m process.Message) {
 	if err := process.Sign(m, broadcaster.privKey); err != nil {
-		panic(fmt.Errorf("invariant violation: error casting message: %v", err))
+		panic(fmt.Errorf("invariant violation: error broadcasting message: %v", err))
 	}
-	broadcaster.broadcaster.Cast(to, Message{
+	broadcaster.broadcaster.Cast(to, SignMessage(m, broadcaster.shard, broadcaster.privKey))
+}
+
+// SignMessage with the Shard included. It is assumed that the `process.Message`
+// is already signed.
+func SignMessage(m process.Message, shard Shard, privKey ecdsa.PrivateKey) Message {
+	mWithShard := Message{
 		Message: m,
-		Shard:   broadcaster.shard,
-	})
+		Shard:   shard,
+	}
+	mWithShardHash := mWithShard.SigHash()
+	signature, err := crypto.Sign(mWithShardHash[:], &privKey)
+	if err != nil {
+		panic(fmt.Errorf("invariant violation: error broadcasting message: %v", err))
+	}
+	copy(mWithShard.Signature[:], signature)
+	return mWithShard
 }

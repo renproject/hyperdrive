@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/abi"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
@@ -49,8 +50,9 @@ type Messages []Message
 // underlying `process.Message` data. It is expected that a Replica will sign
 // the underlying `process.Message` data before sending the Message.
 type Message struct {
-	Message process.Message
-	Shard   Shard
+	Message   process.Message
+	Shard     Shard
+	Signature id.Signature
 }
 
 // ProcessStorage saves and restores `process.State` to persistent memory. This
@@ -203,8 +205,7 @@ func (replica *Replica) HandleMessage(m Message) {
 	if !replica.cache.signatoryInBaseBlock(m.Message.Signatory()) {
 		return
 	}
-	// Verify that the Message is actually signed by the claimed `id.Signatory`
-	if err := process.Verify(m.Message); err != nil {
+	if err := replica.verifySignedMessage(m); err != nil {
 		replica.options.Logger.Warnf("bad message: unverified: %v", err)
 		return
 	}
@@ -266,6 +267,24 @@ func (replica *Replica) Rebase(sigs id.Signatories) {
 	}
 	replica.scheduler.Rebase(sigs)
 	replica.rebaser.rebase(sigs)
+}
+
+func (replica *Replica) verifySignedMessage(m Message) error {
+	// Verify the Shard information
+	mHash := m.SigHash()
+	mPubKey, err := crypto.SigToPub(mHash[:], m.Signature[:])
+	if err != nil {
+		return fmt.Errorf("sigToPub: %v", err)
+	}
+	mSignatory := id.NewSignatory(*mPubKey)
+	if !m.Message.Signatory().Equal(mSignatory) {
+		return fmt.Errorf("bad signatory: expected signatory=%v, got signatory=%v", m.Message.Signatory(), mSignatory)
+	}
+	// Verify that the Message is actually signed by the claimed `id.Signatory`
+	if err := process.Verify(m.Message); err != nil {
+		return err
+	}
+	return nil
 }
 
 type saveRestorer struct {
