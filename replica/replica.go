@@ -191,6 +191,9 @@ func (replica *Replica) HandleMessage(m Message) {
 	// Make sure that the Process state gets saved.
 	defer replica.p.Save()
 
+	// Resync messages can be handled immediately, as long as they are not from
+	// a future height and their timestamps do not differ greatly from the
+	// current time.
 	if m.Message.Type() == process.ResyncMessageType {
 		if m.Message.Height() > replica.p.CurrentHeight() {
 			// We cannot respond to resync messages from future heights with
@@ -198,7 +201,7 @@ func (replica *Replica) HandleMessage(m Message) {
 			replica.options.Logger.Debugf("ignore message: resync height=%v compared to current height=%v", m.Message.Height(), replica.p.CurrentHeight())
 			return
 		}
-		// Filter resync messages by timestamp. If they're too old, or too far
+		// Filter Resync messages by timestamp. If they're too old, or too far
 		// in the future, then ignore them. The total window of time is 20
 		// seconds, approximately the latency expected for globally distributed
 		// message passing.
