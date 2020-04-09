@@ -45,6 +45,7 @@ type shardRebaser struct {
 
 	expectedKind       block.Kind
 	expectedRebaseSigs id.Signatories
+	numSignatories     int
 
 	blockStorage  BlockStorage
 	blockIterator BlockIterator
@@ -53,12 +54,13 @@ type shardRebaser struct {
 	shard         Shard
 }
 
-func newShardRebaser(blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, shard Shard) *shardRebaser {
+func newShardRebaser(blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, shard Shard, numSignatories int) *shardRebaser {
 	return &shardRebaser{
 		mu: new(sync.Mutex),
 
 		expectedKind:       block.Standard,
 		expectedRebaseSigs: nil,
+		numSignatories:     numSignatories,
 
 		blockStorage:  blockStorage,
 		blockIterator: blockIterator,
@@ -138,6 +140,9 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 		}
 
 	case block.Rebase:
+		if !len(proposedBlock.Header().Signatories()) != rebaser.numSignatories {
+			return nilReasons, fmt.Errorf("unexpected number of signatories in rebase block: expected %d, got %d", (rebaser.numSignatories, len(proposedBlock.Header().Signatories())) 
+		}
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
 			return nilReasons, fmt.Errorf("unexpected signatories in rebase block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
 		}
