@@ -26,10 +26,10 @@ var _ = Describe("shardRebaser", func() {
 
 	Context("initializing a new shardRebaser", func() {
 		It("should implements the process.Proposer", func() {
-			test := func(shard Shard) bool {
+			test := func(shard Shard, numSignatories int) bool {
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
-				rebaser := newShardRebaser(store, iter, nil, nil, shard)
+				rebaser := newShardRebaser(store, iter, nil, nil, shard, numSignatories)
 
 				parent := store.LatestBlock(shard)
 				base := store.LatestBaseBlock(shard)
@@ -49,11 +49,11 @@ var _ = Describe("shardRebaser", func() {
 		})
 
 		It("should implements the process.Validator", func() {
-			test := func(shard Shard) bool {
+			test := func(shard Shard, numSignatories int) bool {
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
 				validator := newMockValidator(nil)
-				rebaser := newShardRebaser(store, iter, validator, nil, shard)
+				rebaser := newShardRebaser(store, iter, validator, nil, shard, numSignatories)
 
 				// Generate a valid propose block.
 				parent := store.LatestBlock(shard)
@@ -73,11 +73,11 @@ var _ = Describe("shardRebaser", func() {
 		})
 
 		It("should implement the process.Observer", func() {
-			test := func(shard Shard) bool {
+			test := func(shard Shard, numSignatories int) bool {
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
 				observer := newMockObserver()
-				rebaser := newShardRebaser(store, iter, nil, observer, shard)
+				rebaser := newShardRebaser(store, iter, nil, observer, shard, numSignatories)
 
 				rebaser.DidCommitBlock(0)
 				rebaser.DidCommitBlock(initHeight)
@@ -99,7 +99,7 @@ var _ = Describe("shardRebaser", func() {
 			test := func(shard Shard, sigs id.Signatories) bool {
 				store, _, _ := initStorage(shard)
 				iter := mockBlockIterator{}
-				rebaser := newShardRebaser(store, iter, nil, nil, shard)
+				rebaser := newShardRebaser(store, iter, nil, nil, shard, len(sigs))
 
 				rebaser.rebase(sigs)
 				Expect(rebaser.expectedKind).Should(Equal(block.Rebase))
@@ -122,7 +122,7 @@ var _ = Describe("shardRebaser", func() {
 				}
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
-				rebaser := newShardRebaser(store, iter, nil, nil, shard)
+				rebaser := newShardRebaser(store, iter, nil, nil, shard, len(sigs))
 
 				rebaser.rebase(sigs)
 				parent := store.LatestBlock(shard)
@@ -160,7 +160,7 @@ var _ = Describe("shardRebaser", func() {
 				}
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
-				rebaser := newShardRebaser(store, iter, nil, nil, shard)
+				rebaser := newShardRebaser(store, iter, nil, nil, shard, len(sigs))
 				rebaser.rebase(sigs)
 
 				// Generate a valid rebase block.

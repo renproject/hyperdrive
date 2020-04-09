@@ -140,8 +140,8 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 		}
 
 	case block.Rebase:
-		if !len(proposedBlock.Header().Signatories()) != rebaser.numSignatories {
-			return nilReasons, fmt.Errorf("unexpected number of signatories in rebase block: expected %d, got %d", (rebaser.numSignatories, len(proposedBlock.Header().Signatories())) 
+		if len(proposedBlock.Header().Signatories()) != rebaser.numSignatories {
+			return nilReasons, fmt.Errorf("unexpected number of signatories in rebase block: expected %d, got %d", rebaser.numSignatories, len(proposedBlock.Header().Signatories()))
 		}
 		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
 			return nilReasons, fmt.Errorf("unexpected signatories in rebase block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
