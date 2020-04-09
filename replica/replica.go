@@ -166,15 +166,31 @@ func (replica *Replica) HandleMessage(m Message) {
 		return
 	}
 
-	// Ignore messages from heights that the process has already progressed
-	// through. Messages at these earlier heights have no affect on consensus,
-	// and so there is no point wasting time processing them.
+	// Ignore non-Resync messages from heights that the process has already
+	// progressed through. Messages at these earlier heights have no affect on
+	// consensus, and so there is no point wasting time processing them.
 	if m.Message.Height() < replica.p.CurrentHeight() {
 		if _, ok := m.Message.(*process.Resync); !ok {
 			replica.options.Logger.Debugf("ignore message: expected height>=%v, got height=%v", replica.p.CurrentHeight(), m.Message.Height())
 			return
 		}
 	}
+
+	// Check that the Message sender is from our Shard (this can be a moderately
+	// expensive operation, so we cache the result until a new `block.Base` is
+	// detected)
+	replica.cache.fillBaseBlock(replica.blockStorage.LatestBaseBlock(replica.shard))
+	if !replica.cache.signatoryInBaseBlock(m.Message.Signatory()) {
+		return
+	}
+	if err := replica.verifySignedMessage(m); err != nil {
+		replica.options.Logger.Warnf("bad message: unverified: %v", err)
+		return
+	}
+
+	// Make sure that the Process state gets saved.
+	defer replica.p.Save()
+
 	if m.Message.Type() == process.ResyncMessageType {
 		if m.Message.Height() > replica.p.CurrentHeight() {
 			// We cannot respond to resync messages from future heights with
@@ -196,22 +212,8 @@ func (replica *Replica) HandleMessage(m Message) {
 			replica.options.Logger.Debugf("ignore message: resync timestamp=%v compared to now=%v", timestamp, now)
 			return
 		}
+		replica.p.HandleMessage(m.Message)
 	}
-
-	// Check that the Message sender is from our Shard (this can be a moderately
-	// expensive operation, so we cache the result until a new `block.Base` is
-	// detected)
-	replica.cache.fillBaseBlock(replica.blockStorage.LatestBaseBlock(replica.shard))
-	if !replica.cache.signatoryInBaseBlock(m.Message.Signatory()) {
-		return
-	}
-	if err := replica.verifySignedMessage(m); err != nil {
-		replica.options.Logger.Warnf("bad message: unverified: %v", err)
-		return
-	}
-
-	// Make sure that the Process state gets saved.
-	defer replica.p.Save()
 
 	// Messages from the current height can be handled immediately.
 	if m.Message.Height() == replica.p.CurrentHeight() {
