@@ -150,9 +150,9 @@ func (observer *MockObserver) DidReceiveSufficientNilPrevotes(process.Messages, 
 type MockBroadcaster struct {
 	min, max int
 
-	mu     *sync.RWMutex
-	cons   map[id.Signatory]chan []byte
-	active map[id.Signatory]bool
+	cons     map[id.Signatory]chan []byte
+	active   map[id.Signatory]bool
+	activeMu *sync.RWMutex
 
 	signatories map[id.Signatory]int
 }
@@ -171,21 +171,23 @@ func NewMockBroadcaster(keys []*ecdsa.PrivateKey, min, max int) *MockBroadcaster
 		min: min,
 		max: max,
 
-		mu:          new(sync.RWMutex),
 		cons:        cons,
 		active:      map[id.Signatory]bool{},
+		activeMu:    new(sync.RWMutex),
 		signatories: signatories,
 	}
 }
 
 func (m *MockBroadcaster) Broadcast(message replica.Message) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	func() {
+		// If the sender is offline, it cannot send messages to other nodes.
+		m.activeMu.RLock()
+		defer m.activeMu.RUnlock()
 
-	// If the sender is offline, it cannot send messages to other nodes.
-	if !m.active[message.Message.Signatory()] {
-		return
-	}
+		if !m.active[message.Message.Signatory()] {
+			return
+		}
+	}()
 
 	messageBytes, err := surge.ToBinary(message)
 	if err != nil {
@@ -197,13 +199,15 @@ func (m *MockBroadcaster) Broadcast(message replica.Message) {
 }
 
 func (m *MockBroadcaster) Cast(to id.Signatory, message replica.Message) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	func() {
+		// If the sender is offline, it cannot send messages to other nodes.
+		m.activeMu.RLock()
+		defer m.activeMu.RUnlock()
 
-	// If the sender is offline, it cannot send messages to other nodes.
-	if !m.active[message.Message.Signatory()] {
-		return
-	}
+		if !m.active[message.Message.Signatory()] {
+			return
+		}
+	}()
 
 	messageBytes, err := surge.ToBinary(message)
 	if err != nil {
@@ -218,28 +222,28 @@ func (m *MockBroadcaster) sendMessage(receiver id.Signatory, message []byte) {
 
 	// If the receiver is offline, it cannot receive any messages from other
 	// nodes.
+	m.activeMu.RLock()
+	defer m.activeMu.RUnlock()
+
 	if m.active[receiver] {
 		go func() { messages <- message }()
 	}
 }
 
 func (m *MockBroadcaster) Messages(sig id.Signatory) chan []byte {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	return m.cons[sig]
 }
 
 func (m *MockBroadcaster) EnablePeer(sig id.Signatory) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.activeMu.Lock()
+	defer m.activeMu.Unlock()
 
 	m.active[sig] = true
 }
 
 func (m *MockBroadcaster) DisablePeer(sig id.Signatory) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.activeMu.Lock()
+	defer m.activeMu.Unlock()
 
 	m.active[sig] = false
 }
