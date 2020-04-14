@@ -217,6 +217,11 @@ func (replica *Replica) HandleMessage(m Message) {
 		}
 		replica.p.HandleMessage(m.Message)
 	}
+	
+	// Make sure that the Process state gets saved. We do this here
+	// because Resync cannot cause state changes, so there is no
+	// reason to save after handling a Resync message.
+	defer replica.p.Save()
 
 	// Messages from the current height can be handled immediately.
 	if m.Message.Height() == replica.p.CurrentHeight() {
