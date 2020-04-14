@@ -188,8 +188,6 @@ func (replica *Replica) HandleMessage(m Message) {
 		return
 	}
 
-	// Make sure that the Process state gets saved.
-	defer replica.p.Save()
 
 	// Resync messages can be handled immediately, as long as they are not from
 	// a future height and their timestamps do not differ greatly from the
