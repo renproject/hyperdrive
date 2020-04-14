@@ -214,6 +214,7 @@ func (replica *Replica) HandleMessage(m Message) {
 			return
 		}
 		replica.p.HandleMessage(m.Message)
+		return
 	}
 	
 	// Make sure that the Process state gets saved. We do this here
