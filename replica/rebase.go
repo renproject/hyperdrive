@@ -29,7 +29,10 @@ type BlockIterator interface {
 	// by their block hash). This is used to prevent forking by old signatories.
 	// This function should not include the "end" block as a missed block if it
 	// is a rebasing Propose as if this function is being called, it has clearly
-	// not been missed.
+	// not been missed. For example, if the range is heights 10 - 20 and there
+	// was expected to be a base block at 18, then this function is expected to
+	// return 1. However, if there was expected to be a block at height 20,
+	// then this function would return 0.
 	MissedBaseBlocksInRange(begin, end id.Hash) int
 }
 
