@@ -231,7 +231,7 @@ func (replica *Replica) HandleMessage(m Message) {
 			// Propose, and wait until the appropriate one has been seen.
 			baseBlockHash := replica.blockStorage.LatestBaseBlock(m.Shard).Hash()
 			blockHash := m.Message.BlockHash()
-			numMissingBaseBlocks := replica.rebaser.blockIterator.BaseBlocksInRange(baseBlockHash, blockHash)
+			numMissingBaseBlocks := replica.rebaser.blockIterator.MissedBaseBlocksInRange(baseBlockHash, blockHash)
 			if numMissingBaseBlocks == 0 {
 				// If we have missed a base block, we drop the Propose. The
 				// Propose that justifies the next base block will eventually be
@@ -253,7 +253,7 @@ func (replica *Replica) HandleMessage(m Message) {
 			// the message was sitting on the queue. If we have missed a base
 			// block, we drop the message.
 			blockHash := message.BlockHash()
-			numMissingBaseBlocks := replica.rebaser.blockIterator.BaseBlocksInRange(baseBlockHash, blockHash)
+			numMissingBaseBlocks := replica.rebaser.blockIterator.MissedBaseBlocksInRange(baseBlockHash, blockHash)
 			if numMissingBaseBlocks == 0 {
 				// Otherwise, we handle the Message. After all Messages that can
 				// be handled have been handled, this function will end, and the
