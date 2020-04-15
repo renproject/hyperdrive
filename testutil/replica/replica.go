@@ -78,7 +78,7 @@ func (m *MockBlockIterator) NextBlock(kind block.Kind, height block.Height, shar
 	}
 }
 
-func (m *MockBlockIterator) BaseBlocksInRange(begin, end id.Hash) int {
+func (m *MockBlockIterator) MissedBaseBlocksInRange(begin, end id.Hash) int {
 	return 0 // MockBlockIterator does not support rebasing.
 }
 
