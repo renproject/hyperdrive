@@ -103,10 +103,11 @@ type Replicas []Replica
 // to a specific Shard. It signs Messages before sending them to other Replicas,
 // and verifies Messages before accepting them from other Replicas.
 type Replica struct {
-	options      Options
-	shard        Shard
-	p            *process.Process
-	blockStorage BlockStorage
+	options        Options
+	shard          Shard
+	p              *process.Process
+	numSignatories int
+	blockStorage   BlockStorage
 
 	scheduler schedule.Scheduler
 	rebaser   *shardRebaser
@@ -118,17 +119,18 @@ type Replica struct {
 func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, scheduler schedule.Scheduler, catcher process.Catcher, shard Shard, privKey ecdsa.PrivateKey) Replica {
 	options.setZerosToDefaults()
 	latestBase := blockStorage.LatestBaseBlock(shard)
-	if len(latestBase.Header().Signatories())%3 != 1 || len(latestBase.Header().Signatories()) < 4 {
-		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", len(latestBase.Header().Signatories())))
+	numSignatories := len(latestBase.Header().Signatories())
+	if numSignatories%3 != 1 || numSignatories < 4 {
+		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", numSignatories))
 	}
-	shardRebaser := newShardRebaser(blockStorage, blockIterator, validator, observer, shard)
+	shardRebaser := newShardRebaser(blockStorage, blockIterator, validator, observer, shard, numSignatories)
 
 	// Create a Process in the default state and then restore it
 	p := process.New(
 		options.Logger,
 		id.NewSignatory(privKey.PublicKey),
 		blockStorage.Blockchain(shard),
-		process.DefaultState((len(latestBase.Header().Signatories())-1)/3),
+		process.DefaultState((numSignatories-1)/3),
 		newSaveRestorer(pStorage, shard),
 		shardRebaser,
 		shardRebaser,
@@ -141,10 +143,11 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	p.Restore()
 
 	return Replica{
-		options:      options,
-		shard:        shard,
-		p:            p,
-		blockStorage: blockStorage,
+		options:        options,
+		shard:          shard,
+		p:              p,
+		numSignatories: numSignatories,
+		blockStorage:   blockStorage,
 
 		scheduler: scheduler,
 		rebaser:   shardRebaser,
@@ -271,6 +274,9 @@ func (replica *Replica) HandleMessage(m Message) {
 }
 
 func (replica *Replica) Rebase(sigs id.Signatories) {
+	if len(sigs) != replica.numSignatories {
+		panic(fmt.Errorf("invariant violation: number of signatories must not change: expected %v, got %v", replica.numSignatories, len(sigs)))
+	}
 	if len(sigs)%3 != 1 || len(sigs) < 4 {
 		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", len(sigs)))
 	}
