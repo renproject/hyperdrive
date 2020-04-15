@@ -169,34 +169,12 @@ func (replica *Replica) HandleMessage(m Message) {
 		return
 	}
 
-	// Ignore messages from heights that the process has already progressed
-	// through. Messages at these earlier heights have no affect on consensus,
-	// and so there is no point wasting time processing them.
+	// Ignore non-Resync messages from heights that the process has already
+	// progressed through. Messages at these earlier heights have no affect on
+	// consensus, and so there is no point wasting time processing them.
 	if m.Message.Height() < replica.p.CurrentHeight() {
 		if _, ok := m.Message.(*process.Resync); !ok {
 			replica.options.Logger.Debugf("ignore message: expected height>=%v, got height=%v", replica.p.CurrentHeight(), m.Message.Height())
-			return
-		}
-	}
-	if m.Message.Type() == process.ResyncMessageType {
-		if m.Message.Height() > replica.p.CurrentHeight() {
-			// We cannot respond to resync messages from future heights with
-			// anything that is useful, so we ignore it.
-			replica.options.Logger.Debugf("ignore message: resync height=%v compared to current height=%v", m.Message.Height(), replica.p.CurrentHeight())
-			return
-		}
-		// Filter resync messages by timestamp. If they're too old, or too far
-		// in the future, then ignore them. The total window of time is 20
-		// seconds, approximately the latency expected for globally distributed
-		// message passing.
-		now := block.Timestamp(time.Now().Unix())
-		timestamp := m.Message.(*process.Resync).Timestamp()
-		delta := now - timestamp
-		if delta < 0 {
-			delta = -delta
-		}
-		if delta > 10 {
-			replica.options.Logger.Debugf("ignore message: resync timestamp=%v compared to now=%v", timestamp, now)
 			return
 		}
 	}
@@ -213,7 +191,38 @@ func (replica *Replica) HandleMessage(m Message) {
 		return
 	}
 
-	// Make sure that the Process state gets saved.
+
+	// Resync messages can be handled immediately, as long as they are not from
+	// a future height and their timestamps do not differ greatly from the
+	// current time.
+	if m.Message.Type() == process.ResyncMessageType {
+		if m.Message.Height() > replica.p.CurrentHeight() {
+			// We cannot respond to resync messages from future heights with
+			// anything that is useful, so we ignore it.
+			replica.options.Logger.Debugf("ignore message: resync height=%v compared to current height=%v", m.Message.Height(), replica.p.CurrentHeight())
+			return
+		}
+		// Filter Resync messages by timestamp. If they're too old, or too far
+		// in the future, then ignore them. The total window of time is 20
+		// seconds, approximately the latency expected for globally distributed
+		// message passing.
+		now := block.Timestamp(time.Now().Unix())
+		timestamp := m.Message.(*process.Resync).Timestamp()
+		delta := now - timestamp
+		if delta < 0 {
+			delta = -delta
+		}
+		if delta > 10 {
+			replica.options.Logger.Debugf("ignore message: resync timestamp=%v compared to now=%v", timestamp, now)
+			return
+		}
+		replica.p.HandleMessage(m.Message)
+		return
+	}
+	
+	// Make sure that the Process state gets saved. We do this here
+	// because Resync cannot cause state changes, so there is no
+	// reason to save after handling a Resync message.
 	defer replica.p.Save()
 
 	// Messages from the current height can be handled immediately.
