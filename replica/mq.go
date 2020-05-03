@@ -141,6 +141,7 @@ func (mq *messageQueue) PopUntil(height block.Height) []process.Message {
 		delete(mq.once[process.ProposeMessageType], h)
 		delete(mq.once[process.PrevoteMessageType], h)
 		delete(mq.once[process.PrecommitMessageType], h)
+		delete(mq.once[process.ResyncMessageType], h)
 	}
 	return messages
 }
