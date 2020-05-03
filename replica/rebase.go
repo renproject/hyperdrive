@@ -7,6 +7,7 @@ import (
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/hyperdrive/schedule"
 	"github.com/renproject/id"
 )
 
@@ -53,6 +54,7 @@ type shardRebaser struct {
 	expectedRebaseSigs id.Signatories
 	numSignatories     int
 
+	scheduler     schedule.Scheduler
 	blockStorage  BlockStorage
 	blockIterator BlockIterator
 	validator     Validator
@@ -60,7 +62,7 @@ type shardRebaser struct {
 	shard         Shard
 }
 
-func newShardRebaser(blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, shard Shard, numSignatories int) *shardRebaser {
+func newShardRebaser(scheduler schedule.Scheduler, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, shard Shard, numSignatories int) *shardRebaser {
 	return &shardRebaser{
 		mu: new(sync.Mutex),
 
@@ -68,6 +70,7 @@ func newShardRebaser(blockStorage BlockStorage, blockIterator BlockIterator, val
 		expectedRebaseSigs: nil,
 		numSignatories:     numSignatories,
 
+		scheduler:     scheduler,
 		blockStorage:  blockStorage,
 		blockIterator: blockIterator,
 		validator:     validator,
@@ -194,7 +197,7 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 		if !ok {
 			return nilReasons, fmt.Errorf("block at height=%d not found", proposedBlock.Header().Height()-1)
 		}
-		if proposedBlock.Header().Timestamp() < parentBlock.Header().Timestamp() {
+		if proposedBlock.Header().Timestamp() <= parentBlock.Header().Timestamp() {
 			return nilReasons, fmt.Errorf("expected timestamp for proposed block to be greater than parent block")
 		}
 		if proposedBlock.Header().Timestamp() > block.Timestamp(time.Now().Unix()) {
@@ -242,6 +245,9 @@ func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
 		rebaser.expectedKind = block.Base
 		rebaser.expectedRebaseSigs = committedBlock.Header().Signatories()
 	case block.Base:
+		if rebaser.scheduler != nil {
+			rebaser.scheduler.Rebase(rebaser.expectedRebaseSigs)
+		}
 		rebaser.expectedKind = block.Standard
 		rebaser.expectedRebaseSigs = nil
 	}

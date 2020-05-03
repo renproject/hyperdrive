@@ -77,8 +77,8 @@ type Header struct {
 	txsRef       id.Hash   // Reference to the block txs
 	planRef      id.Hash   // Reference to the block plan
 	prevStateRef id.Hash   // Reference to the block previous state
-	height       Height    // Height at which the block was committed
-	round        Round     // Round at which the block was committed
+	height       Height    // Height at which the block was proposed (and committed)
+	round        Round     // Round at which the block was proposed
 	timestamp    Timestamp // Seconds since Unix epoch
 
 	// Signatories oversee the consensus algorithm (must be nil unless the block

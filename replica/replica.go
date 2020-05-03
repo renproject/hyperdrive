@@ -123,7 +123,7 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 	if numSignatories%3 != 1 || numSignatories < 4 {
 		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", numSignatories))
 	}
-	shardRebaser := newShardRebaser(blockStorage, blockIterator, validator, observer, shard, numSignatories)
+	shardRebaser := newShardRebaser(scheduler, blockStorage, blockIterator, validator, observer, shard, numSignatories)
 
 	// Create a Process in the default state and then restore it
 	p := process.New(
@@ -177,6 +177,7 @@ func (replica *Replica) HandleMessage(m Message) {
 			replica.options.Logger.Debugf("ignore message: expected height>=%v, got height=%v", replica.p.CurrentHeight(), m.Message.Height())
 			return
 		}
+		// Fall-through to the remaining logic.
 	}
 
 	// Check that the Message sender is from our Shard (this can be a moderately
@@ -190,7 +191,6 @@ func (replica *Replica) HandleMessage(m Message) {
 		replica.options.Logger.Warnf("bad message: unverified: %v", err)
 		return
 	}
-
 
 	// Resync messages can be handled immediately, as long as they are not from
 	// a future height and their timestamps do not differ greatly from the
@@ -219,7 +219,7 @@ func (replica *Replica) HandleMessage(m Message) {
 		replica.p.HandleMessage(m.Message)
 		return
 	}
-	
+
 	// Make sure that the Process state gets saved. We do this here
 	// because Resync cannot cause state changes, so there is no
 	// reason to save after handling a Resync message.
@@ -289,7 +289,6 @@ func (replica *Replica) Rebase(sigs id.Signatories) {
 	if len(sigs)%3 != 1 || len(sigs) < 4 {
 		panic(fmt.Errorf("invariant violation: number of nodes needs to be 3f +1, got %v", len(sigs)))
 	}
-	replica.scheduler.Rebase(sigs)
 	replica.rebaser.rebase(sigs)
 }
 

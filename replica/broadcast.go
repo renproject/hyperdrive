@@ -17,6 +17,11 @@ import (
 // The specific message ordering is not important. In practice, the Prevote
 // messages are the only messages that must guarantee delivery when guaranteeing
 // correctness.
+//
+// For crash-resilience, the implementation of Broadcast should ensure that two
+// different Propose messages are not broadcast for the same shard, height, and
+// round. This can be done by storing Proposes (and checking for their
+// existence) before sending the Propose to the network proper.
 type Broadcaster interface {
 	Broadcast(Message)
 	Cast(id.Signatory, Message)
