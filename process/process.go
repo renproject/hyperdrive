@@ -717,6 +717,13 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 				}
 				p.logger.Infof("✅ committed block=%v at height=%v", propose.BlockHash(), propose.height)
 				p.startRound(0)
+
+				// If we just committed a base block, then we need to
+				// resynchronise with other nodes, in case we have dropped
+				// Proposes from this new base that arrived bfeore the new base.
+				if propose.Block().Header().Kind() == block.Base {
+					p.broadcaster.Broadcast(NewResync(p.state.CurrentHeight, p.state.CurrentRound))
+				}
 			} else {
 				p.logger.Warnf("nothing committed at height=%v and round=%v (invalid block: %v)", propose.height, propose.round, err)
 			}
