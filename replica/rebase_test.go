@@ -9,6 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/renproject/hyperdrive/schedule"
 	. "github.com/renproject/hyperdrive/testutil"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -195,13 +196,63 @@ var _ = Describe("shardRebaser", func() {
 			}
 			Expect(quick.Check(test, nil)).Should(Succeed())
 		})
-	})
 
-	// Context("when validating a proposed block", func() {
-	// 	It("should reject block which has unexpect kind", func() {
-	//
-	// 	})
-	// })
+		It("should change signatories after a base block", func() {
+			test := func(shard Shard, sigs id.Signatories) bool {
+				if len(sigs) == 0 {
+					return true
+				}
+				store, initHeight, _ := initStorage(shard)
+				iter := mockBlockIterator{}
+				scheduler := schedule.RoundRobin(id.Signatories{})
+				rebaser := newShardRebaser(scheduler, store, iter, nil, nil, shard, len(sigs))
+				rebaser.rebase(sigs)
+
+				// Rebasing should not immediate cause a rebase of the
+				// scheduler.
+				Expect(scheduler.Schedule(0, 0)).To(Equal(block.InvalidSignatory))
+
+				// Generate a valid rebase block.
+				parent := store.LatestBlock(shard)
+				base := store.LatestBaseBlock(shard)
+				header := RandomBlockHeaderJSON(block.Rebase)
+				header.Height = initHeight + 1
+				header.BaseHash = base.Hash()
+				header.ParentHash = parent.Hash()
+				header.Timestamp = block.Timestamp(time.Now().Unix() - 1)
+				header.Signatories = sigs
+				rebaseBlock := block.New(header.ToBlockHeader(), nil, nil, nil)
+				_, err := rebaser.IsBlockValid(rebaseBlock, true)
+				Expect(err).Should(BeNil())
+
+				// After the block been committed
+				commitBlock(store, shard, rebaseBlock)
+				rebaser.DidCommitBlock(initHeight + 1)
+
+				// Generate a valid base block.
+				parent = rebaseBlock
+				baseHeader := RandomBlockHeaderJSON(block.Base)
+				baseHeader.Height = initHeight + 2
+				baseHeader.BaseHash = base.Hash()
+				baseHeader.ParentHash = parent.Hash()
+				baseHeader.Timestamp = block.Timestamp(time.Now().Unix())
+				baseHeader.Signatories = sigs
+				baseBlock := block.New(baseHeader.ToBlockHeader(), nil, nil, nil)
+				_, err = rebaser.IsBlockValid(baseBlock, true)
+				Expect(err).Should(BeNil())
+
+				// After the base block is commited...
+				commitBlock(store, shard, baseBlock)
+				rebaser.DidCommitBlock(initHeight + 2)
+
+				// ...the scheduler should be rebased.
+				Expect(scheduler.Schedule(0, 0)).To(Equal(sigs[0]))
+
+				return true
+			}
+			Expect(quick.Check(test, nil)).Should(Succeed())
+		})
+	})
 })
 
 func initStorage(shard Shard) (BlockStorage, block.Height, []*ecdsa.PrivateKey) {
