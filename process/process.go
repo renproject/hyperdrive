@@ -521,6 +521,15 @@ func (p *Process) handlePrecommit(precommit *Precommit) {
 func (p *Process) handleResync(resync *Resync) {
 	p.logger.Debugf("received resync at height=%v and round=%v", resync.height, resync.round)
 
+	// If we need to resend messages after a height and round that are ahead of
+	// us, then there is nothing to resend.
+	if p.state.CurrentHeight < resync.height {
+		return
+	}
+	if p.state.CurrentHeight == resync.height && p.state.CurrentRound < resync.round {
+		return
+	}
+
 	// Resend our latest messages to the requestor.
 	p.resendLatestMessages(&resync.signatory)
 }
