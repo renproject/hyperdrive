@@ -65,6 +65,15 @@ type Committer interface {
 	Commit(Height, Value)
 }
 
+// A Catcher is used to catch bad behaviour in other Processes. For example,
+// when the same Process sends two different Proposes at the same Height and
+// Round.
+type Catcher interface {
+	CatchDoublePropose(Propose, Propose)
+	CatchDoublePrevote(Prevote, Prevote)
+	CatchDoublePrecommit(Precommit, Precommit)
+}
+
 // A Process is a deterministic finite state automaton that communicates with
 // other Processes to implement a Byzantine fault tolerant consensus algorithm.
 // It is intended to be used as part of a larger component that implements a
@@ -88,6 +97,7 @@ type Process struct {
 	timer       Timer
 	broadcaster Broadcaster
 	committer   Committer
+	catcher     Catcher
 
 	// ProposeLogs store the Proposes for all Rounds.
 	ProposeLogs map[Round]Propose `json:"proposeLogs"`
@@ -110,24 +120,93 @@ type Process struct {
 	State `json:"state"`
 }
 
+// Propose is used to notify the Process that a Propose message has been
+// received (this includes Propose messages that the Process itself has
+// broadcast). All conditions that could be opened by the receipt of a Propose
+// message will be tried.
+func (p *Process) Propose(propose Propose) {
+	if !p.insertPropose(propose) {
+		return
+	}
+
+	p.trySkipToFutureRound(propose.Round)
+	p.tryCommitUponSufficientPrecommits(propose.Round)
+	p.tryPrecommitUponSufficientPrevotes()
+	p.tryPrevoteUponPropose()
+	p.tryPrevoteUponSufficientPrevotes()
+}
+
+// Prevote is used to notify the Process that a Prevote message has been
+// received (this includes Prevote messages that the Process itself has
+// broadcast). All conditions that could be opened by the receipt of a Prevote
+// message will be tried.
+func (p *Process) Prevote(prevote Prevote) {
+	if !p.insertPrevote(prevote) {
+		return
+	}
+
+	p.trySkipToFutureRound(prevote.Round)
+	p.tryPrecommitUponSufficientPrevotes()
+	p.tryPrecommitNilUponSufficientPrevotes()
+	p.tryPrevoteUponSufficientPrevotes()
+	p.tryTimeoutPrevoteUponSufficientPrevotes()
+}
+
+// Precommit is used to notify the Process that a Precommit message has been
+// received (this includes Precommit messages that the Process itself has
+// broadcast). All conditions that could be opened by the receipt of a Precommit
+// message will be tried.
+func (p *Process) Precommit(precommit Precommit) {
+	if !p.insertPrecommit(precommit) {
+		return
+	}
+
+	p.trySkipToFutureRound(precommit.Round)
+	p.tryCommitUponSufficientPrecommits(precommit.Round)
+	p.tryTimeoutPrecommitUponSufficientPrecommits()
+}
+
 // Start the Process.
+//
+// L10:
+//	upon start do
+//		StartRound(0)
+//
 func (p *Process) Start() {
 	p.StartRound(0)
 }
 
-// StartRound will progress the Process to a new Round.
+// StartRound will progress the Process to a new Round. It does not asssume that
+// the Height has changed. Since this changes the current Round and the current
+// Step, most of the condition methods will be retried at the end (by way of
+// defer).
+//
+// L11:
+//	Function StartRound(round)
+//		currentRound ← round
+//		currentStep ← propose
+//		if proposer(currentHeight, currentRound) = p then
+//			if validValue = nil then
+//				proposal ← validValue
+//			else
+//				proposal ← getValue()
+//			broadcast〈PROPOSAL, currentHeight, currentRound, proposal, validRound〉
+//		else
+//			schedule OnTimeoutPropose(currentHeight, currentRound) to be executed after timeoutPropose(currentRound)
 func (p *Process) StartRound(round Round) {
 	defer func() {
-		p.tryTimeoutPrevoteUponSufficientPrevotes()
-		p.tryTimeoutPrecommitUponSufficientPrecommits()
-		p.tryPrevoteUponPropose()
-		p.tryPrevoteUponSufficientPrevotes()
 		p.tryPrecommitUponSufficientPrevotes()
 		p.tryPrecommitNilUponSufficientPrevotes()
+		p.tryPrevoteUponPropose()
+		p.tryPrevoteUponSufficientPrevotes()
+		p.tryTimeoutPrecommitUponSufficientPrecommits()
+		p.tryTimeoutPrevoteUponSufficientPrevotes()
 	}()
 
 	// Set the state the new round, and set the step to the first step in the
-	// sequence.
+	// sequence. We do not have special methods dedicated to change the current
+	// Roound, or changing the current Step to Proposing, because StartRound is
+	// the only location where this logic happens.
 	p.CurrentRound = round
 	p.CurrentStep = Proposing
 
@@ -197,62 +276,18 @@ func (p *Process) OnTimeoutPrecommit(height Height, round Round) {
 	}
 }
 
-// Propose is used to notify the Process that a Propose message has been
-// received (this includes Propose messages that the Process itself has
-// broadcast). All conditions that could be opened by the receipt of a Propose
-// message will be tried.
-func (p *Process) Propose(propose Propose) {
-	if !p.insertPropose(propose) {
-		return
-	}
-
-	p.trySkipToFutureRound(propose.Round)
-	p.tryCommitUponSufficientPrecommits(propose.Round)
-
-	p.tryPrecommitUponSufficientPrevotes()
-	p.tryPrevoteUponPropose()
-}
-
-// Prevote is used to notify the Process that a Prevote message has been
-// received (this includes Prevote messages that the Process itself has
-// broadcast). All conditions that could be opened by the receipt of a Prevote
-// message will be tried.
-func (p *Process) Prevote(prevote Prevote) {
-	if !p.insertPrevote(prevote) {
-		return
-	}
-
-	p.trySkipToFutureRound(prevote.Round)
-
-	p.tryPrecommitUponSufficientPrevotes()
-	p.tryPrecommitNilUponSufficientPrevotes()
-	p.tryPrevoteUponSufficientPrevotes()
-	p.tryTimeoutPrevoteUponSufficientPrevotes()
-}
-
-// Precommit is used to notify the Process that a Precommit message has been
-// received (this includes Precommit messages that the Process itself has
-// broadcast). All conditions that could be opened by the receipt of a Precommit
-// message will be tried.
-func (p *Process) Precommit(precommit Precommit) {
-	if !p.insertPrecommit(precommit) {
-		return
-	}
-
-	p.trySkipToFutureRound(precommit.Round)
-
-	p.tryCommitUponSufficientPrecommits(precommit.Round)
-	p.tryTimeoutPrecommitUponSufficientPrecommits()
-}
-
 // L22:
-//	upon〈PROPOSAL, currentHeight, currentRound, v, −1〉from proposer(currentHeight, currentRound)
-//	while currentStep = propose do
-//		if valid(v) ∧ (lockedRound = −1 ∨ lockedValue = v) then
-//			broadcast〈PREVOTE, currentHeight, currentRound, id(v)
-//		else
-//			broadcast〈PREVOTE, currentHeight, currentRound, nil
-//		currentStep ← prevote
+//  upon〈PROPOSAL, currentHeight, currentRound, v, −1〉from proposer(currentHeight, currentRound)
+//  while currentStep = propose do
+//      if valid(v) ∧ (lockedRound = −1 ∨ lockedValue = v) then
+//          broadcast〈PREVOTE, currentHeight, currentRound, id(v)
+//      else
+//          broadcast〈PREVOTE, currentHeight, currentRound, nil
+//      currentStep ← prevote
+//
+// This method must be tried whenever a Propose is received at the current
+// Ronud, the current Round changes, the current Step changes to Proposing, the
+// LockedRound changes, or the the LockedValue changes.
 func (p *Process) tryPrevoteUponPropose() {
 	if p.CurrentStep != Proposing {
 		return
@@ -275,13 +310,18 @@ func (p *Process) tryPrevoteUponPropose() {
 }
 
 // L28:
-//	upon〈PROPOSAL, currentHeight, currentRound, v, vr〉from proposer(currentHeight, currentRound) AND 2f+ 1〈PREVOTE, currentHeight, vr, id(v)〉
-//	while currentStep = propose ∧ (vr ≥ 0 ∧ vr < currentRound) do
-//		if valid(v) ∧ (lockedRound ≤ vr ∨ lockedValue = v) then
-//			broadcast〈PREVOTE, currentHeight, currentRound, id(v)〉
-//		else
-//			broadcast〈PREVOTE, currentHeight, currentRound, nil〉
-//		stepp←prevote
+//
+//  upon〈PROPOSAL, currentHeight, currentRound, v, vr〉from proposer(currentHeight, currentRound) AND 2f+ 1〈PREVOTE, currentHeight, vr, id(v)〉
+//  while currentStep = propose ∧ (vr ≥ 0 ∧ vr < currentRound) do
+//      if valid(v) ∧ (lockedRound ≤ vr ∨ lockedValue = v) then
+//          broadcast〈PREVOTE, currentHeight, currentRound, id(v)〉
+//      else
+//          broadcast〈PREVOTE, currentHeight, currentRound, nil〉
+//      currentStep ← prevote
+//
+// This method must be tried whenever a Propose is received at the current Rond,
+// a Prevote is received (at any Round), the current Round changes, the
+// LockedRound changes, or the the LockedValue changes.
 func (p *Process) tryPrevoteUponSufficientPrevotes() {
 	if p.CurrentStep != Proposing {
 		return
@@ -314,9 +354,15 @@ func (p *Process) tryPrevoteUponSufficientPrevotes() {
 }
 
 // L34:
-//	upon 2f+ 1〈PREVOTE, currentHeight, currentRound, ∗〉
-//	while currentStep = prevote for the first time do
-//		scheduleOnTimeoutPrevote(currentHeight, currentRound) to be executed after timeoutPrevote(currentRound)
+//
+//  upon 2f+ 1〈PREVOTE, currentHeight, currentRound, ∗〉
+//  while currentStep = prevote for the first time do
+//      scheduleOnTimeoutPrevote(currentHeight, currentRound) to be executed after timeoutPrevote(currentRound)
+//
+// This method must be tried whenever a Prevote is received at the current
+// Round, the current Round changes, or the current Step changes to Prevoting.
+// It assumes that the Timer will eventually call the OnTimeoutPrevote method.
+// This method must only succeed once in any current Round.
 func (p *Process) tryTimeoutPrevoteUponSufficientPrevotes() {
 	if p.checkOnceFlag(p.CurrentRound, OnceFlagTimeoutPrevoteUponSufficientPrevotes) {
 		return
@@ -331,15 +377,21 @@ func (p *Process) tryTimeoutPrevoteUponSufficientPrevotes() {
 }
 
 // L36:
-//	upon〈PROPOSAL, currentHeight, currentRound, v, ∗〉from proposer(currentHeight, currentRound) AND 2f+ 1〈PREVOTE, currentHeight, currentRound, id(v)〉
-//	while valid(v) ∧ currentStep ≥ prevote for the first time do
-//		if currentStep = prevote then
-//			lockedValue ← v
-//			lockedRound ← currentRound
-//			broadcast〈PRECOMMIT, currentHeight, currentRound, id(v))〉
-//			currentStep ← precommit
-//		validValue ← v
-//		validRound ← currentRound
+//
+//  upon〈PROPOSAL, currentHeight, currentRound, v, ∗〉from proposer(currentHeight, currentRound) AND 2f+ 1〈PREVOTE, currentHeight, currentRound, id(v)〉
+//  while valid(v) ∧ currentStep ≥ prevote for the first time do
+//      if currentStep = prevote then
+//          lockedValue ← v
+//          lockedRound ← currentRound
+//          broadcast〈PRECOMMIT, currentHeight, currentRound, id(v))〉
+//          currentStep ← precommit
+//      validValue ← v
+//      validRound ← currentRound
+//
+// This method must be tried whenever a Propose is received at the current
+// Round, a Prevote is received at the current Round, the current Round changes,
+// or the current Step changes to Prevoting or Precommitting. This method must
+// only succeed once in any current Round.
 func (p *Process) tryPrecommitUponSufficientPrevotes() {
 	if p.checkOnceFlag(p.CurrentRound, OnceFlagPrecommitUponSufficientPrevotes) {
 		return
@@ -367,6 +419,13 @@ func (p *Process) tryPrecommitUponSufficientPrevotes() {
 		p.LockedRound = p.CurrentRound
 		p.broadcaster.BroadcastPrecommit(p.CurrentHeight, p.CurrentRound, propose.Value)
 		p.stepToPrecommitting()
+
+		// Beacuse the LockedValue and LockedRound have changed, we need to try
+		// this condition again.
+		defer func() {
+			p.tryPrevoteUponPropose()
+			p.tryPrevoteUponSufficientPrevotes()
+		}()
 	}
 	p.ValidValue = propose.Value
 	p.ValidRound = p.CurrentRound
@@ -374,10 +433,14 @@ func (p *Process) tryPrecommitUponSufficientPrevotes() {
 }
 
 // L44:
-//	upon 2f+ 1〈PREVOTE, currentHeight, currentRound, nil〉
-//	while currentStep = prevote do
-//		broadcast〈PRECOMMIT, currentHeight, currentRound, nil〉
-//		currentStep ← precommit
+//
+//  upon 2f+ 1〈PREVOTE, currentHeight, currentRound, nil〉
+//  while currentStep = prevote do
+//      broadcast〈PRECOMMIT, currentHeight, currentRound, nil〉
+//      currentStep ← precommit
+//
+// This method must be tried whenever a Prevote is received at the current
+// Round, the current Round changes, or the Step changes to Prevoting.
 func (p *Process) tryPrecommitNilUponSufficientPrevotes() {
 	if p.CurrentStep != Prevoting {
 		return
@@ -395,8 +458,14 @@ func (p *Process) tryPrecommitNilUponSufficientPrevotes() {
 }
 
 // L47:
-//	upon 2f+ 1〈PRECOMMIT, currentHeight, currentRound, ∗〉for the first time do
-//		scheduleOnTimeoutPrecommit(currentHeight, currentRound) to be executed after timeoutPrecommit(currentRound)
+//
+//  upon 2f+ 1〈PRECOMMIT, currentHeight, currentRound, ∗〉for the first time do
+//      scheduleOnTimeoutPrecommit(currentHeight, currentRound) to be executed after timeoutPrecommit(currentRound)
+//
+// This method must be tried whenever a Precommit is received at the current
+// Round, or the current Round changes. It assumes that the Timer will
+// eventually call the OnTimeoutPrecommit method. This method must only succeed
+// once in any current Round.
 func (p *Process) tryTimeoutPrecommitUponSufficientPrecommits() {
 	if p.checkOnceFlag(p.CurrentRound, OnceFlagTimeoutPrecommitUponSufficientPrecommits) {
 		return
@@ -408,13 +477,27 @@ func (p *Process) tryTimeoutPrecommitUponSufficientPrecommits() {
 }
 
 // L49:
-//	upon〈PROPOSAL, currentHeight, r, v, ∗〉from proposer(currentHeight, r) AND 2f+ 1〈PRECOMMIT, currentHeight, r, id(v)〉
-//	while decision[currentHeight] = nil do
-//		if valid(v) then
-//			decisionp[currentHeight] = v
-//			currentHeight ← currentHeight + 1
-//			reset
-//			StartRound(0)
+//
+//  upon〈PROPOSAL, currentHeight, r, v, ∗〉from proposer(currentHeight, r) AND 2f+ 1〈PRECOMMIT, currentHeight, r, id(v)〉
+//  while decision[currentHeight] = nil do
+//      if valid(v) then
+//          decision[currentHeight] = v
+//          currentHeight ← currentHeight + 1
+//          reset
+//          StartRound(0)
+//
+// This method must be tried whenever a Propose is received, or a Precommit is
+// received. Because this method checks whichever Round is relevant (i.e. the
+// Round of the Propose/Precommit), it does not need to be tried whenever the
+// current Round changes.
+//
+// We can avoid explicitly checking for validity of the Propose value, because
+// no Propose value is stored in the message logs unless it is valid. We can
+// also avoid checking for a nil-decision at the current Height, because the
+// only condition under which this would not be true is when the Process has
+// progressed passed the Height in question (put another way, the fact that this
+// method causes the Height to be incremented prevents it from being triggered
+// multiple times).
 func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 	propose, ok := p.ProposeLogs[round]
 	if !ok {
@@ -429,14 +512,29 @@ func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 	if precommitsForValue == 2*p.F+1 {
 		p.committer.Commit(p.CurrentHeight, propose.Value)
 		p.CurrentHeight++
+
+		// Empty message logs in preparation for the new Height.
+		p.ProposeLogs = map[Round]Propose{}
+		p.PrevoteLogs = map[Round]map[Pid]Prevote{}
+		p.PrecommitLogs = map[Round]map[Pid]Precommit{}
+		p.OnceFlags = map[Round]OnceFlag{}
+
+		// Reset the State and start from the first Round in the new Height.
 		p.Reset()
 		p.StartRound(0)
 	}
 }
 
 // L55:
-//	upon f+ 1〈∗, currentHeight, r, ∗, ∗〉with r > currentRound do
-//		StartRound(r)
+//
+//  upon f+ 1〈∗, currentHeight, r, ∗, ∗〉with r > currentRound do
+//      StartRound(r)
+//
+// This method must be tried whenever a Propose is received, a Prevote is
+// received, or a Precommit is received. Because this method checks whichever
+// Round is relevant (i.e. the Round of the Propose/Prevote/Precommit), and an
+// increase in the current Round can only cause this condition to be closed, it
+// does not need to be tried whenever the current Round changes.
 func (p *Process) trySkipToFutureRound(round Round) {
 	if round <= p.CurrentRound {
 		return
@@ -463,8 +561,13 @@ func (p *Process) insertPropose(propose Propose) bool {
 
 	existingPropose, ok := p.ProposeLogs[propose.Round]
 	if ok {
+		// We have caught a Process attempting to broadcast two different
+		// Proposes at the same Height and Round. Even though we only
+		// explicitly check the Round, we know that the Proposes will have the
+		// same Height, because we only keep message logs for message with the
+		// same Height as the current Height of the Process.
 		if !propose.Equal(&existingPropose) {
-			// FIXME: Punish the proposer.
+			p.catcher.CatchDoublePropose(propose, existingPropose)
 		}
 		return false
 	}
@@ -472,6 +575,9 @@ func (p *Process) insertPropose(propose Propose) bool {
 	if !proposer.Equal(&propose.From) {
 		return false
 	}
+
+	// By never inserting a Propose that is not valid, we can avoid the validity
+	// checks elsewhere in the Process.
 	if !p.validator.Valid(propose.Value) {
 		return false
 	}
@@ -492,8 +598,13 @@ func (p *Process) insertPrevote(prevote Prevote) bool {
 
 	existingPrevote, ok := p.PrevoteLogs[prevote.Round][prevote.From]
 	if ok {
+		// We have caught a Process attempting to broadcast two different
+		// Prevotes at the same Height and Round. Even though we only explicitly
+		// check the Round, we know that the Prevotes will have the same Height,
+		// because we only keep message logs for message with the same Height as
+		// the current Height of the Process.
 		if !prevote.Equal(&existingPrevote) {
-			// FIXME: Punish the prevoter.
+			p.catcher.CatchDoublePrevote(prevote, existingPrevote)
 		}
 		return false
 	}
@@ -515,8 +626,13 @@ func (p *Process) insertPrecommit(precommit Precommit) bool {
 
 	existingPrecommit, ok := p.PrecommitLogs[precommit.Round][precommit.From]
 	if ok {
+		// We have caught a Process attempting to broadcast two different
+		// Precommits at the same Height and Round. Even though we only
+		// explicitly check the Round, we know that the Precommits will have the
+		// same Height, because we only keep message logs for message with the
+		// same Height as the current Height of the Process.
 		if !precommit.Equal(&existingPrecommit) {
-			// FIXME: Punish the precommitr.
+			p.catcher.CatchDoublePrecommit(precommit, existingPrecommit)
 		}
 		return false
 	}
@@ -529,6 +645,10 @@ func (p *Process) insertPrecommit(precommit Precommit) bool {
 // other methods that might now have passing conditions.
 func (p *Process) stepToPrevoting() {
 	p.CurrentStep = Prevoting
+
+	// Because the current Step of the Process has changed, new conditions might
+	// be open, so we try the relevant ones. Once flags protect us against
+	// double-tries where necessary.
 	p.tryPrecommitUponSufficientPrevotes()
 	p.tryPrecommitNilUponSufficientPrevotes()
 	p.tryTimeoutPrevoteUponSufficientPrevotes()
@@ -538,6 +658,10 @@ func (p *Process) stepToPrevoting() {
 // also try other methods that might now have passing conditions.
 func (p *Process) stepToPrecommitting() {
 	p.CurrentStep = Precommitting
+
+	// Because the current Step of the Process has changed, new conditions might
+	// be open, so we try the relevant ones. Once flags protect us against
+	// double-tries where necessary.
 	p.tryPrecommitUponSufficientPrevotes()
 }
 
