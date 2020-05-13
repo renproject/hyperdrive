@@ -175,6 +175,16 @@ func NewMockBroadcaster(keys []*ecdsa.PrivateKey, min, max int) *MockBroadcaster
 }
 
 func (m *MockBroadcaster) Broadcast(message process.Message) {
+	buf := new(bytes.Buffer)
+	_, err := process.MarshalMessage(message, buf, surge.MaxBytes)
+	if err != nil {
+		panic(err)
+	}
+	messageBytes := buf.Bytes()
+
+	// Always able to send message to self
+	m.sendMessage(message.Signatory(), messageBytes)
+
 	func() {
 		// If the sender is offline, it cannot send messages to other nodes.
 		m.activeMu.RLock()
@@ -185,12 +195,6 @@ func (m *MockBroadcaster) Broadcast(message process.Message) {
 		}
 	}()
 
-	buf := new(bytes.Buffer)
-	_, err := process.MarshalMessage(message, buf, surge.MaxBytes)
-	if err != nil {
-		panic(err)
-	}
-	messageBytes := buf.Bytes()
 	phi.ParForAll(m.cons, func(to id.Signatory) {
 		m.sendMessage(to, messageBytes)
 	})
