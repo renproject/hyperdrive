@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestProcess(t *testing.T) {
+func TestProc(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Process Suite")
 }

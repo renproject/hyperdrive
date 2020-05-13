@@ -1,4 +1,4 @@
-package schedule_test
+package mq_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestSchedule(t *testing.T) {
+func TestMq(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Schedule Suite")
+	RunSpecs(t, "Mq Suite")
 }
