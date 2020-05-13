@@ -12,7 +12,8 @@ import (
 // SizeHint of how many bytes will be needed to represent this propose in
 // binary.
 func (propose Propose) SizeHint() int {
-	return surge.SizeHint(propose.signatory) +
+	return surge.SizeHint(propose.shard) +
+		surge.SizeHint(propose.signatory) +
 		surge.SizeHint(propose.sig) +
 		surge.SizeHint(propose.height) +
 		surge.SizeHint(propose.round) +
@@ -24,8 +25,11 @@ func (propose Propose) SizeHint() int {
 
 // Marshal this propose into binary.
 func (propose Propose) Marshal(w io.Writer, m int) (int, error) {
-	m, err := surge.Marshal(w, propose.signatory, m)
+	m, err := surge.Marshal(w, propose.shard, m)
 	if err != nil {
+		return m, err
+	}
+	if m, err = surge.Marshal(w, propose.signatory, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Marshal(w, propose.sig, m); err != nil {
@@ -51,8 +55,11 @@ func (propose Propose) Marshal(w io.Writer, m int) (int, error) {
 
 // Unmarshal into this propose from binary.
 func (propose *Propose) Unmarshal(r io.Reader, m int) (int, error) {
-	m, err := surge.Unmarshal(r, &propose.signatory, m)
+	m, err := surge.Unmarshal(r, &propose.shard, m)
 	if err != nil {
+		return m, err
+	}
+	if m, err = surge.Unmarshal(r, &propose.signatory, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Unmarshal(r, &propose.sig, m); err != nil {
@@ -79,7 +86,8 @@ func (propose *Propose) Unmarshal(r io.Reader, m int) (int, error) {
 // SizeHint of how many bytes will be needed to represent this prevote in
 // binary.
 func (prevote Prevote) SizeHint() int {
-	return surge.SizeHint(prevote.signatory) +
+	return surge.SizeHint(prevote.shard) +
+		surge.SizeHint(prevote.signatory) +
 		surge.SizeHint(prevote.sig) +
 		surge.SizeHint(prevote.height) +
 		surge.SizeHint(prevote.round) +
@@ -89,8 +97,11 @@ func (prevote Prevote) SizeHint() int {
 
 // Marshal this prevote into binary.
 func (prevote Prevote) Marshal(w io.Writer, m int) (int, error) {
-	m, err := surge.Marshal(w, prevote.signatory, m)
+	m, err := surge.Marshal(w, prevote.shard, m)
 	if err != nil {
+		return m, err
+	}
+	if m, err = surge.Marshal(w, prevote.signatory, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Marshal(w, prevote.sig, m); err != nil {
@@ -110,8 +121,11 @@ func (prevote Prevote) Marshal(w io.Writer, m int) (int, error) {
 
 // Unmarshal into this prevote from binary.
 func (prevote *Prevote) Unmarshal(r io.Reader, m int) (int, error) {
-	m, err := surge.Unmarshal(r, &prevote.signatory, m)
+	m, err := surge.Unmarshal(r, &prevote.shard, m)
 	if err != nil {
+		return m, err
+	}
+	if m, err = surge.Unmarshal(r, &prevote.signatory, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Unmarshal(r, &prevote.sig, m); err != nil {
@@ -132,7 +146,8 @@ func (prevote *Prevote) Unmarshal(r io.Reader, m int) (int, error) {
 // SizeHint of how many bytes will be needed to represent this precommit in
 // binary.
 func (precommit Precommit) SizeHint() int {
-	return surge.SizeHint(precommit.signatory) +
+	return surge.SizeHint(precommit.shard) +
+		surge.SizeHint(precommit.signatory) +
 		surge.SizeHint(precommit.sig) +
 		surge.SizeHint(precommit.height) +
 		surge.SizeHint(precommit.round) +
@@ -141,8 +156,11 @@ func (precommit Precommit) SizeHint() int {
 
 // Marshal this precommit into binary.
 func (precommit Precommit) Marshal(w io.Writer, m int) (int, error) {
-	m, err := surge.Marshal(w, precommit.signatory, m)
+	m, err := surge.Marshal(w, precommit.shard, m)
 	if err != nil {
+		return m, err
+	}
+	if m, err = surge.Marshal(w, precommit.signatory, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Marshal(w, precommit.sig, m); err != nil {
@@ -159,8 +177,11 @@ func (precommit Precommit) Marshal(w io.Writer, m int) (int, error) {
 
 // Unmarshal into this precommit from binary.
 func (precommit *Precommit) Unmarshal(r io.Reader, m int) (int, error) {
-	m, err := surge.Unmarshal(r, &precommit.signatory, m)
+	m, err := surge.Unmarshal(r, &precommit.shard, m)
 	if err != nil {
+		return m, err
+	}
+	if m, err = surge.Unmarshal(r, &precommit.signatory, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Unmarshal(r, &precommit.sig, m); err != nil {
@@ -178,7 +199,8 @@ func (precommit *Precommit) Unmarshal(r io.Reader, m int) (int, error) {
 // SizeHint of how many bytes will be needed to represent this resync in
 // binary.
 func (resync Resync) SizeHint() int {
-	return surge.SizeHint(resync.signatory) +
+	return surge.SizeHint(resync.shard) +
+		surge.SizeHint(resync.signatory) +
 		surge.SizeHint(resync.sig) +
 		surge.SizeHint(resync.height) +
 		surge.SizeHint(resync.round) +
@@ -187,8 +209,11 @@ func (resync Resync) SizeHint() int {
 
 // Marshal this resync into binary.
 func (resync Resync) Marshal(w io.Writer, m int) (int, error) {
-	m, err := surge.Marshal(w, resync.signatory, m)
+	m, err := surge.Marshal(w, resync.shard, m)
 	if err != nil {
+		return m, err
+	}
+	if m, err = surge.Marshal(w, resync.signatory, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Marshal(w, resync.sig, m); err != nil {
@@ -205,8 +230,11 @@ func (resync Resync) Marshal(w io.Writer, m int) (int, error) {
 
 // Unmarshal into this resync from binary.
 func (resync *Resync) Unmarshal(r io.Reader, m int) (int, error) {
-	m, err := surge.Unmarshal(r, &resync.signatory, m)
+	m, err := surge.Unmarshal(r, &resync.shard, m)
 	if err != nil {
+		return m, err
+	}
+	if m, err = surge.Unmarshal(r, &resync.signatory, m); err != nil {
 		return m, err
 	}
 	if m, err = surge.Unmarshal(r, &resync.sig, m); err != nil {
@@ -457,4 +485,45 @@ func (state *State) Unmarshal(r io.Reader, m int) (int, error) {
 	}
 	state.Precommits = new(Inbox)
 	return surge.Unmarshal(r, state.Precommits, m)
+}
+
+// MarshalMessage into binary.
+func MarshalMessage(msg Message, w io.Writer, m int) (int, error) {
+	m, err := surge.Marshal(w, uint64(msg.Type()), m)
+	if err != nil {
+		return m, err
+	}
+	return surge.Marshal(w, msg, m)
+}
+
+// UnmarshalMessage into this message from binary.
+func UnmarshalMessage(r io.Reader, m int) (Message, int, error) {
+	var messageType MessageType
+	m, err := surge.Unmarshal(r, &messageType, m)
+	if err != nil {
+		return nil, m, err
+	}
+
+	var msg Message
+	switch messageType {
+	case ProposeMessageType:
+		propose := new(Propose)
+		m, err = propose.Unmarshal(r, m)
+		msg = propose
+	case PrevoteMessageType:
+		prevote := new(Prevote)
+		m, err = prevote.Unmarshal(r, m)
+		msg = prevote
+	case PrecommitMessageType:
+		precommit := new(Precommit)
+		m, err = precommit.Unmarshal(r, m)
+		msg = precommit
+	case ResyncMessageType:
+		resync := new(Resync)
+		m, err = resync.Unmarshal(r, m)
+		msg = resync
+	default:
+		return nil, m, fmt.Errorf("unexpected message type %d", messageType)
+	}
+	return msg, m, err
 }

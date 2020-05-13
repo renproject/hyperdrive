@@ -29,7 +29,7 @@ var _ = Describe("Messages", func() {
 					validRound := block.Round(rand.Int63())
 					block := RandomBlock(RandomBlockKind())
 
-					propose := NewPropose(height, round, block, validRound)
+					propose := NewPropose(Shard{}, height, round, block, validRound)
 
 					Expect(propose.Type()).Should(Equal(MessageType(ProposeMessageType)))
 					Expect(propose.Height()).Should(Equal(height))
@@ -108,7 +108,7 @@ var _ = Describe("Messages", func() {
 					round := block.Round(rand.Int63())
 					blockHash := RandomHash()
 
-					prevote := NewPrevote(height, round, blockHash, nil)
+					prevote := NewPrevote(Shard{}, height, round, blockHash, nil)
 
 					Expect(prevote.Type()).Should(Equal(MessageType(PrevoteMessageType)))
 					Expect(prevote.Height()).Should(Equal(height))
@@ -186,7 +186,7 @@ var _ = Describe("Messages", func() {
 					round := block.Round(rand.Int63())
 					blockHash := RandomHash()
 
-					precommit := NewPrecommit(height, round, blockHash)
+					precommit := NewPrecommit(Shard{}, height, round, blockHash)
 
 					Expect(precommit.Type()).Should(Equal(MessageType(PrecommitMessageType)))
 					Expect(precommit.Height()).Should(Equal(height))
@@ -263,7 +263,7 @@ var _ = Describe("Messages", func() {
 					height := block.Height(rand.Int63())
 					round := block.Round(rand.Int63())
 
-					resync := NewResync(height, round)
+					resync := NewResync(Shard{}, height, round)
 
 					Expect(resync.Type()).Should(Equal(MessageType(ResyncMessageType)))
 					Expect(resync.Height()).Should(Equal(height))

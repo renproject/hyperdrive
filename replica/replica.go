@@ -1,15 +1,10 @@
 package replica
 
 import (
-	"bytes"
 	"crypto/ecdsa"
-	"encoding/base64"
 	"fmt"
-	"io"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/renproject/abi"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/schedule"
@@ -17,50 +12,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type Shards []Shard
-
-// Shard uniquely identifies the Shard being maintained by the Replica.
-type Shard [32]byte
-
-// Equal compares one Shard with another.
-func (shard Shard) Equal(other Shard) bool {
-	return bytes.Equal(shard[:], other[:])
-}
-
-// String implements the `fmt.Stringer` interface.
-func (shard Shard) String() string {
-	return base64.RawStdEncoding.EncodeToString(shard[:])
-}
-
-func (shard Shard) SizeHint() int {
-	return 32
-}
-
-func (shard Shard) Marshal(w io.Writer, m int) (int, error) {
-	return abi.Bytes32(shard).Marshal(w, m)
-}
-
-func (shard *Shard) Unmarshal(r io.Reader, m int) (int, error) {
-	return (*abi.Bytes32)(shard).Unmarshal(r, m)
-}
-
-type Messages []Message
-
-// A Message sent/received by a Replica is composed of a Shard and the
-// underlying `process.Message` data. It is expected that a Replica will sign
-// the underlying `process.Message` data before sending the Message.
-type Message struct {
-	Message   process.Message
-	Shard     Shard
-	Signature id.Signature
-}
-
 // ProcessStorage saves and restores `process.State` to persistent memory. This
 // guarantees that in the event of an unexpected shutdown, the Replica will only
 // drop the `process.Message` that was currently being handling.
 type ProcessStorage interface {
-	SaveState(state *process.State, shard Shard)
-	RestoreState(state *process.State, shard Shard)
+	SaveState(state *process.State, shard process.Shard)
+	RestoreState(state *process.State, shard process.Shard)
 }
 
 // Options define a set of properties that can be used to parameterise the
@@ -104,7 +61,7 @@ type Replicas []Replica
 // and verifies Messages before accepting them from other Replicas.
 type Replica struct {
 	options        Options
-	shard          Shard
+	shard          process.Shard
 	p              *process.Process
 	numSignatories int
 	blockStorage   BlockStorage
@@ -116,7 +73,7 @@ type Replica struct {
 	messageQueue MessageQueue
 }
 
-func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, scheduler schedule.Scheduler, catcher process.Catcher, shard Shard, privKey ecdsa.PrivateKey) Replica {
+func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster process.Broadcaster, scheduler schedule.Scheduler, catcher process.Catcher, shard process.Shard, privKey ecdsa.PrivateKey) Replica {
 	options.setZerosToDefaults()
 	latestBase := blockStorage.LatestBaseBlock(shard)
 	numSignatories := len(latestBase.Header().Signatories())
@@ -135,10 +92,11 @@ func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, bl
 		shardRebaser,
 		shardRebaser,
 		shardRebaser,
-		newSigner(broadcaster, shard, privKey),
+		newSigner(broadcaster, privKey),
 		scheduler,
 		newBackOffTimer(options.BackOffExp, options.BackOffBase, options.BackOffMax),
 		catcher,
+		shard,
 	)
 	p.Restore()
 
@@ -161,10 +119,10 @@ func (replica *Replica) Start() {
 	replica.p.Start()
 }
 
-func (replica *Replica) HandleMessage(m Message) {
+func (replica *Replica) HandleMessage(m process.Message) {
 	// Check that Message is from our shard. If it is not, then there is no
 	// point processing the message.
-	if !replica.shard.Equal(m.Shard) {
+	if !replica.shard.Equal(m.Shard()) {
 		replica.options.Logger.Warnf("bad message: expected shard=%v, got shard=%v", replica.shard, m.Shard)
 		return
 	}
@@ -172,9 +130,9 @@ func (replica *Replica) HandleMessage(m Message) {
 	// Ignore non-Resync messages from heights that the process has already
 	// progressed through. Messages at these earlier heights have no affect on
 	// consensus, and so there is no point wasting time processing them.
-	if m.Message.Height() < replica.p.CurrentHeight() {
-		if _, ok := m.Message.(*process.Resync); !ok {
-			replica.options.Logger.Debugf("ignore message: expected height>=%v, got height=%v", replica.p.CurrentHeight(), m.Message.Height())
+	if m.Height() < replica.p.CurrentHeight() {
+		if _, ok := m.(*process.Resync); !ok {
+			replica.options.Logger.Debugf("ignore message: expected height>=%v, got height=%v", replica.p.CurrentHeight(), m.Height())
 			return
 		}
 		// Fall-through to the remaining logic.
@@ -184,7 +142,7 @@ func (replica *Replica) HandleMessage(m Message) {
 	// expensive operation, so we cache the result until a new `block.Base` is
 	// detected)
 	replica.cache.fillBaseBlock(replica.blockStorage.LatestBaseBlock(replica.shard))
-	if !replica.cache.signatoryInBaseBlock(m.Message.Signatory()) {
+	if !replica.cache.signatoryInBaseBlock(m.Signatory()) {
 		return
 	}
 	if err := replica.verifySignedMessage(m); err != nil {
@@ -195,11 +153,11 @@ func (replica *Replica) HandleMessage(m Message) {
 	// Resync messages can be handled immediately, as long as they are not from
 	// a future height and their timestamps do not differ greatly from the
 	// current time.
-	if m.Message.Type() == process.ResyncMessageType {
-		if m.Message.Height() > replica.p.CurrentHeight() {
+	if m.Type() == process.ResyncMessageType {
+		if m.Height() > replica.p.CurrentHeight() {
 			// We cannot respond to resync messages from future heights with
 			// anything that is useful, so we ignore it.
-			replica.options.Logger.Debugf("ignore message: resync height=%v compared to current height=%v", m.Message.Height(), replica.p.CurrentHeight())
+			replica.options.Logger.Debugf("ignore message: resync height=%v compared to current height=%v", m.Height(), replica.p.CurrentHeight())
 			return
 		}
 		// Filter Resync messages by timestamp. If they're too old, or too far
@@ -207,7 +165,7 @@ func (replica *Replica) HandleMessage(m Message) {
 		// seconds, approximately the latency expected for globally distributed
 		// message passing.
 		now := block.Timestamp(time.Now().Unix())
-		timestamp := m.Message.(*process.Resync).Timestamp()
+		timestamp := m.(*process.Resync).Timestamp()
 		delta := now - timestamp
 		if delta < 0 {
 			delta = -delta
@@ -216,7 +174,7 @@ func (replica *Replica) HandleMessage(m Message) {
 			replica.options.Logger.Debugf("ignore message: resync timestamp=%v compared to now=%v", timestamp, now)
 			return
 		}
-		replica.p.HandleMessage(m.Message)
+		replica.p.HandleMessage(m)
 		return
 	}
 
@@ -225,24 +183,27 @@ func (replica *Replica) HandleMessage(m Message) {
 	// reason to save after handling a Resync message.
 	defer replica.p.Save()
 
+	// TOOD: We need to verify the Precommits in the LatestCommit of all Propose
+	// messages.
+
 	// Messages from the current height can be handled immediately.
-	if m.Message.Height() == replica.p.CurrentHeight() {
-		replica.p.HandleMessage(m.Message)
+	if m.Height() == replica.p.CurrentHeight() {
+		replica.p.HandleMessage(m)
 	}
 
 	// Messages from the future must be put into the height-ordered message
 	// queue.
-	if m.Message.Height() > replica.p.CurrentHeight() {
-		if m.Message.Type() != process.ProposeMessageType {
+	if m.Height() > replica.p.CurrentHeight() {
+		if m.Type() != process.ProposeMessageType {
 			// We only want to queue non-Propose messages, because Propose messages
 			// can have a LatestCommit message to fast-forward the process.
-			replica.messageQueue.Push(m.Message)
+			replica.messageQueue.Push(m)
 		} else {
 			// If the Propose is at a future height, then we need to make sure
 			// that no base blocks have been missed. Otherwise, reject the
 			// Propose, and wait until the appropriate one has been seen.
-			baseBlockHash := replica.blockStorage.LatestBaseBlock(m.Shard).Hash()
-			blockHash := m.Message.BlockHash()
+			baseBlockHash := replica.blockStorage.LatestBaseBlock(m.Shard()).Hash()
+			blockHash := m.BlockHash()
 			numMissingBaseBlocks := replica.rebaser.blockIterator.MissedBaseBlocksInRange(baseBlockHash, blockHash)
 			if numMissingBaseBlocks == 0 {
 				// If we have missed a base block, we drop the Propose. The
@@ -252,14 +213,14 @@ func (replica *Replica) HandleMessage(m Message) {
 
 				// In this condition, we haven't missed any base blocks, so we
 				// can proceed as usual.
-				replica.p.HandleMessage(m.Message)
+				replica.p.HandleMessage(m)
 			}
 		}
 	}
 
 	queued := replica.messageQueue.PopUntil(replica.p.CurrentHeight())
 	for queued != nil && len(queued) > 0 {
-		baseBlockHash := replica.blockStorage.LatestBaseBlock(m.Shard).Hash()
+		baseBlockHash := replica.blockStorage.LatestBaseBlock(m.Shard()).Hash()
 		for _, message := range queued {
 			// We need to make sure that no base blocks have been missed while
 			// the message was sitting on the queue. If we have missed a base
@@ -292,30 +253,16 @@ func (replica *Replica) Rebase(sigs id.Signatories) {
 	replica.rebaser.rebase(sigs)
 }
 
-func (replica *Replica) verifySignedMessage(m Message) error {
-	// Verify the Shard information
-	mHash := m.SigHash()
-	mPubKey, err := crypto.SigToPub(mHash[:], m.Signature[:])
-	if err != nil {
-		return fmt.Errorf("sigToPub: %v", err)
-	}
-	mSignatory := id.NewSignatory(*mPubKey)
-	if !m.Message.Signatory().Equal(mSignatory) {
-		return fmt.Errorf("bad signatory: expected signatory=%v, got signatory=%v", m.Message.Signatory(), mSignatory)
-	}
-	// Verify that the Message is actually signed by the claimed `id.Signatory`
-	if err := process.Verify(m.Message); err != nil {
-		return err
-	}
-	return nil
+func (replica *Replica) verifySignedMessage(m process.Message) error {
+	return process.Verify(m)
 }
 
 type saveRestorer struct {
 	pStorage ProcessStorage
-	shard    Shard
+	shard    process.Shard
 }
 
-func newSaveRestorer(pStorage ProcessStorage, shard Shard) *saveRestorer {
+func newSaveRestorer(pStorage ProcessStorage, shard process.Shard) *saveRestorer {
 	return &saveRestorer{
 		pStorage: pStorage,
 		shard:    shard,

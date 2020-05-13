@@ -1,6 +1,7 @@
 package hyperdrive_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -35,19 +36,15 @@ func init() {
 var _ = Describe("Hyperdrive", func() {
 
 	table := []struct {
-		shard int
-		f     int
-		r     int
+		f int
+		r int
 	}{
-		{1, 2, 0},
-		{1, 2, 2},
+		{2, 0},
+		{2, 2},
 	}
 
 	for _, entry := range table {
-		shards := make([]Shard, entry.shard)
-		for i := range shards {
-			shards[i] = RandomShard()
-		}
+		shards := []Shard{Shard{}}
 		f := entry.f
 		r := entry.r
 
@@ -242,7 +239,7 @@ var _ = Describe("Hyperdrive", func() {
 					})
 
 					Context("when they successfully reconnect to the network", func() {
-						It("should start producing blocks again", func() {
+						FIt("should start producing blocks again", func() {
 							options := DefaultOption
 							options.debugLogger = []int{0}
 							options.timeoutProposers = []int{mrand.Intn(3*f + 1)} // Pick a random node to timeout when proposing blocks.
@@ -348,7 +345,7 @@ var DefaultOption = networkOptions{
 type Network struct {
 	f       int
 	r       int
-	shards  replica.Shards
+	shards  process.Shards
 	options networkOptions
 
 	nodesMu *sync.RWMutex
@@ -361,7 +358,7 @@ type Network struct {
 	Broadcaster  *MockBroadcaster
 }
 
-func NewNetwork(f, r int, shards replica.Shards, options networkOptions) Network {
+func NewNetwork(f, r int, shards process.Shards, options networkOptions) Network {
 	if f <= 0 {
 		panic("f must be positive")
 	}
@@ -484,12 +481,11 @@ func (network *Network) startNode(i int) {
 
 	go func() {
 		defer logger.Info("❌ shutting down hyperdrive...")
-
 		for {
 			select {
 			case messageBytes := <-messages:
-				var message replica.Message
-				if err := surge.FromBinary(messageBytes, &message); err != nil {
+				message, _, err := process.UnmarshalMessage(bytes.NewBuffer(messageBytes), surge.MaxBytes)
+				if err != nil {
 					panic(err)
 				}
 				hyperdrive.HandleMessage(message)

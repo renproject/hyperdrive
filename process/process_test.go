@@ -103,7 +103,7 @@ var _ = Describe("Process", func() {
 						process := processOrigin.ToProcess()
 
 						// Generate a valid proposal.
-						message := NewPropose(1, 0, RandomBlock(block.Standard), block.InvalidRound)
+						message := NewPropose(Shard{}, 1, 0, RandomBlock(block.Standard), block.InvalidRound)
 						Expect(Sign(message, *privateKey)).NotTo(HaveOccurred())
 						process.HandleMessage(message)
 
@@ -131,7 +131,7 @@ var _ = Describe("Process", func() {
 						process := processOrigin.ToProcess()
 
 						// Generate an invalid proposal.
-						message := NewPropose(1, 0, RandomBlock(block.Standard), block.InvalidRound)
+						message := NewPropose(Shard{}, 1, 0, RandomBlock(block.Standard), block.InvalidRound)
 						Expect(Sign(message, *privateKey)).NotTo(HaveOccurred())
 						process.HandleMessage(message)
 
@@ -160,7 +160,7 @@ var _ = Describe("Process", func() {
 						// Insert a prevote for the valid round as this is the
 						// message we will be expected to resend later.
 						validRound := RandomRound()
-						prevote := NewPrevote(1, validRound, RandomBlock(block.Standard).Hash(), nil)
+						prevote := NewPrevote(Shard{}, 1, validRound, RandomBlock(block.Standard).Hash(), nil)
 						Expect(Sign(prevote, *processOrigin.PrivateKey)).ShouldNot(HaveOccurred())
 						processOrigin.State.Prevotes.Insert(prevote)
 
@@ -168,7 +168,7 @@ var _ = Describe("Process", func() {
 						process := processOrigin.ToProcess()
 
 						// Generate a valid proposal with a valid round.
-						propose := NewPropose(1, 0, RandomBlock(block.Standard), validRound)
+						propose := NewPropose(Shard{}, 1, 0, RandomBlock(block.Standard), validRound)
 						Expect(Sign(propose, *privateKey)).NotTo(HaveOccurred())
 						process.HandleMessage(propose)
 
@@ -263,13 +263,13 @@ var _ = Describe("Process", func() {
 				process := processOrigin.ToProcess()
 
 				// Handle the proposal
-				propose := NewPropose(height, round, RandomBlock(block.Standard), block.Round(rand.Intn(int(round))))
+				propose := NewPropose(Shard{}, height, round, RandomBlock(block.Standard), block.Round(rand.Intn(int(round))))
 				Expect(Sign(propose, *privateKey)).Should(Succeed())
 				process.HandleMessage(propose)
 
 				// Send 2F +1 Prevote for this proposal
 				for i := 0; i < 2*f+1; i++ {
-					prevote := NewPrevote(height, round, propose.BlockHash(), nil)
+					prevote := NewPrevote(Shard{}, height, round, propose.BlockHash(), nil)
 					pk := newEcdsaKey()
 					Expect(Sign(prevote, *pk)).Should(Succeed())
 					process.HandleMessage(prevote)
@@ -312,7 +312,7 @@ var _ = Describe("Process", func() {
 
 					// Handle random precommits.
 					for i := 0; i < 2*f+1; i++ {
-						precommit := NewPrecommit(height, round, RandomBlock(RandomBlockKind()).Hash())
+						precommit := NewPrecommit(Shard{}, height, round, RandomBlock(RandomBlockKind()).Hash())
 						privateKey := newEcdsaKey()
 						Expect(Sign(precommit, *privateKey)).NotTo(HaveOccurred())
 						process.HandleMessage(precommit)
@@ -382,13 +382,13 @@ var _ = Describe("Process", func() {
 				process := processOrigin.ToProcess()
 
 				// Handle the proposal
-				propose := NewPropose(height, round, RandomBlock(block.Standard), block.Round(rand.Intn(int(round))))
+				propose := NewPropose(Shard{}, height, round, RandomBlock(block.Standard), block.Round(rand.Intn(int(round))))
 				Expect(Sign(propose, *privateKey)).Should(Succeed())
 				process.HandleMessage(propose)
 
 				// Send 2F +1 Prevote for this proposal
 				for i := 0; i < 2*f+1; i++ {
-					prevote := NewPrevote(height, round, propose.BlockHash(), nil)
+					prevote := NewPrevote(Shard{}, height, round, propose.BlockHash(), nil)
 					pk := newEcdsaKey()
 					Expect(Sign(prevote, *pk)).Should(Succeed())
 					process.HandleMessage(prevote)
@@ -421,7 +421,7 @@ var _ = Describe("Process", func() {
 
 				// Handle random prevotes.
 				for i := 0; i < 2*f+1; i++ {
-					prevote := NewPrevote(height, round, RandomBlock(RandomBlockKind()).Hash(), nil)
+					prevote := NewPrevote(Shard{}, height, round, RandomBlock(RandomBlockKind()).Hash(), nil)
 					privateKey := newEcdsaKey()
 					Expect(Sign(prevote, *privateKey)).NotTo(HaveOccurred())
 					process.HandleMessage(prevote)
@@ -486,7 +486,7 @@ var _ = Describe("Process", func() {
 				process := processOrigin.ToProcess()
 
 				for i := 0; i < 2*f+1; i++ {
-					prevote := NewPrevote(height, round, block.InvalidHash, nil)
+					prevote := NewPrevote(Shard{}, height, round, block.InvalidHash, nil)
 					privateKey := newEcdsaKey()
 					Expect(Sign(prevote, *privateKey)).NotTo(HaveOccurred())
 					process.HandleMessage(prevote)
@@ -518,7 +518,7 @@ var _ = Describe("Process", func() {
 					process := processOrigin.ToProcess()
 
 					for i := 0; i < 2*f+1; i++ {
-						precommit := NewPrecommit(height, round, RandomBlock(RandomBlockKind()).Hash())
+						precommit := NewPrecommit(Shard{}, height, round, RandomBlock(RandomBlockKind()).Hash())
 						privateKey := newEcdsaKey()
 						Expect(Sign(precommit, *privateKey)).NotTo(HaveOccurred())
 						process.HandleMessage(precommit)
@@ -605,13 +605,13 @@ var _ = Describe("Process", func() {
 							process := processOrigin.ToProcess()
 
 							// Send the proposal
-							propose := NewPropose(height, round, RandomBlock(RandomBlockKind()), validRound)
+							propose := NewPropose(Shard{}, height, round, RandomBlock(RandomBlockKind()), validRound)
 							Expect(Sign(propose, *processOrigin.PrivateKey)).Should(Succeed())
 							process.HandleMessage(propose)
 
 							// Send 2f + 1 prevotes
 							for i := 0; i < 2*f+1; i++ {
-								prevote := NewPrevote(height, validRound, propose.BlockHash(), nil)
+								prevote := NewPrevote(Shard{}, height, validRound, propose.BlockHash(), nil)
 								privateKey := newEcdsaKey()
 								Expect(Sign(prevote, *privateKey)).Should(Succeed())
 								process.HandleMessage(prevote)
@@ -645,7 +645,7 @@ var _ = Describe("Process", func() {
 							processOrigin.State.CurrentStep = StepPropose
 							processOrigin.State.LockedRound = validRound + 1 // make sure lockedRound is greater than the valid round
 							block := RandomBlock(RandomBlockKind())
-							propose := NewPropose(height, round, block, validRound)
+							propose := NewPropose(Shard{}, height, round, block, validRound)
 							Expect(Sign(propose, *processOrigin.PrivateKey)).Should(Succeed())
 							processOrigin.State.LockedBlock = block
 
@@ -655,7 +655,7 @@ var _ = Describe("Process", func() {
 
 							// Send 2f + 1 prevotes
 							for i := 0; i < 2*f+1; i++ {
-								prevote := NewPrevote(height, validRound, propose.BlockHash(), nil)
+								prevote := NewPrevote(Shard{}, height, validRound, propose.BlockHash(), nil)
 								privateKey := newEcdsaKey()
 								Expect(Sign(prevote, *privateKey)).To(Succeed())
 								process.HandleMessage(prevote)
@@ -690,7 +690,7 @@ var _ = Describe("Process", func() {
 						process := processOrigin.ToProcess()
 
 						// Send the proposal
-						propose := NewPropose(height, round, block.InvalidBlock, block.InvalidRound)
+						propose := NewPropose(Shard{}, height, round, block.InvalidBlock, block.InvalidRound)
 						Expect(Sign(propose, *processOrigin.PrivateKey)).Should(Succeed())
 						process.HandleMessage(propose)
 
@@ -729,14 +729,14 @@ var _ = Describe("Process", func() {
 					process := processOrigin.ToProcess()
 
 					// Send the proposal
-					proposeRound := block.Round(rand.Intn(int(round + 1)))                                  // if proposeRound > currentRound, it will start(proposeRound)
-					propose := NewPropose(height, proposeRound, RandomBlock(RandomBlockKind()), validRound) // round and valid round should not matter in this case
+					proposeRound := block.Round(rand.Intn(int(round + 1)))                                           // if proposeRound > currentRound, it will start(proposeRound)
+					propose := NewPropose(Shard{}, height, proposeRound, RandomBlock(RandomBlockKind()), validRound) // round and valid round should not matter in this case
 					Expect(Sign(propose, *processOrigin.PrivateKey)).Should(Succeed())
 					process.HandleMessage(propose)
 
 					// Send 2f + 1 prevotes
 					for i := 0; i < 2*f+1; i++ {
-						precommit := NewPrecommit(height, proposeRound, propose.BlockHash())
+						precommit := NewPrecommit(Shard{}, height, proposeRound, propose.BlockHash())
 						privateKey := newEcdsaKey()
 						Expect(Sign(precommit, *privateKey)).Should(Succeed())
 						process.HandleMessage(precommit)
@@ -787,9 +787,9 @@ var _ = Describe("Process", func() {
 
 				propose := RandomPropose()
 				Expect(Sign(propose, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
-				prevote := NewPrevote(propose.Height(), propose.Round(), propose.BlockHash(), nil)
+				prevote := NewPrevote(Shard{}, propose.Height(), propose.Round(), propose.BlockHash(), nil)
 				Expect(Sign(prevote, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
-				precommit := NewPrecommit(propose.Height(), propose.Round(), propose.BlockHash())
+				precommit := NewPrecommit(Shard{}, propose.Height(), propose.Round(), propose.BlockHash())
 				Expect(Sign(precommit, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
 
 				processOrigin.Blockchain.InsertBlockAtHeight(propose.Height(), propose.Block())
@@ -835,9 +835,9 @@ var _ = Describe("Process", func() {
 
 				propose := RandomPropose()
 				Expect(Sign(propose, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
-				prevote := NewPrevote(propose.Height(), propose.Round(), propose.BlockHash(), nil)
+				prevote := NewPrevote(Shard{}, propose.Height(), propose.Round(), propose.BlockHash(), nil)
 				Expect(Sign(prevote, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
-				precommit := NewPrecommit(propose.Height(), propose.Round(), propose.BlockHash())
+				precommit := NewPrecommit(Shard{}, propose.Height(), propose.Round(), propose.BlockHash())
 				Expect(Sign(precommit, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
 
 				processOrigin.Blockchain.InsertBlockAtHeight(propose.Height()-1, RandomBlock(block.Standard))
@@ -892,9 +892,9 @@ var _ = Describe("Process", func() {
 			// Insert random messages.
 			propose := RandomPropose()
 			Expect(Sign(propose, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
-			prevote := NewPrevote(propose.Height(), propose.Round(), propose.BlockHash(), nil)
+			prevote := NewPrevote(Shard{}, propose.Height(), propose.Round(), propose.BlockHash(), nil)
 			Expect(Sign(prevote, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
-			precommit := NewPrecommit(propose.Height(), propose.Round(), propose.BlockHash())
+			precommit := NewPrecommit(Shard{}, propose.Height(), propose.Round(), propose.BlockHash())
 			Expect(Sign(precommit, *processOrigin.PrivateKey)).ToNot(HaveOccurred())
 
 			processOrigin.Blockchain.InsertBlockAtHeight(propose.Height(), propose.Block())
@@ -909,7 +909,7 @@ var _ = Describe("Process", func() {
 			process.Start()
 
 			// Handle a resync message.
-			message := NewResync(0, 0)
+			message := NewResync(Shard{}, 0, 0)
 			Expect(Sign(message, *privateKey)).NotTo(HaveOccurred())
 			process.HandleMessage(message)
 

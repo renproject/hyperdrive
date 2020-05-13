@@ -6,30 +6,29 @@ import (
 
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
-	"github.com/renproject/hyperdrive/replica"
 	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/surge"
 )
 
 type MockPersistentStorage struct {
 	mu          *sync.RWMutex
-	processes   map[replica.Shard][]byte
-	blockchains map[replica.Shard]*testutil.MockBlockchain
+	processes   map[process.Shard][]byte
+	blockchains map[process.Shard]*testutil.MockBlockchain
 }
 
-func NewMockPersistentStorage(shards replica.Shards) *MockPersistentStorage {
-	blockchains := map[replica.Shard]*testutil.MockBlockchain{}
+func NewMockPersistentStorage(shards process.Shards) *MockPersistentStorage {
+	blockchains := map[process.Shard]*testutil.MockBlockchain{}
 	for _, shard := range shards {
 		blockchains[shard] = testutil.NewMockBlockchain(nil)
 	}
 	return &MockPersistentStorage{
 		mu:          new(sync.RWMutex),
-		processes:   map[replica.Shard][]byte{},
+		processes:   map[process.Shard][]byte{},
 		blockchains: blockchains,
 	}
 }
 
-func (store *MockPersistentStorage) SaveState(state *process.State, shard replica.Shard) {
+func (store *MockPersistentStorage) SaveState(state *process.State, shard process.Shard) {
 	data, err := surge.ToBinary(state)
 	if err != nil {
 		panic(fmt.Sprintf("failed to marshal state: %v", err))
@@ -40,7 +39,7 @@ func (store *MockPersistentStorage) SaveState(state *process.State, shard replic
 	store.processes[shard] = data
 }
 
-func (store *MockPersistentStorage) RestoreState(state *process.State, shard replica.Shard) {
+func (store *MockPersistentStorage) RestoreState(state *process.State, shard process.Shard) {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
 
@@ -53,7 +52,7 @@ func (store *MockPersistentStorage) RestoreState(state *process.State, shard rep
 	}
 }
 
-func (store *MockPersistentStorage) Blockchain(shard replica.Shard) process.Blockchain {
+func (store *MockPersistentStorage) Blockchain(shard process.Shard) process.Blockchain {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
@@ -64,7 +63,7 @@ func (store *MockPersistentStorage) Blockchain(shard replica.Shard) process.Bloc
 	return store.blockchains[shard]
 }
 
-func (store *MockPersistentStorage) MockBlockchain(shard replica.Shard) *testutil.MockBlockchain {
+func (store *MockPersistentStorage) MockBlockchain(shard process.Shard) *testutil.MockBlockchain {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
@@ -75,7 +74,7 @@ func (store *MockPersistentStorage) MockBlockchain(shard replica.Shard) *testuti
 	return store.blockchains[shard]
 }
 
-func (store *MockPersistentStorage) LatestBlock(shard replica.Shard) block.Block {
+func (store *MockPersistentStorage) LatestBlock(shard process.Shard) block.Block {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
 
@@ -83,7 +82,7 @@ func (store *MockPersistentStorage) LatestBlock(shard replica.Shard) block.Block
 	return blockchain.LatestBlock(block.Invalid)
 }
 
-func (store *MockPersistentStorage) LatestBaseBlock(shard replica.Shard) block.Block {
+func (store *MockPersistentStorage) LatestBaseBlock(shard process.Shard) block.Block {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 

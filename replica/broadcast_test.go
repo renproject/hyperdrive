@@ -1,7 +1,6 @@
 package replica
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"testing/quick"
@@ -17,21 +16,21 @@ import (
 )
 
 type mockBroadcaster struct {
-	broadcastMessages chan<- Message
-	castMessages      chan<- Message
+	broadcastMessages chan<- process.Message
+	castMessages      chan<- process.Message
 }
 
-func (m *mockBroadcaster) Broadcast(message Message) {
+func (m *mockBroadcaster) Broadcast(message process.Message) {
 	m.broadcastMessages <- message
 }
 
-func (m *mockBroadcaster) Cast(to id.Signatory, message Message) {
+func (m *mockBroadcaster) Cast(to id.Signatory, message process.Message) {
 	m.castMessages <- message
 }
 
-func newMockBroadcaster() (Broadcaster, chan Message, chan Message) {
-	broadcastMessages := make(chan Message, 1)
-	castMessages := make(chan Message, 1)
+func newMockBroadcaster() (process.Broadcaster, chan process.Message, chan process.Message) {
+	broadcastMessages := make(chan process.Message, 1)
+	castMessages := make(chan process.Message, 1)
 	return &mockBroadcaster{
 		broadcastMessages: broadcastMessages,
 		castMessages:      castMessages,
@@ -41,19 +40,18 @@ func newMockBroadcaster() (Broadcaster, chan Message, chan Message) {
 var _ = Describe("Broadcaster", func() {
 	Context("when broadcasting a message", func() {
 		It("should sign the message and then broadcast it", func() {
-			test := func(shard Shard) bool {
+			test := func() bool {
 				key, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
 				Expect(err).ToNot(HaveOccurred())
 				broadcaster, broadcastMessages, _ := newMockBroadcaster()
-				signer := newSigner(broadcaster, shard, *key)
+				signer := newSigner(broadcaster, *key)
 
 				msg := RandomMessage(RandomMessageType(true))
 				signer.Broadcast(msg)
 
-				var message Message
+				var message process.Message
 				Eventually(broadcastMessages, 2*time.Second).Should(Receive(&message))
-				Expect(bytes.Equal(message.Shard[:], shard[:])).Should(BeTrue())
-				Expect(process.Verify(message.Message)).Should(Succeed())
+				Expect(process.Verify(message)).Should(Succeed())
 
 				return true
 
@@ -65,19 +63,18 @@ var _ = Describe("Broadcaster", func() {
 
 	Context("when casting a message", func() {
 		It("should sign the message and then cast it", func() {
-			test := func(shard Shard) bool {
+			test := func() bool {
 				key, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
 				Expect(err).ToNot(HaveOccurred())
 				broadcaster, _, castMessages := newMockBroadcaster()
-				signer := newSigner(broadcaster, shard, *key)
+				signer := newSigner(broadcaster, *key)
 
 				msg := RandomMessage(RandomMessageType(true))
 				signer.Cast(id.Signatory{}, msg)
 
-				var message Message
+				var message process.Message
 				Eventually(castMessages, 2*time.Second).Should(Receive(&message))
-				Expect(bytes.Equal(message.Shard[:], shard[:])).Should(BeTrue())
-				Expect(process.Verify(message.Message)).Should(Succeed())
+				Expect(process.Verify(message)).Should(Succeed())
 
 				return true
 			}

@@ -66,13 +66,14 @@ type (
 	Blockchain   = process.Blockchain
 	Process      = process.Process
 	ProcessState = process.State
+	Messages     = process.Messages
+	Message      = process.Message
+	Shards       = process.Shards
+	Shard        = process.Shard
+	Broadcaster  = process.Broadcaster
 )
 
 type (
-	Messages       = replica.Messages
-	Message        = replica.Message
-	Shards         = replica.Shards
-	Shard          = replica.Shard
 	Options        = replica.Options
 	Replicas       = replica.Replicas
 	Replica        = replica.Replica
@@ -81,7 +82,6 @@ type (
 	BlockIterator  = replica.BlockIterator
 	Validator      = replica.Validator
 	Observer       = replica.Observer
-	Broadcaster    = replica.Broadcaster
 )
 
 var (
@@ -171,12 +171,12 @@ func (hyper *hyperdrive) Rebase(sigs Signatories) {
 }
 
 func (hyper *hyperdrive) HandleMessage(message Message) {
-	replica, ok := hyper.replicas[message.Shard]
+	replica, ok := hyper.replicas[message.Shard()]
 	if !ok {
 		return
 	}
 	defer func() {
-		hyper.replicas[message.Shard] = replica
+		hyper.replicas[message.Shard()] = replica
 	}()
 	replica.HandleMessage(message)
 }

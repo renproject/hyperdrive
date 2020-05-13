@@ -75,15 +75,15 @@ func RandomMessageWithHeightAndRound(height block.Height, round block.Round, t p
 	case process.ProposeMessageType:
 		validRound := block.Round(rand.Int63())
 		block := RandomBlock(RandomBlockKind())
-		msg = process.NewPropose(height, round, block, validRound)
+		msg = process.NewPropose(process.Shard{}, height, round, block, validRound)
 	case process.PrevoteMessageType:
 		hash := RandomHash()
-		msg = process.NewPrevote(height, round, hash, nil)
+		msg = process.NewPrevote(process.Shard{}, height, round, hash, nil)
 	case process.PrecommitMessageType:
 		hash := RandomHash()
-		msg = process.NewPrecommit(height, round, hash)
+		msg = process.NewPrecommit(process.Shard{}, height, round, hash)
 	case process.ResyncMessageType:
-		msg = process.NewResync(height, round)
+		msg = process.NewResync(process.Shard{}, height, round)
 	default:
 		panic("unknown message type")
 	}
@@ -106,7 +106,7 @@ func RandomPropose() *process.Propose {
 	validRound := block.Round(rand.Int63())
 	block := RandomBlock(RandomBlockKind())
 
-	return process.NewPropose(height, round, block, validRound)
+	return process.NewPropose(process.Shard{}, height, round, block, validRound)
 }
 
 func RandomPrevote() *process.Prevote {
@@ -117,20 +117,20 @@ func RandomPrevote() *process.Prevote {
 	nilReasons["key1"] = []byte("val1")
 	nilReasons["key2"] = []byte("val2")
 	nilReasons["key3"] = []byte("val3")
-	return process.NewPrevote(height, round, hash, nilReasons)
+	return process.NewPrevote(process.Shard{}, height, round, hash, nilReasons)
 }
 
 func RandomPrecommit() *process.Precommit {
 	height := block.Height(rand.Int63())
 	round := block.Round(rand.Int63())
 	hash := RandomHash()
-	return process.NewPrecommit(height, round, hash)
+	return process.NewPrecommit(process.Shard{}, height, round, hash)
 }
 
 func RandomResync() *process.Resync {
 	height := block.Height(rand.Int63())
 	round := block.Round(rand.Int63())
-	return process.NewResync(height, round)
+	return process.NewResync(process.Shard{}, height, round)
 }
 
 func RandomMessageType(includeResync bool) process.MessageType {
@@ -234,6 +234,7 @@ func (p ProcessOrigin) ToProcess() *process.Process {
 		p.Scheduler,
 		p.Timer,
 		process.CatchAndIgnore(),
+		process.Shard{},
 	)
 }
 

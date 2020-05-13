@@ -90,14 +90,19 @@ type Observer interface {
 	DidReceiveSufficientNilPrevotes(messages Messages, f int)
 }
 
-// A Broadcaster sends a Message to a either specific Process or as many
-// Processes in the network as possible.
+// A Broadcaster is used to send signed, shard-specific, Messages to one or all
+// Replicas in the network.
 //
 // For the consensus algorithm to work correctly, it is assumed that all honest
 // processes will eventually deliver all messages to all other honest processes.
 // The specific message ordering is not important. In practice, the Prevote
 // messages are the only messages that must guarantee delivery when guaranteeing
 // correctness.
+//
+// For crash-resilience, the implementation of Broadcast should ensure that two
+// different Propose messages are not broadcast for the same shard, height, and
+// round. This can be done by storing Proposes (and checking for their
+// existence) before sending the Propose to the network proper.
 type Broadcaster interface {
 	Broadcast(Message)
 	Cast(id.Signatory, Message)
@@ -129,10 +134,12 @@ type Process struct {
 	timer        Timer
 	observer     Observer
 	catcher      Catcher
+
+	shard Shard
 }
 
 // New Process initialised to the default state, starting in the first round.
-func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, saveRestorer SaveRestorer, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler schedule.Scheduler, timer Timer, catcher Catcher) *Process {
+func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, saveRestorer SaveRestorer, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler schedule.Scheduler, timer Timer, catcher Catcher, shard Shard) *Process {
 	p := &Process{
 		logger: logger,
 		mu:     new(sync.Mutex),
@@ -149,6 +156,7 @@ func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchai
 		timer:        timer,
 		observer:     observer,
 		catcher:      catcher,
+		shard:        shard,
 	}
 	return p
 }
@@ -212,7 +220,7 @@ func (p *Process) Start() {
 	p.resendLatestMessages(nil)
 
 	// Query others for previous messages.
-	resync := NewResync(p.state.CurrentHeight, p.state.CurrentRound)
+	resync := NewResync(p.shard, p.state.CurrentHeight, p.state.CurrentRound)
 	p.broadcaster.Broadcast(resync)
 
 	// Start the Process from previous state.
@@ -317,6 +325,7 @@ func (p *Process) startRound(round block.Round) {
 			proposal = p.proposer.BlockProposal(p.state.CurrentHeight, p.state.CurrentRound)
 		}
 		propose := NewPropose(
+			p.shard,
 			p.state.CurrentHeight,
 			p.state.CurrentRound,
 			proposal,
@@ -384,6 +393,7 @@ func (p *Process) handlePropose(propose *Propose) {
 				nilReasons, err := p.validator.IsBlockValid(propose.Block(), true)
 				if err == nil && (p.state.LockedRound == block.InvalidRound || p.state.LockedBlock.Equal(propose.Block())) {
 					prevote = NewPrevote(
+						p.shard,
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						propose.Block().Hash(),
@@ -392,6 +402,7 @@ func (p *Process) handlePropose(propose *Propose) {
 					p.logger.Debugf("prevoted=%v at height=%v and round=%v", propose.BlockHash(), propose.height, propose.round)
 				} else {
 					prevote = NewPrevote(
+						p.shard,
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						block.InvalidHash,
@@ -463,6 +474,7 @@ func (p *Process) handlePrevote(prevote *Prevote) {
 	// upon 2f+1 Prevote{currentHeight, currentRound, nil} while currentStep = StepPrevote
 	if n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, p.state.CurrentRound, block.InvalidHash); n > 2*p.state.Prevotes.F() && p.state.CurrentStep == StepPrevote {
 		precommit := NewPrecommit(
+			p.shard,
 			p.state.CurrentHeight,
 			p.state.CurrentRound,
 			block.InvalidHash,
@@ -540,6 +552,7 @@ func (p *Process) handleResync(resync *Resync) {
 func (p *Process) timeoutPropose(height block.Height, round block.Round) {
 	if height == p.state.CurrentHeight && round == p.state.CurrentRound && p.state.CurrentStep == StepPropose {
 		prevote := NewPrevote(
+			p.shard,
 			p.state.CurrentHeight,
 			p.state.CurrentRound,
 			block.InvalidHash,
@@ -554,6 +567,7 @@ func (p *Process) timeoutPropose(height block.Height, round block.Round) {
 func (p *Process) timeoutPrevote(height block.Height, round block.Round) {
 	if height == p.state.CurrentHeight && round == p.state.CurrentRound && p.state.CurrentStep == StepPrevote {
 		precommit := NewPrecommit(
+			p.shard,
 			p.state.CurrentHeight,
 			p.state.CurrentRound,
 			block.InvalidHash,
@@ -630,6 +644,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 				nilReasons, err := p.validator.IsBlockValid(propose.Block(), true)
 				if err == nil && (p.state.LockedRound <= propose.ValidRound() || p.state.LockedBlock.Equal(propose.Block())) {
 					prevote = NewPrevote(
+						p.shard,
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						propose.Block().Hash(),
@@ -638,6 +653,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
 					p.logger.Debugf("prevoted=%v at height=%v and round=%v (2f+1 valid prevotes)", prevote.blockHash, prevote.height, prevote.round)
 				} else {
 					prevote = NewPrevote(
+						p.shard,
 						p.state.CurrentHeight,
 						p.state.CurrentRound,
 						block.InvalidHash,
@@ -682,6 +698,7 @@ func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime
 				p.state.LockedRound = p.state.CurrentRound
 				p.state.CurrentStep = StepPrecommit
 				precommit := NewPrecommit(
+					p.shard,
 					p.state.CurrentHeight,
 					p.state.CurrentRound,
 					propose.Block().Hash(),
@@ -716,7 +733,7 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 	if n > 2*p.state.Precommits.F() {
 		// while !BlockExistsAtHeight(currentHeight)
 		if !p.blockchain.BlockExistsAtHeight(p.state.CurrentHeight) {
-			_, err := p.validator.IsBlockValid(propose.Block(), false)
+			_, err := p.validator.IsBlockValid(propose.Block(), true)
 			if err == nil {
 				p.blockchain.InsertBlockAtHeight(p.state.CurrentHeight, propose.Block())
 				p.state.CurrentHeight++
@@ -731,7 +748,7 @@ func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
 				// resynchronise with other nodes, in case we have dropped
 				// Proposes from this new base that arrived bfeore the new base.
 				if propose.Block().Header().Kind() == block.Base {
-					p.broadcaster.Broadcast(NewResync(p.state.CurrentHeight, p.state.CurrentRound))
+					p.broadcaster.Broadcast(NewResync(p.shard, p.state.CurrentHeight, p.state.CurrentRound))
 				}
 			} else {
 				p.logger.Warnf("nothing committed at height=%v and round=%v (invalid block: %v)", propose.height, propose.round, err)
@@ -775,9 +792,9 @@ func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
 		signatories[sig] = struct{}{}
 	}
 	for _, commit := range latestCommit.Precommits {
-		if err := Verify(&commit); err != nil {
-			return
-		}
+		// NOTE: We assume that the Precommit has already been verified before
+		// being passed on to the Process. This is necessary, because the
+		// Process does not have an idea about the shard.
 		if _, ok := signatories[commit.signatory]; !ok {
 			return
 		}
@@ -804,6 +821,9 @@ func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
 	// if the commits are valid, store the block if we don't have one
 	if !p.blockchain.BlockExistsAtHeight(latestCommit.Block.Header().Height()) {
 		p.blockchain.InsertBlockAtHeight(latestCommit.Block.Header().Height(), latestCommit.Block)
+	}
+	if p.observer != nil {
+		p.observer.DidCommitBlock(latestCommit.Block.Header().Height())
 	}
 	p.logger.Infof("syncing from height=%v to height=%v", p.state.CurrentHeight, latestCommit.Block.Header().Height()+1)
 	p.state.CurrentHeight = latestCommit.Block.Header().Height() + 1

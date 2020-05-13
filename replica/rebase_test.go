@@ -20,14 +20,14 @@ import (
 
 var _ = Describe("shardRebaser", func() {
 
-	commitBlock := func(storage BlockStorage, shard Shard, block block.Block) {
+	commitBlock := func(storage BlockStorage, shard process.Shard, block block.Block) {
 		bc := storage.Blockchain(shard)
 		bc.InsertBlockAtHeight(block.Header().Height(), block)
 	}
 
 	Context("initializing a new shardRebaser", func() {
 		It("should implements the process.Proposer", func() {
-			test := func(shard Shard, numSignatories int) bool {
+			test := func(shard process.Shard, numSignatories int) bool {
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
 				rebaser := newShardRebaser(nil, store, iter, nil, nil, shard, numSignatories)
@@ -50,7 +50,7 @@ var _ = Describe("shardRebaser", func() {
 		})
 
 		It("should implements the process.Validator", func() {
-			test := func(shard Shard, numSignatories int) bool {
+			test := func(shard process.Shard, numSignatories int) bool {
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
 				validator := newMockValidator(nil)
@@ -74,7 +74,7 @@ var _ = Describe("shardRebaser", func() {
 		})
 
 		It("should implement the process.Observer", func() {
-			test := func(shard Shard, numSignatories int) bool {
+			test := func(shard process.Shard, numSignatories int) bool {
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
 				observer := newMockObserver()
@@ -97,7 +97,7 @@ var _ = Describe("shardRebaser", func() {
 
 	Context("when rebasing", func() {
 		It("should be ready to receive a new rebase block", func() {
-			test := func(shard Shard, sigs id.Signatories) bool {
+			test := func(shard process.Shard, sigs id.Signatories) bool {
 				store, _, _ := initStorage(shard)
 				iter := mockBlockIterator{}
 				rebaser := newShardRebaser(nil, store, iter, nil, nil, shard, len(sigs))
@@ -117,7 +117,7 @@ var _ = Describe("shardRebaser", func() {
 		})
 
 		It("should return a valid rebase block when proposing", func() {
-			test := func(shard Shard, sigs id.Signatories) bool {
+			test := func(shard process.Shard, sigs id.Signatories) bool {
 				if len(sigs) == 0 {
 					return true
 				}
@@ -155,7 +155,7 @@ var _ = Describe("shardRebaser", func() {
 		})
 
 		It("should valid a block only if it's a rebase block", func() {
-			test := func(shard Shard, sigs id.Signatories) bool {
+			test := func(shard process.Shard, sigs id.Signatories) bool {
 				if len(sigs) == 0 {
 					return true
 				}
@@ -198,7 +198,7 @@ var _ = Describe("shardRebaser", func() {
 		})
 
 		It("should change signatories after a base block", func() {
-			test := func(shard Shard, sigs id.Signatories) bool {
+			test := func(shard process.Shard, sigs id.Signatories) bool {
 				if len(sigs) == 0 {
 					return true
 				}
@@ -255,7 +255,7 @@ var _ = Describe("shardRebaser", func() {
 	})
 })
 
-func initStorage(shard Shard) (BlockStorage, block.Height, []*ecdsa.PrivateKey) {
+func initStorage(shard process.Shard) (BlockStorage, block.Height, []*ecdsa.PrivateKey) {
 	sigs := make(id.Signatories, 7)
 	keys := make([]*ecdsa.PrivateKey, 7)
 	for i := range sigs {

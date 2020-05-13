@@ -15,15 +15,15 @@ import (
 // functionality to load the last committed `block.Standard`, and the last
 // committed `block.Base`.
 type BlockStorage interface {
-	Blockchain(shard Shard) process.Blockchain
-	LatestBlock(shard Shard) block.Block
-	LatestBaseBlock(shard Shard) block.Block
+	Blockchain(shard process.Shard) process.Blockchain
+	LatestBlock(shard process.Shard) block.Block
+	LatestBaseBlock(shard process.Shard) block.Block
 }
 
 type BlockIterator interface {
 	// NextBlock returns the `block.Txs`, `block.Plan` and the parent
 	// `block.State` for the given `block.Height`.
-	NextBlock(block.Kind, block.Height, Shard) (block.Txs, block.Plan, block.State)
+	NextBlock(block.Kind, block.Height, process.Shard) (block.Txs, block.Plan, block.State)
 
 	// MissedBaseBlocksInRange must return an upper bound estimate for the
 	// number of missed base blocks between (exclusive) two blocks (identified
@@ -38,13 +38,13 @@ type BlockIterator interface {
 }
 
 type Validator interface {
-	IsBlockValid(block block.Block, checkHistory bool, shard Shard) (process.NilReasons, error)
+	IsBlockValid(block block.Block, checkHistory bool, shard process.Shard) (process.NilReasons, error)
 }
 
 type Observer interface {
-	DidCommitBlock(block.Height, Shard)
+	DidCommitBlock(block.Height, process.Shard)
 	DidReceiveSufficientNilPrevotes(messages process.Messages, f int)
-	IsSignatory(Shard) bool
+	IsSignatory(process.Shard) bool
 }
 
 type shardRebaser struct {
@@ -59,10 +59,10 @@ type shardRebaser struct {
 	blockIterator BlockIterator
 	validator     Validator
 	observer      Observer
-	shard         Shard
+	shard         process.Shard
 }
 
-func newShardRebaser(scheduler schedule.Scheduler, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, shard Shard, numSignatories int) *shardRebaser {
+func newShardRebaser(scheduler schedule.Scheduler, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, shard process.Shard, numSignatories int) *shardRebaser {
 	return &shardRebaser{
 		mu: new(sync.Mutex),
 
@@ -139,8 +139,10 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 	nilReasons := make(process.NilReasons)
 
 	// Check the expected `block.Kind`
-	if proposedBlock.Header().Kind() != rebaser.expectedKind {
-		return nilReasons, fmt.Errorf("unexpected block kind: expected %v, got %v", rebaser.expectedKind, proposedBlock.Header().Kind())
+	if checkHistory {
+		if proposedBlock.Header().Kind() != rebaser.expectedKind {
+			return nilReasons, fmt.Errorf("unexpected block kind: expected %v, got %v", rebaser.expectedKind, proposedBlock.Header().Kind())
+		}
 	}
 	switch proposedBlock.Header().Kind() {
 	case block.Standard:
@@ -149,16 +151,20 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 		}
 
 	case block.Rebase:
-		if len(proposedBlock.Header().Signatories()) != rebaser.numSignatories {
-			return nilReasons, fmt.Errorf("unexpected number of signatories in rebase block: expected %d, got %d", rebaser.numSignatories, len(proposedBlock.Header().Signatories()))
-		}
-		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
-			return nilReasons, fmt.Errorf("unexpected signatories in rebase block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
+		if checkHistory {
+			if len(proposedBlock.Header().Signatories()) != rebaser.numSignatories {
+				return nilReasons, fmt.Errorf("unexpected number of signatories in rebase block: expected %d, got %d", rebaser.numSignatories, len(proposedBlock.Header().Signatories()))
+			}
+			if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
+				return nilReasons, fmt.Errorf("unexpected signatories in rebase block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
+			}
 		}
 
 	case block.Base:
-		if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
-			return nilReasons, fmt.Errorf("unexpected signatories in base block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
+		if checkHistory {
+			if !proposedBlock.Header().Signatories().Equal(rebaser.expectedRebaseSigs) {
+				return nilReasons, fmt.Errorf("unexpected signatories in base block: expected %d, got %d", len(rebaser.expectedRebaseSigs), len(proposedBlock.Header().Signatories()))
+			}
 		}
 		if proposedBlock.Txs() != nil && len(proposedBlock.Txs()) != 0 {
 			return nilReasons, fmt.Errorf("expected base block to have nil/empty txs")
@@ -218,9 +224,11 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 	}
 
 	// Check against the base `block.Block`
-	baseBlock := rebaser.blockStorage.LatestBaseBlock(rebaser.shard)
-	if !proposedBlock.Header().BaseHash().Equal(baseBlock.Hash()) {
-		return nilReasons, fmt.Errorf("expected base hash for proposed block to equal base block hash")
+	if checkHistory {
+		baseBlock := rebaser.blockStorage.LatestBaseBlock(rebaser.shard)
+		if !proposedBlock.Header().BaseHash().Equal(baseBlock.Hash()) {
+			return nilReasons, fmt.Errorf("expected base hash for proposed block to equal base block hash")
+		}
 	}
 
 	// Pass to the next `process.Validator`
@@ -246,7 +254,7 @@ func (rebaser *shardRebaser) DidCommitBlock(height block.Height) {
 		rebaser.expectedRebaseSigs = committedBlock.Header().Signatories()
 	case block.Base:
 		if rebaser.scheduler != nil {
-			rebaser.scheduler.Rebase(rebaser.expectedRebaseSigs)
+			rebaser.scheduler.Rebase(committedBlock.Header().Signatories())
 		}
 		rebaser.expectedKind = block.Standard
 		rebaser.expectedRebaseSigs = nil
