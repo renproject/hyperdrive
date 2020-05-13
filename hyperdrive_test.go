@@ -239,7 +239,7 @@ var _ = Describe("Hyperdrive", func() {
 					})
 
 					Context("when they successfully reconnect to the network", func() {
-						FIt("should start producing blocks again", func() {
+						It("should start producing blocks again", func() {
 							options := DefaultOption
 							options.debugLogger = []int{0}
 							options.timeoutProposers = []int{mrand.Intn(3*f + 1)} // Pick a random node to timeout when proposing blocks.
