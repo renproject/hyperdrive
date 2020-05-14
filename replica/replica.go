@@ -183,9 +183,6 @@ func (replica *Replica) HandleMessage(m process.Message) {
 	// reason to save after handling a Resync message.
 	defer replica.p.Save()
 
-	// TOOD: We need to verify the Precommits in the LatestCommit of all Propose
-	// messages.
-
 	// Messages from the current height can be handled immediately.
 	if m.Height() == replica.p.CurrentHeight() {
 		replica.p.HandleMessage(m)

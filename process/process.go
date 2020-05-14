@@ -792,9 +792,9 @@ func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
 		signatories[sig] = struct{}{}
 	}
 	for _, commit := range latestCommit.Precommits {
-		// NOTE: We assume that the Precommit has already been verified before
-		// being passed on to the Process. This is necessary, because the
-		// Process does not have an idea about the shard.
+		if err := Verify(&commit); err != nil {
+			return
+		}
 		if _, ok := signatories[commit.signatory]; !ok {
 			return
 		}
