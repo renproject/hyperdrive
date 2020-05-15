@@ -34,6 +34,15 @@ type State struct {
 	LockedRound   Round  `json:"lockedRound"` // The last round in which the process sent a precommit message that is not nil.
 	ValidValue    Value  `json:"validValue"`  // The most recent possible decision value.
 	ValidRound    Round  `json:"validRound"`  // The last round in which valid value is updated.
+
+	// ProposeLogs store the Proposes for all Rounds.
+	ProposeLogs map[Round]Propose `json:"proposeLogs"`
+	// PrevoteLogs store the Prevotes for all Processes in all Rounds.
+	PrevoteLogs map[Round]map[id.Signatory]Prevote `json:"prevoteLogs"`
+	// PrecommitLogs store the Precommits for all Processes in all Rounds.
+	PrecommitLogs map[Round]map[id.Signatory]Precommit `json:"precommitLogs"`
+	// OnceFlags prevents events from happening more than once.
+	OnceFlags map[Round]OnceFlag `json:"onceFlags"`
 }
 
 // DefaultState returns a State with all fields set to their default values. The
@@ -48,11 +57,55 @@ func DefaultState() State {
 		LockedRound:   InvalidRound,
 		ValidValue:    NilValue,
 		ValidRound:    InvalidRound,
+
+		ProposeLogs:   make(map[Round]Propose),
+		PrevoteLogs:   make(map[Round]map[id.Signatory]Prevote),
+		PrecommitLogs: make(map[Round]map[id.Signatory]Precommit),
+		OnceFlags:     make(map[Round]OnceFlag),
 	}
 }
 
+// Clone the State into another copy that can be modified without affecting the
+// original.
+func (state State) Clone() State {
+	cloned := State{
+		CurrentHeight: state.CurrentHeight,
+		CurrentRound:  state.CurrentRound,
+		CurrentStep:   state.CurrentStep,
+		LockedValue:   state.LockedValue,
+		LockedRound:   state.LockedRound,
+		ValidValue:    state.ValidValue,
+		ValidRound:    state.ValidRound,
+
+		ProposeLogs:   make(map[Round]Propose),
+		PrevoteLogs:   make(map[Round]map[id.Signatory]Prevote),
+		PrecommitLogs: make(map[Round]map[id.Signatory]Precommit),
+		OnceFlags:     make(map[Round]OnceFlag),
+	}
+	for round, propose := range state.ProposeLogs {
+		cloned.ProposeLogs[round] = propose
+	}
+	for round, prevotes := range state.PrevoteLogs {
+		cloned.PrevoteLogs[round] = make(map[id.Signatory]Prevote)
+		for signatory, prevote := range prevotes {
+			cloned.PrevoteLogs[round][signatory] = prevote
+		}
+	}
+	for round, precommits := range state.PrecommitLogs {
+		cloned.PrecommitLogs[round] = make(map[id.Signatory]Precommit)
+		for signatory, precommit := range precommits {
+			cloned.PrecommitLogs[round][signatory] = precommit
+		}
+	}
+	for round, onceFlag := range state.OnceFlags {
+		cloned.OnceFlags[round] = onceFlag
+	}
+	return cloned
+}
+
 // Equal compares two States. If they are equal, then it returns true, otherwise
-// it returns false.
+// it returns false. Message logs and once-flags are ignored for the purpose of
+// equality.
 func (state State) Equal(other *State) bool {
 	return state.CurrentHeight == other.CurrentHeight &&
 		state.CurrentRound == other.CurrentRound &&
@@ -70,7 +123,11 @@ func (state State) SizeHint() int {
 		surge.SizeHint(state.LockedValue) +
 		surge.SizeHint(state.LockedRound) +
 		surge.SizeHint(state.ValidValue) +
-		surge.SizeHint(state.ValidRound)
+		surge.SizeHint(state.ValidRound) +
+		surge.SizeHint(state.ProposeLogs) +
+		surge.SizeHint(state.PrevoteLogs) +
+		surge.SizeHint(state.PrecommitLogs) +
+		surge.SizeHint(state.OnceFlags)
 }
 
 func (state State) Marshal(w io.Writer, m int) (int, error) {
@@ -101,6 +158,22 @@ func (state State) Marshal(w io.Writer, m int) (int, error) {
 	m, err = surge.Marshal(w, state.ValidRound, m)
 	if err != nil {
 		return m, fmt.Errorf("marshaling valid round=%v: %v", state.ValidRound, err)
+	}
+	m, err = surge.Marshal(w, state.ProposeLogs, m)
+	if err != nil {
+		return m, fmt.Errorf("marshaling %v propose logs: %v", len(state.ProposeLogs), err)
+	}
+	m, err = surge.Marshal(w, state.PrevoteLogs, m)
+	if err != nil {
+		return m, fmt.Errorf("marshaling %v prevote logs: %v", len(state.PrevoteLogs), err)
+	}
+	m, err = surge.Marshal(w, state.PrecommitLogs, m)
+	if err != nil {
+		return m, fmt.Errorf("marshaling %v precommit logs: %v", len(state.PrecommitLogs), err)
+	}
+	m, err = surge.Marshal(w, state.OnceFlags, m)
+	if err != nil {
+		return m, fmt.Errorf("marshaling %v once flags: %v", len(state.OnceFlags), err)
 	}
 	return m, nil
 }
@@ -133,6 +206,22 @@ func (state *State) Unmarshal(r io.Reader, m int) (int, error) {
 	m, err = surge.Unmarshal(r, &state.ValidRound, m)
 	if err != nil {
 		return m, fmt.Errorf("unmarshaling valid round: %v", err)
+	}
+	m, err = surge.Unmarshal(r, &state.ProposeLogs, m)
+	if err != nil {
+		return m, fmt.Errorf("unmarshaling propose logs: %v", err)
+	}
+	m, err = surge.Unmarshal(r, &state.PrevoteLogs, m)
+	if err != nil {
+		return m, fmt.Errorf("unmarshaling prevote logs: %v", err)
+	}
+	m, err = surge.Unmarshal(r, &state.PrecommitLogs, m)
+	if err != nil {
+		return m, fmt.Errorf("unmarshaling precommit logs: %v", err)
+	}
+	m, err = surge.Unmarshal(r, &state.OnceFlags, m)
+	if err != nil {
+		return m, fmt.Errorf("unmarshaling once flags: %v", err)
 	}
 	return m, nil
 }
@@ -180,51 +269,3 @@ var (
 	// the next Round).
 	NilValue = Value(id.Hash{})
 )
-
-// Pid defines a type alias for hashes that represent the unique identity of a
-// Process in the consensus algorithm. No distrinct Processes should ever have
-// the same Pid, and a Process must maintain the same Pid for its entire life.
-type Pid = id.Signatory
-
-// Pids defines a typedef for a slice of Pids.
-type Pids []Pid
-
-// Equal compares two slices of Pids. If they are equal, the it returns true,
-// otherwise it returns false.
-func (pids Pids) Equal(other Pids) bool {
-	if len(pids) != len(other) {
-		return false
-	}
-	for i := range pids {
-		if !pids[i].Equal(&other[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-// Contains checks for the existence of a Pid in the slice of Pids. If the Pid
-// is in the slice, then it returns true, otherwise it returns false. The
-// complexity of this method is O(n), so it is recommended that the results are
-// cached whenever the Pids slice is large.
-func (pids Pids) Contains(pid Pid) bool {
-	for i := range pids {
-		if pids[i].Equal(&pid) {
-			return true
-		}
-	}
-	return false
-}
-
-// Set returns the slice of Pids, converted into a PidSet. This is convenient
-// for checking the existence of Pids when ordering does not matter.
-func (pids Pids) Set() PidSet {
-	set := PidSet{}
-	for _, pid := range pids {
-		set[pid] = true
-	}
-	return set
-}
-
-// PidSet defines a typedef for a map of Pids.
-type PidSet map[Pid]bool

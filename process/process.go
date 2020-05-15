@@ -115,14 +115,6 @@ type Process struct {
 
 	// State of the Process.
 	State `json:"state"`
-	// ProposeLogs store the Proposes for all Rounds.
-	ProposeLogs map[Round]Propose `json:"proposeLogs"`
-	// PrevoteLogs store the Prevotes for all Processes in all Rounds.
-	PrevoteLogs map[Round]map[id.Signatory]Prevote `json:"prevoteLogs"`
-	// PrecommitLogs store the Precommits for all Processes in all Rounds.
-	PrecommitLogs map[Round]map[id.Signatory]Precommit `json:"precommitLogs"`
-	// OnceFlags prevents events from happening more than once.
-	OnceFlags map[Round]OnceFlag `json:"onceFlags"`
 }
 
 // New returns a new Process that is in the default State with empty message
@@ -151,22 +143,14 @@ func New(
 		committer:   committer,
 		catcher:     catcher,
 
-		State:         DefaultState(),
-		ProposeLogs:   make(map[Round]Propose),
-		PrevoteLogs:   make(map[Round]map[id.Signatory]Prevote),
-		PrecommitLogs: make(map[Round]map[id.Signatory]Precommit),
-		OnceFlags:     make(map[Round]OnceFlag),
+		State: DefaultState(),
 	}
 }
 
 // SizeHint returns the number of bytes required to represent this Process in
 // binary.
 func (p Process) SizeHint() int {
-	return surge.SizeHint(p.State) +
-		surge.SizeHint(p.ProposeLogs) +
-		surge.SizeHint(p.PrevoteLogs) +
-		surge.SizeHint(p.PrecommitLogs) +
-		surge.SizeHint(p.OnceFlags)
+	return surge.SizeHint(p.State)
 }
 
 // Marshal this Process into binary.
@@ -174,22 +158,6 @@ func (p Process) Marshal(w io.Writer, m int) (int, error) {
 	m, err := surge.Marshal(w, p.State, m)
 	if err != nil {
 		return m, fmt.Errorf("marshaling state: %v", err)
-	}
-	m, err = surge.Marshal(w, p.ProposeLogs, m)
-	if err != nil {
-		return m, fmt.Errorf("marshaling propose logs: %v", err)
-	}
-	m, err = surge.Marshal(w, p.PrevoteLogs, m)
-	if err != nil {
-		return m, fmt.Errorf("marshaling prevote logs: %v", err)
-	}
-	m, err = surge.Marshal(w, p.PrecommitLogs, m)
-	if err != nil {
-		return m, fmt.Errorf("marshaling precommit logs: %v", err)
-	}
-	m, err = surge.Marshal(w, p.OnceFlags, m)
-	if err != nil {
-		return m, fmt.Errorf("marshaling once flags: %v", err)
 	}
 	return m, nil
 }
@@ -199,22 +167,6 @@ func (p *Process) Unmarshal(r io.Reader, m int) (int, error) {
 	m, err := surge.Unmarshal(r, &p.State, m)
 	if err != nil {
 		return m, fmt.Errorf("unmarshaling state: %v", err)
-	}
-	m, err = surge.Unmarshal(r, &p.ProposeLogs, m)
-	if err != nil {
-		return m, fmt.Errorf("unmarshaling propose logs: %v", err)
-	}
-	m, err = surge.Unmarshal(r, &p.PrevoteLogs, m)
-	if err != nil {
-		return m, fmt.Errorf("unmarshaling prevote logs: %v", err)
-	}
-	m, err = surge.Unmarshal(r, &p.PrecommitLogs, m)
-	if err != nil {
-		return m, fmt.Errorf("unmarshaling precommit logs: %v", err)
-	}
-	m, err = surge.Unmarshal(r, &p.OnceFlags, m)
-	if err != nil {
-		return m, fmt.Errorf("unmarshaling once flags: %v", err)
 	}
 	return m, nil
 }
