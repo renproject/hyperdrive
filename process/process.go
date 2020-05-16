@@ -807,6 +807,9 @@ func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
 		if commit.round != latestCommit.Block.Header().Round() {
 			return
 		}
+		if !commit.shard.Equal(p.shard) {
+			return
+		}
 	}
 
 	// Check we have 2f+1 distinct commits
