@@ -96,8 +96,8 @@ type Observer interface {
 // For the consensus algorithm to work correctly, it is assumed that all honest
 // processes will eventually deliver all messages to all other honest processes.
 // The specific message ordering is not important. In practice, the Prevote
-// messages are the only messages that must guarantee delivery when guaranteeing
-// correctness.
+// messages and Propose/Precommit messages for base blocks are the only messages
+// that must guarantee delivery when guaranteeing correctness.
 //
 // For crash-resilience, the implementation of Broadcast should ensure that two
 // different Propose messages are not broadcast for the same shard, height, and
