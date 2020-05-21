@@ -223,12 +223,12 @@ func (rebaser *shardRebaser) IsBlockValid(proposedBlock block.Block, checkHistor
 		}
 	}
 
-	// Check against the base `block.Block`
-	if checkHistory {
-		baseBlock := rebaser.blockStorage.LatestBaseBlock(rebaser.shard)
-		if !proposedBlock.Header().BaseHash().Equal(baseBlock.Hash()) {
-			return nilReasons, fmt.Errorf("expected base hash for proposed block to equal base block hash")
-		}
+	// Check against the base `block.Block`. Since it is assumed that base
+	// blocks are not missed, this check happens regardless of the
+	// `checkHistory` parameter.
+	baseBlock := rebaser.blockStorage.LatestBaseBlock(rebaser.shard)
+	if !proposedBlock.Header().BaseHash().Equal(baseBlock.Hash()) {
+		return nilReasons, fmt.Errorf("expected base hash for proposed block to equal base block hash")
 	}
 
 	// Pass to the next `process.Validator`
