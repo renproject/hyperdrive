@@ -1,13 +1,17 @@
 package process
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/renproject/abi"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
@@ -85,6 +89,10 @@ type Message interface {
 	// Type returns the message type of this message. This is useful for
 	// marshaling/unmarshaling when type information is elided.
 	Type() MessageType
+
+	// Shard returns the unique shard identifier that determines which shard
+	// this message is for.
+	Shard() Shard
 }
 
 var (
@@ -148,6 +156,7 @@ type Proposes []Propose
 
 // Propose a block for committment.
 type Propose struct {
+	shard      Shard
 	signatory  id.Signatory
 	sig        id.Signature
 	height     block.Height
@@ -168,8 +177,9 @@ type LatestCommit struct {
 	Precommits []Precommit
 }
 
-func NewPropose(height block.Height, round block.Round, b block.Block, validRound block.Round) *Propose {
+func NewPropose(shard Shard, height block.Height, round block.Round, b block.Block, validRound block.Round) *Propose {
 	return &Propose{
+		shard:      shard,
 		height:     height,
 		round:      round,
 		block:      b,
@@ -217,8 +227,12 @@ func (propose *Propose) ValidRound() block.Round {
 	return propose.validRound
 }
 
+func (propose *Propose) Shard() Shard {
+	return propose.shard
+}
+
 func (propose *Propose) String() string {
-	return fmt.Sprintf("Propose(Height=%v,Round=%v,BlockHash=%v,ValidRound=%v)", propose.Height(), propose.Round(), propose.BlockHash(), propose.ValidRound())
+	return fmt.Sprintf("Propose(Shard=%v,Height=%v,Round=%v,BlockHash=%v,ValidRound=%v)", propose.Shard(), propose.Height(), propose.Round(), propose.BlockHash(), propose.ValidRound())
 }
 
 // Prevotes is a wrapper around the `[]Prevote` type.
@@ -226,6 +240,7 @@ type Prevotes []Prevote
 
 // Prevote for a block hash.
 type Prevote struct {
+	shard      Shard
 	signatory  id.Signatory
 	sig        id.Signature
 	height     block.Height
@@ -234,8 +249,9 @@ type Prevote struct {
 	nilReasons NilReasons
 }
 
-func NewPrevote(height block.Height, round block.Round, blockHash id.Hash, nilReasons NilReasons) *Prevote {
+func NewPrevote(shard Shard, height block.Height, round block.Round, blockHash id.Hash, nilReasons NilReasons) *Prevote {
 	return &Prevote{
+		shard:      shard,
 		height:     height,
 		round:      round,
 		blockHash:  blockHash,
@@ -275,13 +291,17 @@ func (prevote *Prevote) Type() MessageType {
 	return PrevoteMessageType
 }
 
+func (prevote *Prevote) Shard() Shard {
+	return prevote.shard
+}
+
 func (prevote *Prevote) String() string {
 	nilReasonsBytes, err := surge.ToBinary(prevote.NilReasons())
 	if err != nil {
-		return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash())
+		return fmt.Sprintf("Prevote(Shard=%v,Height=%v,Round=%v,BlockHash=%v)", prevote.Shard(), prevote.Height(), prevote.Round(), prevote.BlockHash())
 	}
 	nilReasonsHash := id.Hash(sha256.Sum256(nilReasonsBytes))
-	return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v,NilReasons=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash(), nilReasonsHash.String())
+	return fmt.Sprintf("Prevote(Shard=%v,Height=%v,Round=%v,BlockHash=%v,NilReasons=%v)", prevote.Shard(), prevote.Height(), prevote.Round(), prevote.BlockHash(), nilReasonsHash.String())
 }
 
 // Precommits is a wrapper around the `[]Precommit` type.
@@ -289,6 +309,7 @@ type Precommits []Precommit
 
 // Precommit a block hash.
 type Precommit struct {
+	shard     Shard
 	signatory id.Signatory
 	sig       id.Signature
 	height    block.Height
@@ -296,8 +317,9 @@ type Precommit struct {
 	blockHash id.Hash
 }
 
-func NewPrecommit(height block.Height, round block.Round, blockHash id.Hash) *Precommit {
+func NewPrecommit(shard Shard, height block.Height, round block.Round, blockHash id.Hash) *Precommit {
 	return &Precommit{
+		shard:     shard,
 		height:    height,
 		round:     round,
 		blockHash: blockHash,
@@ -332,8 +354,12 @@ func (precommit *Precommit) Type() MessageType {
 	return PrecommitMessageType
 }
 
+func (precommit *Precommit) Shard() Shard {
+	return precommit.shard
+}
+
 func (precommit *Precommit) String() string {
-	return fmt.Sprintf("Precommit(Height=%v,Round=%v,BlockHash=%v)", precommit.Height(), precommit.Round(), precommit.BlockHash())
+	return fmt.Sprintf("Precommit(Shard=%v,Height=%v,Round=%v,BlockHash=%v)", precommit.Shard(), precommit.Height(), precommit.Round(), precommit.BlockHash())
 }
 
 // Resyncs is a wrapper around the `[]Resync` type.
@@ -341,16 +367,20 @@ type Resyncs []Resync
 
 // Resync previous messages.
 type Resync struct {
+	shard     Shard
 	signatory id.Signatory
 	sig       id.Signature
 	height    block.Height
 	round     block.Round
+	timestamp block.Timestamp
 }
 
-func NewResync(height block.Height, round block.Round) *Resync {
+func NewResync(shard Shard, height block.Height, round block.Round) *Resync {
 	return &Resync{
-		height: height,
-		round:  round,
+		shard:     shard,
+		height:    height,
+		round:     round,
+		timestamp: block.Timestamp(time.Now().Unix()),
 	}
 }
 
@@ -374,6 +404,10 @@ func (resync *Resync) Round() block.Round {
 	return resync.round
 }
 
+func (resync *Resync) Timestamp() block.Timestamp {
+	return resync.timestamp
+}
+
 func (resync *Resync) BlockHash() id.Hash {
 	panic(ErrBlockHashNotProvided)
 }
@@ -382,8 +416,12 @@ func (resync *Resync) Type() MessageType {
 	return ResyncMessageType
 }
 
+func (resync *Resync) Shard() Shard {
+	return resync.shard
+}
+
 func (resync *Resync) String() string {
-	return fmt.Sprintf("Resync(Height=%v,Round=%v)", resync.Height(), resync.Round())
+	return fmt.Sprintf("Resync(Shard=%v,Height=%v,Round=%v,Timestamp=%v)", resync.Shard(), resync.Height(), resync.Round(), resync.Timestamp())
 }
 
 // An Inbox is storage container for one type message. Any type of message can
@@ -431,7 +469,10 @@ func NewInbox(f int, messageType MessageType) *Inbox {
 // This method is used extensively for tracking the different conditions under
 // which the state machine is allowed to transition between various states. Its
 // correctness is fundamental to the correctness of the overall implementation.
-func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedingF, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash bool) {
+//
+// The last return value is any conflicting message that already existed before
+// the Insert method was called. See the Catcher for more information.
+func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedingF, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash bool, conflicting Message) {
 	if message.Type() != inbox.messageType {
 		panic(fmt.Sprintf("pre-condition violation: expected type %v, got type %T", inbox.messageType, message))
 	}
@@ -445,7 +486,18 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	}
 
 	previousN := len(inbox.messages[height][round])
-	_, ok := inbox.messages[height][round][signatory]
+	conflicting, ok := inbox.messages[height][round][signatory]
+	if ok {
+		// We do not override existing messages. This means that it is
+		// impossible for N to change, and thus for any "first time" triggers to
+		// become true.
+		if conflicting.SigHash().Equal(message.SigHash()) {
+			// Messages are exact duplicates of each other.
+			return previousN, false, false, false, false, nil
+		}
+		// Messages are in conflict.
+		return previousN, false, false, false, false, conflicting
+	}
 
 	inbox.messages[height][round][signatory] = message
 
@@ -459,6 +511,7 @@ func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedin
 	firstTimeExceedingF = (previousN == inbox.F()) && (n == inbox.F()+1)
 	firstTimeExceeding2F = (previousN == 2*inbox.F()) && (n == 2*inbox.F()+1)
 	firstTimeExceeding2FOnBlockHash = !ok && (nOnBlockHash == 2*inbox.F()+1)
+	conflicting = nil
 	return
 }
 
@@ -486,16 +539,19 @@ func (inbox *Inbox) QueryMessagesByHeightRound(height block.Height, round block.
 
 // QueryMessagesByHeightWithHighestRound returns all unique messages that have
 // been received at the specified height and at the heighest round observed (for
-// the specified height). The specific block hash of the messages are ignored
-// and might be different from each other.
+// the specified height). Only rounds with >2F messages are considered. The
+// specific block hash of the messages are ignored and might be different from
+// each other.
 func (inbox *Inbox) QueryMessagesByHeightWithHighestRound(height block.Height) []Message {
 	if _, ok := inbox.messages[height]; !ok {
 		return nil
 	}
 	highestRound := block.Round(-1)
 	for round := range inbox.messages[height] {
-		if round > highestRound {
-			highestRound = round
+		if len(inbox.messages[height][round]) > 2*inbox.f {
+			if round > highestRound {
+				highestRound = round
+			}
 		}
 	}
 	if highestRound == -1 {
@@ -572,4 +628,31 @@ func (inbox *Inbox) F() int {
 
 func (inbox *Inbox) MessageType() MessageType {
 	return inbox.messageType
+}
+
+type Shards []Shard
+
+// Shard uniquely identifies the Shard being maintained by the Replica.
+type Shard [32]byte
+
+// Equal compares one Shard with another.
+func (shard Shard) Equal(other Shard) bool {
+	return bytes.Equal(shard[:], other[:])
+}
+
+// String implements the `fmt.Stringer` interface.
+func (shard Shard) String() string {
+	return base64.RawStdEncoding.EncodeToString(shard[:])
+}
+
+func (shard Shard) SizeHint() int {
+	return 32
+}
+
+func (shard Shard) Marshal(w io.Writer, m int) (int, error) {
+	return abi.Bytes32(shard).Marshal(w, m)
+}
+
+func (shard *Shard) Unmarshal(r io.Reader, m int) (int, error) {
+	return (*abi.Bytes32)(shard).Unmarshal(r, m)
 }

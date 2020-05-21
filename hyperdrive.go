@@ -9,6 +9,7 @@ import (
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/replica"
+	"github.com/renproject/hyperdrive/schedule"
 	"github.com/renproject/id"
 	"github.com/renproject/phi"
 )
@@ -65,13 +66,14 @@ type (
 	Blockchain   = process.Blockchain
 	Process      = process.Process
 	ProcessState = process.State
+	Messages     = process.Messages
+	Message      = process.Message
+	Shards       = process.Shards
+	Shard        = process.Shard
+	Broadcaster  = process.Broadcaster
 )
 
 type (
-	Messages       = replica.Messages
-	Message        = replica.Message
-	Shards         = replica.Shards
-	Shard          = replica.Shard
 	Options        = replica.Options
 	Replicas       = replica.Replicas
 	Replica        = replica.Replica
@@ -80,7 +82,6 @@ type (
 	BlockIterator  = replica.BlockIterator
 	Validator      = replica.Validator
 	Observer       = replica.Observer
-	Broadcaster    = replica.Broadcaster
 )
 
 var (
@@ -139,11 +140,12 @@ type hyperdrive struct {
 //          hyper.HandleMessage(message)
 //      }
 //  }
-func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, shards Shards, privKey ecdsa.PrivateKey) Hyperdrive {
+func New(options Options, pStorage ProcessStorage, blockStorage BlockStorage, blockIterator BlockIterator, validator Validator, observer Observer, broadcaster Broadcaster, catcher process.Catcher, shards Shards, privKey ecdsa.PrivateKey) Hyperdrive {
 	replicas := make(map[Shard]Replica, len(shards))
 	for _, shard := range shards {
 		if observer.IsSignatory(shard) {
-			replicas[shard] = replica.New(options, pStorage, blockStorage, blockIterator, validator, observer, broadcaster, shard, privKey)
+			rr := schedule.RoundRobin(blockStorage.LatestBaseBlock(shard).Header().Signatories())
+			replicas[shard] = replica.New(options, pStorage, blockStorage, blockIterator, validator, observer, broadcaster, rr, catcher, shard, privKey)
 		}
 	}
 	return &hyperdrive{
@@ -169,12 +171,12 @@ func (hyper *hyperdrive) Rebase(sigs Signatories) {
 }
 
 func (hyper *hyperdrive) HandleMessage(message Message) {
-	replica, ok := hyper.replicas[message.Shard]
+	replica, ok := hyper.replicas[message.Shard()]
 	if !ok {
 		return
 	}
 	defer func() {
-		hyper.replicas[message.Shard] = replica
+		hyper.replicas[message.Shard()] = replica
 	}()
 	replica.HandleMessage(message)
 }

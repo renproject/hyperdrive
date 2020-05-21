@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/hyperdrive/schedule"
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
 	"github.com/sirupsen/logrus"
@@ -74,15 +75,15 @@ func RandomMessageWithHeightAndRound(height block.Height, round block.Round, t p
 	case process.ProposeMessageType:
 		validRound := block.Round(rand.Int63())
 		block := RandomBlock(RandomBlockKind())
-		msg = process.NewPropose(height, round, block, validRound)
+		msg = process.NewPropose(process.Shard{}, height, round, block, validRound)
 	case process.PrevoteMessageType:
 		hash := RandomHash()
-		msg = process.NewPrevote(height, round, hash, nil)
+		msg = process.NewPrevote(process.Shard{}, height, round, hash, nil)
 	case process.PrecommitMessageType:
 		hash := RandomHash()
-		msg = process.NewPrecommit(height, round, hash)
+		msg = process.NewPrecommit(process.Shard{}, height, round, hash)
 	case process.ResyncMessageType:
-		msg = process.NewResync(height, round)
+		msg = process.NewResync(process.Shard{}, height, round)
 	default:
 		panic("unknown message type")
 	}
@@ -105,7 +106,7 @@ func RandomPropose() *process.Propose {
 	validRound := block.Round(rand.Int63())
 	block := RandomBlock(RandomBlockKind())
 
-	return process.NewPropose(height, round, block, validRound)
+	return process.NewPropose(process.Shard{}, height, round, block, validRound)
 }
 
 func RandomPrevote() *process.Prevote {
@@ -116,20 +117,20 @@ func RandomPrevote() *process.Prevote {
 	nilReasons["key1"] = []byte("val1")
 	nilReasons["key2"] = []byte("val2")
 	nilReasons["key3"] = []byte("val3")
-	return process.NewPrevote(height, round, hash, nilReasons)
+	return process.NewPrevote(process.Shard{}, height, round, hash, nilReasons)
 }
 
 func RandomPrecommit() *process.Precommit {
 	height := block.Height(rand.Int63())
 	round := block.Round(rand.Int63())
 	hash := RandomHash()
-	return process.NewPrecommit(height, round, hash)
+	return process.NewPrecommit(process.Shard{}, height, round, hash)
 }
 
 func RandomResync() *process.Resync {
 	height := block.Height(rand.Int63())
 	round := block.Round(rand.Int63())
-	return process.NewResync(height, round)
+	return process.NewResync(process.Shard{}, height, round)
 }
 
 func RandomMessageType(includeResync bool) process.MessageType {
@@ -173,7 +174,7 @@ type ProcessOrigin struct {
 	SaveRestorer process.SaveRestorer
 	Proposer     process.Proposer
 	Validator    process.Validator
-	Scheduler    process.Scheduler
+	Scheduler    schedule.Scheduler
 	Broadcaster  process.Broadcaster
 	Timer        process.Timer
 	Observer     process.Observer
@@ -232,6 +233,8 @@ func (p ProcessOrigin) ToProcess() *process.Process {
 		p.Broadcaster,
 		p.Scheduler,
 		p.Timer,
+		process.CatchAndIgnore(),
+		process.Shard{},
 	)
 }
 
@@ -277,6 +280,17 @@ func (bc *MockBlockchain) BlockAtHeight(height block.Height) (block.Block, bool)
 
 	block, ok := bc.blocks[height]
 	return block, ok
+}
+
+func (bc *MockBlockchain) LatestBaseBlock() block.Block {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+
+	block, ok := bc.blocks[0]
+	if !ok {
+		panic("no genesis block")
+	}
+	return block
 }
 
 func (bc *MockBlockchain) StateAtHeight(height block.Height) (block.State, bool) {
@@ -384,12 +398,16 @@ type MockScheduler struct {
 	sig id.Signatory
 }
 
-func NewMockScheduler(sig id.Signatory) process.Scheduler {
+func NewMockScheduler(sig id.Signatory) schedule.Scheduler {
 	return &MockScheduler{sig: sig}
 }
 
 func (m *MockScheduler) Schedule(block.Height, block.Round) id.Signatory {
 	return m.sig
+}
+
+func (m *MockScheduler) Rebase(sigs id.Signatories) {
+	panic("MockScheduler.Rebase is not supported")
 }
 
 type MockTimer struct {

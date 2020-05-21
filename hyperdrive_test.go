@@ -1,6 +1,7 @@
 package hyperdrive_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/renproject/hyperdrive/block"
+	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/replica"
 	"github.com/renproject/hyperdrive/testutil"
 	"github.com/renproject/id"
@@ -34,19 +36,15 @@ func init() {
 var _ = Describe("Hyperdrive", func() {
 
 	table := []struct {
-		shard int
-		f     int
-		r     int
+		f int
+		r int
 	}{
-		{1, 2, 0},
-		{1, 2, 2},
+		{2, 0},
+		{2, 2},
 	}
 
 	for _, entry := range table {
-		shards := make([]Shard, entry.shard)
-		for i := range shards {
-			shards[i] = RandomShard()
-		}
+		shards := []Shard{Shard{}}
 		f := entry.f
 		r := entry.r
 
@@ -347,7 +345,7 @@ var DefaultOption = networkOptions{
 type Network struct {
 	f       int
 	r       int
-	shards  replica.Shards
+	shards  process.Shards
 	options networkOptions
 
 	nodesMu *sync.RWMutex
@@ -360,7 +358,7 @@ type Network struct {
 	Broadcaster  *MockBroadcaster
 }
 
-func NewNetwork(f, r int, shards replica.Shards, options networkOptions) Network {
+func NewNetwork(f, r int, shards process.Shards, options networkOptions) Network {
 	if f <= 0 {
 		panic("f must be positive")
 	}
@@ -483,12 +481,11 @@ func (network *Network) startNode(i int) {
 
 	go func() {
 		defer logger.Info("❌ shutting down hyperdrive...")
-
 		for {
 			select {
 			case messageBytes := <-messages:
-				var message replica.Message
-				if err := surge.FromBinary(messageBytes, &message); err != nil {
+				message, _, err := process.UnmarshalMessage(bytes.NewBuffer(messageBytes), surge.MaxBytes)
+				if err != nil {
 					panic(err)
 				}
 				hyperdrive.HandleMessage(message)
@@ -585,7 +582,7 @@ func NewNode(logger logrus.FieldLogger, shards Shards, pk *ecdsa.PrivateKey, ite
 	}
 	validator := NewMockValidator(store)
 	observer := NewMockObserver(store, isSignatory)
-	hd := New(option, store, store, iter, validator, observer, broadcaster, shards, *pk)
+	hd := New(option, store, store, iter, validator, observer, broadcaster, process.CatchAndIgnore(), shards, *pk)
 
 	return &Node{
 		logger:     logger,

@@ -9,6 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/renproject/hyperdrive/schedule"
 	. "github.com/renproject/hyperdrive/testutil"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -19,17 +20,17 @@ import (
 
 var _ = Describe("shardRebaser", func() {
 
-	commitBlock := func(storage BlockStorage, shard Shard, block block.Block) {
+	commitBlock := func(storage BlockStorage, shard process.Shard, block block.Block) {
 		bc := storage.Blockchain(shard)
 		bc.InsertBlockAtHeight(block.Header().Height(), block)
 	}
 
 	Context("initializing a new shardRebaser", func() {
 		It("should implements the process.Proposer", func() {
-			test := func(shard Shard) bool {
+			test := func(shard process.Shard, numSignatories int) bool {
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
-				rebaser := newShardRebaser(store, iter, nil, nil, shard)
+				rebaser := newShardRebaser(nil, store, iter, nil, nil, shard, numSignatories)
 
 				parent := store.LatestBlock(shard)
 				base := store.LatestBaseBlock(shard)
@@ -49,11 +50,11 @@ var _ = Describe("shardRebaser", func() {
 		})
 
 		It("should implements the process.Validator", func() {
-			test := func(shard Shard) bool {
+			test := func(shard process.Shard, numSignatories int) bool {
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
 				validator := newMockValidator(nil)
-				rebaser := newShardRebaser(store, iter, validator, nil, shard)
+				rebaser := newShardRebaser(nil, store, iter, validator, nil, shard, numSignatories)
 
 				// Generate a valid propose block.
 				parent := store.LatestBlock(shard)
@@ -73,11 +74,11 @@ var _ = Describe("shardRebaser", func() {
 		})
 
 		It("should implement the process.Observer", func() {
-			test := func(shard Shard) bool {
+			test := func(shard process.Shard, numSignatories int) bool {
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
 				observer := newMockObserver()
-				rebaser := newShardRebaser(store, iter, nil, observer, shard)
+				rebaser := newShardRebaser(nil, store, iter, nil, observer, shard, numSignatories)
 
 				rebaser.DidCommitBlock(0)
 				rebaser.DidCommitBlock(initHeight)
@@ -96,10 +97,10 @@ var _ = Describe("shardRebaser", func() {
 
 	Context("when rebasing", func() {
 		It("should be ready to receive a new rebase block", func() {
-			test := func(shard Shard, sigs id.Signatories) bool {
+			test := func(shard process.Shard, sigs id.Signatories) bool {
 				store, _, _ := initStorage(shard)
 				iter := mockBlockIterator{}
-				rebaser := newShardRebaser(store, iter, nil, nil, shard)
+				rebaser := newShardRebaser(nil, store, iter, nil, nil, shard, len(sigs))
 
 				rebaser.rebase(sigs)
 				Expect(rebaser.expectedKind).Should(Equal(block.Rebase))
@@ -116,13 +117,13 @@ var _ = Describe("shardRebaser", func() {
 		})
 
 		It("should return a valid rebase block when proposing", func() {
-			test := func(shard Shard, sigs id.Signatories) bool {
+			test := func(shard process.Shard, sigs id.Signatories) bool {
 				if len(sigs) == 0 {
 					return true
 				}
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
-				rebaser := newShardRebaser(store, iter, nil, nil, shard)
+				rebaser := newShardRebaser(nil, store, iter, nil, nil, shard, len(sigs))
 
 				rebaser.rebase(sigs)
 				parent := store.LatestBlock(shard)
@@ -154,13 +155,13 @@ var _ = Describe("shardRebaser", func() {
 		})
 
 		It("should valid a block only if it's a rebase block", func() {
-			test := func(shard Shard, sigs id.Signatories) bool {
+			test := func(shard process.Shard, sigs id.Signatories) bool {
 				if len(sigs) == 0 {
 					return true
 				}
 				store, initHeight, _ := initStorage(shard)
 				iter := mockBlockIterator{}
-				rebaser := newShardRebaser(store, iter, nil, nil, shard)
+				rebaser := newShardRebaser(nil, store, iter, nil, nil, shard, len(sigs))
 				rebaser.rebase(sigs)
 
 				// Generate a valid rebase block.
@@ -195,16 +196,66 @@ var _ = Describe("shardRebaser", func() {
 			}
 			Expect(quick.Check(test, nil)).Should(Succeed())
 		})
-	})
 
-	// Context("when validating a proposed block", func() {
-	// 	It("should reject block which has unexpect kind", func() {
-	//
-	// 	})
-	// })
+		It("should change signatories after a base block", func() {
+			test := func(shard process.Shard, sigs id.Signatories) bool {
+				if len(sigs) == 0 {
+					return true
+				}
+				store, initHeight, _ := initStorage(shard)
+				iter := mockBlockIterator{}
+				scheduler := schedule.RoundRobin(id.Signatories{})
+				rebaser := newShardRebaser(scheduler, store, iter, nil, nil, shard, len(sigs))
+				rebaser.rebase(sigs)
+
+				// Rebasing should not immediate cause a rebase of the
+				// scheduler.
+				Expect(scheduler.Schedule(0, 0)).To(Equal(block.InvalidSignatory))
+
+				// Generate a valid rebase block.
+				parent := store.LatestBlock(shard)
+				base := store.LatestBaseBlock(shard)
+				header := RandomBlockHeaderJSON(block.Rebase)
+				header.Height = initHeight + 1
+				header.BaseHash = base.Hash()
+				header.ParentHash = parent.Hash()
+				header.Timestamp = block.Timestamp(time.Now().Unix() - 1)
+				header.Signatories = sigs
+				rebaseBlock := block.New(header.ToBlockHeader(), nil, nil, nil)
+				_, err := rebaser.IsBlockValid(rebaseBlock, true)
+				Expect(err).Should(BeNil())
+
+				// After the block been committed
+				commitBlock(store, shard, rebaseBlock)
+				rebaser.DidCommitBlock(initHeight + 1)
+
+				// Generate a valid base block.
+				parent = rebaseBlock
+				baseHeader := RandomBlockHeaderJSON(block.Base)
+				baseHeader.Height = initHeight + 2
+				baseHeader.BaseHash = base.Hash()
+				baseHeader.ParentHash = parent.Hash()
+				baseHeader.Timestamp = block.Timestamp(time.Now().Unix())
+				baseHeader.Signatories = sigs
+				baseBlock := block.New(baseHeader.ToBlockHeader(), nil, nil, nil)
+				_, err = rebaser.IsBlockValid(baseBlock, true)
+				Expect(err).Should(BeNil())
+
+				// After the base block is commited...
+				commitBlock(store, shard, baseBlock)
+				rebaser.DidCommitBlock(initHeight + 2)
+
+				// ...the scheduler should be rebased.
+				Expect(scheduler.Schedule(0, 0)).To(Equal(sigs[0]))
+
+				return true
+			}
+			Expect(quick.Check(test, nil)).Should(Succeed())
+		})
+	})
 })
 
-func initStorage(shard Shard) (BlockStorage, block.Height, []*ecdsa.PrivateKey) {
+func initStorage(shard process.Shard) (BlockStorage, block.Height, []*ecdsa.PrivateKey) {
 	sigs := make(id.Signatories, 7)
 	keys := make([]*ecdsa.PrivateKey, 7)
 	for i := range sigs {

@@ -37,8 +37,8 @@ func SleepRandomSeconds(min, max int) {
 	}
 }
 
-func RandomShard() replica.Shard {
-	shard := replica.Shard{}
+func RandomShard() process.Shard {
+	shard := process.Shard{}
 	_, err := rand.Read(shard[:])
 	if err != nil {
 		panic(fmt.Sprintf("cannot create random shard, err = %v", err))
@@ -58,7 +58,7 @@ func NewMockBlockIterator(store *MockPersistentStorage, timeout bool) *MockBlock
 	}
 }
 
-func (m *MockBlockIterator) NextBlock(kind block.Kind, height block.Height, shard replica.Shard) (block.Txs, block.Plan, block.State) {
+func (m *MockBlockIterator) NextBlock(kind block.Kind, height block.Height, shard process.Shard) (block.Txs, block.Plan, block.State) {
 	// Sleep before continuing if we are expected to timeout.
 	if m.timeout {
 		time.Sleep(5 * time.Second)
@@ -78,6 +78,10 @@ func (m *MockBlockIterator) NextBlock(kind block.Kind, height block.Height, shar
 	}
 }
 
+func (m *MockBlockIterator) MissedBaseBlocksInRange(begin, end id.Hash) int {
+	return 0 // MockBlockIterator does not support rebasing.
+}
+
 type MockValidator struct {
 	store *MockPersistentStorage
 }
@@ -88,7 +92,7 @@ func NewMockValidator(store *MockPersistentStorage) replica.Validator {
 	}
 }
 
-func (m *MockValidator) IsBlockValid(b block.Block, checkHistory bool, shard replica.Shard) (process.NilReasons, error) {
+func (m *MockValidator) IsBlockValid(b block.Block, checkHistory bool, shard process.Shard) (process.NilReasons, error) {
 	height := b.Header().Height()
 	prevState := b.PreviousState()
 
@@ -119,7 +123,7 @@ func NewMockObserver(store *MockPersistentStorage, isSignatory bool) replica.Obs
 	}
 }
 
-func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
+func (m MockObserver) DidCommitBlock(height block.Height, shard process.Shard) {
 	blockchain := m.store.MockBlockchain(shard)
 	b, ok := blockchain.BlockAtHeight(height)
 	if !ok {
@@ -129,14 +133,10 @@ func (m MockObserver) DidCommitBlock(height block.Height, shard replica.Shard) {
 	blockchain.InsertBlockStateAtHeight(height, digest[:])
 
 	// Insert executed state of the previous height
-	prevBlock, ok := blockchain.BlockAtHeight(height - 1)
-	if !ok {
-		panic(fmt.Sprintf("cannot find block of height %v, %v", height-1, prevBlock))
-	}
-	blockchain.InsertBlockStateAtHeight(height-1, prevBlock.PreviousState())
+	blockchain.InsertBlockStateAtHeight(height-1, b.PreviousState())
 }
 
-func (observer *MockObserver) IsSignatory(replica.Shard) bool {
+func (observer *MockObserver) IsSignatory(process.Shard) bool {
 	return observer.isSignatory
 }
 
@@ -146,9 +146,9 @@ func (observer *MockObserver) DidReceiveSufficientNilPrevotes(process.Messages, 
 type MockBroadcaster struct {
 	min, max int
 
-	mu     *sync.RWMutex
-	cons   map[id.Signatory]chan []byte
-	active map[id.Signatory]bool
+	cons     map[id.Signatory]chan []byte
+	active   map[id.Signatory]bool
+	activeMu *sync.RWMutex
 
 	signatories map[id.Signatory]int
 }
@@ -167,45 +167,56 @@ func NewMockBroadcaster(keys []*ecdsa.PrivateKey, min, max int) *MockBroadcaster
 		min: min,
 		max: max,
 
-		mu:          new(sync.RWMutex),
 		cons:        cons,
 		active:      map[id.Signatory]bool{},
+		activeMu:    new(sync.RWMutex),
 		signatories: signatories,
 	}
 }
 
-func (m *MockBroadcaster) Broadcast(message replica.Message) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	// If the sender is offline, it cannot send messages to other nodes.
-	if !m.active[message.Message.Signatory()] {
-		return
-	}
-
-	messageBytes, err := surge.ToBinary(message)
+func (m *MockBroadcaster) Broadcast(message process.Message) {
+	buf := new(bytes.Buffer)
+	_, err := process.MarshalMessage(message, buf, surge.MaxBytes)
 	if err != nil {
 		panic(err)
 	}
+	messageBytes := buf.Bytes()
+
+	// Always able to send message to self
+	m.sendMessage(message.Signatory(), messageBytes)
+
+	func() {
+		// If the sender is offline, it cannot send messages to other nodes.
+		m.activeMu.RLock()
+		defer m.activeMu.RUnlock()
+
+		if !m.active[message.Signatory()] {
+			return
+		}
+	}()
+
 	phi.ParForAll(m.cons, func(to id.Signatory) {
 		m.sendMessage(to, messageBytes)
 	})
 }
 
-func (m *MockBroadcaster) Cast(to id.Signatory, message replica.Message) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+func (m *MockBroadcaster) Cast(to id.Signatory, message process.Message) {
+	func() {
+		// If the sender is offline, it cannot send messages to other nodes.
+		m.activeMu.RLock()
+		defer m.activeMu.RUnlock()
 
-	// If the sender is offline, it cannot send messages to other nodes.
-	if !m.active[message.Message.Signatory()] {
-		return
-	}
+		if !m.active[message.Signatory()] {
+			return
+		}
+	}()
 
-	messageBytes, err := surge.ToBinary(message)
+	buf := new(bytes.Buffer)
+	_, err := process.MarshalMessage(message, buf, surge.MaxBytes)
 	if err != nil {
 		panic(err)
 	}
-	m.sendMessage(to, messageBytes)
+	m.sendMessage(to, buf.Bytes())
 }
 
 func (m *MockBroadcaster) sendMessage(receiver id.Signatory, message []byte) {
@@ -214,28 +225,28 @@ func (m *MockBroadcaster) sendMessage(receiver id.Signatory, message []byte) {
 
 	// If the receiver is offline, it cannot receive any messages from other
 	// nodes.
+	m.activeMu.RLock()
+	defer m.activeMu.RUnlock()
+
 	if m.active[receiver] {
 		go func() { messages <- message }()
 	}
 }
 
 func (m *MockBroadcaster) Messages(sig id.Signatory) chan []byte {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	return m.cons[sig]
 }
 
 func (m *MockBroadcaster) EnablePeer(sig id.Signatory) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.activeMu.Lock()
+	defer m.activeMu.Unlock()
 
 	m.active[sig] = true
 }
 
 func (m *MockBroadcaster) DisablePeer(sig id.Signatory) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.activeMu.Lock()
+	defer m.activeMu.Unlock()
 
 	m.active[sig] = false
 }

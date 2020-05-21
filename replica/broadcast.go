@@ -8,25 +8,14 @@ import (
 	"github.com/renproject/id"
 )
 
-// A Broadcaster is used to send signed, shard-specific, Messages to one or all
-// Replicas in the network.
-type Broadcaster interface {
-	Broadcast(Message)
-	Cast(id.Signatory, Message)
-}
-
 type signer struct {
-	broadcaster Broadcaster
-	shard       Shard
+	broadcaster process.Broadcaster
 	privKey     ecdsa.PrivateKey
 }
 
-// newSigner returns a `process.Broadcaster` that accepts `process.Messages`,
-// signs them, associates them with a Shard, and re-broadcasts them.
-func newSigner(broadcaster Broadcaster, shard Shard, privKey ecdsa.PrivateKey) process.Broadcaster {
+func newSigner(broadcaster process.Broadcaster, privKey ecdsa.PrivateKey) process.Broadcaster {
 	return &signer{
 		broadcaster: broadcaster,
-		shard:       shard,
 		privKey:     privKey,
 	}
 }
@@ -36,19 +25,13 @@ func (broadcaster *signer) Broadcast(m process.Message) {
 	if err := process.Sign(m, broadcaster.privKey); err != nil {
 		panic(fmt.Errorf("invariant violation: error broadcasting message: %v", err))
 	}
-	broadcaster.broadcaster.Broadcast(Message{
-		Message: m,
-		Shard:   broadcaster.shard,
-	})
+	broadcaster.broadcaster.Broadcast(m)
 }
 
 // Cast implements the `process.Broadcaster` interface.
 func (broadcaster *signer) Cast(to id.Signatory, m process.Message) {
 	if err := process.Sign(m, broadcaster.privKey); err != nil {
-		panic(fmt.Errorf("invariant violation: error casting message: %v", err))
+		panic(fmt.Errorf("invariant violation: error broadcasting message: %v", err))
 	}
-	broadcaster.broadcaster.Cast(to, Message{
-		Message: m,
-		Shard:   broadcaster.shard,
-	})
+	broadcaster.broadcaster.Cast(to, m)
 }
