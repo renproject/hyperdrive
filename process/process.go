@@ -821,7 +821,7 @@ func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
 		return
 	}
 
-	// if the commits are valid, store the block if we don't have one
+	// If the commits are valid, store the block if we don't have one
 	if !p.blockchain.BlockExistsAtHeight(latestCommit.Block.Header().Height()) {
 		p.blockchain.InsertBlockAtHeight(latestCommit.Block.Header().Height(), latestCommit.Block)
 	}
@@ -833,4 +833,11 @@ func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
 	p.state.CurrentRound = 0
 	p.state.Reset(latestCommit.Block.Header().Height())
 	p.startRound(p.state.CurrentRound)
+
+	// If we just committed a base block, then we need to resynchronise with
+	// other nodes, in case we have dropped Proposes from this new base that
+	// arrived bfeore the new base.
+	if latestCommit.Block.Header().Kind() == block.Base {
+		p.broadcaster.Broadcast(NewResync(p.shard, p.state.CurrentHeight, p.state.CurrentRound))
+	}
 }
