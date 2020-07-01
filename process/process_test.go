@@ -76,7 +76,7 @@ var _ = Describe("Process", func() {
 			Expect(quick.Check(f, nil)).To(Succeed())
 		})
 
-		Contex("when we are the proposer", func() {
+		Context("when we are the proposer", func() {
 			Context("when our valid value is non-nil", func() {
 				It("should propose the valid value", func() {
 					panic("unimplemented")
@@ -135,10 +135,36 @@ var _ = Describe("Process", func() {
 	// L61:
 	//	Function OnTimeoutPrevote(height, round)
 	//		if height = currentHeight ∧ round = currentRound ∧ currentStep = prevote then
-	//			broadcast〈PREVOTE, currentHeight, currentRound, nil
-	//			currentStep ← prevote
+	//			broadcast〈PRECOMMIT, currentHeight, currentRound, nil
+	//			currentStep ← precommitting
 	Context("when timing out on a prevote", func() {
+		Context("when the timeout is for the current height", func() {
+			Context("when the timeout is for the current round", func() {
+				Context("when the timeout is for the current step", func() {
+					It("should precommit nil and move to the precommitting step", func() {
+						panic("unimplemented")
+					})
+				})
 
+				Context("when the timeout is not for the current step", func() {
+					It("should do nothing", func() {
+						panic("unimplemented")
+					})
+				})
+			})
+
+			Context("when the timeout is not for the current round", func() {
+				It("should do nothing", func() {
+					panic("unimplemented")
+				})
+			})
+		})
+
+		Context("when the timeout is not for the current height", func() {
+			It("should do nothing", func() {
+				panic("unimplemented")
+			})
+		})
 	})
 
 	// L65:
@@ -146,7 +172,25 @@ var _ = Describe("Process", func() {
 	//		if height = currentHeight ∧ round = currentRound then
 	//			StartRound(currentRound + 1)
 	Context("when timing out on a precommit", func() {
+		Context("when the timeout is for the current height", func() {
+			Context("when the timeout is for the current round", func() {
+				It("should start a new round by incrementing currentRound", func() {
+					panic("unimplemented")
+				})
+			})
 
+			Context("when the timeout is not for the current round", func() {
+				It("should do nothing", func() {
+					panic("unimplemented")
+				})
+			})
+		})
+
+		Context("when the timeout is not for the current height", func() {
+			It("should do nothing", func() {
+				panic("unimplemented")
+			})
+		})
 	})
 
 	// L22:
@@ -158,6 +202,47 @@ var _ = Describe("Process", func() {
 	//          broadcast〈PREVOTE, currentHeight, currentRound, nil
 	//      currentStep ← prevote
 	Context("when receiving a propose", func() {
+		Context("when the message sender is the correct proposer for this height and round", func() {
+			Context("when we are in the propose step", func() {
+				Context("when the propose message is valid", func() {
+					Context("when the locked round is equal to -1", func() {
+						It("should prevote the value and move to the precommitting step", func() {
+							panic("unimplemented")
+						})
+					})
+
+					Context("when the locked value is the propose value", func() {
+						It("should prevote the value and move to the precommitting step", func() {
+							panic("unimplemented")
+						})
+					})
+
+					Context("when the locked value is not -1 and the locked value is not the propose value", func() {
+						It("should prevote nil and move to the precommitting step", func() {
+							panic("unimplemented")
+						})
+					})
+				})
+
+				Context("when the propose message is invalid", func() {
+					It("should prevote nil and move to the precommitting step", func() {
+						panic("unimplemented")
+					})
+				})
+			})
+
+			Context("when we are not in the propose step", func() {
+				It("should do nothing", func() {
+					panic("unimplemented")
+				})
+			})
+		})
+
+		Context("when the message sender is not the correct proposer for this height and round", func() {
+			It("should do nothing", func() {
+				panic("unimplemented")
+			})
+		})
 	})
 
 	// L28:
@@ -170,45 +255,53 @@ var _ = Describe("Process", func() {
 	//          broadcast〈PREVOTE, currentHeight, currentRound, nil〉
 	//      currentStep ← prevote
 	Context("when receiving a propose and 2f+1 prevotes", func() {
-		Context("when we are in the proposing step", func() {
-			Context("when the proposed valid round is valid", func() {
-				Context("when the proposed valid round is less than the current round", func() {
-					Context("when the proposed value is valid", func() {
-						Context("when the proposed valid round is greater than our locked round, or the proposed value is our locked value", func() {
-							It("should prevote for the proposed value", func() {
-								panic("unimplemented")
+		Context("when the message sender is the correct proposer for the given height and round", func() {
+			Context("when we are in the proposing step", func() {
+				Context("when the proposed valid round is valid", func() {
+					Context("when the proposed valid round is less than the current round", func() {
+						Context("when the proposed value is valid", func() {
+							Context("when the proposed valid round is greater than our locked round, or the proposed value is our locked value", func() {
+								It("should prevote for the proposed value", func() {
+									panic("unimplemented")
+								})
+							})
+
+							Context("when the proposed valid round is not greater than our locked round, and the proposed value is not our locked value", func() {
+								It("should prevote nil", func() {
+									panic("unimplemented")
+								})
 							})
 						})
 
-						Context("when the proposed valid round is not greater than our locked round, and the proposed value is not our locked value", func() {
+						Context("when the proposed value is not valid", func() {
 							It("should prevote nil", func() {
 								panic("unimplemented")
 							})
 						})
 					})
 
-					Context("when the proposed value is not valid", func() {
-						It("should prevote nil", func() {
+					Context("when the proposed valid round is not less than the current round", func() {
+						It("should do nothing", func() {
 							panic("unimplemented")
 						})
 					})
 				})
 
-				Context("when the proposed valid round is not less than the current round", func() {
+				Context("when the proposed valid round is not valid", func() {
 					It("should do nothing", func() {
 						panic("unimplemented")
 					})
 				})
 			})
 
-			Context("when the proposed valid round is not valid", func() {
+			Context("when we are not in the proposing step", func() {
 				It("should do nothing", func() {
 					panic("unimplemented")
 				})
 			})
 		})
 
-		Context("when we are not in the proposing step", func() {
+		Context("when the message sender is not the correct proposer for the given height and round", func() {
 			It("should do nothing", func() {
 				panic("unimplemented")
 			})
@@ -221,7 +314,17 @@ var _ = Describe("Process", func() {
 	//  while currentStep = prevote for the first time do
 	//      scheduleOnTimeoutPrevote(currentHeight, currentRound) to be executed after timeoutPrevote(currentRound)
 	Context("when receiving 2f+1 prevotes", func() {
+		Context("when we are in step prevote", func() {
+			It("should schedule a prevote timeout for the current height and round", func() {
+				panic("unimplemented")
+			})
+		})
 
+		Context("when we are not in the step prevote", func() {
+			It("should do nothing", func() {
+				panic("unimplemented")
+			})
+		})
 	})
 
 	// L36:
@@ -235,9 +338,41 @@ var _ = Describe("Process", func() {
 	//          currentStep ← precommit
 	//      validValue ← v
 	//      validRound ← currentRound
-	Context("when receiving a propose and 2f+1 prevotes", func() {
-		Context("when waiting to precommit", func() {
+	Context("when receiving a propose and 2f+1 prevotes, for any locked round in the propose message", func() {
+		Context("when the proposed value is valid", func() {
+			Context("when we are at least in the prevoting step", func() {
+				Context("when we are in the prevoting step", func() {
+					It("should set the locked value to the proposed value and the locked round to the current round", func() {
+						panic("unimplemented")
+					})
 
+					It("should broadcast a precommit for the proposed value and move to the precommitting step", func() {
+						panic("unimplemented")
+					})
+
+					It("should set the value value to the proposed value and the valid round to the current round", func() {
+						panic("unimplemented")
+					})
+				})
+
+				Context("when we are in the precommitting step", func() {
+					It("should set the valid value to the proposed value and the valid round to the current round", func() {
+						panic("unimplemented")
+					})
+				})
+			})
+
+			Context("when we are in the proposing step", func() {
+				It("should do nothing", func() {
+					panic("unimplemented")
+				})
+			})
+		})
+
+		Context("when the proposed value is not valid", func() {
+			It("should do nothing", func() {
+				panic("unimplemented")
+			})
 		})
 	})
 
@@ -248,7 +383,17 @@ var _ = Describe("Process", func() {
 	//      broadcast〈PRECOMMIT, currentHeight, currentRound, nil〉
 	//      currentStep ← precommit
 	Context("when receiving 2f+1 nil prevotes", func() {
+		Context("when we are in the prevote step", func() {
+			It("should precommit nil and move to the precommitting step", func() {
+				panic("unimplemented")
+			})
+		})
 
+		Context("when we are not in the prevote step", func() {
+			It("should do nothing", func() {
+				panic("unimplemented")
+			})
+		})
 	})
 
 	// L47:
@@ -256,7 +401,9 @@ var _ = Describe("Process", func() {
 	//  upon 2f+ 1〈PRECOMMIT, currentHeight, currentRound, ∗〉for the first time do
 	//      scheduleOnTimeoutPrecommit(currentHeight, currentRound) to be executed after timeoutPrecommit(currentRound)
 	Context("when receiving 2f+1 precommits", func() {
-
+		It("should schedule a precommit timeout for the current height and round", func() {
+			panic("unimplemented")
+		})
 	})
 
 	// L49:
@@ -269,7 +416,25 @@ var _ = Describe("Process", func() {
 	//          reset
 	//          StartRound(0)
 	Context("when receiving a propose and 2f+1 precommits", func() {
+		Context("when we have not finalised the given height", func() {
+			Context("when the received propose value is valid", func() {
+				It("should finalise the given height, increment the current height and start a new round", func() {
+					panic("unimplemented")
+				})
+			})
 
+			Context("when the received propose value is not valid", func() {
+				It("should do nothing", func() {
+					panic("unimplemented")
+				})
+			})
+		})
+
+		Context("when we have already finalised the given height", func() {
+			It("should do nothing", func() {
+				panic("unimplemented")
+			})
+		})
 	})
 
 	// L55:
@@ -277,6 +442,8 @@ var _ = Describe("Process", func() {
 	//  upon f+ 1〈∗, currentHeight, r, ∗, ∗〉with r > currentRound do
 	//      StartRound(r)
 	Context("when receiving f+1 messages from a future round", func() {
-
+		It("should a new round with the current round set as the given future round", func() {
+			panic("unimplemented")
+		})
 	})
 })

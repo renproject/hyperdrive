@@ -316,8 +316,8 @@ func (p *Process) OnTimeoutPropose(height Height, round Round) {
 // L61:
 //	Function OnTimeoutPrevote(height, round)
 //		if height = currentHeight ∧ round = currentRound ∧ currentStep = prevote then
-//			broadcast〈PREVOTE, currentHeight, currentRound, nil
-//			currentStep ← prevote
+//			broadcast〈PRECOMMIT, currentHeight, currentRound, nil
+//			currentStep ← precommitting
 func (p *Process) OnTimeoutPrevote(height Height, round Round) {
 	if height == p.CurrentHeight && round == p.CurrentRound && p.CurrentStep == Prevoting {
 		p.broadcaster.BroadcastPrecommit(Precommit{
@@ -353,7 +353,7 @@ func (p *Process) OnTimeoutPrecommit(height Height, round Round) {
 //      currentStep ← prevote
 //
 // This method must be tried whenever a Propose is received at the current
-// Ronud, the current Round changes, the current Step changes to Proposing, the
+// Round, the current Round changes, the current Step changes to Prevote, the
 // LockedRound changes, or the the LockedValue changes.
 func (p *Process) tryPrevoteUponPropose() {
 	if p.CurrentStep != Proposing {
