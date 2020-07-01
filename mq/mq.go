@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/id"
 )
 
 // A MessageQueue is used to sort incoming messages by their height and round,
@@ -17,13 +18,13 @@ import (
 // do not handle de-duplication, and are not safe for concurrent use.
 type MessageQueue struct {
 	opts        Options
-	queuesByPid map[process.Pid][]interface{}
+	queuesByPid map[id.Signatory][]interface{}
 }
 
 // New returns an empty MessageQueue.
 func New(opts Options) MessageQueue {
 	return MessageQueue{
-		queuesByPid: make(map[process.Pid][]interface{}),
+		queuesByPid: make(map[id.Signatory][]interface{}),
 	}
 }
 
@@ -135,7 +136,7 @@ func round(msg interface{}) process.Round {
 	}
 }
 
-func from(msg interface{}) process.Pid {
+func from(msg interface{}) id.Signatory {
 	switch msg := msg.(type) {
 	case process.Propose:
 		return msg.From
