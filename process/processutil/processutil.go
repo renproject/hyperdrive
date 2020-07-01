@@ -7,6 +7,33 @@ import (
 	"github.com/renproject/id"
 )
 
+type BroadcasterCallbacks struct {
+	BroadcastProposeCallback   func(process.Propose)
+	BroadcastPrevoteCallback   func(process.Prevote)
+	BroadcastPrecommitCallback func(process.Precommit)
+}
+
+func (broadcaster BroadcasterCallbacks) BroadcastPropose(propose process.Propose) {
+	if broadcaster.BroadcastProposeCallback == nil {
+		return
+	}
+	broadcaster.BroadcastProposeCallback(propose)
+}
+
+func (broadcaster BroadcasterCallbacks) BroadcastPrevote(prevote process.Prevote) {
+	if broadcaster.BroadcastPrevoteCallback == nil {
+		return
+	}
+	broadcaster.BroadcastPrevoteCallback(prevote)
+}
+
+func (broadcaster BroadcasterCallbacks) BroadcastPrecommit(precommit process.Precommit) {
+	if broadcaster.BroadcastPrecommitCallback == nil {
+		return
+	}
+	broadcaster.BroadcastPrecommitCallback(precommit)
+}
+
 func RandomHeight(r *rand.Rand) process.Height {
 	switch r.Int() % 10 {
 	case 0:

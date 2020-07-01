@@ -237,7 +237,7 @@ func (p *Process) Start() {
 //		currentRound ← round
 //		currentStep ← propose
 //		if proposer(currentHeight, currentRound) = p then
-//			if validValue = nil then
+//			if validValue != nil then
 //				proposal ← validValue
 //			else
 //				proposal ← getValue()
@@ -262,23 +262,31 @@ func (p *Process) StartRound(round Round) {
 	p.CurrentStep = Proposing
 
 	// If we are not the proposer, then we trigger the propose timeout.
-	proposer := p.scheduler.Schedule(p.CurrentHeight, p.CurrentRound)
-	if !p.whoami.Equal(&proposer) {
-		p.timer.TimeoutPropose(p.CurrentHeight, p.CurrentRound)
-		return
+	if p.scheduler != nil {
+		proposer := p.scheduler.Schedule(p.CurrentHeight, p.CurrentRound)
+		if !p.whoami.Equal(&proposer) {
+			if p.timer != nil {
+				p.timer.TimeoutPropose(p.CurrentHeight, p.CurrentRound)
+			}
+			return
+		}
 	}
 
 	// If we are the proposer, then we emit a propose.
 	proposeValue := p.ValidValue
 	if proposeValue.Equal(&NilValue) {
-		proposeValue = p.proposer.Propose(p.CurrentHeight, p.CurrentRound)
+		if p.proposer != nil {
+			proposeValue = p.proposer.Propose(p.CurrentHeight, p.CurrentRound)
+		}
 	}
-	p.broadcaster.BroadcastPropose(Propose{
-		Height:     p.CurrentHeight,
-		Round:      p.CurrentRound,
-		ValidRound: p.ValidRound,
-		Value:      proposeValue,
-	})
+	if p.broadcaster != nil {
+		p.broadcaster.BroadcastPropose(Propose{
+			Height:     p.CurrentHeight,
+			Round:      p.CurrentRound,
+			ValidRound: p.ValidRound,
+			Value:      proposeValue,
+		})
+	}
 }
 
 // OnTimeoutPropose is used to notify the Process that a timeout has been
