@@ -285,6 +285,7 @@ func (p *Process) StartRound(round Round) {
 			Round:      p.CurrentRound,
 			ValidRound: p.ValidRound,
 			Value:      proposeValue,
+			From:       p.whoami,
 		})
 	}
 }

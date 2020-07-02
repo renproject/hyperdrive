@@ -34,6 +34,14 @@ func (broadcaster BroadcasterCallbacks) BroadcastPrecommit(precommit process.Pre
 	broadcaster.BroadcastPrecommitCallback(precommit)
 }
 
+type MockProposer struct {
+	MockValue process.Value
+}
+
+func (p MockProposer) Propose(height process.Height, round process.Round) process.Value {
+	return p.MockValue
+}
+
 func RandomHeight(r *rand.Rand) process.Height {
 	switch r.Int() % 10 {
 	case 0:

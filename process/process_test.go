@@ -7,6 +7,8 @@ import (
 
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/process/processutil"
+	"github.com/renproject/hyperdrive/scheduler"
+	"github.com/renproject/hyperdrive/timer"
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
 
@@ -63,8 +65,9 @@ var _ = Describe("Process", func() {
 	//		else
 	//			schedule OnTimeoutPropose(currentHeight, currentRound) to be executed after timeoutPropose(currentRound)
 	Context("when starting a round", func() {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 		It("should set the current round to that round and set the current step to proposing", func() {
-			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			f := func() bool {
 				round := processutil.RandomRound(r)
 				p := process.New(id.NewPrivKey().Signatory(), 33, nil, nil, nil, nil, nil, nil, nil)
@@ -79,20 +82,81 @@ var _ = Describe("Process", func() {
 		Context("when we are the proposer", func() {
 			Context("when our valid value is non-nil", func() {
 				It("should propose the valid value", func() {
-					panic("unimplemented")
+					f := func() bool {
+						round := processutil.RandomRound(r)
+						for round == process.InvalidRound {
+							round = processutil.RandomRound(r)
+						}
+						whoami := id.NewPrivKey().Signatory()
+						scheduler := scheduler.NewRoundRobin([]id.Signatory{whoami})
+						value := processutil.RandomValue(r)
+						broadcaster := processutil.BroadcasterCallbacks{
+							BroadcastProposeCallback: func(proposal process.Propose) {
+								Expect(proposal.From.Equal(&whoami)).To(BeTrue())
+								Expect(proposal.Value).To(Equal(value))
+							},
+						}
+						p := process.New(whoami, 33, nil, scheduler, nil, nil, broadcaster, nil, nil)
+						p.State.ValidValue = value
+						p.StartRound(round)
+						return true
+					}
+					Expect(quick.Check(f, nil)).To(Succeed())
 				})
 			})
 
 			Context("when our valid value is nil", func() {
 				It("should propose a new value", func() {
-					panic("unimplemented")
+					f := func() bool {
+						round := processutil.RandomRound(r)
+						for round == process.InvalidRound {
+							round = processutil.RandomRound(r)
+						}
+						whoami := id.NewPrivKey().Signatory()
+						scheduler := scheduler.NewRoundRobin([]id.Signatory{whoami})
+						value := processutil.RandomValue(r)
+						proposer := processutil.MockProposer{MockValue: value}
+						broadcaster := processutil.BroadcasterCallbacks{
+							BroadcastProposeCallback: func(proposal process.Propose) {
+								Expect(proposal.From.Equal(&whoami)).To(BeTrue())
+								Expect(proposal.Value).To(Equal(value))
+							},
+						}
+						p := process.New(whoami, 33, nil, scheduler, proposer, nil, broadcaster, nil, nil)
+						p.StartRound(round)
+						return true
+					}
+					Expect(quick.Check(f, nil)).To(Succeed())
 				})
 			})
 		})
 
 		Context("when we are not the proposer", func() {
 			It("should schedule a propose timeout", func() {
-				panic("unimplemented")
+				f := func() bool {
+					round := processutil.RandomRound(r)
+					for round == process.InvalidRound {
+						round = processutil.RandomRound(r)
+					}
+					whoami := id.NewPrivKey().Signatory()
+					scheduler := scheduler.NewRoundRobin([]id.Signatory{id.NewPrivKey().Signatory()})
+
+					timerOptions := timer.
+						DefaultOptions().
+						WithTimeout(10 * time.Millisecond).
+						WithTimeoutScaling(0)
+					onProposeTimeoutChan := make(chan timer.Timeout, 1)
+					timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
+
+					p := process.New(whoami, 33, timer, scheduler, nil, nil, nil, nil, nil)
+					p.StartRound(round)
+
+					timeout := <-onProposeTimeoutChan
+					Expect(timeout.Height).To(Equal(process.Height(1)))
+					Expect(timeout.Round).To(Equal(round))
+					return true
+				}
+				Expect(quick.Check(f, nil)).To(Succeed())
 			})
 		})
 	})
