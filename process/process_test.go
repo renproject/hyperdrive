@@ -167,31 +167,146 @@ var _ = Describe("Process", func() {
 	//			broadcast〈PREVOTE, currentHeight, currentRound, nil〉
 	//			currentStep ← prevote
 	Context("when timing out on a propose", func() {
-		Context("when the timeout is in the current height", func() {
-			Context("when the timeout is in the current round", func() {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		Context("when the timeout is for the current height", func() {
+			Context("when the timeout is for the current round", func() {
 				Context("when we are in the proposing step", func() {
 					It("should prevote nil and move to the prevoting step", func() {
-						panic("unimplemented")
+						f := func() bool {
+							round := processutil.RandomRound(r)
+							for round == process.InvalidRound {
+								round = processutil.RandomRound(r)
+							}
+
+							whoami := id.NewPrivKey().Signatory()
+							broadcaster := processutil.BroadcasterCallbacks{
+								BroadcastPrevoteCallback: func(prevote process.Prevote) {
+									Expect(prevote.From.Equal(&whoami)).To(BeTrue())
+									Expect(prevote.Value).To(Equal(process.NilValue))
+								},
+							}
+
+							timerOptions := timer.
+								DefaultOptions().
+								WithTimeout(10 * time.Millisecond).
+								WithTimeoutScaling(0)
+							onProposeTimeoutChan := make(chan timer.Timeout, 1)
+							timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
+
+							p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
+							p.OnTimeoutPropose(process.Height(1), round)
+							return true
+						}
+						Expect(quick.Check(f, nil)).To(Succeed())
 					})
 				})
 
 				Context("when we are not the proposing step", func() {
 					It("should do nothing", func() {
-						panic("unimplemented")
+						f := func() bool {
+							round := processutil.RandomRound(r)
+							for round == process.InvalidRound {
+								round = processutil.RandomRound(r)
+							}
+
+							whoami := id.NewPrivKey().Signatory()
+							broadcaster := processutil.BroadcasterCallbacks{
+								BroadcastPrevoteCallback: func(prevote process.Prevote) {
+									// We expect the prevote message to never be broadcasted
+									Expect(false).To(BeTrue())
+								},
+							}
+
+							timerOptions := timer.
+								DefaultOptions().
+								WithTimeout(10 * time.Millisecond).
+								WithTimeoutScaling(0)
+							onProposeTimeoutChan := make(chan timer.Timeout, 1)
+							timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
+
+							p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
+							p.State.CurrentStep = process.Prevoting
+							p.OnTimeoutPropose(process.Height(1), round)
+							return true
+						}
+						Expect(quick.Check(f, nil)).To(Succeed())
 					})
 				})
 			})
 
 			Context("when the timeout is not in the current round", func() {
 				It("should do nothing", func() {
-					panic("unimplemented")
+					f := func() bool {
+						round := processutil.RandomRound(r)
+						for round == process.InvalidRound {
+							round = processutil.RandomRound(r)
+						}
+						whoami := id.NewPrivKey().Signatory()
+						broadcaster := processutil.BroadcasterCallbacks{
+							BroadcastPrevoteCallback: func(prevote process.Prevote) {
+								// We expect the prevote message to never be broadcasted
+								Expect(false).To(BeTrue())
+							},
+						}
+						timerOptions := timer.
+							DefaultOptions().
+							WithTimeout(10 * time.Millisecond).
+							WithTimeoutScaling(0)
+						onProposeTimeoutChan := make(chan timer.Timeout, 1)
+						timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
+						p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
+
+						// set the current round
+						p.State.CurrentRound = round
+
+						// timeout on some other round
+						someOtherRound := processutil.RandomRound(r)
+						for someOtherRound == round {
+							someOtherRound = processutil.RandomRound(r)
+						}
+						p.OnTimeoutPropose(process.Height(1), someOtherRound)
+
+						return true
+					}
+					Expect(quick.Check(f, nil)).To(Succeed())
 				})
 			})
 		})
 
 		Context("when the timeout is not in the current height", func() {
 			It("should do nothing", func() {
-				panic("unimplemented")
+				f := func() bool {
+					round := processutil.RandomRound(r)
+					for round == process.InvalidRound {
+						round = processutil.RandomRound(r)
+					}
+					whoami := id.NewPrivKey().Signatory()
+					broadcaster := processutil.BroadcasterCallbacks{
+						BroadcastPrevoteCallback: func(prevote process.Prevote) {
+							// We expect the prevote message to never be broadcasted
+							Expect(false).To(BeTrue())
+						},
+					}
+					timerOptions := timer.
+						DefaultOptions().
+						WithTimeout(10 * time.Millisecond).
+						WithTimeoutScaling(0)
+					onProposeTimeoutChan := make(chan timer.Timeout, 1)
+					timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
+					p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
+
+					// when a new process starts, it starts at height == 1
+					// timeout for some other height not equal to 1
+					height := processutil.RandomHeight(r)
+					for height == process.Height(1) {
+						height = processutil.RandomHeight(r)
+					}
+					p.OnTimeoutPropose(height, round)
+
+					return true
+				}
+				Expect(quick.Check(f, nil)).To(Succeed())
 			})
 		})
 	})
@@ -202,31 +317,149 @@ var _ = Describe("Process", func() {
 	//			broadcast〈PRECOMMIT, currentHeight, currentRound, nil
 	//			currentStep ← precommitting
 	Context("when timing out on a prevote", func() {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 		Context("when the timeout is for the current height", func() {
 			Context("when the timeout is for the current round", func() {
-				Context("when the timeout is for the current step", func() {
+				Context("when the current step is prevoting", func() {
 					It("should precommit nil and move to the precommitting step", func() {
-						panic("unimplemented")
+						f := func() bool {
+							round := processutil.RandomRound(r)
+							for round == process.InvalidRound {
+								round = processutil.RandomRound(r)
+							}
+							whoami := id.NewPrivKey().Signatory()
+							broadcaster := processutil.BroadcasterCallbacks{
+								BroadcastPrecommitCallback: func(precommit process.Precommit) {
+									Expect(precommit.From.Equal(&whoami)).To(BeTrue())
+									Expect(precommit.Value).To(Equal(process.NilValue))
+								},
+							}
+							timerOptions := timer.
+								DefaultOptions().
+								WithTimeout(10 * time.Millisecond).
+								WithTimeoutScaling(0)
+							onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+							timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
+
+							p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
+							p.State.CurrentStep = process.Prevoting
+							p.State.CurrentRound = round
+							p.OnTimeoutPrevote(process.Height(1), round)
+
+							return true
+						}
+						Expect(quick.Check(f, nil)).To(Succeed())
 					})
 				})
 
-				Context("when the timeout is not for the current step", func() {
+				Context("when the current step is not prevoting", func() {
 					It("should do nothing", func() {
-						panic("unimplemented")
+						f := func() bool {
+							round := processutil.RandomRound(r)
+							for round == process.InvalidRound {
+								round = processutil.RandomRound(r)
+							}
+							whoami := id.NewPrivKey().Signatory()
+							broadcaster := processutil.BroadcasterCallbacks{
+								BroadcastPrecommitCallback: func(precommit process.Precommit) {
+									// We expect the process to not broadcast any precommit
+									Expect(false).To(BeTrue())
+								},
+							}
+							timerOptions := timer.
+								DefaultOptions().
+								WithTimeout(10 * time.Millisecond).
+								WithTimeoutScaling(0)
+							onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+							timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
+
+							p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
+							someOtherStep := processutil.RandomStep(r)
+							for someOtherStep == process.Prevoting {
+								someOtherStep = processutil.RandomStep(r)
+							}
+							p.State.CurrentStep = someOtherStep
+							p.State.CurrentRound = round
+							p.OnTimeoutPrevote(process.Height(1), round)
+
+							return true
+						}
+						Expect(quick.Check(f, nil)).To(Succeed())
 					})
 				})
 			})
 
 			Context("when the timeout is not for the current round", func() {
 				It("should do nothing", func() {
-					panic("unimplemented")
+					f := func() bool {
+						round := processutil.RandomRound(r)
+						for round == process.InvalidRound {
+							round = processutil.RandomRound(r)
+						}
+						whoami := id.NewPrivKey().Signatory()
+						broadcaster := processutil.BroadcasterCallbacks{
+							BroadcastPrecommitCallback: func(precommit process.Precommit) {
+								// We expect the process to not broadcast any precommit
+								Expect(false).To(BeTrue())
+							},
+						}
+						timerOptions := timer.
+							DefaultOptions().
+							WithTimeout(10 * time.Millisecond).
+							WithTimeoutScaling(0)
+						onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+						timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
+
+						p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
+						p.State.CurrentStep = process.Prevoting
+						p.State.CurrentRound = round
+						someOtherRound := processutil.RandomRound(r)
+						for someOtherRound == round {
+							someOtherRound = processutil.RandomRound(r)
+						}
+						p.OnTimeoutPrevote(process.Height(1), someOtherRound)
+
+						return true
+					}
+					Expect(quick.Check(f, nil)).To(Succeed())
 				})
 			})
 		})
 
 		Context("when the timeout is not for the current height", func() {
 			It("should do nothing", func() {
-				panic("unimplemented")
+				f := func() bool {
+					round := processutil.RandomRound(r)
+					for round == process.InvalidRound {
+						round = processutil.RandomRound(r)
+					}
+					whoami := id.NewPrivKey().Signatory()
+					broadcaster := processutil.BroadcasterCallbacks{
+						BroadcastPrecommitCallback: func(precommit process.Precommit) {
+							// We expect the process to not broadcast any precommit
+							Expect(false).To(BeTrue())
+						},
+					}
+					timerOptions := timer.
+						DefaultOptions().
+						WithTimeout(10 * time.Millisecond).
+						WithTimeoutScaling(0)
+					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+					timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
+
+					p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
+					p.State.CurrentStep = process.Prevoting
+					p.State.CurrentRound = round
+					someOtherHeight := processutil.RandomHeight(r)
+					for someOtherHeight == process.Height(1) {
+						someOtherHeight = processutil.RandomHeight(r)
+					}
+					p.OnTimeoutPrevote(someOtherHeight, round)
+
+					return true
+				}
+				Expect(quick.Check(f, nil)).To(Succeed())
 			})
 		})
 	})
@@ -236,23 +469,77 @@ var _ = Describe("Process", func() {
 	//		if height = currentHeight ∧ round = currentRound then
 	//			StartRound(currentRound + 1)
 	Context("when timing out on a precommit", func() {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 		Context("when the timeout is for the current height", func() {
 			Context("when the timeout is for the current round", func() {
 				It("should start a new round by incrementing currentRound", func() {
-					panic("unimplemented")
+					f := func() bool {
+						round := processutil.RandomRound(r)
+						for round == process.InvalidRound {
+							round = processutil.RandomRound(r)
+						}
+						whoami := id.NewPrivKey().Signatory()
+						p := process.New(whoami, 33, nil, nil, nil, nil, nil, nil, nil)
+						p.State.CurrentStep = processutil.RandomStep(r)
+						p.State.CurrentRound = round
+
+						p.OnTimeoutPrecommit(process.Height(1), round)
+						Expect(p.State.CurrentRound).To(Equal(round + 1))
+						return true
+					}
+					Expect(quick.Check(f, nil)).To(Succeed())
 				})
 			})
 
 			Context("when the timeout is not for the current round", func() {
 				It("should do nothing", func() {
-					panic("unimplemented")
+					f := func() bool {
+						round := processutil.RandomRound(r)
+						for round == process.InvalidRound {
+							round = processutil.RandomRound(r)
+						}
+						whoami := id.NewPrivKey().Signatory()
+						p := process.New(whoami, 33, nil, nil, nil, nil, nil, nil, nil)
+						p.State.CurrentRound = round
+						p.State.CurrentStep = processutil.RandomStep(r)
+						someOtherRound := processutil.RandomRound(r)
+						for someOtherRound == round {
+							someOtherRound = processutil.RandomRound(r)
+						}
+
+						oldState := p.State
+						p.OnTimeoutPrecommit(process.Height(1), someOtherRound)
+						Expect(p.State).To(Equal(oldState))
+						return true
+					}
+					Expect(quick.Check(f, nil)).To(Succeed())
 				})
 			})
 		})
 
 		Context("when the timeout is not for the current height", func() {
 			It("should do nothing", func() {
-				panic("unimplemented")
+				f := func() bool {
+					round := processutil.RandomRound(r)
+					for round == process.InvalidRound {
+						round = processutil.RandomRound(r)
+					}
+					whoami := id.NewPrivKey().Signatory()
+					p := process.New(whoami, 33, nil, nil, nil, nil, nil, nil, nil)
+					p.State.CurrentStep = processutil.RandomStep(r)
+					p.State.CurrentRound = round
+					someOtherHeight := processutil.RandomHeight(r)
+					for someOtherHeight == process.Height(1) {
+						someOtherHeight = processutil.RandomHeight(r)
+					}
+
+					oldState := p.State
+					p.OnTimeoutPrecommit(someOtherHeight, round)
+					Expect(p.State).To(Equal(oldState))
+					return true
+				}
+				Expect(quick.Check(f, nil)).To(Succeed())
 			})
 		})
 	})

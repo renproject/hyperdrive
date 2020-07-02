@@ -305,6 +305,7 @@ func (p *Process) OnTimeoutPropose(height Height, round Round) {
 			Height: p.CurrentHeight,
 			Round:  p.CurrentRound,
 			Value:  NilValue,
+			From:   p.whoami,
 		})
 		p.stepToPrevoting()
 	}
@@ -325,6 +326,7 @@ func (p *Process) OnTimeoutPrevote(height Height, round Round) {
 			Height: p.CurrentHeight,
 			Round:  p.CurrentRound,
 			Value:  NilValue,
+			From:   p.whoami,
 		})
 		p.stepToPrecommitting()
 	}
