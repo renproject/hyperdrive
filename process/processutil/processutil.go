@@ -42,6 +42,14 @@ func (p MockProposer) Propose(height process.Height, round process.Round) proces
 	return p.MockValue
 }
 
+type MockValidator struct {
+	MockValid bool
+}
+
+func (v MockValidator) Valid(process.Value) bool {
+	return v.MockValid
+}
+
 func RandomHeight(r *rand.Rand) process.Height {
 	switch r.Int() % 10 {
 	case 0:

@@ -376,12 +376,14 @@ func (p *Process) tryPrevoteUponPropose() {
 			Height: p.CurrentHeight,
 			Round:  p.CurrentRound,
 			Value:  propose.Value,
+			From:   p.whoami,
 		})
 	} else {
 		p.broadcaster.BroadcastPrevote(Prevote{
 			Height: p.CurrentHeight,
 			Round:  p.CurrentRound,
 			Value:  NilValue,
+			From:   p.whoami,
 		})
 	}
 	p.stepToPrevoting()
@@ -679,6 +681,15 @@ func (p *Process) insertPropose(propose Propose) bool {
 	// By never inserting a Propose that is not valid, we can avoid the validity
 	// checks elsewhere in the Process.
 	if !p.validator.Valid(propose.Value) {
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPrevote(Prevote{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  NilValue,
+				From:   p.whoami,
+			})
+			p.stepToPrevoting()
+		}
 		return false
 	}
 
