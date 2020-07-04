@@ -430,12 +430,14 @@ func (p *Process) tryPrevoteUponSufficientPrevotes() {
 			Height: p.CurrentHeight,
 			Round:  p.CurrentRound,
 			Value:  propose.Value,
+			From:   p.whoami,
 		})
 	} else {
 		p.broadcaster.BroadcastPrevote(Prevote{
 			Height: p.CurrentHeight,
 			Round:  p.CurrentRound,
 			Value:  NilValue,
+			From:   p.whoami,
 		})
 	}
 	p.stepToPrevoting()
@@ -669,7 +671,9 @@ func (p *Process) insertPropose(propose Propose) bool {
 		// same Height, because we only keep message logs for message with the
 		// same Height as the current Height of the Process.
 		if !propose.Equal(&existingPropose) {
-			p.catcher.CatchDoublePropose(propose, existingPropose)
+			if p.catcher != nil {
+				p.catcher.CatchDoublePropose(propose, existingPropose)
+			}
 		}
 		return false
 	}
@@ -680,7 +684,7 @@ func (p *Process) insertPropose(propose Propose) bool {
 
 	// By never inserting a Propose that is not valid, we can avoid the validity
 	// checks elsewhere in the Process.
-	if !p.validator.Valid(propose.Value) {
+	if p.validator != nil && !p.validator.Valid(propose.Value) {
 		if p.broadcaster != nil {
 			p.broadcaster.BroadcastPrevote(Prevote{
 				Height: p.CurrentHeight,
@@ -715,7 +719,9 @@ func (p *Process) insertPrevote(prevote Prevote) bool {
 		// because we only keep message logs for message with the same Height as
 		// the current Height of the Process.
 		if !prevote.Equal(&existingPrevote) {
-			p.catcher.CatchDoublePrevote(prevote, existingPrevote)
+			if p.catcher != nil {
+				p.catcher.CatchDoublePrevote(prevote, existingPrevote)
+			}
 		}
 		return false
 	}
@@ -743,7 +749,9 @@ func (p *Process) insertPrecommit(precommit Precommit) bool {
 		// same Height, because we only keep message logs for message with the
 		// same Height as the current Height of the Process.
 		if !precommit.Equal(&existingPrecommit) {
-			p.catcher.CatchDoublePrecommit(precommit, existingPrecommit)
+			if p.catcher != nil {
+				p.catcher.CatchDoublePrecommit(precommit, existingPrecommit)
+			}
 		}
 		return false
 	}
