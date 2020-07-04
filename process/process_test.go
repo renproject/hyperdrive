@@ -812,7 +812,7 @@ var _ = Describe("Process", func() {
 	//      else
 	//          broadcast〈PREVOTE, currentHeight, currentRound, nil〉
 	//      currentStep ← prevote
-	FContext("when receiving a propose and 2f+1 prevotes", func() {
+	Context("when receiving a propose and 2f+1 prevotes", func() {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 		randomValidPrevoteMsg := func(
@@ -1245,15 +1245,146 @@ var _ = Describe("Process", func() {
 	//  while currentStep = prevote for the first time do
 	//      scheduleOnTimeoutPrevote(currentHeight, currentRound) to be executed after timeoutPrevote(currentRound)
 	Context("when receiving 2f+1 prevotes", func() {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		randomValidPrevoteMsg := func(
+			r *rand.Rand,
+			from id.Signatory,
+			height process.Height,
+			round process.Round,
+		) process.Prevote {
+			msg := processutil.RandomPrevote(r)
+
+			msg.From = from
+			msg.Height = height
+			msg.Round = round
+
+			return msg
+		}
+
 		Context("when we are in step prevote", func() {
 			It("should schedule a prevote timeout for the current height and round", func() {
-				panic("unimplemented")
+				loop := func() bool {
+					// current round
+					currentRound := processutil.RandomRound(r)
+					for currentRound == process.InvalidRound {
+						currentRound = processutil.RandomRound(r)
+					}
+
+					// own process components
+					whoami := id.NewPrivKey().Signatory()
+					f := 10 + (r.Int() % 5)
+					timerOptions := timer.
+						DefaultOptions().
+						WithTimeout(1 * time.Millisecond).
+						WithTimeoutScaling(0)
+					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+					timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
+
+					// instantiate a new process
+					// and start round
+					p := process.New(whoami, f, timer, nil, nil, nil, nil, nil, nil)
+					p.StartRound(currentRound)
+					// set the current step to be prevoting
+					p.State.CurrentStep = process.Prevoting
+
+					// no change up to 2*f prevotes
+					for t := 0; t < 2*f; t++ {
+						prevoteMsg := randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
+						p.Prevote(prevoteMsg)
+
+						time.Sleep(3 * time.Millisecond)
+						select {
+						case _ = <-onPrevoteTimeoutChan:
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						default:
+							Expect(true).To(BeTrue())
+						}
+					}
+
+					// send the 2f+1'th prevote
+					prevoteMsg := randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
+					p.Prevote(prevoteMsg)
+
+					time.Sleep(3 * time.Millisecond)
+					select {
+					case timeout := <-onPrevoteTimeoutChan:
+						Expect(timeout.Round).To(Equal(currentRound))
+						Expect(timeout.Height).To(Equal(process.Height(1)))
+					default:
+						// we do expect to receive a scheduled timeout
+						Expect(true).ToNot(BeTrue())
+					}
+
+					return true
+				}
+				Expect(quick.Check(loop, nil)).To(Succeed())
 			})
 		})
 
 		Context("when we are not in the step prevote", func() {
 			It("should do nothing", func() {
-				panic("unimplemented")
+				loop := func() bool {
+					// current round
+					currentRound := processutil.RandomRound(r)
+					for currentRound == process.InvalidRound {
+						currentRound = processutil.RandomRound(r)
+					}
+
+					// own process components
+					whoami := id.NewPrivKey().Signatory()
+					f := 10 + (r.Int() % 5)
+					timerOptions := timer.
+						DefaultOptions().
+						WithTimeout(1 * time.Millisecond).
+						WithTimeoutScaling(0)
+					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+					timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
+
+					// instantiate a new process
+					// and start round
+					p := process.New(whoami, f, timer, nil, nil, nil, nil, nil, nil)
+					p.StartRound(currentRound)
+					// set the current step to not be prevoting
+					someOtherStep := processutil.RandomStep(r)
+					for someOtherStep == process.Prevoting {
+						someOtherStep = processutil.RandomStep(r)
+					}
+					p.State.CurrentStep = someOtherStep
+
+					// no change up to 2*f prevotes
+					for t := 0; t < 2*f; t++ {
+						prevoteMsg := randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
+						p.Prevote(prevoteMsg)
+
+						time.Sleep(3 * time.Millisecond)
+						select {
+						case _ = <-onPrevoteTimeoutChan:
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						default:
+							Expect(true).To(BeTrue())
+						}
+					}
+
+					// send the 2f+1'th prevote
+					prevoteMsg := randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
+					p.Prevote(prevoteMsg)
+
+					time.Sleep(3 * time.Millisecond)
+					select {
+					case _ = <-onPrevoteTimeoutChan:
+						// this should never happen
+						Expect(true).ToNot(BeTrue())
+					default:
+						// we dont expect to receive any timeout
+						Expect(true).To(BeTrue())
+					}
+
+					return true
+				}
+				Expect(quick.Check(loop, nil)).To(Succeed())
 			})
 		})
 	})
@@ -1373,8 +1504,6 @@ var _ = Describe("Process", func() {
 	//  upon f+ 1〈∗, currentHeight, r, ∗, ∗〉with r > currentRound do
 	//      StartRound(r)
 	Context("when receiving f+1 messages from a future round", func() {
-		// r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
 		It("should start a new round set as the given future round", func() {
 			panic("unimplemented")
 		})

@@ -462,8 +462,8 @@ func (p *Process) tryTimeoutPrevoteUponSufficientPrevotes() {
 	}
 	if len(p.PrevoteLogs[p.CurrentRound]) == 2*p.f+1 {
 		p.timer.TimeoutPrevote(p.CurrentHeight, p.CurrentRound)
+		p.setOnceFlag(p.CurrentRound, OnceFlagTimeoutPrevoteUponSufficientPrevotes)
 	}
-	p.setOnceFlag(p.CurrentRound, OnceFlagTimeoutPrevoteUponSufficientPrevotes)
 }
 
 // L36:
