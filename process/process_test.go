@@ -1463,8 +1463,188 @@ var _ = Describe("Process", func() {
 	//  upon 2f+ 1〈PRECOMMIT, currentHeight, currentRound, ∗〉for the first time do
 	//      scheduleOnTimeoutPrecommit(currentHeight, currentRound) to be executed after timeoutPrecommit(currentRound)
 	Context("when receiving 2f+1 precommits", func() {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		randomValidPrecommitMsg := func(
+			r *rand.Rand,
+			height process.Height,
+			round process.Round,
+		) process.Precommit {
+			msg := processutil.RandomPrecommit(r)
+
+			msg.Height = height
+			msg.Round = round
+			msg.From = id.NewPrivKey().Signatory()
+
+			return msg
+		}
+
 		It("should schedule a precommit timeout for the current height and round", func() {
-			panic("unimplemented")
+			loop := func() bool {
+				// current round
+				currentRound := processutil.RandomRound(r)
+				for currentRound == process.InvalidRound {
+					currentRound = processutil.RandomRound(r)
+				}
+				// parameters for the process
+				f := 10 + (r.Int() % 5)
+				timerOptions := timer.
+					DefaultOptions().
+					WithTimeout(1 * time.Millisecond).
+					WithTimeoutScaling(0)
+				onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
+				timer := timer.NewLinearTimer(timerOptions, nil, nil, onPrecommitTimeoutChan)
+
+				// intantiate the process
+				p := process.New(id.NewPrivKey().Signatory(), f, timer, nil, nil, nil, nil, nil, nil)
+				p.StartRound(currentRound)
+
+				// set the process to be at any random step
+				p.State.CurrentStep = processutil.RandomStep(r)
+
+				// send 2f precommit msgs on which we shouldn't expect any change
+				for t := 0; t < 2*f; t++ {
+					msg := randomValidPrecommitMsg(r, process.Height(1), currentRound)
+					p.Precommit(msg)
+
+					time.Sleep(3 * time.Millisecond)
+					select {
+					case _ = <-onPrecommitTimeoutChan:
+						// this should never happen
+						Expect(true).ToNot(BeTrue())
+					default:
+						Expect(true).To(BeTrue())
+					}
+				}
+
+				// send the 2f+1'th precommit
+				msg := randomValidPrecommitMsg(r, process.Height(1), currentRound)
+				p.Precommit(msg)
+
+				time.Sleep(3 * time.Millisecond)
+				select {
+				case timeout := <-onPrecommitTimeoutChan:
+					Expect(timeout.Height).To(Equal(process.Height(1)))
+					Expect(timeout.Round).To(Equal(currentRound))
+				default:
+					Expect(true).ToNot(BeTrue())
+				}
+
+				return true
+			}
+			Expect(quick.Check(loop, nil)).To(Succeed())
+		})
+
+		It("should not schedule a precommit timeout if some other height", func() {
+			loop := func() bool {
+				// current round
+				currentRound := processutil.RandomRound(r)
+				for currentRound == process.InvalidRound {
+					currentRound = processutil.RandomRound(r)
+				}
+				// parameters for the process
+				f := 10 + (r.Int() % 5)
+				timerOptions := timer.
+					DefaultOptions().
+					WithTimeout(1 * time.Millisecond).
+					WithTimeoutScaling(0)
+				onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
+				timer := timer.NewLinearTimer(timerOptions, nil, nil, onPrecommitTimeoutChan)
+
+				// intantiate the process
+				p := process.New(id.NewPrivKey().Signatory(), f, timer, nil, nil, nil, nil, nil, nil)
+				p.StartRound(currentRound)
+
+				// set the process to be at any random step
+				p.State.CurrentStep = processutil.RandomStep(r)
+
+				// send 2f precommit msgs on which we shouldn't expect any change
+				for t := 0; t < 2*f; t++ {
+					msg := randomValidPrecommitMsg(r, processutil.RandomHeight(r), currentRound)
+					p.Precommit(msg)
+
+					time.Sleep(3 * time.Millisecond)
+					select {
+					case _ = <-onPrecommitTimeoutChan:
+						// this should never happen
+						Expect(true).ToNot(BeTrue())
+					default:
+						Expect(true).To(BeTrue())
+					}
+				}
+
+				// send the 2f+1'th precommit
+				msg := randomValidPrecommitMsg(r, processutil.RandomHeight(r), currentRound)
+				p.Precommit(msg)
+
+				time.Sleep(3 * time.Millisecond)
+				select {
+				case _ = <-onPrecommitTimeoutChan:
+					// this hsould neveer happen
+					Expect(true).ToNot(BeTrue())
+				default:
+					Expect(true).To(BeTrue())
+				}
+
+				return true
+			}
+			Expect(quick.Check(loop, nil)).To(Succeed())
+		})
+
+		It("should not schedule a precommit timeout if some other round", func() {
+			loop := func() bool {
+				// current round
+				currentRound := processutil.RandomRound(r)
+				for currentRound == process.InvalidRound {
+					currentRound = processutil.RandomRound(r)
+				}
+				// parameters for the process
+				f := 10 + (r.Int() % 5)
+				timerOptions := timer.
+					DefaultOptions().
+					WithTimeout(1 * time.Millisecond).
+					WithTimeoutScaling(0)
+				onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
+				timer := timer.NewLinearTimer(timerOptions, nil, nil, onPrecommitTimeoutChan)
+
+				// intantiate the process
+				p := process.New(id.NewPrivKey().Signatory(), f, timer, nil, nil, nil, nil, nil, nil)
+				p.StartRound(currentRound)
+
+				// set the process to be at any random step
+				p.State.CurrentStep = processutil.RandomStep(r)
+
+				// send 2f precommit msgs on which we shouldn't expect any change
+				for t := 0; t < 2*f; t++ {
+					msg := randomValidPrecommitMsg(r, process.Height(1), processutil.RandomRound(r))
+					p.Precommit(msg)
+
+					time.Sleep(3 * time.Millisecond)
+					select {
+					case _ = <-onPrecommitTimeoutChan:
+						// this should never happen
+						Expect(true).ToNot(BeTrue())
+					default:
+						Expect(true).To(BeTrue())
+					}
+				}
+
+				// send the 2f+1'th precommit
+				msg := randomValidPrecommitMsg(r, process.Height(1), processutil.RandomRound(r))
+				p.Precommit(msg)
+
+				time.Sleep(3 * time.Millisecond)
+				select {
+				case _ = <-onPrecommitTimeoutChan:
+					// this should never happen
+					Expect(true).ToNot(BeTrue())
+				default:
+					Expect(true).To(BeTrue())
+				}
+
+				return true
+			}
+			Expect(quick.Check(loop, nil)).To(Succeed())
 		})
 	})
 
