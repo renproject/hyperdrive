@@ -2097,24 +2097,258 @@ var _ = Describe("Process", func() {
 	//  upon f+ 1〈∗, currentHeight, r, ∗, ∗〉with r > currentRound do
 	//      StartRound(r)
 	Context("when receiving f+1 messages from a future round", func() {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		randomValidPrevote := func(
+			r *rand.Rand,
+			height process.Height,
+			round process.Round,
+		) process.Prevote {
+			msg := processutil.RandomPrevote(r)
+			msg.From = id.NewPrivKey().Signatory()
+			msg.Height = height
+			msg.Round = round
+			return msg
+		}
+
+		randomValidPrecommit := func(
+			r *rand.Rand,
+			height process.Height,
+			round process.Round,
+		) process.Precommit {
+			msg := processutil.RandomPrecommit(r)
+			msg.From = id.NewPrivKey().Signatory()
+			msg.Height = height
+			msg.Round = round
+			return msg
+		}
+
 		It("should start a new round set as the given future round", func() {
-			panic("unimplemented")
+			loop := func() bool {
+				currentHeight := process.Height(r.Int63())
+				currentRound := process.Round(r.Int63())
+				whoami := id.NewPrivKey().Signatory()
+				f := 5 + (r.Int() % 10)
+
+				// instantiate a new process
+				p := process.New(whoami, f, nil, nil, nil, nil, nil, nil, nil)
+				p.StartRound(currentRound)
+				p.State.CurrentHeight = currentHeight
+
+				// feed with f+1 random messages
+				futureRound := currentRound + 1 + process.Round(r.Int()%10)
+				for t := 0; t < f+1; t++ {
+					switch r.Int() % 2 {
+					case 0:
+						msg := randomValidPrevote(r, currentHeight, futureRound)
+						p.Prevote(msg)
+					case 1:
+						msg := randomValidPrecommit(r, currentHeight, futureRound)
+						p.Precommit(msg)
+					default:
+						panic("this should never happen")
+					}
+				}
+
+				// the process should have moved to the future round
+				Expect(p.State.CurrentRound).To(Equal(futureRound))
+
+				return true
+			}
+			Expect(quick.Check(loop, nil)).To(Succeed())
+		})
+
+		It("(only single propose is considered) should start a new round set as the given future round", func() {
+			loop := func() bool {
+				currentHeight := process.Height(r.Int63())
+				currentRound := process.Round(r.Int63())
+				whoami := id.NewPrivKey().Signatory()
+				f := 5 + (r.Int() % 10)
+
+				// instantiate a new process
+				p := process.New(whoami, f, nil, nil, nil, nil, nil, nil, nil)
+				p.StartRound(currentRound)
+				p.State.CurrentHeight = currentHeight
+
+				// feed with f-1 random messages
+				futureRound := currentRound + 1 + process.Round(r.Int()%10)
+				for t := 0; t < f-1; t++ {
+					switch r.Int() % 2 {
+					case 0:
+						msg := randomValidPrevote(r, currentHeight, futureRound)
+						p.Prevote(msg)
+					case 1:
+						msg := randomValidPrecommit(r, currentHeight, futureRound)
+						p.Precommit(msg)
+					default:
+						panic("this should never happen")
+					}
+				}
+
+				// nothing should have happened
+				Expect(p.State.CurrentRound).To(Equal(currentRound))
+
+				// feed with a few propose messages
+				tMax := 1 + r.Int()%10
+				for t := 0; t < tMax; t++ {
+					msg := process.Propose{
+						From:   id.NewPrivKey().Signatory(),
+						Value:  processutil.RandomValue(r),
+						Height: currentHeight,
+						Round:  futureRound,
+					}
+					p.Propose(msg)
+				}
+
+				// nothing should have happened
+				Expect(p.State.CurrentRound).To(Equal(currentRound))
+
+				// send one more random prevote/precommit
+				switch r.Int() % 2 {
+				case 0:
+					msg := randomValidPrevote(r, currentHeight, futureRound)
+					p.Prevote(msg)
+				case 1:
+					msg := randomValidPrecommit(r, currentHeight, futureRound)
+					p.Precommit(msg)
+				default:
+					panic("this should never happen")
+				}
+
+				// the process should have moved to the future round
+				Expect(p.State.CurrentRound).To(Equal(futureRound))
+
+				return true
+			}
+			Expect(quick.Check(loop, nil)).To(Succeed())
 		})
 
 		It("[only prevote] should start a new round set as the given future round", func() {
-			panic("unimplemented")
+			loop := func() bool {
+				currentHeight := process.Height(r.Int63())
+				currentRound := process.Round(r.Int63())
+				whoami := id.NewPrivKey().Signatory()
+				f := 5 + (r.Int() % 10)
+
+				// instantiate a new process
+				p := process.New(whoami, f, nil, nil, nil, nil, nil, nil, nil)
+				p.StartRound(currentRound)
+				p.State.CurrentHeight = currentHeight
+
+				// feed with f+1 random messages
+				futureRound := currentRound + 1 + process.Round(r.Int()%10)
+				for t := 0; t < f+1; t++ {
+					msg := randomValidPrevote(r, currentHeight, futureRound)
+					p.Prevote(msg)
+				}
+
+				// the process should have moved to the future round
+				Expect(p.State.CurrentRound).To(Equal(futureRound))
+
+				return true
+			}
+			Expect(quick.Check(loop, nil)).To(Succeed())
 		})
 
 		It("[only precommit] should start a new round set as the given future round", func() {
-			panic("unimplemented")
+			loop := func() bool {
+				currentHeight := process.Height(r.Int63())
+				currentRound := process.Round(r.Int63())
+				whoami := id.NewPrivKey().Signatory()
+				f := 5 + (r.Int() % 10)
+
+				// instantiate a new process
+				p := process.New(whoami, f, nil, nil, nil, nil, nil, nil, nil)
+				p.StartRound(currentRound)
+				p.State.CurrentHeight = currentHeight
+
+				// feed with f+1 random messages
+				futureRound := currentRound + 1 + process.Round(r.Int()%10)
+				for t := 0; t < f+1; t++ {
+					msg := randomValidPrecommit(r, currentHeight, futureRound)
+					p.Precommit(msg)
+				}
+
+				// the process should have moved to the future round
+				Expect(p.State.CurrentRound).To(Equal(futureRound))
+
+				return true
+			}
+			Expect(quick.Check(loop, nil)).To(Succeed())
 		})
 
 		It("should do nothing if the round is not a future round", func() {
-			panic("unimplemented")
+			loop := func() bool {
+				currentHeight := process.Height(r.Int63())
+				currentRound := process.Round(r.Int63())
+				whoami := id.NewPrivKey().Signatory()
+				f := 5 + (r.Int() % 10)
+
+				// instantiate a new process
+				p := process.New(whoami, f, nil, nil, nil, nil, nil, nil, nil)
+				p.StartRound(currentRound)
+				p.State.CurrentHeight = currentHeight
+
+				// feed with f+1 random messages
+				pastOrCurrentRound := currentRound - process.Round(r.Int()%3)
+				for t := 0; t < f+1; t++ {
+					switch r.Int() % 2 {
+					case 0:
+						msg := randomValidPrevote(r, currentHeight, pastOrCurrentRound)
+						p.Prevote(msg)
+					case 1:
+						msg := randomValidPrecommit(r, currentHeight, pastOrCurrentRound)
+						p.Precommit(msg)
+					default:
+						panic("this should never happen")
+					}
+				}
+
+				// nothing should happen
+				Expect(p.State.CurrentRound).To(Equal(currentRound))
+
+				return true
+			}
+			Expect(quick.Check(loop, nil)).To(Succeed())
 		})
 
 		It("should do nothing if the height is not the current height", func() {
-			panic("unimplemented")
+			loop := func() bool {
+				currentHeight := process.Height(r.Int63())
+				currentRound := process.Round(r.Int63())
+				whoami := id.NewPrivKey().Signatory()
+				f := 5 + (r.Int() % 10)
+
+				// instantiate a new process
+				p := process.New(whoami, f, nil, nil, nil, nil, nil, nil, nil)
+				p.StartRound(currentRound)
+				p.State.CurrentHeight = currentHeight
+
+				// feed with f+1 random messages
+				futureRound := currentRound + 1 + process.Round(r.Int()%10)
+				someOtherHeight := processutil.RandomHeight(r)
+				for someOtherHeight == currentHeight {
+					someOtherHeight = processutil.RandomHeight(r)
+				}
+				for t := 0; t < f+1; t++ {
+					switch r.Int() % 2 {
+					case 0:
+						msg := randomValidPrevote(r, someOtherHeight, futureRound)
+						p.Prevote(msg)
+					case 1:
+						msg := randomValidPrecommit(r, someOtherHeight, futureRound)
+						p.Precommit(msg)
+					default:
+						panic("this should never happen")
+					}
+				}
+
+				// nothing should happen
+				Expect(p.State.CurrentRound).To(Equal(currentRound))
+
+				return true
+			}
+			Expect(quick.Check(loop, nil)).To(Succeed())
 		})
 	})
 })
