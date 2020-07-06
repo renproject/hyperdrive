@@ -303,12 +303,14 @@ func (p *Process) StartRound(round Round) {
 //			currentStep ← prevote
 func (p *Process) OnTimeoutPropose(height Height, round Round) {
 	if height == p.CurrentHeight && round == p.CurrentRound && p.CurrentStep == Proposing {
-		p.broadcaster.BroadcastPrevote(Prevote{
-			Height: p.CurrentHeight,
-			Round:  p.CurrentRound,
-			Value:  NilValue,
-			From:   p.whoami,
-		})
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPrevote(Prevote{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  NilValue,
+				From:   p.whoami,
+			})
+		}
 		p.stepToPrevoting()
 	}
 }
@@ -324,12 +326,14 @@ func (p *Process) OnTimeoutPropose(height Height, round Round) {
 //			currentStep ← precommitting
 func (p *Process) OnTimeoutPrevote(height Height, round Round) {
 	if height == p.CurrentHeight && round == p.CurrentRound && p.CurrentStep == Prevoting {
-		p.broadcaster.BroadcastPrecommit(Precommit{
-			Height: p.CurrentHeight,
-			Round:  p.CurrentRound,
-			Value:  NilValue,
-			From:   p.whoami,
-		})
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPrecommit(Precommit{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  NilValue,
+				From:   p.whoami,
+			})
+		}
 		p.stepToPrecommitting()
 	}
 }
@@ -374,19 +378,23 @@ func (p *Process) tryPrevoteUponPropose() {
 	}
 
 	if p.LockedRound == InvalidRound || p.LockedValue.Equal(&propose.Value) {
-		p.broadcaster.BroadcastPrevote(Prevote{
-			Height: p.CurrentHeight,
-			Round:  p.CurrentRound,
-			Value:  propose.Value,
-			From:   p.whoami,
-		})
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPrevote(Prevote{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  propose.Value,
+				From:   p.whoami,
+			})
+		}
 	} else {
-		p.broadcaster.BroadcastPrevote(Prevote{
-			Height: p.CurrentHeight,
-			Round:  p.CurrentRound,
-			Value:  NilValue,
-			From:   p.whoami,
-		})
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPrevote(Prevote{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  NilValue,
+				From:   p.whoami,
+			})
+		}
 	}
 	p.stepToPrevoting()
 }
@@ -428,19 +436,23 @@ func (p *Process) tryPrevoteUponSufficientPrevotes() {
 	}
 
 	if p.LockedRound <= propose.ValidRound || p.LockedValue.Equal(&propose.Value) {
-		p.broadcaster.BroadcastPrevote(Prevote{
-			Height: p.CurrentHeight,
-			Round:  p.CurrentRound,
-			Value:  propose.Value,
-			From:   p.whoami,
-		})
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPrevote(Prevote{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  propose.Value,
+				From:   p.whoami,
+			})
+		}
 	} else {
-		p.broadcaster.BroadcastPrevote(Prevote{
-			Height: p.CurrentHeight,
-			Round:  p.CurrentRound,
-			Value:  NilValue,
-			From:   p.whoami,
-		})
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPrevote(Prevote{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  NilValue,
+				From:   p.whoami,
+			})
+		}
 	}
 	p.stepToPrevoting()
 }
@@ -463,8 +475,10 @@ func (p *Process) tryTimeoutPrevoteUponSufficientPrevotes() {
 		return
 	}
 	if len(p.PrevoteLogs[p.CurrentRound]) == 2*p.f+1 {
-		p.timer.TimeoutPrevote(p.CurrentHeight, p.CurrentRound)
-		p.setOnceFlag(p.CurrentRound, OnceFlagTimeoutPrevoteUponSufficientPrevotes)
+		if p.timer != nil {
+			p.timer.TimeoutPrevote(p.CurrentHeight, p.CurrentRound)
+			p.setOnceFlag(p.CurrentRound, OnceFlagTimeoutPrevoteUponSufficientPrevotes)
+		}
 	}
 }
 
@@ -509,12 +523,14 @@ func (p *Process) tryPrecommitUponSufficientPrevotes() {
 	if p.CurrentStep == Prevoting {
 		p.LockedValue = propose.Value
 		p.LockedRound = p.CurrentRound
-		p.broadcaster.BroadcastPrecommit(Precommit{
-			Height: p.CurrentHeight,
-			Round:  p.CurrentRound,
-			Value:  propose.Value,
-			From:   p.whoami,
-		})
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPrecommit(Precommit{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  propose.Value,
+				From:   p.whoami,
+			})
+		}
 		p.stepToPrecommitting()
 
 		// Beacuse the LockedValue and LockedRound have changed, we need to try
@@ -549,12 +565,14 @@ func (p *Process) tryPrecommitNilUponSufficientPrevotes() {
 		}
 	}
 	if prevotesForNil == 2*p.f+1 {
-		p.broadcaster.BroadcastPrecommit(Precommit{
-			Height: p.CurrentHeight,
-			Round:  p.CurrentRound,
-			Value:  NilValue,
-			From:   p.whoami,
-		})
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPrecommit(Precommit{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  NilValue,
+				From:   p.whoami,
+			})
+		}
 		p.stepToPrecommitting()
 	}
 }
@@ -573,8 +591,10 @@ func (p *Process) tryTimeoutPrecommitUponSufficientPrecommits() {
 		return
 	}
 	if len(p.PrecommitLogs[p.CurrentRound]) == 2*p.f+1 {
-		p.timer.TimeoutPrecommit(p.CurrentHeight, p.CurrentRound)
-		p.setOnceFlag(p.CurrentRound, OnceFlagTimeoutPrecommitUponSufficientPrecommits)
+		if p.timer != nil {
+			p.timer.TimeoutPrecommit(p.CurrentHeight, p.CurrentRound)
+			p.setOnceFlag(p.CurrentRound, OnceFlagTimeoutPrecommitUponSufficientPrecommits)
+		}
 	}
 }
 
@@ -681,9 +701,11 @@ func (p *Process) insertPropose(propose Propose) bool {
 		}
 		return false
 	}
-	proposer := p.scheduler.Schedule(propose.Height, propose.Round)
-	if !proposer.Equal(&propose.From) {
-		return false
+	if p.scheduler != nil {
+		proposer := p.scheduler.Schedule(propose.Height, propose.Round)
+		if !proposer.Equal(&propose.From) {
+			return false
+		}
 	}
 
 	// By never inserting a Propose that is not valid, we can avoid the validity

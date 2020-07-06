@@ -1769,23 +1769,325 @@ var _ = Describe("Process", func() {
 	//          reset
 	//          StartRound(0)
 	Context("when receiving a propose and 2f+1 precommits", func() {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		randomValidPrecommitMsg := func(
+			r *rand.Rand,
+			height process.Height,
+			round process.Round,
+			value process.Value,
+		) process.Precommit {
+			msg := processutil.RandomPrecommit(r)
+
+			msg.Height = height
+			msg.Round = round
+			msg.From = id.NewPrivKey().Signatory()
+			msg.Value = value
+
+			return msg
+		}
+
 		Context("when we have not finalised the given height", func() {
 			Context("when the received propose value is valid", func() {
-				It("should finalise the given height, increment the current height and start a new round", func() {
-					panic("unimplemented")
+				// Should finalise the given height (by committing it)
+				// Should increment the current height
+				// Should start a new consensus round at round = 0
+				//
+				// A process without a scheduler/validator simply assumes that the
+				// propose message is valid and from the scheduled proposer
+				It("should finalise the given height", func() {
+					loop := func() bool {
+						currentHeight := process.Height(r.Int63())
+						currentRound := process.Round(r.Int63())
+						proposedValue := processutil.RandomValue(r)
+						for proposedValue == process.NilValue {
+							proposedValue = processutil.RandomValue(r)
+						}
+						whoami := id.NewPrivKey().Signatory()
+						f := 5 + (r.Int() % 10)
+						acknowledge := false
+						committer := processutil.CommitterCallback{
+							Callback: func(height process.Height, value process.Value) {
+								Expect(height).To(Equal(currentHeight))
+								Expect(value).To(Equal(proposedValue))
+								acknowledge = true
+							},
+						}
+						scheduledProposer := id.NewPrivKey().Signatory()
+						scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
+						validator := processutil.MockValidator{MockValid: true}
+
+						// instantiate a new process at the current round and height
+						// and at any valid step
+						p := process.New(whoami, f, nil, scheduler, nil, validator, nil, committer, nil)
+						p.StartRound(currentRound)
+						p.State.CurrentHeight = currentHeight
+						p.State.CurrentStep = process.Step(r.Int() % 3)
+
+						// feed the process with 2f+1 precommit messages
+						// we expect nothing to happen
+						for t := 0; t < 2*f+1; t++ {
+							msg := randomValidPrecommitMsg(r, currentHeight, currentRound, proposedValue)
+							p.Precommit(msg)
+						}
+						Expect(p.State.CurrentHeight).To(Equal(currentHeight))
+						Expect(p.State.CurrentRound).To(Equal(currentRound))
+						Expect(acknowledge).ToNot(BeTrue())
+
+						// feed the process with a propose message
+						msg := process.Propose{
+							Height:     currentHeight,
+							Round:      currentRound,
+							ValidRound: processutil.RandomRound(r),
+							Value:      proposedValue,
+							From:       scheduledProposer,
+						}
+						p.Propose(msg)
+
+						defaultState := process.DefaultState()
+						Expect(p.State.CurrentHeight).To(Equal(currentHeight + 1))
+						Expect(p.CurrentRound).To(Equal(process.Round(0)))
+						Expect(p.State.CurrentStep).To(Equal(defaultState.CurrentStep))
+						Expect(p.State.LockedRound).To(Equal(defaultState.LockedRound))
+						Expect(p.State.LockedValue).To(Equal(defaultState.LockedValue))
+						Expect(p.State.ValidValue).To(Equal(defaultState.ValidValue))
+						Expect(p.State.ValidRound).To(Equal(defaultState.ValidRound))
+						Expect(acknowledge).To(BeTrue())
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+
+				It("should finalise the given height (without scheduler or validator)", func() {
+					loop := func() bool {
+						currentHeight := process.Height(r.Int63())
+						currentRound := process.Round(r.Int63())
+						proposedValue := processutil.RandomValue(r)
+						for proposedValue == process.NilValue {
+							proposedValue = processutil.RandomValue(r)
+						}
+						whoami := id.NewPrivKey().Signatory()
+						f := 5 + (r.Int() % 10)
+						acknowledge := false
+						committer := processutil.CommitterCallback{
+							Callback: func(height process.Height, value process.Value) {
+								Expect(height).To(Equal(currentHeight))
+								Expect(value).To(Equal(proposedValue))
+								acknowledge = true
+							},
+						}
+
+						// instantiate a new process at the current round and height
+						// and at any valid step
+						p := process.New(whoami, f, nil, nil, nil, nil, nil, committer, nil)
+						p.StartRound(currentRound)
+						p.State.CurrentHeight = currentHeight
+						p.State.CurrentStep = process.Step(r.Int() % 3)
+
+						// feed the process with 2f+1 precommit messages
+						// we expect nothing to happen
+						for t := 0; t < 2*f+1; t++ {
+							msg := randomValidPrecommitMsg(r, currentHeight, currentRound, proposedValue)
+							p.Precommit(msg)
+						}
+						Expect(p.State.CurrentHeight).To(Equal(currentHeight))
+						Expect(p.State.CurrentRound).To(Equal(currentRound))
+						Expect(acknowledge).ToNot(BeTrue())
+
+						// feed the process with a propose message
+						msg := process.Propose{
+							Height:     currentHeight,
+							Round:      currentRound,
+							ValidRound: processutil.RandomRound(r),
+							Value:      proposedValue,
+							From:       id.NewPrivKey().Signatory(),
+						}
+						p.Propose(msg)
+
+						defaultState := process.DefaultState()
+						Expect(p.State.CurrentHeight).To(Equal(currentHeight + 1))
+						Expect(p.CurrentRound).To(Equal(process.Round(0)))
+						Expect(p.State.CurrentStep).To(Equal(defaultState.CurrentStep))
+						Expect(p.State.LockedRound).To(Equal(defaultState.LockedRound))
+						Expect(p.State.LockedValue).To(Equal(defaultState.LockedValue))
+						Expect(p.State.ValidValue).To(Equal(defaultState.ValidValue))
+						Expect(p.State.ValidRound).To(Equal(defaultState.ValidRound))
+						Expect(acknowledge).To(BeTrue())
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
 				})
 			})
 
-			Context("when the received propose value is not valid", func() {
+			Context("when the 2f+1 precommits are not all towards the same value", func() {
 				It("should do nothing", func() {
-					panic("unimplemented")
+					loop := func() bool {
+						currentHeight := process.Height(r.Int63())
+						currentRound := process.Round(r.Int63())
+						proposedValue := processutil.RandomValue(r)
+						for proposedValue == process.NilValue {
+							proposedValue = processutil.RandomValue(r)
+						}
+						whoami := id.NewPrivKey().Signatory()
+						f := 5 + (r.Int() % 10)
+						committer := processutil.CommitterCallback{
+							Callback: func(height process.Height, value process.Value) {
+								// the process should never broadcast a commit
+								Expect(true).ToNot(BeTrue())
+							},
+						}
+						broadcaster := processutil.BroadcasterCallbacks{
+							// the process should not broadcast any message
+							BroadcastProposeCallback: func(msg process.Propose) {
+								Expect(true).ToNot(BeTrue())
+							},
+							BroadcastPrecommitCallback: func(msg process.Precommit) {
+								Expect(true).ToNot(BeTrue())
+							},
+						}
+
+						// instantiate a new process at the current round and height
+						// and at any valid step
+						p := process.New(whoami, f, nil, nil, nil, nil, broadcaster, committer, nil)
+						p.StartRound(currentRound)
+						p.State.CurrentHeight = currentHeight
+						p.State.CurrentStep = process.Step(r.Int() % 3)
+
+						// feed the process with 2f+1 precommit messages
+						// we expect nothing to happen
+						for t := 0; t < 2*f+1; t++ {
+							// precommit either the proposed value, or a random value
+							if r.Int()%3 == 0 {
+								msg := randomValidPrecommitMsg(r, currentHeight, currentRound, proposedValue)
+								p.Precommit(msg)
+							} else {
+								msg := randomValidPrecommitMsg(r, currentHeight, currentRound, processutil.RandomValue(r))
+								p.Precommit(msg)
+							}
+						}
+						Expect(p.State.CurrentHeight).To(Equal(currentHeight))
+						Expect(p.State.CurrentRound).To(Equal(currentRound))
+
+						// feed the process with a propose message
+						msg := process.Propose{
+							Height:     currentHeight,
+							Round:      currentRound,
+							ValidRound: processutil.RandomRound(r),
+							Value:      proposedValue,
+							From:       id.NewPrivKey().Signatory(),
+						}
+						p.Propose(msg)
+
+						Expect(p.State.CurrentHeight).To(Equal(currentHeight))
+						Expect(p.CurrentRound).To(Equal(currentRound))
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
 				})
 			})
-		})
 
-		Context("when we have already finalised the given height", func() {
-			It("should do nothing", func() {
-				panic("unimplemented")
+			Context("when the received propose is not valid", func() {
+				It("should do nothing (invalid proposer)", func() {
+					loop := func() bool {
+						currentHeight := process.Height(r.Int63())
+						currentRound := process.Round(r.Int63())
+						proposedValue := processutil.RandomValue(r)
+						for proposedValue == process.NilValue {
+							proposedValue = processutil.RandomValue(r)
+						}
+						whoami := id.NewPrivKey().Signatory()
+						f := 5 + (r.Int() % 10)
+						committer := processutil.CommitterCallback{
+							Callback: func(height process.Height, value process.Value) {
+								// the process should never broadcast the commit
+								Expect(true).ToNot(BeTrue())
+							},
+						}
+						scheduler := scheduler.NewRoundRobin([]id.Signatory{id.NewPrivKey().Signatory()})
+
+						// instantiate a new process at the current round and height
+						// and at any valid step
+						p := process.New(whoami, f, nil, scheduler, nil, nil, nil, committer, nil)
+						p.StartRound(currentRound)
+						p.State.CurrentHeight = currentHeight
+						p.State.CurrentStep = process.Step(r.Int() % 3)
+
+						// feed the process with 2f+1 precommit messages
+						// we expect nothing to happen
+						for t := 0; t < 2*f+1; t++ {
+							msg := randomValidPrecommitMsg(r, currentHeight, currentRound, proposedValue)
+							p.Precommit(msg)
+						}
+						Expect(p.State.CurrentHeight).To(Equal(currentHeight))
+						Expect(p.State.CurrentRound).To(Equal(currentRound))
+
+						// feed the process with a propose message
+						msg := process.Propose{
+							Height:     currentHeight,
+							Round:      currentRound,
+							ValidRound: processutil.RandomRound(r),
+							Value:      proposedValue,
+							From:       id.NewPrivKey().Signatory(),
+						}
+						p.Propose(msg)
+
+						Expect(p.State.CurrentHeight).To(Equal(currentHeight))
+						Expect(p.CurrentRound).To(Equal(currentRound))
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+
+				It("should do nothing (invalid value)", func() {
+					loop := func() bool {
+						currentHeight := process.Height(r.Int63())
+						currentRound := process.Round(r.Int63())
+						proposedValue := processutil.RandomValue(r)
+						for proposedValue == process.NilValue {
+							proposedValue = processutil.RandomValue(r)
+						}
+						whoami := id.NewPrivKey().Signatory()
+						f := 5 + (r.Int() % 10)
+						committer := processutil.CommitterCallback{
+							Callback: func(height process.Height, value process.Value) {
+								// the process should never broadcast the commit
+								Expect(true).ToNot(BeTrue())
+							},
+						}
+						validator := processutil.MockValidator{MockValid: false}
+
+						// instantiate a new process at the current round and height
+						// and at any valid step
+						p := process.New(whoami, f, nil, nil, nil, validator, nil, committer, nil)
+						p.StartRound(currentRound)
+						p.State.CurrentHeight = currentHeight
+						p.State.CurrentStep = process.Step(r.Int() % 3)
+
+						// feed the process with 2f+1 precommit messages
+						// we expect nothing to happen
+						for t := 0; t < 2*f+1; t++ {
+							msg := randomValidPrecommitMsg(r, currentHeight, currentRound, proposedValue)
+							p.Precommit(msg)
+						}
+						Expect(p.State.CurrentHeight).To(Equal(currentHeight))
+						Expect(p.State.CurrentRound).To(Equal(currentRound))
+
+						// feed the process with a propose message
+						msg := process.Propose{
+							Height:     currentHeight,
+							Round:      currentRound,
+							ValidRound: processutil.RandomRound(r),
+							Value:      proposedValue,
+							From:       id.NewPrivKey().Signatory(),
+						}
+						p.Propose(msg)
+
+						Expect(p.State.CurrentHeight).To(Equal(currentHeight))
+						Expect(p.CurrentRound).To(Equal(currentRound))
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
 			})
 		})
 	})

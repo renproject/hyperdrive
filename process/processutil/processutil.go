@@ -34,6 +34,17 @@ func (broadcaster BroadcasterCallbacks) BroadcastPrecommit(precommit process.Pre
 	broadcaster.BroadcastPrecommitCallback(precommit)
 }
 
+type CommitterCallback struct {
+	Callback func(process.Height, process.Value)
+}
+
+func (committer CommitterCallback) Commit(height process.Height, value process.Value) {
+	if committer.Callback == nil {
+		return
+	}
+	committer.Callback(height, value)
+}
+
 type MockProposer struct {
 	MockValue process.Value
 }
