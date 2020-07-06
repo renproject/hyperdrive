@@ -262,6 +262,8 @@ func (p *Process) StartRound(round Round) {
 	p.CurrentStep = Proposing
 
 	// If we are not the proposer, then we trigger the propose timeout.
+	// We proceed only if we have a scheduler impl, because if not, we never
+	// know who the scheduled proposer is.
 	if p.scheduler != nil {
 		proposer := p.scheduler.Schedule(p.CurrentHeight, p.CurrentRound)
 		if !p.whoami.Equal(&proposer) {
@@ -270,23 +272,23 @@ func (p *Process) StartRound(round Round) {
 			}
 			return
 		}
-	}
 
-	// If we are the proposer, then we emit a propose.
-	proposeValue := p.ValidValue
-	if proposeValue.Equal(&NilValue) {
-		if p.proposer != nil {
-			proposeValue = p.proposer.Propose(p.CurrentHeight, p.CurrentRound)
+		// If we are the proposer, then we emit a propose.
+		proposeValue := p.ValidValue
+		if proposeValue.Equal(&NilValue) {
+			if p.proposer != nil {
+				proposeValue = p.proposer.Propose(p.CurrentHeight, p.CurrentRound)
+			}
 		}
-	}
-	if p.broadcaster != nil {
-		p.broadcaster.BroadcastPropose(Propose{
-			Height:     p.CurrentHeight,
-			Round:      p.CurrentRound,
-			ValidRound: p.ValidRound,
-			Value:      proposeValue,
-			From:       p.whoami,
-		})
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPropose(Propose{
+				Height:     p.CurrentHeight,
+				Round:      p.CurrentRound,
+				ValidRound: p.ValidRound,
+				Value:      proposeValue,
+				From:       p.whoami,
+			})
+		}
 	}
 }
 
@@ -511,6 +513,7 @@ func (p *Process) tryPrecommitUponSufficientPrevotes() {
 			Height: p.CurrentHeight,
 			Round:  p.CurrentRound,
 			Value:  propose.Value,
+			From:   p.whoami,
 		})
 		p.stepToPrecommitting()
 
@@ -550,6 +553,7 @@ func (p *Process) tryPrecommitNilUponSufficientPrevotes() {
 			Height: p.CurrentHeight,
 			Round:  p.CurrentRound,
 			Value:  NilValue,
+			From:   p.whoami,
 		})
 		p.stepToPrecommitting()
 	}

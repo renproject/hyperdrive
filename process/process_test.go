@@ -1445,15 +1445,126 @@ var _ = Describe("Process", func() {
 	//      broadcast〈PRECOMMIT, currentHeight, currentRound, nil〉
 	//      currentStep ← precommit
 	Context("when receiving 2f+1 nil prevotes", func() {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		nilPrevoteMsg := func(
+			r *rand.Rand,
+			from id.Signatory,
+			height process.Height,
+			round process.Round,
+		) process.Prevote {
+			msg := processutil.RandomPrevote(r)
+
+			msg.From = from
+			msg.Height = height
+			msg.Round = round
+			msg.Value = process.NilValue
+
+			return msg
+		}
+
 		Context("when we are in the prevote step", func() {
 			It("should precommit nil and move to the precommitting step", func() {
-				panic("unimplemented")
+				loop := func() bool {
+					currentRound := processutil.RandomRound(r)
+					for currentRound == process.InvalidRound {
+						currentRound = processutil.RandomRound(r)
+					}
+					whoami := id.NewPrivKey().Signatory()
+					acknowledge := false
+					broadcaster := processutil.BroadcasterCallbacks{
+						BroadcastProposeCallback: func(msg process.Propose) {
+							// we expect to never receive propose broadcast
+							Expect(true).ToNot(BeTrue())
+						},
+						BroadcastPrevoteCallback: func(msg process.Prevote) {
+							// we expect to never receive prevote broadcast
+							Expect(true).ToNot(BeTrue())
+						},
+						BroadcastPrecommitCallback: func(msg process.Precommit) {
+							// the process precommits nil
+							Expect(msg.From.Equal(&whoami)).To(BeTrue())
+							Expect(msg.Value).To(Equal(process.NilValue))
+							acknowledge = true
+						},
+					}
+					f := 5 + (r.Int() % 10)
+					p := process.New(whoami, f, nil, nil, nil, nil, broadcaster, nil, nil)
+					p.StartRound(currentRound)
+
+					// the process is in the Prevoting step
+					p.State.CurrentStep = process.Prevoting
+
+					// receive 2f nil prevotes, expect nothing to happen
+					for t := 0; t < 2*f; t++ {
+						msg := nilPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
+						p.Prevote(msg)
+					}
+					Expect(acknowledge).ToNot(BeTrue())
+
+					// receive the 2f+1'th nil prevote, expect to broadcast a nil precommit
+					// and step to precommitting
+					msg := nilPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
+					p.Prevote(msg)
+
+					Expect(p.State.CurrentStep).To(Equal(process.Precommitting))
+					Expect(acknowledge).To(BeTrue())
+					return true
+				}
+				Expect(quick.Check(loop, nil)).To(Succeed())
 			})
 		})
 
 		Context("when we are not in the prevote step", func() {
 			It("should do nothing", func() {
-				panic("unimplemented")
+				loop := func() bool {
+					currentRound := processutil.RandomRound(r)
+					for currentRound == process.InvalidRound {
+						currentRound = processutil.RandomRound(r)
+					}
+					whoami := id.NewPrivKey().Signatory()
+					acknowledge := false
+					broadcaster := processutil.BroadcasterCallbacks{
+						BroadcastProposeCallback: func(msg process.Propose) {
+							// we expect to never receive propose broadcast
+							Expect(true).ToNot(BeTrue())
+						},
+						BroadcastPrevoteCallback: func(msg process.Prevote) {
+							// we expect to never receive prevote broadcast
+							Expect(true).ToNot(BeTrue())
+						},
+						BroadcastPrecommitCallback: func(msg process.Precommit) {
+							// we expect to never receive prevote broadcast
+							Expect(true).ToNot(BeTrue())
+						},
+					}
+					f := 5 + (r.Int() % 10)
+					p := process.New(whoami, f, nil, nil, nil, nil, broadcaster, nil, nil)
+					p.StartRound(currentRound)
+
+					// the process is NOT in the Prevoting step
+					someOtherStep := processutil.RandomStep(r)
+					for someOtherStep == process.Prevoting {
+						someOtherStep = processutil.RandomStep(r)
+					}
+					p.State.CurrentStep = someOtherStep
+
+					// receive 2f nil prevotes, expect nothing to happen
+					for t := 0; t < 2*f; t++ {
+						msg := nilPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
+						p.Prevote(msg)
+					}
+					Expect(acknowledge).ToNot(BeTrue())
+
+					// receive the 2f+1'th nil prevote, still expect nothing to happen
+					msg := nilPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
+					p.Prevote(msg)
+
+					Expect(p.State.CurrentStep).To(Equal(someOtherStep))
+					Expect(acknowledge).ToNot(BeTrue())
+					return true
+				}
+				Expect(quick.Check(loop, nil)).To(Succeed())
 			})
 		})
 	})
