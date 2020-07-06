@@ -1401,39 +1401,310 @@ var _ = Describe("Process", func() {
 	//      validValue ← v
 	//      validRound ← currentRound
 	Context("when receiving a propose and 2f+1 prevotes, for any locked round in the propose message", func() {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		randomValidPrevoteMsg := func(
+			r *rand.Rand,
+			height process.Height,
+			round process.Round,
+			value process.Value,
+		) process.Prevote {
+			msg := processutil.RandomPrevote(r)
+
+			msg.From = id.NewPrivKey().Signatory()
+			msg.Height = height
+			msg.Round = round
+			msg.Value = value
+
+			return msg
+		}
+
 		Context("when the proposed value is valid", func() {
 			Context("when we are at least in the prevoting step", func() {
 				Context("when we are in the prevoting step", func() {
-					It("should set the locked value to the proposed value and the locked round to the current round", func() {
-						panic("unimplemented")
-					})
+					It("should set the locked value, locked round, precommit the value, step to precommit", func() {
+						loop := func() bool {
+							currentHeight := process.Height(r.Int63())
+							currentRound := process.Round(r.Int63())
+							proposedValue := processutil.RandomValue(r)
+							for proposedValue == process.NilValue {
+								proposedValue = processutil.RandomValue(r)
+							}
+							whoami := id.NewPrivKey().Signatory()
+							f := 5 + (r.Int() % 10)
 
-					It("should broadcast a precommit for the proposed value and move to the precommitting step", func() {
-						panic("unimplemented")
-					})
+							acknowledge := false
+							broadcaster := processutil.BroadcasterCallbacks{
+								BroadcastProposeCallback: func(msg process.Propose) {
+									// we dont expect any propose
+									Expect(true).ToNot(BeTrue())
+								},
+								BroadcastPrevoteCallback: func(msg process.Prevote) {
+									// we dont expect any prevotes
+									Expect(true).ToNot(BeTrue())
+								},
+								BroadcastPrecommitCallback: func(msg process.Precommit) {
+									Expect(msg.From.Equal(&whoami)).To(BeTrue())
+									Expect(msg.Value).To(Equal(proposedValue))
+									acknowledge = true
+								},
+							}
+							scheduledProposer := id.NewPrivKey().Signatory()
+							scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
 
-					It("should set the value value to the proposed value and the valid round to the current round", func() {
-						panic("unimplemented")
+							// instantiate a new process and its state
+							p := process.New(whoami, f, nil, scheduler, nil, nil, broadcaster, nil, nil)
+							p.State.CurrentHeight = currentHeight
+							p.StartRound(currentRound)
+							p.State.CurrentStep = process.Prevoting
+
+							// feed 2f+1 prevotes
+							for t := 0; t < 2*f+1; t++ {
+								msg := randomValidPrevoteMsg(r, currentHeight, currentRound, proposedValue)
+								p.Prevote(msg)
+							}
+							Expect(p.State.LockedValue).ToNot(Equal(proposedValue))
+							Expect(p.State.LockedRound).ToNot(Equal(currentRound))
+							Expect(p.State.CurrentStep).To(Equal(process.Prevoting))
+							Expect(acknowledge).ToNot(BeTrue())
+
+							// feed the propose message with a different value, no change
+							invalidMsg := process.Propose{
+								From:   id.NewPrivKey().Signatory(),
+								Height: currentHeight,
+								Round:  currentRound,
+								Value:  processutil.RandomValue(r),
+							}
+							p.Propose(invalidMsg)
+							Expect(p.State.LockedValue).ToNot(Equal(proposedValue))
+							Expect(p.State.LockedRound).ToNot(Equal(currentRound))
+							Expect(p.State.CurrentStep).To(Equal(process.Prevoting))
+							Expect(acknowledge).ToNot(BeTrue())
+
+							// feed the propose message with the correct value, expected behaviour
+							validMsg := process.Propose{
+								From:   scheduledProposer,
+								Height: currentHeight,
+								Round:  currentRound,
+								Value:  proposedValue,
+							}
+							p.Propose(validMsg)
+							Expect(p.State.LockedValue).To(Equal(proposedValue))
+							Expect(p.State.LockedRound).To(Equal(currentRound))
+							Expect(p.State.ValidValue).To(Equal(proposedValue))
+							Expect(p.State.ValidRound).To(Equal(currentRound))
+							Expect(p.State.CurrentStep).To(Equal(process.Precommitting))
+							Expect(acknowledge).To(BeTrue())
+
+							return true
+						}
+						Expect(quick.Check(loop, nil)).To(Succeed())
 					})
 				})
 
 				Context("when we are in the precommitting step", func() {
-					It("should set the valid value to the proposed value and the valid round to the current round", func() {
-						panic("unimplemented")
+					It("should set the valid value and the valid round", func() {
+						loop := func() bool {
+							currentHeight := process.Height(r.Int63())
+							currentRound := process.Round(r.Int63())
+							proposedValue := processutil.RandomValue(r)
+							for proposedValue == process.NilValue {
+								proposedValue = processutil.RandomValue(r)
+							}
+							whoami := id.NewPrivKey().Signatory()
+							f := 5 + (r.Int() % 10)
+
+							broadcaster := processutil.BroadcasterCallbacks{
+								BroadcastProposeCallback: func(msg process.Propose) {
+									// we dont expect any propose
+									Expect(true).ToNot(BeTrue())
+								},
+								BroadcastPrevoteCallback: func(msg process.Prevote) {
+									// we dont expect any prevotes
+									Expect(true).ToNot(BeTrue())
+								},
+								BroadcastPrecommitCallback: func(msg process.Precommit) {
+									// we dont expect any prevotes
+									Expect(true).ToNot(BeTrue())
+								},
+							}
+							scheduledProposer := id.NewPrivKey().Signatory()
+							scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
+
+							// instantiate a new process and its state
+							p := process.New(whoami, f, nil, scheduler, nil, nil, broadcaster, nil, nil)
+							p.State.CurrentHeight = currentHeight
+							p.StartRound(currentRound)
+							p.State.CurrentStep = process.Precommitting
+
+							// feed 2f+1 prevotes
+							for t := 0; t < 2*f+1; t++ {
+								msg := randomValidPrevoteMsg(r, currentHeight, currentRound, proposedValue)
+								p.Prevote(msg)
+							}
+							Expect(p.State.ValidValue).ToNot(Equal(proposedValue))
+							Expect(p.State.ValidRound).ToNot(Equal(currentRound))
+
+							// feed the propose message with a different value, no change
+							invalidMsg := process.Propose{
+								From:   id.NewPrivKey().Signatory(),
+								Height: currentHeight,
+								Round:  currentRound,
+								Value:  processutil.RandomValue(r),
+							}
+							p.Propose(invalidMsg)
+							Expect(p.State.ValidValue).ToNot(Equal(proposedValue))
+							Expect(p.State.ValidRound).ToNot(Equal(currentRound))
+
+							// feed the propose message with the correct value, expected behaviour
+							validMsg := process.Propose{
+								From:   scheduledProposer,
+								Height: currentHeight,
+								Round:  currentRound,
+								Value:  proposedValue,
+							}
+							p.Propose(validMsg)
+							Expect(p.State.ValidValue).To(Equal(proposedValue))
+							Expect(p.State.ValidRound).To(Equal(currentRound))
+
+							return true
+						}
+						Expect(quick.Check(loop, nil)).To(Succeed())
 					})
 				})
 			})
 
 			Context("when we are in the proposing step", func() {
 				It("should do nothing", func() {
-					panic("unimplemented")
+					loop := func() bool {
+						currentHeight := process.Height(r.Int63())
+						currentRound := process.Round(r.Int63())
+						proposedValue := processutil.RandomValue(r)
+						for proposedValue == process.NilValue {
+							proposedValue = processutil.RandomValue(r)
+						}
+						whoami := id.NewPrivKey().Signatory()
+						f := 5 + (r.Int() % 10)
+
+						broadcaster := processutil.BroadcasterCallbacks{
+							BroadcastProposeCallback: func(msg process.Propose) {
+								// we dont expect any propose
+								Expect(true).ToNot(BeTrue())
+							},
+							BroadcastPrevoteCallback: func(msg process.Prevote) {
+								// we dont expect any prevotes
+								Expect(true).ToNot(BeTrue())
+							},
+							BroadcastPrecommitCallback: func(msg process.Precommit) {
+								// we dont expect any prevotes
+								Expect(true).ToNot(BeTrue())
+							},
+						}
+						scheduledProposer := id.NewPrivKey().Signatory()
+						scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
+
+						// instantiate a new process and its state
+						p := process.New(whoami, f, nil, scheduler, nil, nil, broadcaster, nil, nil)
+						p.State.CurrentHeight = currentHeight
+						p.StartRound(currentRound)
+						p.State.CurrentStep = process.Proposing
+
+						// feed 2f+1 prevotes
+						for t := 0; t < 2*f+1; t++ {
+							msg := randomValidPrevoteMsg(r, currentHeight, currentRound, proposedValue)
+							p.Prevote(msg)
+						}
+						Expect(p.State.ValidValue).ToNot(Equal(proposedValue))
+						Expect(p.State.ValidRound).ToNot(Equal(currentRound))
+
+						// feed the propose message with a different value, no change
+						invalidMsg := process.Propose{
+							From:   id.NewPrivKey().Signatory(),
+							Height: currentHeight,
+							Round:  currentRound,
+							Value:  processutil.RandomValue(r),
+						}
+						p.Propose(invalidMsg)
+						Expect(p.State.ValidValue).ToNot(Equal(proposedValue))
+						Expect(p.State.ValidRound).ToNot(Equal(currentRound))
+
+						// feed the propose message with the correct value, still do nothing
+						validMsg := process.Propose{
+							From:   scheduledProposer,
+							Height: currentHeight,
+							Round:  currentRound,
+							Value:  proposedValue,
+						}
+						p.Propose(validMsg)
+						Expect(p.State.ValidValue).ToNot(Equal(proposedValue))
+						Expect(p.State.ValidRound).ToNot(Equal(currentRound))
+
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
 				})
 			})
 		})
 
 		Context("when the proposed value is not valid", func() {
 			It("should do nothing", func() {
-				panic("unimplemented")
+				loop := func() bool {
+					currentHeight := process.Height(r.Int63())
+					currentRound := process.Round(r.Int63())
+					proposedValue := processutil.RandomValue(r)
+					for proposedValue == process.NilValue {
+						proposedValue = processutil.RandomValue(r)
+					}
+					whoami := id.NewPrivKey().Signatory()
+					f := 5 + (r.Int() % 10)
+
+					broadcaster := processutil.BroadcasterCallbacks{
+						BroadcastProposeCallback: func(msg process.Propose) {
+							// we dont expect any propose
+							Expect(true).ToNot(BeTrue())
+						},
+						BroadcastPrevoteCallback: func(msg process.Prevote) {
+							// the process will prevote nil (for the invalid propose)
+							Expect(msg.Value).To(Equal(process.NilValue))
+						},
+						BroadcastPrecommitCallback: func(msg process.Precommit) {
+							// we dont expect any prevotes
+							Expect(true).ToNot(BeTrue())
+						},
+					}
+					scheduledProposer := id.NewPrivKey().Signatory()
+					scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
+					validator := processutil.MockValidator{MockValid: false}
+
+					// instantiate a new process and its state
+					p := process.New(whoami, f, nil, scheduler, nil, validator, broadcaster, nil, nil)
+					p.State.CurrentHeight = currentHeight
+					p.StartRound(currentRound)
+					p.State.CurrentStep = process.Prevoting
+
+					// feed 2f+1 prevotes
+					for t := 0; t < 2*f+1; t++ {
+						msg := randomValidPrevoteMsg(r, currentHeight, currentRound, proposedValue)
+						p.Prevote(msg)
+					}
+					Expect(p.State.ValidValue).ToNot(Equal(proposedValue))
+					Expect(p.State.ValidRound).ToNot(Equal(currentRound))
+
+					// feed the propose message with the correct value, still do nothing
+					validMsg := process.Propose{
+						From:   scheduledProposer,
+						Height: currentHeight,
+						Round:  currentRound,
+						Value:  proposedValue,
+					}
+					p.Propose(validMsg)
+					Expect(p.State.ValidValue).ToNot(Equal(proposedValue))
+					Expect(p.State.ValidRound).ToNot(Equal(currentRound))
+					Expect(p.State.CurrentStep).To(Equal(process.Prevoting))
+
+					return true
+				}
+				Expect(quick.Check(loop, nil)).To(Succeed())
 			})
 		})
 	})
