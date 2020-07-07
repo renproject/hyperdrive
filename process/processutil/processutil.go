@@ -61,6 +61,41 @@ func (v MockValidator) Valid(process.Value) bool {
 	return v.MockValid
 }
 
+type CatcherCallbacks struct {
+	CatchDoubleProposeCallback   func(process.Propose, process.Propose)
+	CatchDoublePrevoteCallback   func(process.Prevote, process.Prevote)
+	CatchDoublePrecommitCallback func(process.Precommit, process.Precommit)
+	CatchOutOfTurnProposeCallback func(process.Propose)
+}
+
+func (catcher CatcherCallbacks) CatchDoublePropose(propose1 process.Propose, propose2 process.Propose) {
+	if catcher.CatchDoubleProposeCallback == nil {
+		return
+	}
+	catcher.CatchDoubleProposeCallback(propose1, propose2)
+}
+
+func (catcher CatcherCallbacks) CatchDoublePrevote(prevote1 process.Prevote, prevote2 process.Prevote) {
+	if catcher.CatchDoublePrevoteCallback == nil {
+		return
+	}
+	catcher.CatchDoublePrevoteCallback(prevote1, prevote2)
+}
+
+func (catcher CatcherCallbacks) CatchDoublePrecommit(precommit1 process.Precommit, precommit2 process.Precommit) {
+	if catcher.CatchDoublePrecommitCallback == nil {
+		return
+	}
+	catcher.CatchDoublePrecommitCallback(precommit1, precommit2)
+}
+
+func (catcher CatcherCallbacks) CatchOutOfTurnPropose(propose process.Propose) {
+	if catcher.CatchOutOfTurnProposeCallback == nil {
+		return
+	}
+	catcher.CatchOutOfTurnProposeCallback(propose)
+}
+
 func RandomHeight(r *rand.Rand) process.Height {
 	switch r.Int() % 10 {
 	case 0:

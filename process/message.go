@@ -21,12 +21,14 @@ type Propose struct {
 	Signature  id.Signature `json:"signature"`
 }
 
+// NewProposeHash receives fields of a propose message and hashes the message
 func NewProposeHash(height Height, round Round, validRound Round, value Value) (id.Hash, error) {
 	buf := new(bytes.Buffer)
 	buf.Grow(surge.SizeHint(height) + surge.SizeHint(round) + surge.SizeHint(validRound) + surge.SizeHint(value))
 	return NewProposeHashWithBuffer(height, round, validRound, value, buf)
 }
 
+// NewProposeHashWithBuffer receives fields of a propose message, with a bytes buffer and hashes the message
 func NewProposeHashWithBuffer(height Height, round Round, validRound Round, value Value, buf *bytes.Buffer) (id.Hash, error) {
 	m, err := surge.Marshal(buf, height, surge.MaxBytes)
 	if err != nil {
@@ -140,12 +142,14 @@ type Prevote struct {
 	Signature id.Signature `json:"signature"`
 }
 
+// NewPrevoteHash receives fields of a prevote message and hashes the message
 func NewPrevoteHash(height Height, round Round, value Value) (id.Hash, error) {
 	buf := new(bytes.Buffer)
 	buf.Grow(surge.SizeHint(height) + surge.SizeHint(round) + surge.SizeHint(value))
 	return NewPrevoteHashWithBuffer(height, round, value, buf)
 }
 
+// NewPrevoteHashWithBuffer receives fields of a prevote message, with a bytes buffer and hashes the message
 func NewPrevoteHashWithBuffer(height Height, round Round, value Value, buf *bytes.Buffer) (id.Hash, error) {
 	m, err := surge.Marshal(buf, height, surge.MaxBytes)
 	if err != nil {
@@ -245,12 +249,14 @@ type Precommit struct {
 	Signature id.Signature `json:"signature"`
 }
 
+// NewPrecommitHash receives fields of a precommit message and hashes the message
 func NewPrecommitHash(height Height, round Round, value Value) (id.Hash, error) {
 	buf := new(bytes.Buffer)
 	buf.Grow(surge.SizeHint(height) + surge.SizeHint(round) + surge.SizeHint(value))
 	return NewPrecommitHashWithBuffer(height, round, value, buf)
 }
 
+// NewPrecommitHashWithBuffer receives fields of a precommit message, with a bytes buffer and hashes the message
 func NewPrecommitHashWithBuffer(height Height, round Round, value Value, buf *bytes.Buffer) (id.Hash, error) {
 	m, err := surge.Marshal(buf, height, surge.MaxBytes)
 	if err != nil {

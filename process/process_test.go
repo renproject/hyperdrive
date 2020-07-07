@@ -1,6 +1,7 @@
 package process_test
 
 import (
+	"bytes"
 	"math/rand"
 	"testing/quick"
 	"time"
@@ -30,8 +31,9 @@ var _ = Describe("Process", func() {
 	})
 
 	Context("when marshaling and then unmarshaling", func() {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 		It("should equal itself", func() {
-			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			f := func(proposeLogs map[process.Round]process.Propose, prevoteLogs map[process.Round]map[id.Signatory]process.Prevote, precommitLogs map[process.Round]map[id.Signatory]process.Precommit, onceFlags map[process.Round]process.OnceFlag) bool {
 				expected := process.Process{
 					State: processutil.RandomState(r),
@@ -50,6 +52,29 @@ var _ = Describe("Process", func() {
 			}
 			Expect(quick.Check(f, nil)).To(Succeed())
 		})
+
+		Context("when not enough byte size available", func() {
+			It("should return an error while marshaling", func() {
+				f := func(proposeLogs map[process.Round]process.Propose, prevoteLogs map[process.Round]map[id.Signatory]process.Prevote, precommitLogs map[process.Round]map[id.Signatory]process.Precommit, onceFlags map[process.Round]process.OnceFlag) bool {
+					expected := process.Process{
+						State: processutil.RandomState(r),
+					}
+					expected.ProposeLogs = proposeLogs
+					expected.PrevoteLogs = prevoteLogs
+					expected.PrecommitLogs = precommitLogs
+					expected.OnceFlags = onceFlags
+
+					sizeAvailable := rand.Intn(expected.SizeHint())
+
+					buf := bytes.NewBuffer([]byte{})
+					_, err := expected.Marshal(buf, sizeAvailable)
+					Expect(err).To(HaveOccurred())
+
+					return true
+				}
+				Expect(quick.Check(f, nil)).To(Succeed())
+			})
+		})
 	})
 
 	// L11:
@@ -66,6 +91,18 @@ var _ = Describe("Process", func() {
 	//			schedule OnTimeoutPropose(currentHeight, currentRound) to be executed after timeoutPropose(currentRound)
 	Context("when starting a round", func() {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		It("should start the zeroeth round on start", func() {
+			f := func() bool {
+				p := process.New(id.NewPrivKey().Signatory(), 33, nil, nil, nil, nil, nil, nil, nil)
+				p.Start()
+				Expect(p.CurrentRound).To(Equal(process.Round(0)))
+				Expect(p.CurrentHeight).To(Equal(process.Height(1)))
+				Expect(p.CurrentStep).To(Equal(process.Proposing))
+				return true
+			}
+			Expect(quick.Check(f, nil)).To(Succeed())
+		})
 
 		It("should set the current round to that round and set the current step to proposing", func() {
 			f := func() bool {
@@ -145,7 +182,7 @@ var _ = Describe("Process", func() {
 						DefaultOptions().
 						WithTimeout(10 * time.Millisecond).
 						WithTimeoutScaling(0)
-					onProposeTimeoutChan := make(chan timer.Timeout, 1)
+					onProposeTimeoutChan := make(chan timer.Timeout, 2)
 					timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
 
 					p := process.New(whoami, 33, timer, scheduler, nil, nil, nil, nil, nil)
@@ -191,7 +228,7 @@ var _ = Describe("Process", func() {
 								DefaultOptions().
 								WithTimeout(10 * time.Millisecond).
 								WithTimeoutScaling(0)
-							onProposeTimeoutChan := make(chan timer.Timeout, 1)
+							onProposeTimeoutChan := make(chan timer.Timeout, 2)
 							timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
 
 							p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
@@ -222,7 +259,7 @@ var _ = Describe("Process", func() {
 								DefaultOptions().
 								WithTimeout(10 * time.Millisecond).
 								WithTimeoutScaling(0)
-							onProposeTimeoutChan := make(chan timer.Timeout, 1)
+							onProposeTimeoutChan := make(chan timer.Timeout, 2)
 							timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
 
 							p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
@@ -253,7 +290,7 @@ var _ = Describe("Process", func() {
 							DefaultOptions().
 							WithTimeout(10 * time.Millisecond).
 							WithTimeoutScaling(0)
-						onProposeTimeoutChan := make(chan timer.Timeout, 1)
+						onProposeTimeoutChan := make(chan timer.Timeout, 2)
 						timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
 						p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
 
@@ -292,7 +329,7 @@ var _ = Describe("Process", func() {
 						DefaultOptions().
 						WithTimeout(10 * time.Millisecond).
 						WithTimeoutScaling(0)
-					onProposeTimeoutChan := make(chan timer.Timeout, 1)
+					onProposeTimeoutChan := make(chan timer.Timeout, 2)
 					timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
 					p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
 
@@ -339,7 +376,7 @@ var _ = Describe("Process", func() {
 								DefaultOptions().
 								WithTimeout(10 * time.Millisecond).
 								WithTimeoutScaling(0)
-							onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+							onPrevoteTimeoutChan := make(chan timer.Timeout, 2)
 							timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
 
 							p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
@@ -371,7 +408,7 @@ var _ = Describe("Process", func() {
 								DefaultOptions().
 								WithTimeout(10 * time.Millisecond).
 								WithTimeoutScaling(0)
-							onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+							onPrevoteTimeoutChan := make(chan timer.Timeout, 2)
 							timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
 
 							p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
@@ -408,7 +445,7 @@ var _ = Describe("Process", func() {
 							DefaultOptions().
 							WithTimeout(10 * time.Millisecond).
 							WithTimeoutScaling(0)
-						onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+						onPrevoteTimeoutChan := make(chan timer.Timeout, 2)
 						timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
 
 						p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
@@ -445,7 +482,7 @@ var _ = Describe("Process", func() {
 						DefaultOptions().
 						WithTimeout(10 * time.Millisecond).
 						WithTimeoutScaling(0)
-					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+					onPrevoteTimeoutChan := make(chan timer.Timeout, 2)
 					timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
 
 					p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
@@ -796,6 +833,44 @@ var _ = Describe("Process", func() {
 						Value:      processutil.RandomValue(r),
 						From:       id.NewPrivKey().Signatory(),
 					})
+					return true
+				}
+				Expect(quick.Check(f, nil)).To(Succeed())
+			})
+		})
+
+		Context("when the height of the propose message is not the current height of the process", func() {
+			It("should do nothing", func() {
+				f := func() bool {
+					round := processutil.RandomRound(r)
+					for round == process.InvalidRound {
+						round = processutil.RandomRound(r)
+					}
+					height := process.Height(r.Int63())
+					whoami := id.NewPrivKey().Signatory()
+					broadcaster := processutil.BroadcasterCallbacks{
+						BroadcastPrevoteCallback: func(prevote process.Prevote) {
+							// We don't expect any prevote broadcast
+							Expect(false).To(BeTrue())
+						},
+					}
+					scheduler := scheduler.NewRoundRobin([]id.Signatory{id.NewPrivKey().Signatory()})
+
+					p := process.New(whoami, 33, nil, scheduler, nil, nil, broadcaster, nil, nil)
+					p.StartRound(round)
+					p.State.CurrentStep = process.Proposing
+					prevState := p.State
+
+					// propose msg for a different height
+					p.Propose(process.Propose{
+						Height:     height,
+						Round:      round,
+						ValidRound: process.InvalidRound,
+						Value:      processutil.RandomValue(r),
+						From:       id.NewPrivKey().Signatory(),
+					})
+
+					Expect(p.State).To(Equal(prevState))
 					return true
 				}
 				Expect(quick.Check(f, nil)).To(Succeed())
@@ -1278,7 +1353,7 @@ var _ = Describe("Process", func() {
 						DefaultOptions().
 						WithTimeout(1 * time.Millisecond).
 						WithTimeoutScaling(0)
-					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+					onPrevoteTimeoutChan := make(chan timer.Timeout, 2)
 					timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
 
 					// instantiate a new process
@@ -1317,6 +1392,19 @@ var _ = Describe("Process", func() {
 						Expect(true).ToNot(BeTrue())
 					}
 
+					// should not schedule a timeout again (that the once flags work)
+					prevoteMsg = randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
+					p.Prevote(prevoteMsg)
+
+					time.Sleep(3 * time.Millisecond)
+					select {
+					case _ = <-onPrevoteTimeoutChan:
+						// this should never happen
+						Expect(true).ToNot(BeTrue())
+					default:
+						Expect(true).To(BeTrue())
+					}
+
 					return true
 				}
 				Expect(quick.Check(loop, nil)).To(Succeed())
@@ -1339,7 +1427,7 @@ var _ = Describe("Process", func() {
 						DefaultOptions().
 						WithTimeout(1 * time.Millisecond).
 						WithTimeoutScaling(0)
-					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+					onPrevoteTimeoutChan := make(chan timer.Timeout, 2)
 					timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
 
 					// instantiate a new process
@@ -1496,6 +1584,29 @@ var _ = Describe("Process", func() {
 							Expect(p.State.CurrentStep).To(Equal(process.Precommitting))
 							Expect(acknowledge).To(BeTrue())
 
+							// no changes further (once flags should prevent any changes)
+							validMsg = process.Propose{
+								From:   scheduledProposer,
+								Height: currentHeight,
+								Round:  currentRound,
+								Value:  proposedValue,
+							}
+							p.Propose(validMsg)
+							Expect(p.State.LockedValue).To(Equal(proposedValue))
+							Expect(p.State.LockedRound).To(Equal(currentRound))
+							Expect(p.State.ValidValue).To(Equal(proposedValue))
+							Expect(p.State.ValidRound).To(Equal(currentRound))
+							Expect(p.State.CurrentStep).To(Equal(process.Precommitting))
+
+							// no changes further (once flags should prevent any changes)
+							msg := randomValidPrevoteMsg(r, currentHeight, currentRound, proposedValue)
+							p.Prevote(msg)
+							Expect(p.State.LockedValue).To(Equal(proposedValue))
+							Expect(p.State.LockedRound).To(Equal(currentRound))
+							Expect(p.State.ValidValue).To(Equal(proposedValue))
+							Expect(p.State.ValidRound).To(Equal(currentRound))
+							Expect(p.State.CurrentStep).To(Equal(process.Precommitting))
+
 							return true
 						}
 						Expect(quick.Check(loop, nil)).To(Succeed())
@@ -1544,6 +1655,7 @@ var _ = Describe("Process", func() {
 							}
 							Expect(p.State.ValidValue).ToNot(Equal(proposedValue))
 							Expect(p.State.ValidRound).ToNot(Equal(currentRound))
+							Expect(p.State.CurrentStep).To(Equal(process.Precommitting))
 
 							// feed the propose message with a different value, no change
 							invalidMsg := process.Propose{
@@ -1555,6 +1667,7 @@ var _ = Describe("Process", func() {
 							p.Propose(invalidMsg)
 							Expect(p.State.ValidValue).ToNot(Equal(proposedValue))
 							Expect(p.State.ValidRound).ToNot(Equal(currentRound))
+							Expect(p.State.CurrentStep).To(Equal(process.Precommitting))
 
 							// feed the propose message with the correct value, expected behaviour
 							validMsg := process.Propose{
@@ -1566,6 +1679,19 @@ var _ = Describe("Process", func() {
 							p.Propose(validMsg)
 							Expect(p.State.ValidValue).To(Equal(proposedValue))
 							Expect(p.State.ValidRound).To(Equal(currentRound))
+							Expect(p.State.CurrentStep).To(Equal(process.Precommitting))
+
+							// no changes further (once flags should prevent any changes)
+							validMsg = process.Propose{
+								From:   scheduledProposer,
+								Height: currentHeight,
+								Round:  currentRound,
+								Value:  proposedValue,
+							}
+							p.Propose(validMsg)
+							Expect(p.State.ValidValue).To(Equal(proposedValue))
+							Expect(p.State.ValidRound).To(Equal(currentRound))
+							Expect(p.State.CurrentStep).To(Equal(process.Precommitting))
 
 							return true
 						}
@@ -1874,7 +2000,7 @@ var _ = Describe("Process", func() {
 					DefaultOptions().
 					WithTimeout(1 * time.Millisecond).
 					WithTimeoutScaling(0)
-				onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
+				onPrecommitTimeoutChan := make(chan timer.Timeout, 2)
 				timer := timer.NewLinearTimer(timerOptions, nil, nil, onPrecommitTimeoutChan)
 
 				// intantiate the process
@@ -1912,6 +2038,20 @@ var _ = Describe("Process", func() {
 					Expect(true).ToNot(BeTrue())
 				}
 
+				// sending further messages should not schedule another timeout
+				// (once flags should prevent this)
+				msg = randomValidPrecommitMsg(r, process.Height(1), currentRound)
+				p.Precommit(msg)
+
+				time.Sleep(3 * time.Millisecond)
+				select {
+				case _ = <-onPrecommitTimeoutChan:
+					// this should never happen
+					Expect(true).ToNot(BeTrue())
+				default:
+					Expect(true).To(BeTrue())
+				}
+
 				return true
 			}
 			Expect(quick.Check(loop, nil)).To(Succeed())
@@ -1930,7 +2070,7 @@ var _ = Describe("Process", func() {
 					DefaultOptions().
 					WithTimeout(1 * time.Millisecond).
 					WithTimeoutScaling(0)
-				onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
+				onPrecommitTimeoutChan := make(chan timer.Timeout, 2)
 				timer := timer.NewLinearTimer(timerOptions, nil, nil, onPrecommitTimeoutChan)
 
 				// intantiate the process
@@ -1986,7 +2126,7 @@ var _ = Describe("Process", func() {
 					DefaultOptions().
 					WithTimeout(1 * time.Millisecond).
 					WithTimeoutScaling(0)
-				onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
+				onPrecommitTimeoutChan := make(chan timer.Timeout, 2)
 				timer := timer.NewLinearTimer(timerOptions, nil, nil, onPrecommitTimeoutChan)
 
 				// intantiate the process
@@ -2620,6 +2760,319 @@ var _ = Describe("Process", func() {
 				return true
 			}
 			Expect(quick.Check(loop, nil)).To(Succeed())
+		})
+	})
+
+	// Catcher
+	Context("when receiving two different messages from the same process", func() {
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		Context("when receiving two different proposes", func() {
+			It("should catch the double propose", func() {
+				loop := func() bool {
+					round := processutil.RandomRound(r)
+					for round == process.InvalidRound {
+						round = processutil.RandomRound(r)
+					}
+
+					whoami := id.NewPrivKey().Signatory()
+					doubleSender := id.NewPrivKey().Signatory()
+					acknowledge := false
+					catcher := processutil.CatcherCallbacks{
+						CatchDoubleProposeCallback: func(propose1 process.Propose, propose2 process.Propose) {
+							Expect(propose1.From.Equal(&doubleSender)).To(BeTrue())
+							Expect(propose2.From.Equal(&doubleSender)).To(BeTrue())
+							acknowledge = true
+						},
+						CatchDoublePrevoteCallback: func(prevote1 process.Prevote, prevote2 process.Prevote) {
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						},
+						CatchDoublePrecommitCallback: func(precommit1 process.Precommit, precommit2 process.Precommit) {
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						},
+						CatchOutOfTurnProposeCallback: func(propose process.Propose) {
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						},
+					}
+					scheduler := scheduler.NewRoundRobin([]id.Signatory{doubleSender})
+					p := process.New(whoami, 33, nil, scheduler, nil, nil, nil, nil, catcher)
+					p.StartRound(round)
+
+					// receive the first propose msg
+					firstValue := processutil.RandomValue(r)
+					propose1 := process.Propose{
+						From:   doubleSender,
+						Height: process.Height(1),
+						Round:  round,
+						Value:  firstValue,
+					}
+					p.Propose(propose1)
+					Expect(acknowledge).ToNot(BeTrue())
+
+					// if the same propose is sent twice, it is not caught as a double
+					p.Propose(process.Propose{
+						From:   doubleSender,
+						Height: process.Height(1),
+						Round:  round,
+						Value:  firstValue,
+					})
+					Expect(acknowledge).ToNot(BeTrue())
+
+					// on second propose msg (different), catch as double
+					secondValue := processutil.RandomValue(r)
+					for secondValue == firstValue {
+						secondValue = processutil.RandomValue(r)
+					}
+					propose2 := process.Propose{
+						From:   doubleSender,
+						Height: process.Height(1),
+						Round:  round,
+						Value:  secondValue,
+					}
+					p.Propose(propose2)
+					Expect(acknowledge).To(BeTrue())
+
+					return true
+				}
+				Expect(quick.Check(loop, nil)).To(Succeed())
+			})
+		})
+
+		Context("when receiving two different prevotes", func() {
+			It("should catch the double prevote", func() {
+				loop := func() bool {
+					round := processutil.RandomRound(r)
+					for round == process.InvalidRound {
+						round = processutil.RandomRound(r)
+					}
+
+					whoami := id.NewPrivKey().Signatory()
+					doubleSender := id.NewPrivKey().Signatory()
+					acknowledge := false
+					catcher := processutil.CatcherCallbacks{
+						CatchDoubleProposeCallback: func(propose1 process.Propose, propose2 process.Propose) {
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						},
+						CatchDoublePrevoteCallback: func(prevote1 process.Prevote, prevote2 process.Prevote) {
+							Expect(prevote1.From.Equal(&doubleSender)).To(BeTrue())
+							Expect(prevote2.From.Equal(&doubleSender)).To(BeTrue())
+							acknowledge = true
+						},
+						CatchDoublePrecommitCallback: func(precommit1 process.Precommit, precommit2 process.Precommit) {
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						},
+						CatchOutOfTurnProposeCallback: func(propose process.Propose) {
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						},
+					}
+					p := process.New(whoami, 33, nil, nil, nil, nil, nil, nil, catcher)
+					p.StartRound(round)
+					p.State.CurrentStep = process.Prevoting
+
+					// receive the first prevote msg
+					firstValue := processutil.RandomValue(r)
+					prevote1 := process.Prevote{
+						From:   doubleSender,
+						Height: process.Height(1),
+						Round:  round,
+						Value:  firstValue,
+					}
+					p.Prevote(prevote1)
+					Expect(acknowledge).ToNot(BeTrue())
+
+					// receive another prevote msg, from a random process
+					// expect no double catches since they are two different sources
+					prevote2 := process.Prevote{
+						From:   id.NewPrivKey().Signatory(),
+						Height: process.Height(1),
+						Round:  round,
+						Value:  firstValue,
+					}
+					p.Prevote(prevote2)
+					Expect(acknowledge).ToNot(BeTrue())
+
+					// on second prevote msg, but the same prevote
+					// don't catch as double (as its the same prevote)
+					p.Prevote(process.Prevote{
+						From:   doubleSender,
+						Height: process.Height(1),
+						Round:  round,
+						Value:  firstValue,
+					})
+					Expect(acknowledge).ToNot(BeTrue())
+
+					// on second prevote msg, catch as double if the second value
+					// is different than the first
+					secondValue := processutil.RandomValue(r)
+					for secondValue == firstValue {
+						secondValue = processutil.RandomValue(r)
+					}
+					prevote3 := process.Prevote{
+						From:   doubleSender,
+						Height: process.Height(1),
+						Round:  round,
+						Value:  secondValue,
+					}
+					p.Prevote(prevote3)
+					Expect(acknowledge).To(BeTrue())
+
+					return true
+				}
+				Expect(quick.Check(loop, nil)).To(Succeed())
+			})
+		})
+
+		Context("when receiving two different precommits", func() {
+			It("should catch the double precommit", func() {
+				loop := func() bool {
+					round := processutil.RandomRound(r)
+					for round == process.InvalidRound {
+						round = processutil.RandomRound(r)
+					}
+
+					whoami := id.NewPrivKey().Signatory()
+					doubleSender := id.NewPrivKey().Signatory()
+					acknowledge := false
+					catcher := processutil.CatcherCallbacks{
+						CatchDoubleProposeCallback: func(propose1 process.Propose, propose2 process.Propose) {
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						},
+						CatchDoublePrevoteCallback: func(prevote1 process.Prevote, prevote2 process.Prevote) {
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						},
+						CatchDoublePrecommitCallback: func(precommit1 process.Precommit, precommit2 process.Precommit) {
+							Expect(precommit1.From.Equal(&doubleSender)).To(BeTrue())
+							Expect(precommit2.From.Equal(&doubleSender)).To(BeTrue())
+							acknowledge = true
+						},
+						CatchOutOfTurnProposeCallback: func(propose process.Propose) {
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						},
+					}
+					p := process.New(whoami, 33, nil, nil, nil, nil, nil, nil, catcher)
+					p.StartRound(round)
+					p.State.CurrentStep = process.Precommitting
+
+					// receive the first precommit msg
+					firstValue := processutil.RandomValue(r)
+					precommit1 := process.Precommit{
+						From:   doubleSender,
+						Height: process.Height(1),
+						Round:  round,
+						Value:  firstValue,
+					}
+					p.Precommit(precommit1)
+					Expect(acknowledge).ToNot(BeTrue())
+
+					// receive another precommit msg, from a random process
+					// expect no double catches since they are two different sources
+					precommit2 := process.Precommit{
+						From:   id.NewPrivKey().Signatory(),
+						Height: process.Height(1),
+						Round:  round,
+						Value:  firstValue,
+					}
+					p.Precommit(precommit2)
+					Expect(acknowledge).ToNot(BeTrue())
+
+					// on second precommit msg, but the same precommit
+					// don't catch as double (as its the same precommit)
+					p.Precommit(process.Precommit{
+						From:   doubleSender,
+						Height: process.Height(1),
+						Round:  round,
+						Value:  firstValue,
+					})
+					Expect(acknowledge).ToNot(BeTrue())
+
+					// on second precommit msg, catch as double if the second value
+					// is different than the first
+					secondValue := processutil.RandomValue(r)
+					for secondValue == firstValue {
+						secondValue = processutil.RandomValue(r)
+					}
+					precommit3 := process.Precommit{
+						From:   doubleSender,
+						Height: process.Height(1),
+						Round:  round,
+						Value:  secondValue,
+					}
+					p.Precommit(precommit3)
+					Expect(acknowledge).To(BeTrue())
+
+					return true
+				}
+				Expect(quick.Check(loop, nil)).To(Succeed())
+			})
+		})
+
+		Context("when receiving out of turn propose", func() {
+			It("should catch the out of turn propose", func() {
+				loop := func() bool {
+					round := processutil.RandomRound(r)
+					for round == process.InvalidRound {
+						round = processutil.RandomRound(r)
+					}
+
+					whoami := id.NewPrivKey().Signatory()
+					scheduledSender := id.NewPrivKey().Signatory()
+					outOfTurnSender := id.NewPrivKey().Signatory()
+					acknowledge := false
+					catcher := processutil.CatcherCallbacks{
+						CatchDoubleProposeCallback: func(propose1 process.Propose, propose2 process.Propose) {
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						},
+						CatchDoublePrevoteCallback: func(prevote1 process.Prevote, prevote2 process.Prevote) {
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						},
+						CatchDoublePrecommitCallback: func(precommit1 process.Precommit, precommit2 process.Precommit) {
+							// this should never happen
+							Expect(true).ToNot(BeTrue())
+						},
+						CatchOutOfTurnProposeCallback: func(propose process.Propose) {
+							Expect(propose.From.Equal(&outOfTurnSender)).To(BeTrue())
+							acknowledge = true
+						},
+					}
+					scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledSender})
+					p := process.New(whoami, 33, nil, scheduler, nil, nil, nil, nil, catcher)
+					p.StartRound(round)
+
+					// receive propose msg from the scheduled sender
+					propose1 := process.Propose{
+						From:   scheduledSender,
+						Height: process.Height(1),
+						Round:  round,
+						Value:  processutil.RandomValue(r),
+					}
+					p.Propose(propose1)
+					Expect(acknowledge).ToNot(BeTrue())
+
+					// receive propose from out of turn sender, must catch
+					propose2 := process.Propose{
+						From:   outOfTurnSender,
+						Height: process.Height(1),
+						Round:  round,
+						Value:  processutil.RandomValue(r),
+					}
+					p.Propose(propose2)
+					Expect(acknowledge).To(BeTrue())
+
+					return true
+				}
+				Expect(quick.Check(loop, nil)).To(Succeed())
+			})
 		})
 	})
 })

@@ -116,6 +116,8 @@ func (state State) Equal(other *State) bool {
 		state.ValidRound == other.ValidRound
 }
 
+// SizeHint implements the Surge SizeHinter interface, and returns the byte size
+// of the state instance
 func (state State) SizeHint() int {
 	return surge.SizeHint(state.CurrentHeight) +
 		surge.SizeHint(state.CurrentRound) +
@@ -130,6 +132,7 @@ func (state State) SizeHint() int {
 		surge.SizeHint(state.OnceFlags)
 }
 
+// Marshal implements the Surge Marshaler interface
 func (state State) Marshal(w io.Writer, m int) (int, error) {
 	m, err := surge.Marshal(w, state.CurrentHeight, m)
 	if err != nil {
@@ -178,6 +181,7 @@ func (state State) Marshal(w io.Writer, m int) (int, error) {
 	return m, nil
 }
 
+// Unmarshal implements the Surge Unmarshaler interface
 func (state *State) Unmarshal(r io.Reader, m int) (int, error) {
 	m, err := surge.Unmarshal(r, &state.CurrentHeight, m)
 	if err != nil {

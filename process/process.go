@@ -80,6 +80,7 @@ type Catcher interface {
 	CatchDoublePropose(Propose, Propose)
 	CatchDoublePrevote(Prevote, Prevote)
 	CatchDoublePrecommit(Precommit, Precommit)
+	CatchOutOfTurnPropose(Propose)
 }
 
 // A Process is a deterministic finite state automaton that communicates with
@@ -687,23 +688,30 @@ func (p *Process) insertPropose(propose Propose) bool {
 		return false
 	}
 
-	existingPropose, ok := p.ProposeLogs[propose.Round]
-	if ok {
-		// We have caught a Process attempting to broadcast two different
-		// Proposes at the same Height and Round. Even though we only
-		// explicitly check the Round, we know that the Proposes will have the
-		// same Height, because we only keep message logs for message with the
-		// same Height as the current Height of the Process.
-		if !propose.Equal(&existingPropose) {
-			if p.catcher != nil {
-				p.catcher.CatchDoublePropose(propose, existingPropose)
-			}
-		}
-		return false
-	}
 	if p.scheduler != nil {
 		proposer := p.scheduler.Schedule(propose.Height, propose.Round)
 		if !proposer.Equal(&propose.From) {
+			// We have caught a Process attempting to broadcast a propose
+			// when it was not the scheduled proposer for that height and round.
+			// This is caught as an out of turn propose
+			if p.catcher != nil {
+				p.catcher.CatchOutOfTurnPropose(propose)
+			}
+			return false
+		}
+
+		existingPropose, ok := p.ProposeLogs[propose.Round]
+		if ok {
+			// We have caught a Process attempting to broadcast two different
+			// Proposes at the same Height and Round. Even though we only
+			// explicitly check the Round, we know that the Proposes will have the
+			// same Height, because we only keep message logs for message with the
+			// same Height as the current Height of the Process.
+			if !propose.Equal(&existingPropose) {
+				if p.catcher != nil {
+					p.catcher.CatchDoublePropose(propose, existingPropose)
+				}
+			}
 			return false
 		}
 	}
