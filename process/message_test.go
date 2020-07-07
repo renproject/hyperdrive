@@ -16,7 +16,7 @@ var _ = Describe("Propose", func() {
 		It("should not panic", func() {
 			f := func(fuzz []byte) bool {
 				msg := process.Propose{}
-				Expect(surge.FromBinary(fuzz, &msg)).ToNot(Succeed())
+				Expect(surge.FromBinary(&msg, fuzz)).ToNot(Succeed())
 				return true
 			}
 			Expect(quick.Check(f, nil)).To(Succeed())
@@ -37,7 +37,7 @@ var _ = Describe("Propose", func() {
 				data, err := surge.ToBinary(expected)
 				Expect(err).ToNot(HaveOccurred())
 				got := process.Propose{}
-				err = surge.FromBinary(data, &got)
+				err = surge.FromBinary(&got, data)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(got.Equal(&expected)).To(BeTrue())
 				return true
@@ -81,7 +81,7 @@ var _ = Describe("Prevote", func() {
 		It("should not panic", func() {
 			f := func(fuzz []byte) bool {
 				msg := process.Prevote{}
-				Expect(surge.FromBinary(fuzz, &msg)).ToNot(Succeed())
+				Expect(surge.FromBinary(&msg, fuzz)).ToNot(Succeed())
 				return true
 			}
 			Expect(quick.Check(f, nil)).To(Succeed())
@@ -101,7 +101,7 @@ var _ = Describe("Prevote", func() {
 				data, err := surge.ToBinary(expected)
 				Expect(err).ToNot(HaveOccurred())
 				got := process.Prevote{}
-				err = surge.FromBinary(data, &got)
+				err = surge.FromBinary(&got, data)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(got.Equal(&expected)).To(BeTrue())
 				return true
@@ -145,7 +145,7 @@ var _ = Describe("Precommit", func() {
 		It("should not panic", func() {
 			f := func(fuzz []byte) bool {
 				msg := process.Precommit{}
-				Expect(surge.FromBinary(fuzz, &msg)).ToNot(Succeed())
+				Expect(surge.FromBinary(&msg, fuzz)).ToNot(Succeed())
 				return true
 			}
 			Expect(quick.Check(f, nil)).To(Succeed())
@@ -165,7 +165,7 @@ var _ = Describe("Precommit", func() {
 				data, err := surge.ToBinary(expected)
 				Expect(err).ToNot(HaveOccurred())
 				got := process.Precommit{}
-				err = surge.FromBinary(data, &got)
+				err = surge.FromBinary(&got, data)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(got.Equal(&expected)).To(BeTrue())
 				return true

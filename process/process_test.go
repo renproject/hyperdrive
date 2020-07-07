@@ -23,7 +23,7 @@ var _ = Describe("Process", func() {
 		It("should not panic", func() {
 			f := func(fuzz []byte) bool {
 				msg := process.Process{}
-				Expect(surge.FromBinary(fuzz, &msg)).ToNot(Succeed())
+				Expect(surge.FromBinary(&msg, fuzz)).ToNot(Succeed())
 				return true
 			}
 			Expect(quick.Check(f, nil)).To(Succeed())
@@ -45,7 +45,7 @@ var _ = Describe("Process", func() {
 				data, err := surge.ToBinary(expected)
 				Expect(err).ToNot(HaveOccurred())
 				got := process.Process{}
-				err = surge.FromBinary(data, &got)
+				err = surge.FromBinary(&got, data)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(got.State.Equal(&expected.State)).To(BeTrue())
 				return true
@@ -67,7 +67,7 @@ var _ = Describe("Process", func() {
 					sizeAvailable := rand.Intn(expected.SizeHint())
 
 					buf := bytes.NewBuffer([]byte{})
-					_, err := expected.Marshal(buf, sizeAvailable)
+					_, _, err := expected.Marshal(buf.Bytes(), sizeAvailable)
 					Expect(err).To(HaveOccurred())
 
 					return true
@@ -1368,7 +1368,7 @@ var _ = Describe("Process", func() {
 						prevoteMsg := randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
 						p.Prevote(prevoteMsg)
 
-						time.Sleep(3 * time.Millisecond)
+						time.Sleep(5 * time.Millisecond)
 						select {
 						case _ = <-onPrevoteTimeoutChan:
 							// this should never happen
@@ -1382,7 +1382,7 @@ var _ = Describe("Process", func() {
 					prevoteMsg := randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
 					p.Prevote(prevoteMsg)
 
-					time.Sleep(3 * time.Millisecond)
+					time.Sleep(5 * time.Millisecond)
 					select {
 					case timeout := <-onPrevoteTimeoutChan:
 						Expect(timeout.Round).To(Equal(currentRound))
@@ -1396,7 +1396,7 @@ var _ = Describe("Process", func() {
 					prevoteMsg = randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
 					p.Prevote(prevoteMsg)
 
-					time.Sleep(3 * time.Millisecond)
+					time.Sleep(5 * time.Millisecond)
 					select {
 					case _ = <-onPrevoteTimeoutChan:
 						// this should never happen
@@ -1446,7 +1446,7 @@ var _ = Describe("Process", func() {
 						prevoteMsg := randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
 						p.Prevote(prevoteMsg)
 
-						time.Sleep(3 * time.Millisecond)
+						time.Sleep(5 * time.Millisecond)
 						select {
 						case _ = <-onPrevoteTimeoutChan:
 							// this should never happen
@@ -1460,7 +1460,7 @@ var _ = Describe("Process", func() {
 					prevoteMsg := randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
 					p.Prevote(prevoteMsg)
 
-					time.Sleep(3 * time.Millisecond)
+					time.Sleep(5 * time.Millisecond)
 					select {
 					case _ = <-onPrevoteTimeoutChan:
 						// this should never happen
@@ -2015,7 +2015,7 @@ var _ = Describe("Process", func() {
 					msg := randomValidPrecommitMsg(r, process.Height(1), currentRound)
 					p.Precommit(msg)
 
-					time.Sleep(3 * time.Millisecond)
+					time.Sleep(5 * time.Millisecond)
 					select {
 					case _ = <-onPrecommitTimeoutChan:
 						// this should never happen
@@ -2029,7 +2029,7 @@ var _ = Describe("Process", func() {
 				msg := randomValidPrecommitMsg(r, process.Height(1), currentRound)
 				p.Precommit(msg)
 
-				time.Sleep(3 * time.Millisecond)
+				time.Sleep(5 * time.Millisecond)
 				select {
 				case timeout := <-onPrecommitTimeoutChan:
 					Expect(timeout.Height).To(Equal(process.Height(1)))
@@ -2043,7 +2043,7 @@ var _ = Describe("Process", func() {
 				msg = randomValidPrecommitMsg(r, process.Height(1), currentRound)
 				p.Precommit(msg)
 
-				time.Sleep(3 * time.Millisecond)
+				time.Sleep(5 * time.Millisecond)
 				select {
 				case _ = <-onPrecommitTimeoutChan:
 					// this should never happen
@@ -2085,7 +2085,7 @@ var _ = Describe("Process", func() {
 					msg := randomValidPrecommitMsg(r, processutil.RandomHeight(r), currentRound)
 					p.Precommit(msg)
 
-					time.Sleep(3 * time.Millisecond)
+					time.Sleep(5 * time.Millisecond)
 					select {
 					case _ = <-onPrecommitTimeoutChan:
 						// this should never happen
@@ -2099,7 +2099,7 @@ var _ = Describe("Process", func() {
 				msg := randomValidPrecommitMsg(r, processutil.RandomHeight(r), currentRound)
 				p.Precommit(msg)
 
-				time.Sleep(3 * time.Millisecond)
+				time.Sleep(5 * time.Millisecond)
 				select {
 				case _ = <-onPrecommitTimeoutChan:
 					// this hsould neveer happen
@@ -2141,7 +2141,7 @@ var _ = Describe("Process", func() {
 					msg := randomValidPrecommitMsg(r, process.Height(1), processutil.RandomRound(r))
 					p.Precommit(msg)
 
-					time.Sleep(3 * time.Millisecond)
+					time.Sleep(5 * time.Millisecond)
 					select {
 					case _ = <-onPrecommitTimeoutChan:
 						// this should never happen
@@ -2155,7 +2155,7 @@ var _ = Describe("Process", func() {
 				msg := randomValidPrecommitMsg(r, process.Height(1), processutil.RandomRound(r))
 				p.Precommit(msg)
 
-				time.Sleep(3 * time.Millisecond)
+				time.Sleep(5 * time.Millisecond)
 				select {
 				case _ = <-onPrecommitTimeoutChan:
 					// this should never happen

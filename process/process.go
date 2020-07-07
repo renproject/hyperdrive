@@ -8,7 +8,6 @@ package process
 
 import (
 	"fmt"
-	"io"
 
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
@@ -155,21 +154,21 @@ func (p Process) SizeHint() int {
 }
 
 // Marshal this Process into binary.
-func (p Process) Marshal(w io.Writer, m int) (int, error) {
-	m, err := surge.Marshal(w, p.State, m)
+func (p Process) Marshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Marshal(p.State, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling state: %v", err)
+		return buf, rem, fmt.Errorf("marshaling state: %v", err)
 	}
-	return m, nil
+	return buf, rem, nil
 }
 
 // Unmarshal from binary into this Process.
-func (p *Process) Unmarshal(r io.Reader, m int) (int, error) {
-	m, err := surge.Unmarshal(r, &p.State, m)
+func (p *Process) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Unmarshal(&p.State, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling state: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling state: %v", err)
 	}
-	return m, nil
+	return buf, rem, nil
 }
 
 // Propose is used to notify the Process that a Propose message has been

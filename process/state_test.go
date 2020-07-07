@@ -16,7 +16,7 @@ var _ = Describe("State", func() {
 		It("should not panic", func() {
 			f := func(fuzz []byte) bool {
 				msg := process.State{}
-				Expect(surge.FromBinary(fuzz, &msg)).ToNot(Succeed())
+				Expect(surge.FromBinary(&msg, fuzz)).ToNot(Succeed())
 				return true
 			}
 			Expect(quick.Check(f, nil)).To(Succeed())
@@ -43,7 +43,7 @@ var _ = Describe("State", func() {
 				data, err := surge.ToBinary(expected)
 				Expect(err).ToNot(HaveOccurred())
 				got := process.State{}
-				err = surge.FromBinary(data, &got)
+				err = surge.FromBinary(&got, data)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(got.Equal(&expected)).To(BeTrue())
 				return true
