@@ -27,8 +27,8 @@ func NewProposeHash(height Height, round Round, validRound Round, value Value) (
 }
 
 // NewProposeHashWithBuffer receives fields of a propose message, with a bytes buffer and hashes the message
-func NewProposeHashWithBuffer(height Height, round Round, validRound Round, value Value, buf []byte) (id.Hash, error) {
-	buf, rem, err := surge.Marshal(height, buf, surge.MaxBytes)
+func NewProposeHashWithBuffer(height Height, round Round, validRound Round, value Value, data []byte) (id.Hash, error) {
+	buf, rem, err := surge.Marshal(height, data, surge.MaxBytes)
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling height=%v: %v", height, err)
 	}
@@ -44,7 +44,7 @@ func NewProposeHashWithBuffer(height Height, round Round, validRound Round, valu
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling value=%v: %v", value, err)
 	}
-	return id.NewHash(buf), nil
+	return id.NewHash(data), nil
 }
 
 // Equal compares two Proposes. If they are equal, then it return true,
@@ -148,8 +148,8 @@ func NewPrevoteHash(height Height, round Round, value Value) (id.Hash, error) {
 }
 
 // NewPrevoteHashWithBuffer receives fields of a prevote message, with a bytes buffer and hashes the message
-func NewPrevoteHashWithBuffer(height Height, round Round, value Value, buf []byte) (id.Hash, error) {
-	buf, rem, err := surge.Marshal(height, buf, surge.MaxBytes)
+func NewPrevoteHashWithBuffer(height Height, round Round, value Value, data []byte) (id.Hash, error) {
+	buf, rem, err := surge.Marshal(height, data, surge.MaxBytes)
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling height=%v: %v", height, err)
 	}
@@ -161,7 +161,7 @@ func NewPrevoteHashWithBuffer(height Height, round Round, value Value, buf []byt
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling value=%v: %v", value, err)
 	}
-	return id.NewHash(buf), nil
+	return id.NewHash(data), nil
 }
 
 // Equal compares two Prevotes. If they are equal, then it return true,
@@ -255,8 +255,8 @@ func NewPrecommitHash(height Height, round Round, value Value) (id.Hash, error) 
 }
 
 // NewPrecommitHashWithBuffer receives fields of a precommit message, with a bytes buffer and hashes the message
-func NewPrecommitHashWithBuffer(height Height, round Round, value Value, buf []byte) (id.Hash, error) {
-	buf, rem, err := surge.Marshal(height, buf, surge.MaxBytes)
+func NewPrecommitHashWithBuffer(height Height, round Round, value Value, data []byte) (id.Hash, error) {
+	buf, rem, err := surge.Marshal(height, data, surge.MaxBytes)
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling height=%v: %v", height, err)
 	}
@@ -268,7 +268,7 @@ func NewPrecommitHashWithBuffer(height Height, round Round, value Value, buf []b
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling value=%v: %v", value, err)
 	}
-	return id.NewHash(buf), nil
+	return id.NewHash(data), nil
 }
 
 // Equal compares two Precommits. If they are equal, then it return true,
