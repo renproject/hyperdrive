@@ -26,7 +26,9 @@ jobs:
             go get -u golang.org/x/lint/golint
             CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out ./...
             /go/bin/covermerge            \
-              block/coverprofile.out      \
+              scheduler/coverprofile.out  \
+              timer/coverprofile.out      \
+              mq/coverprofile.out         \
               process/coverprofile.out    \
               replica/coverprofile.out    \
               coverprofile.out > coverprofile.out
