@@ -10,8 +10,10 @@
 go vet ./...
 CI=true ginkgo -v --race --cover --coverprofile coverprofile.out ./...
 covermerge                 \
-  block/coverprofile.out   \
+  scheduler/coverprofile.out \
+  timer/coverprofile.out \
   process/coverprofile.out \
+  mq/coverprofile.out \
   replica/coverprofile.out \
   coverprofile.out > coverprofile.out
 sed -i '/marshal.go/d' coverprofile.out
