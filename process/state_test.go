@@ -1,9 +1,12 @@
 package process_test
 
 import (
+	"math/rand"
 	"testing/quick"
+	"time"
 
 	"github.com/renproject/hyperdrive/process"
+	"github.com/renproject/hyperdrive/process/processutil"
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
 
@@ -12,6 +15,8 @@ import (
 )
 
 var _ = Describe("State", func() {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 	Context("when unmarshaling fuzz", func() {
 		It("should not panic", func() {
 			f := func(fuzz []byte) bool {
@@ -50,6 +55,37 @@ var _ = Describe("State", func() {
 			}
 			Expect(quick.Check(f, nil)).To(Succeed())
 		})
+
+		It("should return an error when not enough bytes (marshaling)", func() {
+			loop := func() bool {
+				expected := processutil.RandomState(r)
+				sizeAvailable := r.Intn(expected.SizeHint())
+				buf := make([]byte, sizeAvailable)
+				_, _, err := expected.Marshal(buf, sizeAvailable)
+				Expect(err).To(HaveOccurred())
+
+				return true
+			}
+			Expect(quick.Check(loop, nil)).To(Succeed())
+		})
+
+		It("should return an error when not enough bytes (unmarshaling)", func() {
+			loop := func() bool {
+				expected := processutil.RandomState(r)
+				sizeHint := expected.SizeHint()
+				buf := make([]byte, sizeHint)
+				_, _, err := expected.Marshal(buf, sizeHint)
+				Expect(err).ToNot(HaveOccurred())
+
+				var unmarshalled process.State
+				sizeAvailable := r.Intn(sizeHint)
+				_, _, err = unmarshalled.Unmarshal(buf, sizeAvailable)
+				Expect(err).To(HaveOccurred())
+
+				return true
+			}
+			Expect(quick.Check(loop, nil)).To(Succeed())
+		})
 	})
 
 	Context("when initialising the default state", func() {
@@ -79,6 +115,19 @@ var _ = Describe("State", func() {
 
 		It("should have valid value=nil", func() {
 			Expect(process.DefaultState().ValidValue).To(Equal(process.NilValue))
+		})
+	})
+
+	Context("when cloned", func() {
+		It("should clone correctly", func() {
+			loop := func() bool {
+				original := processutil.RandomState(r)
+				duplicate := original.Clone()
+				Expect(duplicate.Equal(&original)).To(BeTrue())
+
+				return true
+			}
+			Expect(quick.Check(loop, nil)).To(Succeed())
 		})
 	})
 })
