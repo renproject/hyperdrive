@@ -29,9 +29,20 @@ jobs:
                   go get -u golang.org/x/lint/golint
                   go get -u github.com/loongy/covermerge
                   go get -u github.com/mattn/goveralls
-                  cd $GITHUB_WORKSPACE
-                  go vet ./...
-                  golint ./...
+
+            - name: Run vetting
+              run: |
+                cd $GITHUB_WORKSPACE
+                export PATH=$PATH:$(go env GOPATH)/bin
+                go vet ./...
+
+            - name: Run linting
+              run: |
+                cd $GITHUB_WORKSPACE
+                export PATH=$PATH:$(go env GOPATH)/bin
+                go get -u golang.org/x/lint/golint
+                golint ./...
+
             - name: Run tests and report test coverage
               env:
                   COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
