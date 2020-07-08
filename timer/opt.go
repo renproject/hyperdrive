@@ -8,16 +8,21 @@ import (
 )
 
 const (
-	DefaultTimeout        = 20 * time.Second
+	// DefaultTimeout is the timeout in seconds set by default
+	DefaultTimeout = 20 * time.Second
+
+	// DefaultTimeoutScaling is the timeout scaling factor set by default
 	DefaultTimeoutScaling = 0.5
 )
 
+// Options represent the options for a Linear Timer
 type Options struct {
 	Logger         logrus.FieldLogger
 	Timeout        time.Duration
 	TimeoutScaling float64
 }
 
+// DefaultOptions returns the default options for a Linear Timer
 func DefaultOptions() Options {
 	return Options{
 		Logger:         loggerWithFields(logrus.New()),
@@ -26,6 +31,7 @@ func DefaultOptions() Options {
 	}
 }
 
+// WithLogLevel updates the log level of the Linear Timer's logger
 func (opts Options) WithLogLevel(level logrus.Level) Options {
 	logger := logrus.New()
 	logger.SetLevel(level)
@@ -33,6 +39,7 @@ func (opts Options) WithLogLevel(level logrus.Level) Options {
 	return opts
 }
 
+// WithLogOutput updates where the Linear Timer's logger will log data to
 func (opts Options) WithLogOutput(output io.Writer) Options {
 	logger := logrus.New()
 	logger.SetOutput(output)
@@ -40,11 +47,13 @@ func (opts Options) WithLogOutput(output io.Writer) Options {
 	return opts
 }
 
+// WithTimeout updates the timeout of the Linear Timer
 func (opts Options) WithTimeout(timeout time.Duration) Options {
 	opts.Timeout = timeout
 	return opts
 }
 
+// WithTimeoutScaling updates the timeout scaling factor of the Linear Timer
 func (opts Options) WithTimeoutScaling(timeoutScaling float64) Options {
 	opts.TimeoutScaling = timeoutScaling
 	return opts
