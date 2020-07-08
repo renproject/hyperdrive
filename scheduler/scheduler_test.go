@@ -13,7 +13,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Process", func() {
+var _ = Describe("Scheduler", func() {
 	rand.Seed(int64(time.Now().Nanosecond()))
 
 	Context("when scheduling", func() {

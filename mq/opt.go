@@ -19,3 +19,15 @@ func DefaultOptions() Options {
 		MaxCapacity: 1000,
 	}
 }
+
+// WithLogger updates the logger used in the Message Queue
+func (opts Options) WithLogger(logger *zap.Logger) Options {
+	opts.Logger = logger
+	return opts
+}
+
+// WithMaxCapacity updates the maximum capacity of the Message Queue
+func (opts Options) WithMaxCapacity(capacity int) Options {
+	opts.MaxCapacity = capacity
+	return opts
+}
