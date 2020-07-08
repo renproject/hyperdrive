@@ -26,9 +26,9 @@ var _ = Describe("Timer", func() {
 					opts := timer.DefaultOptions().
 						WithTimeout(timeout).
 						WithTimeoutScaling(timeoutScaling)
-					onProposeTimeoutChan := make(chan timer.Timeout, 10)
-					onPrevoteTimeoutChan := make(chan timer.Timeout, 10)
-					onPrecommitTimeoutChan := make(chan timer.Timeout, 10)
+					onProposeTimeoutChan := make(chan timer.Timeout, 1)
+					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+					onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
 					constantTimer := timer.NewLinearTimer(opts, onProposeTimeoutChan, onPrevoteTimeoutChan, onPrecommitTimeoutChan)
 
 					// timeout should be the same for any round/height
@@ -81,9 +81,9 @@ var _ = Describe("Timer", func() {
 					opts := timer.DefaultOptions().
 						WithTimeout(timeout).
 						WithTimeoutScaling(timeoutScaling)
-					onProposeTimeoutChan := make(chan timer.Timeout, 10)
-					onPrevoteTimeoutChan := make(chan timer.Timeout, 10)
-					onPrecommitTimeoutChan := make(chan timer.Timeout, 10)
+					onProposeTimeoutChan := make(chan timer.Timeout, 1)
+					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+					onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
 					constantTimer := timer.NewLinearTimer(opts, onProposeTimeoutChan, onPrevoteTimeoutChan, onPrecommitTimeoutChan)
 
 					// timeout should be the same for any round/height
@@ -136,9 +136,9 @@ var _ = Describe("Timer", func() {
 					opts := timer.DefaultOptions().
 						WithTimeout(timeout).
 						WithTimeoutScaling(timeoutScaling)
-					onProposeTimeoutChan := make(chan timer.Timeout, 10)
-					onPrevoteTimeoutChan := make(chan timer.Timeout, 10)
-					onPrecommitTimeoutChan := make(chan timer.Timeout, 10)
+					onProposeTimeoutChan := make(chan timer.Timeout, 1)
+					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
+					onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
 					constantTimer := timer.NewLinearTimer(opts, onProposeTimeoutChan, onPrevoteTimeoutChan, onPrecommitTimeoutChan)
 
 					// timeout should be the same for any round/height
@@ -192,7 +192,7 @@ var _ = Describe("Timer", func() {
 					opts := timer.DefaultOptions().
 						WithTimeout(timeout).
 						WithTimeoutScaling(timeoutScaling)
-					onProposeTimeoutChan := make(chan timer.Timeout, 10)
+					onProposeTimeoutChan := make(chan timer.Timeout, 1)
 					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
 					onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
 					constantTimer := timer.NewLinearTimer(opts, onProposeTimeoutChan, onPrevoteTimeoutChan, onPrecommitTimeoutChan)
@@ -249,7 +249,7 @@ var _ = Describe("Timer", func() {
 						WithTimeout(timeout).
 						WithTimeoutScaling(timeoutScaling)
 					onProposeTimeoutChan := make(chan timer.Timeout, 1)
-					onPrevoteTimeoutChan := make(chan timer.Timeout, 10)
+					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
 					onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
 					constantTimer := timer.NewLinearTimer(opts, onProposeTimeoutChan, onPrevoteTimeoutChan, onPrecommitTimeoutChan)
 
@@ -306,7 +306,7 @@ var _ = Describe("Timer", func() {
 						WithTimeoutScaling(timeoutScaling)
 					onProposeTimeoutChan := make(chan timer.Timeout, 1)
 					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
-					onPrecommitTimeoutChan := make(chan timer.Timeout, 10)
+					onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
 					constantTimer := timer.NewLinearTimer(opts, onProposeTimeoutChan, onPrevoteTimeoutChan, onPrecommitTimeoutChan)
 
 					// timeout should scale up linearly with round

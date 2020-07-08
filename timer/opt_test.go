@@ -1,14 +1,13 @@
 package timer_test
 
 import (
-	"bytes"
 	"math/rand"
-	"strconv"
-	"strings"
 	"testing/quick"
 	"time"
 
 	"github.com/renproject/hyperdrive/timer"
+
+	"go.uber.org/zap"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -24,35 +23,9 @@ var _ = Describe("Timer Opts", func() {
 			Expect(defaultOpts.TimeoutScaling).To(Equal(0.5))
 		})
 
-		// Specify("with log level", func() {
-		// 	loop := func() bool {
-		// 		l := rand.Intn(7)
-		// 		logLevel := logrus.Level(l)
-		// 		opts := timer.DefaultOptions().WithLogLevel(logLevel)
-		//
-		// 		logger := opts.Logger.(*logrus.Entry)
-		// 		Expect(logger.Level).To(Equal(logLevel))
-		//
-		// 		return true
-		// 	}
-		// 	Expect(quick.Check(loop, nil)).To(Succeed())
-		// })
-
-		Specify("with log output", func() {
-			loop := func() bool {
-				buf := bytes.NewBuffer([]byte{})
-				opts := timer.DefaultOptions().WithLogOutput(buf)
-
-				r := rand.Int()
-				opts.Logger.Printf("%d", r)
-				Expect(strings.Contains(buf.String(), strconv.Itoa(r))).To(BeTrue())
-				Expect(func() {
-					opts.Logger.Panicln("some reason")
-				}).To(Panic())
-
-				return true
-			}
-			Expect(quick.Check(loop, nil)).To(Succeed())
+		Specify("with logger", func() {
+			logger := zap.NewExample()
+			_ = timer.DefaultOptions().WithLogger(logger)
 		})
 
 		Specify("with timeout", func() {

@@ -1,10 +1,9 @@
 package timer
 
 import (
-	"io"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 const (
@@ -17,33 +16,27 @@ const (
 
 // Options represent the options for a Linear Timer
 type Options struct {
-	Logger         logrus.FieldLogger
+	Logger         *zap.Logger
 	Timeout        time.Duration
 	TimeoutScaling float64
 }
 
 // DefaultOptions returns the default options for a Linear Timer
 func DefaultOptions() Options {
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
 	return Options{
-		Logger:         loggerWithFields(logrus.New()),
+		Logger:         logger,
 		Timeout:        DefaultTimeout,
 		TimeoutScaling: DefaultTimeoutScaling,
 	}
 }
 
-// WithLogLevel updates the log level of the Linear Timer's logger
-func (opts Options) WithLogLevel(level logrus.Level) Options {
-	logger := logrus.New()
-	logger.SetLevel(level)
-	opts.Logger = loggerWithFields(logger)
-	return opts
-}
-
-// WithLogOutput updates where the Linear Timer's logger will log data to
-func (opts Options) WithLogOutput(output io.Writer) Options {
-	logger := logrus.New()
-	logger.SetOutput(output)
-	opts.Logger = loggerWithFields(logger)
+// WithLogger updates the logger used in the Linear Timer
+func (opts Options) WithLogger(logger *zap.Logger) Options {
+	opts.Logger = logger
 	return opts
 }
 
@@ -57,11 +50,4 @@ func (opts Options) WithTimeout(timeout time.Duration) Options {
 func (opts Options) WithTimeoutScaling(timeoutScaling float64) Options {
 	opts.TimeoutScaling = timeoutScaling
 	return opts
-}
-
-func loggerWithFields(logger *logrus.Logger) logrus.FieldLogger {
-	return logger.
-		WithField("lib", "hyperdrive").
-		WithField("pkg", "timer").
-		WithField("com", "timer")
 }
