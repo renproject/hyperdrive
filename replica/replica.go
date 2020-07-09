@@ -29,8 +29,16 @@ type Replica struct {
 	mq          mq.MessageQueue
 }
 
-func New(opts Options, whoami id.Signatory, signatories []id.Signatory, propose process.Proposer, validate process.Validator, commit process.Committer, catch process.Catcher, broadcast process.Broadcaster) *Replica {
-
+// New instantiates and returns a pointer to a new Hyperdrive replica machine
+func New(
+	opts Options, whoami id.Signatory,
+	signatories []id.Signatory,
+	propose process.Proposer,
+	validate process.Validator,
+	commit process.Committer,
+	catch process.Catcher,
+	broadcast process.Broadcaster,
+) *Replica {
 	f := len(signatories) / 3
 	onTimeoutPropose := make(chan timer.Timeout, 10)
 	onTimeoutPrevote := make(chan timer.Timeout, 10)
@@ -71,6 +79,7 @@ func New(opts Options, whoami id.Signatory, signatories []id.Signatory, propose 
 	}
 }
 
+// Run starts the Hyperdrive replica's process
 func (replica *Replica) Run(ctx context.Context) {
 	replica.proc.Start()
 	for {
@@ -114,6 +123,9 @@ func (replica *Replica) Run(ctx context.Context) {
 	}
 }
 
+// Propose adds a propose message to the replica. This message will be
+// asynchronously inserted into the replica's message queue asynchronously,
+// and consumed when the replica does not have any immediate task to do
 func (replica *Replica) Propose(ctx context.Context, propose process.Propose) {
 	select {
 	case <-ctx.Done():
@@ -121,6 +133,9 @@ func (replica *Replica) Propose(ctx context.Context, propose process.Propose) {
 	}
 }
 
+// Prevote adds a prevote message to the replica. This message will be
+// asynchronously inserted into the replica's message queue asynchronously,
+// and consumed when the replica does not have any immediate task to do
 func (replica *Replica) Prevote(ctx context.Context, prevote process.Prevote) {
 	select {
 	case <-ctx.Done():
@@ -128,6 +143,9 @@ func (replica *Replica) Prevote(ctx context.Context, prevote process.Prevote) {
 	}
 }
 
+// Precommit adds a precommit message to the replica. This message will be
+// asynchronously inserted into the replica's message queue asynchronously,
+// and consumed when the replica does not have any immediate task to do
 func (replica *Replica) Precommit(ctx context.Context, precommit process.Precommit) {
 	select {
 	case <-ctx.Done():

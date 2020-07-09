@@ -7,12 +7,15 @@ import (
 	"github.com/renproject/id"
 )
 
+// BroadcasterCallbacks provide callback functions to test the broadcaster
+// behaviour required by a Process
 type BroadcasterCallbacks struct {
 	BroadcastProposeCallback   func(process.Propose)
 	BroadcastPrevoteCallback   func(process.Prevote)
 	BroadcastPrecommitCallback func(process.Precommit)
 }
 
+// BroadcastPropose passes the propose message to the propose callback, if present
 func (broadcaster BroadcasterCallbacks) BroadcastPropose(propose process.Propose) {
 	if broadcaster.BroadcastProposeCallback == nil {
 		return
@@ -20,6 +23,7 @@ func (broadcaster BroadcasterCallbacks) BroadcastPropose(propose process.Propose
 	broadcaster.BroadcastProposeCallback(propose)
 }
 
+// BroadcastPrevote passes the prevote message to the prevote callback, if present
 func (broadcaster BroadcasterCallbacks) BroadcastPrevote(prevote process.Prevote) {
 	if broadcaster.BroadcastPrevoteCallback == nil {
 		return
@@ -27,6 +31,7 @@ func (broadcaster BroadcasterCallbacks) BroadcastPrevote(prevote process.Prevote
 	broadcaster.BroadcastPrevoteCallback(prevote)
 }
 
+// BroadcastPrecommit passes the precommit message to the precommit callback, if present
 func (broadcaster BroadcasterCallbacks) BroadcastPrecommit(precommit process.Precommit) {
 	if broadcaster.BroadcastPrecommitCallback == nil {
 		return
@@ -34,10 +39,13 @@ func (broadcaster BroadcasterCallbacks) BroadcastPrecommit(precommit process.Pre
 	broadcaster.BroadcastPrecommitCallback(precommit)
 }
 
+// CommitterCallback provides a callback function to test the Committer
+// behaviour required by a Process
 type CommitterCallback struct {
 	Callback func(process.Height, process.Value)
 }
 
+// Commit passes the commitment parameters height and round to the commit callback, if present
 func (committer CommitterCallback) Commit(height process.Height, value process.Value) {
 	if committer.Callback == nil {
 		return
@@ -45,29 +53,45 @@ func (committer CommitterCallback) Commit(height process.Height, value process.V
 	committer.Callback(height, value)
 }
 
+// MockProposer is a mock implementation of the Proposer interface
+// It always proposes the value MockValue
 type MockProposer struct {
 	MockValue process.Value
 }
 
+// Propose implements the propose behaviour as required by the Proposer interface
+// The MockProposer's propose method does not take into consideration the
+// consensus parameters height and round, but simply returns the value MockValue
 func (p MockProposer) Propose(height process.Height, round process.Round) process.Value {
 	return p.MockValue
 }
 
+// MockValidator is a mock implementation of the Validator interface
+// It always returns the MockValid value as its validation check
 type MockValidator struct {
 	MockValid bool
 }
 
+// Valid implements the validation behaviour as required by the Validator interface
+// The MockValidator's valid method does not take into consideration the
+// received propose message, but simply returns the MockValid value as its
+// validation check
 func (v MockValidator) Valid(process.Value) bool {
 	return v.MockValid
 }
 
+// CatcherCallbacks provide callback functions to test the Catcher interface
+// required by a Process
 type CatcherCallbacks struct {
-	CatchDoubleProposeCallback   func(process.Propose, process.Propose)
-	CatchDoublePrevoteCallback   func(process.Prevote, process.Prevote)
-	CatchDoublePrecommitCallback func(process.Precommit, process.Precommit)
+	CatchDoubleProposeCallback    func(process.Propose, process.Propose)
+	CatchDoublePrevoteCallback    func(process.Prevote, process.Prevote)
+	CatchDoublePrecommitCallback  func(process.Precommit, process.Precommit)
 	CatchOutOfTurnProposeCallback func(process.Propose)
 }
 
+// CatchDoublePropose implements the interface method of handling the event when
+// two different propose messages were received from the same process.
+// In this case, it simply passes those to the appropriate callback function
 func (catcher CatcherCallbacks) CatchDoublePropose(propose1 process.Propose, propose2 process.Propose) {
 	if catcher.CatchDoubleProposeCallback == nil {
 		return
@@ -75,6 +99,9 @@ func (catcher CatcherCallbacks) CatchDoublePropose(propose1 process.Propose, pro
 	catcher.CatchDoubleProposeCallback(propose1, propose2)
 }
 
+// CatchDoublePrevote implements the interface method of handling the event when
+// two different prevote messages were received from the same process.
+// In this case, it simply passes those to the appropriate callback function
 func (catcher CatcherCallbacks) CatchDoublePrevote(prevote1 process.Prevote, prevote2 process.Prevote) {
 	if catcher.CatchDoublePrevoteCallback == nil {
 		return
@@ -82,6 +109,9 @@ func (catcher CatcherCallbacks) CatchDoublePrevote(prevote1 process.Prevote, pre
 	catcher.CatchDoublePrevoteCallback(prevote1, prevote2)
 }
 
+// CatchDoublePrecommit implements the interface method of handling the event when
+// two different precommit messages were received from the same process.
+// In this case, it simply passes those to the appropriate callback function
 func (catcher CatcherCallbacks) CatchDoublePrecommit(precommit1 process.Precommit, precommit2 process.Precommit) {
 	if catcher.CatchDoublePrecommitCallback == nil {
 		return
@@ -89,6 +119,9 @@ func (catcher CatcherCallbacks) CatchDoublePrecommit(precommit1 process.Precommi
 	catcher.CatchDoublePrecommitCallback(precommit1, precommit2)
 }
 
+// CatchOutOfTurnPropose implements the interface method of handling the event when
+// a process not scheduled to propose for the current height/round broadcasts a propose.
+// In this case, it simply passes those to the appropriate callback function
 func (catcher CatcherCallbacks) CatchOutOfTurnPropose(propose process.Propose) {
 	if catcher.CatchOutOfTurnProposeCallback == nil {
 		return
@@ -96,6 +129,9 @@ func (catcher CatcherCallbacks) CatchOutOfTurnPropose(propose process.Propose) {
 	catcher.CatchOutOfTurnProposeCallback(propose)
 }
 
+// RandomHeight consumes a source of randomness and returns a random height
+// for the consensus mechanism. It returns a truly random height 70% of the times,
+// whereas for the other 30% of the times it returns heights for edge scenarios
 func RandomHeight(r *rand.Rand) process.Height {
 	switch r.Int() % 10 {
 	case 0:
@@ -109,6 +145,9 @@ func RandomHeight(r *rand.Rand) process.Height {
 	}
 }
 
+// RandomRound consumes a source of randomness and returns a random round
+// for the consensus mechanism. It returns a truly random round 70% of the times,
+// whereas for the other 30% of the times it returns rounds for edge scenarios
 func RandomRound(r *rand.Rand) process.Round {
 	switch r.Int() % 10 {
 	case 0:
@@ -122,6 +161,8 @@ func RandomRound(r *rand.Rand) process.Round {
 	}
 }
 
+// RandomStep consumes a source of randomness and returns a random step
+// for the consensus mechanism. A random step could be a valid or invalid step
 func RandomStep(r *rand.Rand) process.Step {
 	switch r.Int() % 10 {
 	case 0:
@@ -137,6 +178,9 @@ func RandomStep(r *rand.Rand) process.Step {
 	}
 }
 
+// RandomValue consumes a source of randomness and returns a random value
+// for the consensus mechanism. It returns a truly random round 80% of the times,
+// whereas for the other 20% of the times it returns rounds for edge scenarios
 func RandomValue(r *rand.Rand) process.Value {
 	switch r.Int() % 10 {
 	case 0:
@@ -152,6 +196,8 @@ func RandomValue(r *rand.Rand) process.Value {
 	}
 }
 
+// RandomState consumes a source of randomness and returns a random state of
+// a process in the consensus mechanism.
 func RandomState(r *rand.Rand) process.State {
 	switch r.Int() % 10 {
 	case 0:
@@ -174,6 +220,9 @@ func RandomState(r *rand.Rand) process.State {
 	}
 }
 
+// RandomPropose consumes a source of randomness and returns a random propose
+// message. The message is a valid message 70% of the times, and other times
+// this function returns some edge scenarios, including empty message
 func RandomPropose(r *rand.Rand) process.Propose {
 	switch r.Int() % 10 {
 	case 0:
@@ -226,6 +275,9 @@ func RandomPropose(r *rand.Rand) process.Propose {
 	}
 }
 
+// RandomPrevote consumes a source of randomness and returns a random prevote
+// message. The message is a valid message 70% of the times, and other times
+// this function returns some edge scenarios, including empty message
 func RandomPrevote(r *rand.Rand) process.Prevote {
 	switch r.Int() % 10 {
 	case 0:
@@ -275,6 +327,9 @@ func RandomPrevote(r *rand.Rand) process.Prevote {
 	}
 }
 
+// RandomPrecommit consumes a source of randomness and returns a random precommit
+// message. The message is a valid message 70% of the times, and other times
+// this function returns some edge scenarios, including empty message
 func RandomPrecommit(r *rand.Rand) process.Precommit {
 	switch r.Int() % 10 {
 	case 0:

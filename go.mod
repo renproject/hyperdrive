@@ -8,6 +8,5 @@ require (
 	github.com/onsi/gomega v1.10.1
 	github.com/renproject/id v0.4.2
 	github.com/renproject/surge v1.2.5
-	github.com/sirupsen/logrus v1.4.2
 	go.uber.org/zap v1.15.0
 )
