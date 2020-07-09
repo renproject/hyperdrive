@@ -266,6 +266,18 @@ func (v *Value) Equal(other *Value) bool {
 	return bytes.Equal(v[:], other[:])
 }
 
+func (v Value) MarshalJSON() ([]byte, error) {
+	return id.Hash(v).MarshalJSON()
+}
+
+func (v *Value) UnmarshalJSON(data []byte) error {
+	return (*id.Hash)(v).UnmarshalJSON(data)
+}
+
+func (v Value) String() string {
+	return id.Hash(v).String()
+}
+
 var (
 	// NilValue is a reserved hash that represents when a Process is
 	// prevoting/precommitting to nothing (i.e. the Process wants to progress to
