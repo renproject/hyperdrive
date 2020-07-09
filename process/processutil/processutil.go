@@ -56,20 +56,20 @@ func (committer CommitterCallback) Commit(height process.Height, value process.V
 // MockProposer is a mock implementation of the Proposer interface
 // It always proposes the value MockValue
 type MockProposer struct {
-	MockValue process.Value
+	MockValue func() process.Value
 }
 
 // Propose implements the propose behaviour as required by the Proposer interface
 // The MockProposer's propose method does not take into consideration the
 // consensus parameters height and round, but simply returns the value MockValue
 func (p MockProposer) Propose(height process.Height, round process.Round) process.Value {
-	return p.MockValue
+	return p.MockValue()
 }
 
 // MockValidator is a mock implementation of the Validator interface
 // It always returns the MockValid value as its validation check
 type MockValidator struct {
-	MockValid bool
+	MockValid func() bool
 }
 
 // Valid implements the validation behaviour as required by the Validator interface
@@ -77,7 +77,7 @@ type MockValidator struct {
 // received propose message, but simply returns the MockValid value as its
 // validation check
 func (v MockValidator) Valid(process.Value) bool {
-	return v.MockValid
+	return v.MockValid()
 }
 
 // CatcherCallbacks provide callback functions to test the Catcher interface
