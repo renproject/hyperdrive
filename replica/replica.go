@@ -10,6 +10,10 @@ import (
 	"github.com/renproject/id"
 )
 
+// DidHandleMessage is called by the Replica after it has finished handling an
+// input message (i.e. Propose, Prevote, or Precommit), or timeout.
+type DidHandleMessage func()
+
 // A Replica represents one Process in a replicated state machine that is bound
 // to a specific Shard. It signs Messages before sending them to other Replicas,
 // and verifies Messages before accepting them from other Replicas.
@@ -27,17 +31,21 @@ type Replica struct {
 	onPrevote   chan process.Prevote
 	onPrecommit chan process.Precommit
 	mq          mq.MessageQueue
+
+	didHandleMessage DidHandleMessage
 }
 
 // New instantiates and returns a pointer to a new Hyperdrive replica machine
 func New(
-	opts Options, whoami id.Signatory,
+	opts Options,
+	whoami id.Signatory,
 	signatories []id.Signatory,
 	propose process.Proposer,
 	validate process.Validator,
 	commit process.Committer,
 	catch process.Catcher,
 	broadcast process.Broadcaster,
+	didHandleMessage DidHandleMessage,
 ) *Replica {
 	f := len(signatories) / 3
 	onTimeoutPropose := make(chan timer.Timeout, 10)
@@ -76,50 +84,64 @@ func New(
 		onPrevote:   make(chan process.Prevote, opts.MessageQueueOpts.MaxCapacity),
 		onPrecommit: make(chan process.Precommit, opts.MessageQueueOpts.MaxCapacity),
 		mq:          mq.New(opts.MessageQueueOpts),
+
+		didHandleMessage: didHandleMessage,
 	}
 }
 
 // Run starts the Hyperdrive replica's process
 func (replica *Replica) Run(ctx context.Context) {
 	replica.proc.Start()
-	for {
-		select {
-		case <-ctx.Done():
-			return
 
-		case timeout := <-replica.onTimeoutPropose:
-			replica.proc.OnTimeoutPropose(timeout.Height, timeout.Round)
-		case timeout := <-replica.onTimeoutPrevote:
-			replica.proc.OnTimeoutPrevote(timeout.Height, timeout.Round)
-		case timeout := <-replica.onTimeoutPrecommit:
-			replica.proc.OnTimeoutPrecommit(timeout.Height, timeout.Round)
+	isRunning := true
+	for isRunning {
+		func() {
+			defer func() {
+				if replica.didHandleMessage != nil {
+					replica.didHandleMessage()
+				}
+			}()
 
-		case propose := <-replica.onPropose:
-			if !replica.filterHeight(propose.Height) {
-				continue
+			select {
+			case <-ctx.Done():
+				isRunning = false
+				return
+
+			case timeout := <-replica.onTimeoutPropose:
+				replica.proc.OnTimeoutPropose(timeout.Height, timeout.Round)
+			case timeout := <-replica.onTimeoutPrevote:
+				replica.proc.OnTimeoutPrevote(timeout.Height, timeout.Round)
+			case timeout := <-replica.onTimeoutPrecommit:
+				replica.proc.OnTimeoutPrecommit(timeout.Height, timeout.Round)
+
+			case propose := <-replica.onPropose:
+				if !replica.filterHeight(propose.Height) {
+					return
+				}
+				if !replica.filterFrom(propose.From) {
+					return
+				}
+				replica.mq.InsertPropose(propose)
+			case prevote := <-replica.onPrevote:
+				if !replica.filterHeight(prevote.Height) {
+					return
+				}
+				if !replica.filterFrom(prevote.From) {
+					return
+				}
+				replica.mq.InsertPrevote(prevote)
+			case precommit := <-replica.onPrecommit:
+				if !replica.filterHeight(precommit.Height) {
+					return
+				}
+				if !replica.filterFrom(precommit.From) {
+					return
+				}
+				replica.mq.InsertPrecommit(precommit)
 			}
-			if !replica.filterFrom(propose.From) {
-				continue
-			}
-			replica.mq.InsertPropose(propose)
-		case prevote := <-replica.onPrevote:
-			if !replica.filterHeight(prevote.Height) {
-				continue
-			}
-			if !replica.filterFrom(prevote.From) {
-				continue
-			}
-			replica.mq.InsertPrevote(prevote)
-		case precommit := <-replica.onPrecommit:
-			if !replica.filterHeight(precommit.Height) {
-				continue
-			}
-			if !replica.filterFrom(precommit.From) {
-				continue
-			}
-			replica.mq.InsertPrecommit(precommit)
-		}
-		replica.flush()
+
+			replica.flush()
+		}()
 	}
 }
 
