@@ -9,5 +9,5 @@ import (
 
 func TestMq(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Mq Suite")
+	RunSpecs(t, "Message Queue Suite")
 }
