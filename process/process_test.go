@@ -152,7 +152,7 @@ var _ = Describe("Process", func() {
 						whoami := id.NewPrivKey().Signatory()
 						scheduler := scheduler.NewRoundRobin([]id.Signatory{whoami})
 						value := processutil.RandomValue(r)
-						proposer := processutil.MockProposer{MockValue: value}
+						proposer := processutil.MockProposer{MockValue: func() process.Value { return value }}
 						broadcaster := processutil.BroadcasterCallbacks{
 							BroadcastProposeCallback: func(proposal process.Propose) {
 								Expect(proposal.From.Equal(&whoami)).To(BeTrue())
@@ -614,7 +614,7 @@ var _ = Describe("Process", func() {
 								}
 								scheduledProposer := id.NewPrivKey().Signatory()
 								scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
-								validator := processutil.MockValidator{MockValid: true}
+								validator := processutil.MockValidator{MockValid: func() bool { return true }}
 
 								p := process.New(whoami, 33, nil, scheduler, nil, validator, broadcaster, nil, nil)
 								p.StartRound(round)
@@ -656,7 +656,7 @@ var _ = Describe("Process", func() {
 								}
 								scheduledProposer := id.NewPrivKey().Signatory()
 								scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
-								validator := processutil.MockValidator{MockValid: true}
+								validator := processutil.MockValidator{MockValid: func() bool { return true }}
 
 								p := process.New(whoami, 33, nil, scheduler, nil, validator, broadcaster, nil, nil)
 								p.StartRound(round)
@@ -702,7 +702,7 @@ var _ = Describe("Process", func() {
 								}
 								scheduledProposer := id.NewPrivKey().Signatory()
 								scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
-								validator := processutil.MockValidator{MockValid: true}
+								validator := processutil.MockValidator{MockValid: func() bool { return true }}
 
 								p := process.New(whoami, 33, nil, scheduler, nil, validator, broadcaster, nil, nil)
 								p.StartRound(round)
@@ -747,7 +747,7 @@ var _ = Describe("Process", func() {
 							}
 							scheduledProposer := id.NewPrivKey().Signatory()
 							scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
-							validator := processutil.MockValidator{MockValid: false}
+							validator := processutil.MockValidator{MockValid: func() bool { return false }}
 
 							p := process.New(whoami, 33, nil, scheduler, nil, validator, broadcaster, nil, nil)
 							p.StartRound(round)
@@ -784,7 +784,7 @@ var _ = Describe("Process", func() {
 						}
 						scheduledProposer := id.NewPrivKey().Signatory()
 						scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
-						validator := processutil.MockValidator{MockValid: true}
+						validator := processutil.MockValidator{MockValid: func() bool { return true }}
 
 						p := process.New(whoami, 33, nil, scheduler, nil, validator, broadcaster, nil, nil)
 						p.StartRound(round)
@@ -930,7 +930,7 @@ var _ = Describe("Process", func() {
 										// this scheduler will always schedule the above proposer to propose
 										mockScheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
 										// mock validator that considers any proposal as valid
-										mockValidator := processutil.MockValidator{MockValid: true}
+										mockValidator := processutil.MockValidator{MockValid: func() bool { return true }}
 										// this will be the proposed value
 										proposedValue := processutil.RandomValue(r)
 										for proposedValue == process.NilValue {
@@ -998,7 +998,7 @@ var _ = Describe("Process", func() {
 										// this scheduler will always schedule the above proposer to propose
 										mockScheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
 										// mock validator that considers any proposal as valid
-										mockValidator := processutil.MockValidator{MockValid: true}
+										mockValidator := processutil.MockValidator{MockValid: func() bool { return true }}
 										// this will be the proposed value
 										proposedValue := processutil.RandomValue(r)
 										for proposedValue == process.NilValue {
@@ -1068,7 +1068,7 @@ var _ = Describe("Process", func() {
 										// this scheduler will always schedule the above proposer to propose
 										mockScheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
 										// mock validator that considers any proposal as valid
-										mockValidator := processutil.MockValidator{MockValid: true}
+										mockValidator := processutil.MockValidator{MockValid: func() bool { return true }}
 										// this will be the proposed value
 										proposedValue := processutil.RandomValue(r)
 										for proposedValue == process.NilValue {
@@ -1143,7 +1143,7 @@ var _ = Describe("Process", func() {
 									// this scheduler will always schedule the above proposer to propose
 									mockScheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
 									// mock validator that considers any proposal as invalid
-									mockValidator := processutil.MockValidator{MockValid: false}
+									mockValidator := processutil.MockValidator{MockValid: func() bool { return false }}
 									// this will be the proposed value
 									proposedValue := processutil.RandomValue(r)
 									for proposedValue == process.NilValue {
@@ -1215,7 +1215,7 @@ var _ = Describe("Process", func() {
 								// this scheduler will always schedule the above proposer to propose
 								mockScheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
 								// mock validator that considers any proposal as valid
-								mockValidator := processutil.MockValidator{MockValid: true}
+								mockValidator := processutil.MockValidator{MockValid: func() bool { return true }}
 								// this will be the proposed value
 								proposedValue := processutil.RandomValue(r)
 								for proposedValue == process.NilValue {
@@ -1279,7 +1279,7 @@ var _ = Describe("Process", func() {
 					f := 10 + rand.Intn(40)
 					scheduledProposer := id.NewPrivKey().Signatory()
 					mockScheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
-					mockValidator := processutil.MockValidator{MockValid: true}
+					mockValidator := processutil.MockValidator{MockValid: func() bool { return true }}
 					value := processutil.RandomValue(r)
 					for value == process.NilValue {
 						value = processutil.RandomValue(r)
@@ -1800,7 +1800,7 @@ var _ = Describe("Process", func() {
 					}
 					scheduledProposer := id.NewPrivKey().Signatory()
 					scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
-					validator := processutil.MockValidator{MockValid: false}
+					validator := processutil.MockValidator{MockValid: func() bool { return false }}
 
 					// instantiate a new process and its state
 					p := process.New(whoami, f, nil, scheduler, nil, validator, broadcaster, nil, nil)
@@ -2226,7 +2226,7 @@ var _ = Describe("Process", func() {
 						}
 						scheduledProposer := id.NewPrivKey().Signatory()
 						scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
-						validator := processutil.MockValidator{MockValid: true}
+						validator := processutil.MockValidator{MockValid: func() bool { return true }}
 
 						// instantiate a new process at the current round and height
 						// and at any valid step
@@ -2465,7 +2465,7 @@ var _ = Describe("Process", func() {
 								Expect(true).ToNot(BeTrue())
 							},
 						}
-						validator := processutil.MockValidator{MockValid: false}
+						validator := processutil.MockValidator{MockValid: func() bool { return false }}
 
 						// instantiate a new process at the current round and height
 						// and at any valid step
