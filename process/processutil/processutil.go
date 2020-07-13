@@ -178,6 +178,16 @@ func RandomStep(r *rand.Rand) process.Step {
 	}
 }
 
+// RandomGoodValue consumes a source of randomness and returns a truly random
+// value which is proposed by the proposer, on which consensus can be reached
+func RandomGoodValue(r *rand.Rand) process.Value {
+	v := process.Value{}
+	for i := range v {
+		v[i] = byte(r.Int())
+	}
+	return v
+}
+
 // RandomValue consumes a source of randomness and returns a random value
 // for the consensus mechanism. It returns a truly random round 80% of the times,
 // whereas for the other 20% of the times it returns rounds for edge scenarios
@@ -188,11 +198,7 @@ func RandomValue(r *rand.Rand) process.Value {
 	case 1:
 		return process.Value{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 	default:
-		v := process.Value{}
-		for i := range v {
-			v[i] = byte(r.Int())
-		}
-		return v
+		return RandomGoodValue(r)
 	}
 }
 
