@@ -188,6 +188,11 @@ var _ = Describe("Replica", func() {
 				m := mq[0]
 				mq = mq[1:]
 
+				// ignore if its a nil message
+				if m.value == nil {
+					continue
+				}
+
 				// handle the message
 				replica := replicas[m.to]
 				switch value := m.value.(type) {
@@ -1071,10 +1076,6 @@ var _ = Describe("Replica", func() {
 			// h is the target minimum consensus height
 			f := 3
 			n := 2 * f
-			targetHeight := process.Height(2)
-
-			// commits from replicas
-			commits := make(map[int]map[process.Height]process.Value)
 
 			// setup private keys for the replicas
 			// and their signatories
@@ -1083,12 +1084,7 @@ var _ = Describe("Replica", func() {
 			for i := range privKeys {
 				privKeys[i] = id.NewPrivKey()
 				signatories[i] = privKeys[i].Signatory()
-				commits[i] = make(map[process.Height]process.Value)
 			}
-
-			// every replica sends this signal when they reach the target
-			// consensus height
-			completionSignal := make(chan bool, n)
 
 			// slice of messages to be broadcasted between replicas.
 			// messages from mq are popped and handled whenever mqSignal is signalled
@@ -1099,8 +1095,6 @@ var _ = Describe("Replica", func() {
 			// build replicas
 			replicas := make([]*replica.Replica, n)
 			for i := range replicas {
-				replicaIndex := i
-
 				replicas[i] = replica.New(
 					replica.DefaultOptions(),
 					signatories[i],
@@ -1121,12 +1115,9 @@ var _ = Describe("Replica", func() {
 					// Committer
 					processutil.CommitterCallback{
 						Callback: func(height process.Height, value process.Value) {
-							// add commit to the commits map
-							commits[replicaIndex][height] = value
-							// signal for completion if this is the target height
-							if height == targetHeight {
-								completionSignal <- true
-							}
+							// we don't expect any progress since we are one short of
+							// 2f+1 replicas
+							panic("consensus should have stalled")
 						},
 					},
 					// Catcher
@@ -1199,11 +1190,6 @@ var _ = Describe("Replica", func() {
 					isRunning = false
 					break
 				case _ = <-mqSignal:
-					// this means the target consensus has been reached on every replica
-					if len(completionSignal) == n {
-						panic("consensus should not have progressed so far")
-					}
-
 					if len(mq) == 0 {
 						continue
 					}
@@ -1237,14 +1223,9 @@ var _ = Describe("Replica", func() {
 
 			// f is the maximum no. of adversaries
 			// n is the number of honest replicas online
-			// h is the target minimum consensus height
 			f := 3
 			n := 2*f + 1
 			intermTargetHeight := process.Height(6)
-			finalTargetHeight := process.Height(8)
-
-			// commits from replicas
-			commits := make(map[int]map[process.Height]process.Value)
 
 			// setup private keys for the replicas
 			// and their signatories
@@ -1253,17 +1234,10 @@ var _ = Describe("Replica", func() {
 			for i := range privKeys {
 				privKeys[i] = id.NewPrivKey()
 				signatories[i] = privKeys[i].Signatory()
-				commits[i] = make(map[process.Height]process.Value)
 			}
 
-			// every replica sends this signal when they reach the target
-			// consensus height
-			completionSignal := make(chan bool, n)
-
-			// replicas randomly send this signal that kills them
-			// this is to simulate a behaviour where f replicas go offline
-			killedReplicas := make(map[int]bool)
-			killSignal := make(chan int, f)
+			// a signal to kill one of the replicas
+			killSignal := make(chan int, 1)
 
 			// slice of messages to be broadcasted between replicas.
 			// messages from mq are popped and handled whenever mqSignal is signalled
@@ -1274,8 +1248,6 @@ var _ = Describe("Replica", func() {
 			// build replicas
 			replicas := make([]*replica.Replica, n)
 			for i := range replicas {
-				replicaIndex := i
-
 				replicas[i] = replica.New(
 					replica.DefaultOptions().
 						WithTimerOptions(
@@ -1300,15 +1272,13 @@ var _ = Describe("Replica", func() {
 					// Committer
 					processutil.CommitterCallback{
 						Callback: func(height process.Height, value process.Value) {
-							// add commit to the commits map
-							commits[replicaIndex][height] = value
-
-							// signal for completion if this is the target height
-							if height == finalTargetHeight {
-								completionSignal <- true
-								return
+							// if consensus progresses and any commit above the intermediate
+							// target height is found, it is unexpected behaviour
+							if height > intermTargetHeight {
+								panic("consensus should have stalled")
 							}
 
+							// at the intermediate target height, we kill the first replica
 							if height == intermTargetHeight {
 								killSignal <- 0
 								return
@@ -1321,32 +1291,26 @@ var _ = Describe("Replica", func() {
 					processutil.BroadcasterCallbacks{
 						BroadcastProposeCallback: func(propose process.Propose) {
 							for j := 0; j < n; j++ {
-								if _, ok := killedReplicas[j]; !ok {
-									mq = append(mq, Message{
-										to:    j,
-										value: propose,
-									})
-								}
+								mq = append(mq, Message{
+									to:    j,
+									value: propose,
+								})
 							}
 						},
 						BroadcastPrevoteCallback: func(prevote process.Prevote) {
 							for j := 0; j < n; j++ {
-								if _, ok := killedReplicas[j]; !ok {
-									mq = append(mq, Message{
-										to:    j,
-										value: prevote,
-									})
-								}
+								mq = append(mq, Message{
+									to:    j,
+									value: prevote,
+								})
 							}
 						},
 						BroadcastPrecommitCallback: func(precommit process.Precommit) {
 							for j := 0; j < n; j++ {
-								if _, ok := killedReplicas[j]; !ok {
-									mq = append(mq, Message{
-										to:    j,
-										value: precommit,
-									})
-								}
+								mq = append(mq, Message{
+									to:    j,
+									value: precommit,
+								})
 							}
 						},
 					},
@@ -1394,18 +1358,10 @@ var _ = Describe("Replica", func() {
 					break
 				// else continue watching out for the mqSignal
 				case _ = <-mqSignal:
-					// this means the target consensus has been reached on every replica
-					if len(completionSignal) == 2*f {
-						panic("consensus should have stalled before this")
-					}
-
 					// kill a replica if there has been a kill signal
 					if len(killSignal) > 0 {
 						killIndex := <-killSignal
-						if _, ok := killedReplicas[killIndex]; !ok {
-							replicaCtxCancels[killIndex]()
-							killedReplicas[killIndex] = true
-						}
+						replicaCtxCancels[killIndex]()
 						continue
 					}
 
