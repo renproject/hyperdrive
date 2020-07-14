@@ -69,15 +69,15 @@ func (p MockProposer) Propose(height process.Height, round process.Round) proces
 // MockValidator is a mock implementation of the Validator interface
 // It always returns the MockValid value as its validation check
 type MockValidator struct {
-	MockValid func() bool
+	MockValid func(value process.Value) bool
 }
 
 // Valid implements the validation behaviour as required by the Validator interface
 // The MockValidator's valid method does not take into consideration the
 // received propose message, but simply returns the MockValid value as its
 // validation check
-func (v MockValidator) Valid(process.Value) bool {
-	return v.MockValid()
+func (v MockValidator) Valid(value process.Value) bool {
+	return v.MockValid(value)
 }
 
 // CatcherCallbacks provide callback functions to test the Catcher interface
