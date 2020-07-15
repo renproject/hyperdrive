@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"os"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/renproject/hyperdrive/process"
@@ -11,15 +14,11 @@ import (
 	"github.com/renproject/hyperdrive/replica"
 	"github.com/renproject/hyperdrive/timer"
 	"github.com/renproject/id"
+	"github.com/renproject/surge"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
-
-type Message struct {
-	to    int
-	value interface{}
-}
 
 // TODO: Implement the other scenarios.
 //
@@ -33,21 +32,80 @@ type Message struct {
 //    - Precommit: yes-to-malformed, no-to-valid, missing, fork-attempt, out-of-turn
 
 var _ = Describe("Replica", func() {
+	dumpToFile := func(filename string, scenario Scenario) {
+		file, err := os.Create(filename)
+		if err != nil {
+			fmt.Printf("unable to create dump file: %v\n", err)
+		}
+		defer file.Close()
+
+		fmt.Printf("dumping msg history to file %s\n", filename)
+
+		data := make([]byte, surge.SizeHint(scenario))
+		_, _, err = surge.Marshal(scenario, data, surge.SizeHint(scenario))
+		if err != nil {
+			fmt.Printf("unable to marshal scenario: %v\n", err)
+		}
+
+		_, err = file.Write(data)
+		if err != nil {
+			fmt.Printf("unable to write data to file: %v\n", err)
+		}
+	}
+
+	readFromFile := func(filename string) Scenario {
+		file, err := os.Open(filename)
+		if err != nil {
+			fmt.Printf("unable to open dump file: %v\n", err)
+		}
+		defer file.Close()
+
+		fmt.Printf("reading msg history from file %s\n", filename)
+
+		data := make([]byte, surge.MaxBytes)
+		_, err = file.Read(data)
+		if err != nil {
+			fmt.Printf("unable to read data from file: %v\n", err)
+		}
+
+		var scenario Scenario
+		_, _, err = surge.Unmarshal(&scenario, data, surge.MaxBytes)
+		if err != nil {
+			fmt.Printf("unable to unmarshal scenario: %v\n", err)
+		}
+
+		return scenario
+	}
+
 	Context("with 3f+1 replicas online", func() {
 		It("should be able to reach consensus", func() {
 			// randomness seed
 			rSeed := time.Now().UnixNano()
 			r := rand.New(rand.NewSource(rSeed))
 
+			// do we store message history
+			mh := os.Getenv("MESSAGE_HISTORY")
+			captureHistory, err := strconv.ParseBool(mh)
+			if err != nil {
+				panic("error reading environment variable MESSAGE_HISTORY")
+			}
+
+			// is this running the test in replay mode
+			rm := os.Getenv("REPLAY_MODE")
+			replayMode, err := strconv.ParseBool(rm)
+			if err != nil {
+				panic("error reading environment variable REPLAY_MODE")
+			}
+
 			// f is the maximum no. of adversaries
 			// n is the number of honest replicas online
 			// h is the target minimum consensus height
-			f := 10 + r.Intn(30)
+			f := uint8(3)
 			n := 3*f + 1
-			targetHeight := process.Height(30)
+			targetHeight := process.Height(15)
 
 			// commits from replicas
-			commits := make(map[int]map[process.Height]process.Value)
+			commits := make(map[uint8]map[process.Height]process.Value)
 
 			// setup private keys for the replicas
 			// and their signatories
@@ -56,7 +114,16 @@ var _ = Describe("Replica", func() {
 			for i := range privKeys {
 				privKeys[i] = id.NewPrivKey()
 				signatories[i] = privKeys[i].Signatory()
-				commits[i] = make(map[process.Height]process.Value)
+				commits[uint8(i)] = make(map[process.Height]process.Value)
+			}
+
+			// read from the dump file if we're replaying a test scenario
+			var scenario Scenario
+			if replayMode {
+				scenario = readFromFile("failure.dump")
+				f = scenario.f
+				n = scenario.n
+				signatories = scenario.signatories
 			}
 
 			// every replica sends this signal when they reach the target
@@ -66,13 +133,15 @@ var _ = Describe("Replica", func() {
 			// slice of messages to be broadcasted between replicas.
 			// messages from mq are popped and handled whenever mqSignal is signalled
 			mq := []Message{}
+			var mqMutex = &sync.Mutex{}
+			messageHistory := []Message{}
 			mqSignal := make(chan struct{}, n*n)
 			mqSignal <- struct{}{}
 
 			// build replicas
 			replicas := make([]*replica.Replica, n)
 			for i := range replicas {
-				replicaIndex := i
+				replicaIndex := uint8(i)
 
 				replicas[i] = replica.New(
 					replica.DefaultOptions(),
@@ -107,28 +176,37 @@ var _ = Describe("Replica", func() {
 					// Broadcaster
 					processutil.BroadcasterCallbacks{
 						BroadcastProposeCallback: func(propose process.Propose) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								mq = append(mq, Message{
-									to:    j,
-									value: propose,
+									to:          j,
+									messageType: 1,
+									value:       propose,
 								})
 							}
+							mqMutex.Unlock()
 						},
 						BroadcastPrevoteCallback: func(prevote process.Prevote) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								mq = append(mq, Message{
-									to:    j,
-									value: prevote,
+									to:          j,
+									messageType: 2,
+									value:       prevote,
 								})
 							}
+							mqMutex.Unlock()
 						},
 						BroadcastPrecommitCallback: func(precommit process.Precommit) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								mq = append(mq, Message{
-									to:    j,
-									value: precommit,
+									to:          j,
+									messageType: 3,
+									value:       precommit,
 								})
 							}
+							mqMutex.Unlock()
 						},
 					},
 					// Flusher
@@ -151,9 +229,33 @@ var _ = Describe("Replica", func() {
 				replicaCtxs[i], replicaCtxCancels[i] = context.WithCancel(ctx)
 			}
 
+			// in case the test fails to proceed to completion, we have a signal
+			// to mark it as failed
+			// this test should take 35 seconds to complete
+			failTestSignal := make(chan bool, 1)
+			if !replayMode {
+				go func() {
+					time.Sleep(20 * time.Second)
+					failTestSignal <- true
+				}()
+			}
+
 			// Run all of the replicas in independent background goroutines.
 			for i := range replicas {
 				go replicas[i].Run(replicaCtxs[i])
+			}
+
+			failTest := func() {
+				cancel()
+				if captureHistory {
+					dumpToFile("failure.dump", Scenario{
+						f:           f,
+						n:           n,
+						signatories: signatories,
+						messages:    messageHistory,
+					})
+				}
+				Fail("test failed to complete within the expected timeframe")
 			}
 
 			completion := func() {
@@ -164,7 +266,7 @@ var _ = Describe("Replica", func() {
 
 				// ensure that all replicas have the same commits
 				referenceCommits := commits[0]
-				for j := 0; j < n; j++ {
+				for j := uint8(0); j < n; j++ {
 					for h := process.Height(1); h <= targetHeight; {
 						Expect(commits[j][h]).To(Equal(referenceCommits[h]))
 						h++
@@ -173,37 +275,78 @@ var _ = Describe("Replica", func() {
 			}
 
 			time.Sleep(100 * time.Millisecond)
-			for range mqSignal {
-				// this means the target consensus has been reached on every replica
-				if len(completionSignal) == n {
-					completion()
-					break
+			isRunning := true
+			for isRunning && !replayMode {
+				select {
+				case _ = <-failTestSignal:
+					failTest()
+				case _ = <-mqSignal:
+					// this means the target consensus has been reached on every replica
+					if len(completionSignal) == int(n) {
+						completion()
+						isRunning = false
+						continue
+					}
+
+					mqMutex.Lock()
+					mqLen := len(mq)
+					mqMutex.Unlock()
+
+					if mqLen == 0 {
+						continue
+					}
+
+					// pop the first message
+					mqMutex.Lock()
+					m := mq[0]
+					mq = mq[1:]
+					mqMutex.Unlock()
+
+					// ignore if its a nil message
+					if m.value == nil {
+						continue
+					}
+
+					// append the message to message history
+					if captureHistory {
+						messageHistory = append(messageHistory, m)
+					}
+
+					// handle the message
+					time.Sleep(1 * time.Millisecond)
+					replica := replicas[m.to]
+					switch value := m.value.(type) {
+					case process.Propose:
+						replica.Propose(context.Background(), value)
+					case process.Prevote:
+						replica.Prevote(context.Background(), value)
+					case process.Precommit:
+						replica.Precommit(context.Background(), value)
+					default:
+						panic(fmt.Errorf("non-exhaustive pattern: message.value has type %T", value))
+					}
 				}
+			}
 
-				if len(mq) == 0 {
-					continue
-				}
+			if replayMode {
+				for _, message := range scenario.messages {
+					time.Sleep(5 * time.Millisecond)
 
-				// pop the first message
-				m := mq[0]
-				mq = mq[1:]
+					recipient := replicas[message.to]
+					switch value := message.value.(type) {
+					case process.Propose:
+						recipient.Propose(context.Background(), value)
+					case process.Prevote:
+						recipient.Prevote(context.Background(), value)
+					case process.Precommit:
+						recipient.Precommit(context.Background(), value)
+					default:
+						panic(fmt.Errorf("non-exhaustive pattern: message.value has type %T", value))
+					}
 
-				// ignore if its a nil message
-				if m.value == nil {
-					continue
-				}
-
-				// handle the message
-				replica := replicas[m.to]
-				switch value := m.value.(type) {
-				case process.Propose:
-					replica.Propose(context.Background(), value)
-				case process.Prevote:
-					replica.Prevote(context.Background(), value)
-				case process.Precommit:
-					replica.Precommit(context.Background(), value)
-				default:
-					panic(fmt.Errorf("non-exhaustive pattern: message.value has type %T", value))
+					if len(completionSignal) == int(n) {
+						completion()
+					}
 				}
 			}
 		})
@@ -218,12 +361,12 @@ var _ = Describe("Replica", func() {
 			// f is the maximum no. of adversaries
 			// n is the number of honest replicas online
 			// h is the target minimum consensus height
-			f := 10 + r.Intn(30)
+			f := uint8(3)
 			n := 2*f + 1
-			targetHeight := process.Height(30)
+			targetHeight := process.Height(12)
 
 			// commits from replicas
-			commits := make(map[int]map[process.Height]process.Value)
+			commits := make(map[uint8]map[process.Height]process.Value)
 
 			// setup private keys for the replicas
 			// and their signatories
@@ -232,7 +375,7 @@ var _ = Describe("Replica", func() {
 			for i := range privKeys {
 				privKeys[i] = id.NewPrivKey()
 				signatories[i] = privKeys[i].Signatory()
-				commits[i] = make(map[process.Height]process.Value)
+				commits[uint8(i)] = make(map[process.Height]process.Value)
 			}
 
 			// every replica sends this signal when they reach the target
@@ -242,16 +385,17 @@ var _ = Describe("Replica", func() {
 			// slice of messages to be broadcasted between replicas.
 			// messages from mq are popped and handled whenever mqSignal is signalled
 			mq := []Message{}
+			mqMutex := &sync.Mutex{}
 			mqSignal := make(chan struct{}, n*n)
 			mqSignal <- struct{}{}
 
 			// build replicas
 			replicas := make([]*replica.Replica, n)
 			for i := range replicas {
-				replicaIndex := i
+				replicaIndex := uint8(i)
 
 				replicas[i] = replica.New(
-					replica.DefaultOptions(),
+					replica.DefaultOptions().WithTimerOptions(timer.DefaultOptions().WithTimeout(1*time.Second)),
 					signatories[i],
 					signatories,
 					// Proposer
@@ -283,28 +427,37 @@ var _ = Describe("Replica", func() {
 					// Broadcaster
 					processutil.BroadcasterCallbacks{
 						BroadcastProposeCallback: func(propose process.Propose) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								mq = append(mq, Message{
-									to:    j,
-									value: propose,
+									to:          j,
+									messageType: 1,
+									value:       propose,
 								})
 							}
+							mqMutex.Unlock()
 						},
 						BroadcastPrevoteCallback: func(prevote process.Prevote) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								mq = append(mq, Message{
-									to:    j,
-									value: prevote,
+									to:          j,
+									messageType: 2,
+									value:       prevote,
 								})
 							}
+							mqMutex.Unlock()
 						},
 						BroadcastPrecommitCallback: func(precommit process.Precommit) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								mq = append(mq, Message{
-									to:    j,
-									value: precommit,
+									to:          j,
+									messageType: 3,
+									value:       precommit,
 								})
 							}
+							mqMutex.Unlock()
 						},
 					},
 					// Flusher
@@ -319,6 +472,15 @@ var _ = Describe("Replica", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			// in case the test fails to proceed to completion, we have a signal
+			// to mark it as failed
+			// this test should take 30 seconds to complete
+			failTestSignal := make(chan bool, 1)
+			go func() {
+				time.Sleep(40 * time.Second)
+				failTestSignal <- true
+			}()
+
 			// From the global context, create per-replica contexts that can be used to
 			// cancel replicas independently of one another. This is useful when we want
 			// to simulate replicas "crashing" and "restarting" during consensus.
@@ -332,6 +494,11 @@ var _ = Describe("Replica", func() {
 				go replicas[i].Run(replicaCtxs[i])
 			}
 
+			failTest := func() {
+				cancel()
+				Fail("test failed to complete within the expected timeframe")
+			}
+
 			completion := func() {
 				// cancel the replica contexts
 				for i := range replicaCtxs {
@@ -340,7 +507,7 @@ var _ = Describe("Replica", func() {
 
 				// ensure that all replicas have the same commits
 				referenceCommits := commits[0]
-				for j := 0; j < n; j++ {
+				for j := uint8(0); j < n; j++ {
 					for h := process.Height(1); h <= targetHeight; {
 						Expect(commits[j][h]).To(Equal(referenceCommits[h]))
 						h++
@@ -349,32 +516,45 @@ var _ = Describe("Replica", func() {
 			}
 
 			time.Sleep(100 * time.Millisecond)
-			for range mqSignal {
-				// this means the target consensus has been reached on every replica
-				if len(completionSignal) == n {
-					completion()
-					break
-				}
+			isRunning := true
+			for isRunning {
+				select {
+				case _ = <-failTestSignal:
+					failTest()
+				case _ = <-mqSignal:
+					// this means the target consensus has been reached on every replica
+					if len(completionSignal) == int(n) {
+						completion()
+						isRunning = false
+						continue
+					}
 
-				if len(mq) == 0 {
-					continue
-				}
+					mqMutex.Lock()
+					mqLen := len(mq)
+					mqMutex.Unlock()
+					if mqLen == 0 {
+						continue
+					}
 
-				// pop the first message
-				m := mq[0]
-				mq = mq[1:]
+					// pop the first message
+					mqMutex.Lock()
+					m := mq[0]
+					mq = mq[1:]
+					mqMutex.Unlock()
 
-				// handle the message
-				replica := replicas[m.to]
-				switch value := m.value.(type) {
-				case process.Propose:
-					replica.Propose(context.Background(), value)
-				case process.Prevote:
-					replica.Prevote(context.Background(), value)
-				case process.Precommit:
-					replica.Precommit(context.Background(), value)
-				default:
-					panic(fmt.Errorf("non-exhaustive pattern: message.value has type %T", value))
+					// handle the message
+					time.Sleep(5 * time.Millisecond)
+					replica := replicas[m.to]
+					switch value := m.value.(type) {
+					case process.Propose:
+						replica.Propose(context.Background(), value)
+					case process.Prevote:
+						replica.Prevote(context.Background(), value)
+					case process.Precommit:
+						replica.Precommit(context.Background(), value)
+					default:
+						panic(fmt.Errorf("non-exhaustive pattern: message.value has type %T", value))
+					}
 				}
 			}
 		})
@@ -389,12 +569,12 @@ var _ = Describe("Replica", func() {
 			// f is the maximum no. of adversaries
 			// n is the number of honest replicas online
 			// h is the target minimum consensus height
-			f := 3
+			f := uint8(3)
 			n := 3*f + 1
 			targetHeight := process.Height(12)
 
 			// commits from replicas
-			commits := make(map[int]map[process.Height]process.Value)
+			commits := make(map[uint8]map[process.Height]process.Value)
 
 			// setup private keys for the replicas
 			// and their signatories
@@ -403,7 +583,7 @@ var _ = Describe("Replica", func() {
 			for i := range privKeys {
 				privKeys[i] = id.NewPrivKey()
 				signatories[i] = privKeys[i].Signatory()
-				commits[i] = make(map[process.Height]process.Value)
+				commits[uint8(i)] = make(map[process.Height]process.Value)
 			}
 
 			// every replica sends this signal when they reach the target
@@ -412,8 +592,8 @@ var _ = Describe("Replica", func() {
 
 			// replicas randomly send this signal that kills them
 			// this is to simulate a behaviour where f replicas go offline
-			killedReplicas := make(map[int]bool)
-			killSignal := make(chan int, f)
+			killedReplicas := make(map[uint8]bool)
+			killSignal := make(chan uint8, f)
 
 			// lastKilled stores the last height at which a replica was killed
 			// killInterval is the number of blocks progressed after which
@@ -424,13 +604,14 @@ var _ = Describe("Replica", func() {
 			// slice of messages to be broadcasted between replicas.
 			// messages from mq are popped and handled whenever mqSignal is signalled
 			mq := []Message{}
+			mqMutex := &sync.Mutex{}
 			mqSignal := make(chan struct{}, n*n)
 			mqSignal <- struct{}{}
 
 			// build replicas
 			replicas := make([]*replica.Replica, n)
 			for i := range replicas {
-				replicaIndex := i
+				replicaIndex := uint8(i)
 
 				replicas[i] = replica.New(
 					replica.DefaultOptions().
@@ -467,12 +648,14 @@ var _ = Describe("Replica", func() {
 
 							// kill this replica if we've progressed the killInterval number
 							// of blocks, and there are more than 2f+1 replica alive
+							mqMutex.Lock()
 							if height-lastKilled > killInterval {
-								if len(killedReplicas) < f {
+								if len(killedReplicas) < int(f) {
 									killSignal <- replicaIndex
 									lastKilled = height
 								}
 							}
+							mqMutex.Unlock()
 						},
 					},
 					// Catcher
@@ -480,7 +663,8 @@ var _ = Describe("Replica", func() {
 					// Broadcaster
 					processutil.BroadcasterCallbacks{
 						BroadcastProposeCallback: func(propose process.Propose) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								if _, ok := killedReplicas[j]; !ok {
 									mq = append(mq, Message{
 										to:    j,
@@ -488,9 +672,11 @@ var _ = Describe("Replica", func() {
 									})
 								}
 							}
+							mqMutex.Unlock()
 						},
 						BroadcastPrevoteCallback: func(prevote process.Prevote) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								if _, ok := killedReplicas[j]; !ok {
 									mq = append(mq, Message{
 										to:    j,
@@ -498,9 +684,11 @@ var _ = Describe("Replica", func() {
 									})
 								}
 							}
+							mqMutex.Unlock()
 						},
 						BroadcastPrecommitCallback: func(precommit process.Precommit) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								if _, ok := killedReplicas[j]; !ok {
 									mq = append(mq, Message{
 										to:    j,
@@ -508,6 +696,7 @@ var _ = Describe("Replica", func() {
 									})
 								}
 							}
+							mqMutex.Unlock()
 						},
 					},
 					// Flusher
@@ -527,7 +716,7 @@ var _ = Describe("Replica", func() {
 			// this test should take 30 seconds to complete
 			failTestSignal := make(chan bool, 1)
 			go func() {
-				time.Sleep(45 * time.Second)
+				time.Sleep(60 * time.Second)
 				failTestSignal <- true
 			}()
 
@@ -551,7 +740,7 @@ var _ = Describe("Replica", func() {
 				}
 
 				// ensure that all replicas have the same commits
-				for i := 0; i < n; i++ {
+				for i := uint8(0); i < n; i++ {
 					if _, ok := killedReplicas[i]; !ok {
 						// from the first replica that's alive
 						referenceCommits := commits[i]
@@ -568,7 +757,7 @@ var _ = Describe("Replica", func() {
 
 			failTest := func() {
 				cancel()
-				panic("test failed to complete within the expected timeframe")
+				Fail("test failed to complete within the expected timeframe")
 			}
 
 			time.Sleep(100 * time.Millisecond)
@@ -581,9 +770,10 @@ var _ = Describe("Replica", func() {
 				// else continue watching out for the mqSignal
 				case _ = <-mqSignal:
 					// this means the target consensus has been reached on every replica
-					if len(completionSignal) == 2*f+1 {
+					if len(completionSignal) == int(2*f+1) {
 						completion()
 						isRunning = false
+						continue
 					}
 
 					// kill a replica if there has been a kill signal
@@ -594,14 +784,20 @@ var _ = Describe("Replica", func() {
 						continue
 					}
 
+					mqMutex.Lock()
+					mqLen := len(mq)
+					mqMutex.Unlock()
+
 					// ignore if there isn't any message
-					if len(mq) == 0 {
+					if mqLen == 0 {
 						continue
 					}
 
 					// pop the first message
+					mqMutex.Lock()
 					m := mq[0]
 					mq = mq[1:]
+					mqMutex.Unlock()
 
 					// ignore if its a nil message
 					if m.value == nil {
@@ -609,7 +805,7 @@ var _ = Describe("Replica", func() {
 					}
 
 					// handle the message
-					time.Sleep(5 * time.Millisecond)
+					time.Sleep(10 * time.Millisecond)
 					replica := replicas[m.to]
 					switch value := m.value.(type) {
 					case process.Propose:
@@ -636,12 +832,12 @@ var _ = Describe("Replica", func() {
 				// f is the maximum no. of adversaries
 				// n is the number of honest replicas online
 				// h is the target minimum consensus height
-				f := 3
+				f := uint8(3)
 				n := 3*f + 1
 				targetHeight := process.Height(12)
 
 				// commits from replicas
-				commits := make(map[int]map[process.Height]process.Value)
+				commits := make(map[uint8]map[process.Height]process.Value)
 
 				// setup private keys for the replicas
 				// and their signatories
@@ -650,7 +846,7 @@ var _ = Describe("Replica", func() {
 				for i := range privKeys {
 					privKeys[i] = id.NewPrivKey()
 					signatories[i] = privKeys[i].Signatory()
-					commits[i] = make(map[process.Height]process.Value)
+					commits[uint8(i)] = make(map[process.Height]process.Value)
 				}
 
 				// every replica sends this signal when they reach the target
@@ -660,13 +856,14 @@ var _ = Describe("Replica", func() {
 				// slice of messages to be broadcasted between replicas.
 				// messages from mq are popped and handled whenever mqSignal is signalled
 				mq := []Message{}
+				mqMutex := &sync.Mutex{}
 				mqSignal := make(chan struct{}, n*n)
 				mqSignal <- struct{}{}
 
 				// build replicas
 				replicas := make([]*replica.Replica, n)
 				for i := range replicas {
-					replicaIndex := i
+					replicaIndex := uint8(i)
 
 					replicas[i] = replica.New(
 						replica.DefaultOptions().
@@ -716,28 +913,34 @@ var _ = Describe("Replica", func() {
 						// Broadcaster
 						processutil.BroadcasterCallbacks{
 							BroadcastProposeCallback: func(propose process.Propose) {
-								for j := 0; j < n; j++ {
+								mqMutex.Lock()
+								for j := uint8(0); j < n; j++ {
 									mq = append(mq, Message{
 										to:    j,
 										value: propose,
 									})
 								}
+								mqMutex.Unlock()
 							},
 							BroadcastPrevoteCallback: func(prevote process.Prevote) {
-								for j := 0; j < n; j++ {
+								mqMutex.Lock()
+								for j := uint8(0); j < n; j++ {
 									mq = append(mq, Message{
 										to:    j,
 										value: prevote,
 									})
 								}
+								mqMutex.Unlock()
 							},
 							BroadcastPrecommitCallback: func(precommit process.Precommit) {
-								for j := 0; j < n; j++ {
+								mqMutex.Lock()
+								for j := uint8(0); j < n; j++ {
 									mq = append(mq, Message{
 										to:    j,
 										value: precommit,
 									})
 								}
+								mqMutex.Unlock()
 							},
 						},
 						// Flusher
@@ -782,7 +985,7 @@ var _ = Describe("Replica", func() {
 
 					// ensure that all replicas have the same commits
 					referenceCommits := commits[0]
-					for j := 1; j < n; j++ {
+					for j := uint8(1); j < n; j++ {
 						for h := process.Height(1); h <= targetHeight; {
 							Expect(commits[j][h]).To(Equal(referenceCommits[h]))
 							h++
@@ -792,7 +995,7 @@ var _ = Describe("Replica", func() {
 
 				failTest := func() {
 					cancel()
-					panic("test failed to complete within the expected timeframe")
+					Fail("test failed to complete within the expected timeframe")
 				}
 
 				time.Sleep(100 * time.Millisecond)
@@ -805,19 +1008,25 @@ var _ = Describe("Replica", func() {
 						// else continue watching out for the mqSignal
 					case _ = <-mqSignal:
 						// this means the target consensus has been reached on every replica
-						if len(completionSignal) == 3*f+1 {
+						if len(completionSignal) == int(3*f+1) {
 							completion()
 							isRunning = false
 						}
 
+						mqMutex.Lock()
+						mqLen := len(mq)
+						mqMutex.Unlock()
+
 						// ignore if there isn't any message
-						if len(mq) == 0 {
+						if mqLen == 0 {
 							continue
 						}
 
 						// pop the first message
+						mqMutex.Lock()
 						m := mq[0]
 						mq = mq[1:]
+						mqMutex.Unlock()
 
 						// ignore if its a nil message
 						if m.value == nil {
@@ -851,12 +1060,12 @@ var _ = Describe("Replica", func() {
 				// f is the maximum no. of adversaries
 				// n is the number of honest replicas online
 				// h is the target minimum consensus height
-				f := 3
+				f := uint8(3)
 				n := 3*f + 1
 				targetHeight := process.Height(12)
 
 				// commits from replicas
-				commits := make(map[int]map[process.Height]process.Value)
+				commits := make(map[uint8]map[process.Height]process.Value)
 
 				// setup private keys for the replicas
 				// and their signatories
@@ -865,7 +1074,7 @@ var _ = Describe("Replica", func() {
 				for i := range privKeys {
 					privKeys[i] = id.NewPrivKey()
 					signatories[i] = privKeys[i].Signatory()
-					commits[i] = make(map[process.Height]process.Value)
+					commits[uint8(i)] = make(map[process.Height]process.Value)
 				}
 
 				// every replica sends this signal when they reach the target
@@ -875,13 +1084,14 @@ var _ = Describe("Replica", func() {
 				// slice of messages to be broadcasted between replicas.
 				// messages from mq are popped and handled whenever mqSignal is signalled
 				mq := []Message{}
+				mqMutex := &sync.Mutex{}
 				mqSignal := make(chan struct{}, n*n)
 				mqSignal <- struct{}{}
 
 				// build replicas
 				replicas := make([]*replica.Replica, n)
 				for i := range replicas {
-					replicaIndex := i
+					replicaIndex := uint8(i)
 
 					replicas[i] = replica.New(
 						replica.DefaultOptions().
@@ -938,28 +1148,34 @@ var _ = Describe("Replica", func() {
 						// Broadcaster
 						processutil.BroadcasterCallbacks{
 							BroadcastProposeCallback: func(propose process.Propose) {
-								for j := 0; j < n; j++ {
+								mqMutex.Lock()
+								for j := uint8(0); j < n; j++ {
 									mq = append(mq, Message{
 										to:    j,
 										value: propose,
 									})
 								}
+								mqMutex.Unlock()
 							},
 							BroadcastPrevoteCallback: func(prevote process.Prevote) {
-								for j := 0; j < n; j++ {
+								mqMutex.Lock()
+								for j := uint8(0); j < n; j++ {
 									mq = append(mq, Message{
 										to:    j,
 										value: prevote,
 									})
 								}
+								mqMutex.Unlock()
 							},
 							BroadcastPrecommitCallback: func(precommit process.Precommit) {
-								for j := 0; j < n; j++ {
+								mqMutex.Lock()
+								for j := uint8(0); j < n; j++ {
 									mq = append(mq, Message{
 										to:    j,
 										value: precommit,
 									})
 								}
+								mqMutex.Unlock()
 							},
 						},
 						// Flusher
@@ -1014,7 +1230,7 @@ var _ = Describe("Replica", func() {
 
 				failTest := func() {
 					cancel()
-					panic("test failed to complete within the expected timeframe")
+					Fail("test failed to complete within the expected timeframe")
 				}
 
 				time.Sleep(100 * time.Millisecond)
@@ -1027,19 +1243,25 @@ var _ = Describe("Replica", func() {
 						// else continue watching out for the mqSignal
 					case _ = <-mqSignal:
 						// this means the target consensus has been reached on every replica
-						if len(completionSignal) == 2*f+1 {
+						if len(completionSignal) == int(2*f+1) {
 							completion()
 							isRunning = false
 						}
 
+						mqMutex.Lock()
+						mqLen := len(mq)
+						mqMutex.Unlock()
+
 						// ignore if there isn't any message
-						if len(mq) == 0 {
+						if mqLen == 0 {
 							continue
 						}
 
 						// pop the first message
+						mqMutex.Lock()
 						m := mq[0]
 						mq = mq[1:]
+						mqMutex.Unlock()
 
 						// ignore if its a nil message
 						if m.value == nil {
@@ -1074,7 +1296,7 @@ var _ = Describe("Replica", func() {
 			// f is the maximum no. of adversaries
 			// n is the number of honest replicas online
 			// h is the target minimum consensus height
-			f := 3
+			f := uint8(3)
 			n := 2 * f
 
 			// setup private keys for the replicas
@@ -1089,6 +1311,7 @@ var _ = Describe("Replica", func() {
 			// slice of messages to be broadcasted between replicas.
 			// messages from mq are popped and handled whenever mqSignal is signalled
 			mq := []Message{}
+			mqMutex := &sync.Mutex{}
 			mqSignal := make(chan struct{}, n*n)
 			mqSignal <- struct{}{}
 
@@ -1117,7 +1340,7 @@ var _ = Describe("Replica", func() {
 						Callback: func(height process.Height, value process.Value) {
 							// we don't expect any progress since we are one short of
 							// 2f+1 replicas
-							panic("consensus should have stalled")
+							Fail("consensus should have stalled")
 						},
 					},
 					// Catcher
@@ -1125,28 +1348,34 @@ var _ = Describe("Replica", func() {
 					// Broadcaster
 					processutil.BroadcasterCallbacks{
 						BroadcastProposeCallback: func(propose process.Propose) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								mq = append(mq, Message{
 									to:    j,
 									value: propose,
 								})
 							}
+							mqMutex.Unlock()
 						},
 						BroadcastPrevoteCallback: func(prevote process.Prevote) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								mq = append(mq, Message{
 									to:    j,
 									value: prevote,
 								})
 							}
+							mqMutex.Unlock()
 						},
 						BroadcastPrecommitCallback: func(precommit process.Precommit) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								mq = append(mq, Message{
 									to:    j,
 									value: precommit,
 								})
 							}
+							mqMutex.Unlock()
 						},
 					},
 					// Flusher
@@ -1190,13 +1419,19 @@ var _ = Describe("Replica", func() {
 					isRunning = false
 					break
 				case _ = <-mqSignal:
-					if len(mq) == 0 {
+					mqMutex.Lock()
+					mqLen := len(mq)
+					mqMutex.Unlock()
+
+					if mqLen == 0 {
 						continue
 					}
 
 					// pop the first message
+					mqMutex.Lock()
 					m := mq[0]
 					mq = mq[1:]
+					mqMutex.Unlock()
 
 					// handle the message
 					replica := replicas[m.to]
@@ -1223,7 +1458,7 @@ var _ = Describe("Replica", func() {
 
 			// f is the maximum no. of adversaries
 			// n is the number of honest replicas online
-			f := 3
+			f := uint8(3)
 			n := 2*f + 1
 			intermTargetHeight := process.Height(6)
 
@@ -1242,6 +1477,7 @@ var _ = Describe("Replica", func() {
 			// slice of messages to be broadcasted between replicas.
 			// messages from mq are popped and handled whenever mqSignal is signalled
 			mq := []Message{}
+			mqMutex := &sync.Mutex{}
 			mqSignal := make(chan struct{}, n*n)
 			mqSignal <- struct{}{}
 
@@ -1275,7 +1511,7 @@ var _ = Describe("Replica", func() {
 							// if consensus progresses and any commit above the intermediate
 							// target height is found, it is unexpected behaviour
 							if height > intermTargetHeight {
-								panic("consensus should have stalled")
+								Fail("consensus should have stalled")
 							}
 
 							// at the intermediate target height, we kill the first replica
@@ -1290,28 +1526,34 @@ var _ = Describe("Replica", func() {
 					// Broadcaster
 					processutil.BroadcasterCallbacks{
 						BroadcastProposeCallback: func(propose process.Propose) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								mq = append(mq, Message{
 									to:    j,
 									value: propose,
 								})
 							}
+							mqMutex.Unlock()
 						},
 						BroadcastPrevoteCallback: func(prevote process.Prevote) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								mq = append(mq, Message{
 									to:    j,
 									value: prevote,
 								})
 							}
+							mqMutex.Unlock()
 						},
 						BroadcastPrecommitCallback: func(precommit process.Precommit) {
-							for j := 0; j < n; j++ {
+							mqMutex.Lock()
+							for j := uint8(0); j < n; j++ {
 								mq = append(mq, Message{
 									to:    j,
 									value: precommit,
 								})
 							}
+							mqMutex.Unlock()
 						},
 					},
 					// Flusher
@@ -1365,14 +1607,20 @@ var _ = Describe("Replica", func() {
 						continue
 					}
 
+					mqMutex.Lock()
+					mqLen := len(mq)
+					mqMutex.Unlock()
+
 					// ignore if there isn't any message
-					if len(mq) == 0 {
+					if mqLen == 0 {
 						continue
 					}
 
 					// pop the first message
+					mqMutex.Lock()
 					m := mq[0]
 					mq = mq[1:]
+					mqMutex.Unlock()
 
 					// ignore if its a nil message
 					if m.value == nil {
@@ -1397,3 +1645,156 @@ var _ = Describe("Replica", func() {
 		})
 	})
 })
+
+type Scenario struct {
+	f           uint8
+	n           uint8
+	signatories []id.Signatory
+	messages    []Message
+}
+
+func (s Scenario) SizeHint() int {
+	return surge.SizeHint(s.f) +
+		surge.SizeHint(s.n) +
+		surge.SizeHint(s.signatories) +
+		surge.SizeHint(s.messages)
+}
+
+func (s Scenario) Marshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Marshal(s.f, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling f=%v: %v", s.f, err)
+	}
+	buf, rem, err = surge.Marshal(s.n, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling n=%v: %v", s.n, err)
+	}
+	buf, rem, err = surge.Marshal(s.signatories, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling signatories=%v: %v", s.signatories, err)
+	}
+	buf, rem, err = surge.Marshal(s.messages, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling messages=%v: %v", s.messages, err)
+	}
+
+	return buf, rem, nil
+}
+
+func (s *Scenario) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Unmarshal(&s.f, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling f: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&s.n, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling n: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&s.signatories, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling signatories: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&s.messages, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling messages: %v", err)
+	}
+
+	return buf, rem, nil
+}
+
+type Message struct {
+	to          uint8
+	messageType uint8
+	value       surge.Marshaler
+}
+
+func (m Message) SizeHint() int {
+	switch value := m.value.(type) {
+	case process.Propose:
+		return surge.SizeHint(m.to) +
+			surge.SizeHint(m.messageType) +
+			surge.SizeHint(value)
+	case process.Prevote:
+		return surge.SizeHint(m.to) +
+			surge.SizeHint(m.messageType) +
+			surge.SizeHint(value)
+	case process.Precommit:
+		return surge.SizeHint(m.to) +
+			surge.SizeHint(m.messageType) +
+			surge.SizeHint(value)
+	default:
+		panic(fmt.Errorf("non-exhaustive pattern: message.value has type %T", value))
+	}
+}
+
+func (m Message) Marshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Marshal(m.to, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling to=%v: %v", m.to, err)
+	}
+	buf, rem, err = surge.Marshal(m.messageType, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling messageType=%v: %v", m.messageType, err)
+	}
+
+	switch value := m.value.(type) {
+	case process.Propose:
+		buf, rem, err = surge.Marshal(value, buf, rem)
+		if err != nil {
+			return buf, rem, fmt.Errorf("marshaling value=%v: %v", value, err)
+		}
+	case process.Prevote:
+		buf, rem, err = surge.Marshal(value, buf, rem)
+		if err != nil {
+			return buf, rem, fmt.Errorf("marshaling value=%v: %v", value, err)
+		}
+	case process.Precommit:
+		buf, rem, err = surge.Marshal(value, buf, rem)
+		if err != nil {
+			return buf, rem, fmt.Errorf("marshaling value=%v: %v", value, err)
+		}
+	default:
+		panic(fmt.Errorf("non-exhaustive pattern: message.value has type %T", value))
+	}
+
+	return buf, rem, nil
+}
+
+func (m *Message) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Unmarshal(&m.to, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling to: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&m.messageType, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling to: %v", err)
+	}
+
+	switch m.messageType {
+	case 1:
+		message := process.Propose{}
+		buf, rem, err = message.Unmarshal(buf, rem)
+		if err != nil {
+			return buf, rem, fmt.Errorf("unmarshaling value: %v", err)
+		}
+		m.value = message
+	case 2:
+		message := process.Prevote{}
+		buf, rem, err = message.Unmarshal(buf, rem)
+		if err != nil {
+			return buf, rem, fmt.Errorf("unmarshaling value: %v", err)
+		}
+		m.value = message
+	case 3:
+		message := process.Precommit{}
+		buf, rem, err = message.Unmarshal(buf, rem)
+		if err != nil {
+			return buf, rem, fmt.Errorf("unmarshaling value: %v", err)
+		}
+		m.value = message
+	default:
+		panic(fmt.Errorf("non-exhaustive pattern: messageType has type %T", m.messageType))
+	}
+
+	return buf, rem, nil
+}

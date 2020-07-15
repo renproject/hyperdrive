@@ -50,10 +50,11 @@ jobs:
                   export PATH=$PATH:$(go env GOPATH)/bin
                   cd $GITHUB_WORKSPACE
                   CI=true ginkgo --v --race --cover --coverprofile coverprofile.out ./...
-                  covermerge                        \
-                    scheduler/coverprofile.out  \
-                    timer/coverprofile.out      \
-                    mq/coverprofile.out         \
-                    process/coverprofile.out    \
+                  covermerge                   \
+                    scheduler/coverprofile.out \
+                    timer/coverprofile.out     \
+                    mq/coverprofile.out        \
+                    process/coverprofile.out   \
+                    replica/coverprofile.out   \
                     coverprofile.out > coverprofile.out
                   goveralls -coverprofile=coverprofile.out -service=github
