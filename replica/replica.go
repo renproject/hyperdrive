@@ -2,6 +2,7 @@ package replica
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/renproject/hyperdrive/mq"
 	"github.com/renproject/hyperdrive/process"
@@ -115,6 +116,7 @@ func (replica *Replica) Run(ctx context.Context) {
 				replica.proc.OnTimeoutPrecommit(timeout.Height, timeout.Round)
 
 			case propose := <-replica.onPropose:
+				fmt.Printf("received [propose] = %v\n", propose)
 				if !replica.filterHeight(propose.Height) {
 					return
 				}
@@ -123,6 +125,7 @@ func (replica *Replica) Run(ctx context.Context) {
 				}
 				replica.mq.InsertPropose(propose)
 			case prevote := <-replica.onPrevote:
+				fmt.Printf("received [prevote] = %v\n", prevote)
 				if !replica.filterHeight(prevote.Height) {
 					return
 				}
@@ -131,6 +134,7 @@ func (replica *Replica) Run(ctx context.Context) {
 				}
 				replica.mq.InsertPrevote(prevote)
 			case precommit := <-replica.onPrecommit:
+				fmt.Printf("received [precommit] = %v\n", precommit)
 				if !replica.filterHeight(precommit.Height) {
 					return
 				}

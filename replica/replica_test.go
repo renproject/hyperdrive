@@ -78,7 +78,7 @@ var _ = Describe("Replica", func() {
 	}
 
 	Context("with 3f+1 replicas online", func() {
-		It("should be able to reach consensus", func() {
+		FIt("should be able to reach consensus", func() {
 			// randomness seed
 			rSeed := time.Now().UnixNano()
 			r := rand.New(rand.NewSource(rSeed))
@@ -100,9 +100,9 @@ var _ = Describe("Replica", func() {
 			// f is the maximum no. of adversaries
 			// n is the number of honest replicas online
 			// h is the target minimum consensus height
-			f := uint8(3)
+			f := uint8(1)
 			n := 3*f + 1
-			targetHeight := process.Height(15)
+			targetHeight := process.Height(50)
 
 			// commits from replicas
 			commits := make(map[uint8]map[process.Height]process.Value)
@@ -235,7 +235,7 @@ var _ = Describe("Replica", func() {
 			failTestSignal := make(chan bool, 1)
 			if !replayMode {
 				go func() {
-					time.Sleep(20 * time.Second)
+					time.Sleep(2 * time.Second)
 					failTestSignal <- true
 				}()
 			}
@@ -335,10 +335,13 @@ var _ = Describe("Replica", func() {
 					recipient := replicas[message.to]
 					switch value := message.value.(type) {
 					case process.Propose:
+						fmt.Printf("sending [propose] = %v\n", value)
 						recipient.Propose(context.Background(), value)
 					case process.Prevote:
+						fmt.Printf("sending [prevote] = %v\n", value)
 						recipient.Prevote(context.Background(), value)
 					case process.Precommit:
+						fmt.Printf("sending [precommit] = %v\n", value)
 						recipient.Precommit(context.Background(), value)
 					default:
 						panic(fmt.Errorf("non-exhaustive pattern: message.value has type %T", value))
