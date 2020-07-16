@@ -48,7 +48,6 @@ jobs:
                   COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
                   export PATH=$PATH:$(go env GOPATH)/bin
-                  export MESSAGE_HISTORY=false
                   export REPLAY_MODE=false
                   cd $GITHUB_WORKSPACE
                   CI=true ginkgo --v --race --cover --coverprofile coverprofile.out ./...

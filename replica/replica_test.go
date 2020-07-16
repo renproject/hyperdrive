@@ -78,17 +78,10 @@ var _ = Describe("Replica", func() {
 	}
 
 	Context("with 3f+1 replicas online", func() {
-		FIt("should be able to reach consensus", func() {
+		It("should be able to reach consensus", func() {
 			// randomness seed
 			rSeed := time.Now().UnixNano()
 			r := rand.New(rand.NewSource(rSeed))
-
-			// do we store message history
-			mh := os.Getenv("MESSAGE_HISTORY")
-			captureHistory, err := strconv.ParseBool(mh)
-			if err != nil {
-				panic("error reading environment variable MESSAGE_HISTORY")
-			}
 
 			// is this running the test in replay mode
 			rm := os.Getenv("REPLAY_MODE")
@@ -100,7 +93,7 @@ var _ = Describe("Replica", func() {
 			// f is the maximum no. of adversaries
 			// n is the number of honest replicas online
 			// h is the target minimum consensus height
-			f := uint8(1)
+			f := uint8(3)
 			n := 3*f + 1
 			targetHeight := process.Height(50)
 
@@ -235,7 +228,7 @@ var _ = Describe("Replica", func() {
 			failTestSignal := make(chan bool, 1)
 			if !replayMode {
 				go func() {
-					time.Sleep(2 * time.Second)
+					time.Sleep(30 * time.Second)
 					failTestSignal <- true
 				}()
 			}
@@ -247,14 +240,12 @@ var _ = Describe("Replica", func() {
 
 			failTest := func() {
 				cancel()
-				if captureHistory {
-					dumpToFile("failure.dump", Scenario{
-						f:           f,
-						n:           n,
-						signatories: signatories,
-						messages:    messageHistory,
-					})
-				}
+				dumpToFile("failure.dump", Scenario{
+					f:           f,
+					n:           n,
+					signatories: signatories,
+					messages:    messageHistory,
+				})
 				Fail("test failed to complete within the expected timeframe")
 			}
 
@@ -308,9 +299,7 @@ var _ = Describe("Replica", func() {
 					}
 
 					// append the message to message history
-					if captureHistory {
-						messageHistory = append(messageHistory, m)
-					}
+					messageHistory = append(messageHistory, m)
 
 					// handle the message
 					time.Sleep(1 * time.Millisecond)
@@ -329,19 +318,20 @@ var _ = Describe("Replica", func() {
 			}
 
 			if replayMode {
+				go func() {
+					for range mqSignal {
+					}
+				}()
 				for _, message := range scenario.messages {
-					time.Sleep(5 * time.Millisecond)
+					time.Sleep(1 * time.Millisecond)
 
 					recipient := replicas[message.to]
 					switch value := message.value.(type) {
 					case process.Propose:
-						fmt.Printf("sending [propose] = %v\n", value)
 						recipient.Propose(context.Background(), value)
 					case process.Prevote:
-						fmt.Printf("sending [prevote] = %v\n", value)
 						recipient.Prevote(context.Background(), value)
 					case process.Precommit:
-						fmt.Printf("sending [precommit] = %v\n", value)
 						recipient.Precommit(context.Background(), value)
 					default:
 						panic(fmt.Errorf("non-exhaustive pattern: message.value has type %T", value))
@@ -349,6 +339,7 @@ var _ = Describe("Replica", func() {
 
 					if len(completionSignal) == int(n) {
 						completion()
+						break
 					}
 				}
 			}
@@ -366,7 +357,7 @@ var _ = Describe("Replica", func() {
 			// h is the target minimum consensus height
 			f := uint8(3)
 			n := 2*f + 1
-			targetHeight := process.Height(12)
+			targetHeight := process.Height(30)
 
 			// commits from replicas
 			commits := make(map[uint8]map[process.Height]process.Value)
@@ -398,7 +389,11 @@ var _ = Describe("Replica", func() {
 				replicaIndex := uint8(i)
 
 				replicas[i] = replica.New(
-					replica.DefaultOptions().WithTimerOptions(timer.DefaultOptions().WithTimeout(1*time.Second)),
+					replica.DefaultOptions().
+						WithTimerOptions(
+							timer.DefaultOptions().
+								WithTimeout(1*time.Second),
+						),
 					signatories[i],
 					signatories,
 					// Proposer
@@ -480,7 +475,7 @@ var _ = Describe("Replica", func() {
 			// this test should take 30 seconds to complete
 			failTestSignal := make(chan bool, 1)
 			go func() {
-				time.Sleep(40 * time.Second)
+				time.Sleep(60 * time.Second)
 				failTestSignal <- true
 			}()
 
@@ -546,7 +541,7 @@ var _ = Describe("Replica", func() {
 					mqMutex.Unlock()
 
 					// handle the message
-					time.Sleep(5 * time.Millisecond)
+					time.Sleep(1 * time.Millisecond)
 					replica := replicas[m.to]
 					switch value := m.value.(type) {
 					case process.Propose:
@@ -808,7 +803,7 @@ var _ = Describe("Replica", func() {
 					}
 
 					// handle the message
-					time.Sleep(10 * time.Millisecond)
+					time.Sleep(1 * time.Millisecond)
 					replica := replicas[m.to]
 					switch value := m.value.(type) {
 					case process.Propose:
@@ -1037,7 +1032,7 @@ var _ = Describe("Replica", func() {
 						}
 
 						// handle the message
-						time.Sleep(5 * time.Millisecond)
+						time.Sleep(1 * time.Millisecond)
 						replica := replicas[m.to]
 						switch value := m.value.(type) {
 						case process.Propose:
@@ -1272,7 +1267,7 @@ var _ = Describe("Replica", func() {
 						}
 
 						// handle the message
-						time.Sleep(5 * time.Millisecond)
+						time.Sleep(1 * time.Millisecond)
 						replica := replicas[m.to]
 						switch value := m.value.(type) {
 						case process.Propose:
@@ -1631,7 +1626,7 @@ var _ = Describe("Replica", func() {
 					}
 
 					// handle the message
-					time.Sleep(5 * time.Millisecond)
+					time.Sleep(1 * time.Millisecond)
 					replica := replicas[m.to]
 					switch value := m.value.(type) {
 					case process.Propose:
