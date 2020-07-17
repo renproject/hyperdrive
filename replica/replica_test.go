@@ -271,6 +271,7 @@ var _ = Describe("Replica", func() {
 
 	replay := func(
 		scenario *Scenario,
+		mqMutex *sync.Mutex,
 		mqSignal chan struct{},
 		completionSignal chan bool,
 		replicas []*replica.Replica,
@@ -300,12 +301,16 @@ var _ = Describe("Replica", func() {
 					panic(fmt.Errorf("non-exhaustive pattern: message.value has type %T", value))
 				}
 
+				mqMutex.Lock()
 				inspectFn(scenario)
+				mqMutex.Unlock()
 			}
 
 			// exit replay if the consensus target has been achieved
 			if len(completionSignal) == int(scenario.completion) {
+				mqMutex.Lock()
 				successFn()
+				mqMutex.Unlock()
 				break
 			}
 		}
@@ -375,7 +380,7 @@ var _ = Describe("Replica", func() {
 				}
 
 				if replayMode {
-					replay(&scenario, mqSignal, completionSignal, replicas, &killedReplicas, successFn, inspectFn)
+					replay(&scenario, mqMutex, mqSignal, completionSignal, replicas, &killedReplicas, successFn, inspectFn)
 				}
 			})
 		})
@@ -443,7 +448,7 @@ var _ = Describe("Replica", func() {
 				}
 
 				if replayMode {
-					replay(&scenario, mqSignal, completionSignal, replicas, &killedReplicas, successFn, inspectFn)
+					replay(&scenario, mqMutex, mqSignal, completionSignal, replicas, &killedReplicas, successFn, inspectFn)
 				}
 			})
 		})
@@ -537,7 +542,7 @@ var _ = Describe("Replica", func() {
 			}
 
 			if replayMode {
-				replay(&scenario, mqSignal, completionSignal, replicas, &killedReplicas, successFn, inspectFn)
+				replay(&scenario, mqMutex, mqSignal, completionSignal, replicas, &killedReplicas, successFn, inspectFn)
 			}
 		})
 	})
