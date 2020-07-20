@@ -175,6 +175,12 @@ func (replica *Replica) Precommit(ctx context.Context, precommit process.Precomm
 	}
 }
 
+// CurrentHeight returns the height (in terms of block number) that the replica
+// is currently at
+func (replica Replica) CurrentHeight() process.Height {
+	return replica.proc.State.CurrentHeight
+}
+
 func (replica *Replica) filterHeight(height process.Height) bool {
 	return height >= replica.proc.CurrentHeight
 }
