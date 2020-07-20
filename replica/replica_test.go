@@ -803,6 +803,7 @@ var _ = Describe("Replica", func() {
 	})
 })
 
+// Scenario describes a test scenario with test configuration and message history
 type Scenario struct {
 	seed        int64
 	f           uint8
@@ -812,6 +813,7 @@ type Scenario struct {
 	messages    []Message
 }
 
+// SizeHint implements surge SizeHinter for Scenario
 func (s Scenario) SizeHint() int {
 	return surge.SizeHint(s.seed) +
 		surge.SizeHint(s.f) +
@@ -821,6 +823,7 @@ func (s Scenario) SizeHint() int {
 		surge.SizeHint(s.messages)
 }
 
+// Marshal implements surge Marshaler for Scenario
 func (s Scenario) Marshal(buf []byte, rem int) ([]byte, int, error) {
 	buf, rem, err := surge.Marshal(s.seed, buf, rem)
 	if err != nil {
@@ -850,6 +853,7 @@ func (s Scenario) Marshal(buf []byte, rem int) ([]byte, int, error) {
 	return buf, rem, nil
 }
 
+// Unmarshal implements surge Unmarshaler for Scenario
 func (s *Scenario) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
 	buf, rem, err := surge.Unmarshal(&s.seed, buf, rem)
 	if err != nil {
@@ -879,12 +883,15 @@ func (s *Scenario) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
 	return buf, rem, nil
 }
 
+// Message describes a message sent between two replicas in the consensus
+// mechanism
 type Message struct {
 	to          uint8
 	messageType uint8
 	value       surge.Marshaler
 }
 
+// SizeHint implements surge SizeHinter for Message
 func (m Message) SizeHint() int {
 	switch value := m.value.(type) {
 	case process.Propose:
@@ -904,6 +911,7 @@ func (m Message) SizeHint() int {
 	}
 }
 
+// Marshal implements surge Marshaler for Message
 func (m Message) Marshal(buf []byte, rem int) ([]byte, int, error) {
 	buf, rem, err := surge.Marshal(m.to, buf, rem)
 	if err != nil {
@@ -937,6 +945,7 @@ func (m Message) Marshal(buf []byte, rem int) ([]byte, int, error) {
 	return buf, rem, nil
 }
 
+// Unmarshal implements surge Unmarshaler for Message
 func (m *Message) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
 	buf, rem, err := surge.Unmarshal(&m.to, buf, rem)
 	if err != nil {
@@ -976,6 +985,7 @@ func (m *Message) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
 	return buf, rem, nil
 }
 
+// readBoolEnvVar reads an environment variable `name` and returns its boolean value
 func readBoolEnvVar(name string) bool {
 	envVar := os.Getenv(name)
 	boolEnvVar, err := strconv.ParseBool(envVar)
@@ -985,6 +995,7 @@ func readBoolEnvVar(name string) bool {
 	return boolEnvVar
 }
 
+// dumpToFile dumps a serialised test scenario data to a dump file
 func dumpToFile(filename string, scenario Scenario) {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -1006,6 +1017,7 @@ func dumpToFile(filename string, scenario Scenario) {
 	}
 }
 
+// readFromFile reads and deserialises a dump file to return the test scenario
 func readFromFile(filename string) Scenario {
 	file, err := os.Open(filename)
 	if err != nil {
