@@ -38,7 +38,7 @@ var _ = Describe("Timer Opts", func() {
 			Expect(quick.Check(loop, nil)).To(Succeed())
 		})
 
-		Specify("with timeout", func() {
+		Specify("with timeout scaling", func() {
 			loop := func() bool {
 				timeoutScaling := rand.Float64()
 				opts := timer.DefaultOptions().WithTimeoutScaling(timeoutScaling)

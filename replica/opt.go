@@ -38,3 +38,9 @@ func (opts Options) WithTimerOptions(timerOpts timer.Options) Options {
 	opts.TimerOpts = timerOpts
 	return opts
 }
+
+// WithMqOptions updates the Replica's message queue options
+func (opts Options) WithMqOptions(mqOpts mq.Options) Options {
+	opts.MessageQueueOpts = mqOpts
+	return opts
+}
