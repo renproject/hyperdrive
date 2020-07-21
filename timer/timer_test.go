@@ -2,12 +2,14 @@ package timer_test
 
 import (
 	"math/rand"
+	"reflect"
 	"testing/quick"
 	"time"
 
 	"github.com/renproject/hyperdrive/process"
 	"github.com/renproject/hyperdrive/process/processutil"
 	"github.com/renproject/hyperdrive/timer"
+	"github.com/renproject/surge/surgeutil"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -17,6 +19,62 @@ var _ = Describe("Timer", func() {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	Context("Timer", func() {
+		Context("marshaling and unmarshaling", func() {
+			t := reflect.TypeOf(timer.Timeout{})
+
+			It("should be the same after marshalling and unmarshalling", func() {
+				loop := func() bool {
+					Expect(surgeutil.MarshalUnmarshalCheck(t)).To(Succeed())
+					return true
+				}
+				Expect(quick.Check(loop, nil)).To(Succeed())
+			})
+
+			It("should not panic when fuzzing", func() {
+				loop := func() bool {
+					Expect(func() { surgeutil.Fuzz(t) }).ToNot(Panic())
+					return true
+				}
+				Expect(quick.Check(loop, nil)).To(Succeed())
+			})
+
+			Context("marshalling", func() {
+				It("should return an error when the buffer is too small", func() {
+					loop := func() bool {
+						Expect(surgeutil.MarshalBufTooSmall(t)).To(Succeed())
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+
+				It("should return an error when the memory quota is too small", func() {
+					loop := func() bool {
+						Expect(surgeutil.MarshalRemTooSmall(t)).To(Succeed())
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+			})
+
+			Context("unmarshalling", func() {
+				It("should return an error when the buffer is too small", func() {
+					loop := func() bool {
+						Expect(surgeutil.UnmarshalBufTooSmall(t)).To(Succeed())
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+
+				It("should return an error when the memory quota is too small", func() {
+					loop := func() bool {
+						Expect(surgeutil.UnmarshalRemTooSmall(t)).To(Succeed())
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+			})
+		})
+
 		Context("without a timeout scaling factor", func() {
 			Specify("on timeout propose", func() {
 				loop := func() bool {
