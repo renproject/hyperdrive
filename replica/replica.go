@@ -23,9 +23,9 @@ type Replica struct {
 	proc         process.Process
 	procsAllowed map[id.Signatory]bool
 
-	onTimeoutPropose   <-chan timer.Timeout
-	onTimeoutPrevote   <-chan timer.Timeout
-	onTimeoutPrecommit <-chan timer.Timeout
+	onProposeTimeout   chan timer.Timeout
+	onPrevoteTimeout   chan timer.Timeout
+	onPrecommitTimeout chan timer.Timeout
 
 	onPropose   chan process.Propose
 	onPrevote   chan process.Prevote
@@ -40,6 +40,7 @@ func New(
 	opts Options,
 	whoami id.Signatory,
 	signatories []id.Signatory,
+	linearTimer process.Timer,
 	propose process.Proposer,
 	validate process.Validator,
 	commit process.Committer,
@@ -48,15 +49,11 @@ func New(
 	didHandleMessage DidHandleMessage,
 ) *Replica {
 	f := len(signatories) / 3
-	onTimeoutPropose := make(chan timer.Timeout, 10)
-	onTimeoutPrevote := make(chan timer.Timeout, 10)
-	onTimeoutPrecommit := make(chan timer.Timeout, 10)
-	timer := timer.NewLinearTimer(opts.TimerOpts, onTimeoutPropose, onTimeoutPrevote, onTimeoutPrecommit)
 	scheduler := scheduler.NewRoundRobin(signatories)
 	proc := process.New(
 		whoami,
 		f,
-		timer,
+		linearTimer,
 		scheduler,
 		propose,
 		validate,
@@ -76,9 +73,9 @@ func New(
 		proc:         proc,
 		procsAllowed: procsAllowed,
 
-		onTimeoutPropose:   onTimeoutPropose,
-		onTimeoutPrevote:   onTimeoutPrevote,
-		onTimeoutPrecommit: onTimeoutPrecommit,
+		onProposeTimeout:   make(chan timer.Timeout, opts.MessageQueueOpts.MaxCapacity),
+		onPrevoteTimeout:   make(chan timer.Timeout, opts.MessageQueueOpts.MaxCapacity),
+		onPrecommitTimeout: make(chan timer.Timeout, opts.MessageQueueOpts.MaxCapacity),
 
 		onPropose:   make(chan process.Propose, opts.MessageQueueOpts.MaxCapacity),
 		onPrevote:   make(chan process.Prevote, opts.MessageQueueOpts.MaxCapacity),
@@ -107,11 +104,20 @@ func (replica *Replica) Run(ctx context.Context) {
 				isRunning = false
 				return
 
-			case timeout := <-replica.onTimeoutPropose:
+			case timeout := <-replica.onProposeTimeout:
+				if !replica.filterHeight(timeout.Height) {
+					return
+				}
 				replica.proc.OnTimeoutPropose(timeout.Height, timeout.Round)
-			case timeout := <-replica.onTimeoutPrevote:
+			case timeout := <-replica.onPrevoteTimeout:
+				if !replica.filterHeight(timeout.Height) {
+					return
+				}
 				replica.proc.OnTimeoutPrevote(timeout.Height, timeout.Round)
-			case timeout := <-replica.onTimeoutPrecommit:
+			case timeout := <-replica.onPrecommitTimeout:
+				if !replica.filterHeight(timeout.Height) {
+					return
+				}
 				replica.proc.OnTimeoutPrecommit(timeout.Height, timeout.Round)
 
 			case propose := <-replica.onPropose:
@@ -175,10 +181,43 @@ func (replica *Replica) Precommit(ctx context.Context, precommit process.Precomm
 	}
 }
 
+// TimeoutPropose adds a propose timeout message to the replica. This message
+// will be filtered based on the replica's consensus height, and inserted
+// asynchronously into the replica's message queue. It will be consumed when
+// the replica does not have any immediate task to do
+func (replica *Replica) TimeoutPropose(ctx context.Context, timeout timer.Timeout) {
+	select {
+	case <-ctx.Done():
+	case replica.onProposeTimeout <- timeout:
+	}
+}
+
+// TimeoutPrevote adds a prevote timeout message to the replica. This message
+// will be filtered based on the replica's consensus height, and inserted
+// asynchronously into the replica's message queue. It will be consumed when
+// the replica does not have any immediate task to do
+func (replica *Replica) TimeoutPrevote(ctx context.Context, timeout timer.Timeout) {
+	select {
+	case <-ctx.Done():
+	case replica.onPrevoteTimeout <- timeout:
+	}
+}
+
+// TimeoutPrecommit adds a precommit timeout message to the replica. This message
+// will be filtered based on the replica's consensus height, and inserted
+// asynchronously into the replica's message queue. It will be consumed when
+// the replica does not have any immediate task to do
+func (replica *Replica) TimeoutPrecommit(ctx context.Context, timeout timer.Timeout) {
+	select {
+	case <-ctx.Done():
+	case replica.onPrecommitTimeout <- timeout:
+	}
+}
+
 // CurrentHeight returns the height (in terms of block number) that the replica
 // is currently at
 func (replica Replica) CurrentHeight() process.Height {
-	return replica.proc.State.CurrentHeight
+	return replica.proc.CurrentHeight
 }
 
 func (replica *Replica) filterHeight(height process.Height) bool {

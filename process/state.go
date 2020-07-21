@@ -266,14 +266,17 @@ func (v *Value) Equal(other *Value) bool {
 	return bytes.Equal(v[:], other[:])
 }
 
+// MarshalJSON serialises a process value to JSON format
 func (v Value) MarshalJSON() ([]byte, error) {
 	return id.Hash(v).MarshalJSON()
 }
 
+// UnmarshalJSON deserialises a JSON format to process value
 func (v *Value) UnmarshalJSON(data []byte) error {
 	return (*id.Hash)(v).UnmarshalJSON(data)
 }
 
+// String implements the Stringer interface for process value
 func (v Value) String() string {
 	return id.Hash(v).String()
 }

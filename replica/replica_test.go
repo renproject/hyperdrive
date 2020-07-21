@@ -86,13 +86,43 @@ var _ = Describe("Replica", func() {
 			replicaIndex := uint8(i)
 
 			replicas[i] = replica.New(
-				replica.DefaultOptions().
-					WithTimerOptions(
-						timer.DefaultOptions().
-							WithTimeout(500*time.Millisecond),
-					),
+				replica.DefaultOptions(),
 				signatories[i],
 				signatories,
+				// timer
+				timer.NewLinearTimer(
+					timer.DefaultOptions().WithTimeout(500*time.Millisecond),
+					// on timeout propose
+					func(timeout timer.Timeout) {
+						mqMutex.Lock()
+						*mq = append(*mq, Message{
+							to:          replicaIndex,
+							messageType: 4,
+							value:       timeout,
+						})
+						mqMutex.Unlock()
+					},
+					// on timeout prevote
+					func(timeout timer.Timeout) {
+						mqMutex.Lock()
+						*mq = append(*mq, Message{
+							to:          replicaIndex,
+							messageType: 5,
+							value:       timeout,
+						})
+						mqMutex.Unlock()
+					},
+					// on timeout precommit
+					func(timeout timer.Timeout) {
+						mqMutex.Lock()
+						*mq = append(*mq, Message{
+							to:          replicaIndex,
+							messageType: 6,
+							value:       timeout,
+						})
+						mqMutex.Unlock()
+					},
+				),
 				// Proposer
 				processutil.MockProposer{
 					MockValue: func() process.Value {
@@ -231,6 +261,7 @@ var _ = Describe("Replica", func() {
 
 				// ignore if it was a spurious signal
 				if mqLen == 0 {
+					mqSignal <- struct{}{}
 					continue
 				}
 
@@ -242,6 +273,7 @@ var _ = Describe("Replica", func() {
 
 				// ignore if it is a nil message
 				if m.value == nil {
+					mqSignal <- struct{}{}
 					continue
 				}
 
@@ -264,6 +296,17 @@ var _ = Describe("Replica", func() {
 						replica.Prevote(context.Background(), value)
 					case process.Precommit:
 						replica.Precommit(context.Background(), value)
+					case timer.Timeout:
+						switch m.messageType {
+						case 4:
+							replica.TimeoutPropose(context.Background(), value)
+						case 5:
+							replica.TimeoutPrevote(context.Background(), value)
+						case 6:
+							replica.TimeoutPrecommit(context.Background(), value)
+						default:
+							panic(fmt.Errorf("non-exhaustive pattern: timeout message.messageType is %v", m.messageType))
+						}
 					default:
 						panic(fmt.Errorf("non-exhaustive pattern: message.value has type %T", value))
 					}
@@ -906,6 +949,10 @@ func (m Message) SizeHint() int {
 		return surge.SizeHint(m.to) +
 			surge.SizeHint(m.messageType) +
 			surge.SizeHint(value)
+	case timer.Timeout:
+		return surge.SizeHint(m.to) +
+			surge.SizeHint(m.messageType) +
+			surge.SizeHint(value)
 	default:
 		panic(fmt.Errorf("non-exhaustive pattern: message.value has type %T", value))
 	}
@@ -934,6 +981,11 @@ func (m Message) Marshal(buf []byte, rem int) ([]byte, int, error) {
 			return buf, rem, fmt.Errorf("marshaling value=%v: %v", value, err)
 		}
 	case process.Precommit:
+		buf, rem, err = surge.Marshal(value, buf, rem)
+		if err != nil {
+			return buf, rem, fmt.Errorf("marshaling value=%v: %v", value, err)
+		}
+	case timer.Timeout:
 		buf, rem, err = surge.Marshal(value, buf, rem)
 		if err != nil {
 			return buf, rem, fmt.Errorf("marshaling value=%v: %v", value, err)
@@ -973,6 +1025,13 @@ func (m *Message) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
 		m.value = message
 	case 3:
 		message := process.Precommit{}
+		buf, rem, err = message.Unmarshal(buf, rem)
+		if err != nil {
+			return buf, rem, fmt.Errorf("unmarshaling value: %v", err)
+		}
+		m.value = message
+	case 4:
+		message := timer.Timeout{}
 		buf, rem, err = message.Unmarshal(buf, rem)
 		if err != nil {
 			return buf, rem, fmt.Errorf("unmarshaling value: %v", err)

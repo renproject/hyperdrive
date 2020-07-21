@@ -29,7 +29,16 @@ var _ = Describe("Timer", func() {
 					onProposeTimeoutChan := make(chan timer.Timeout, 1)
 					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
 					onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
-					constantTimer := timer.NewLinearTimer(opts, onProposeTimeoutChan, onPrevoteTimeoutChan, onPrecommitTimeoutChan)
+					handleProposeTimeout := func(timeout timer.Timeout) {
+						onProposeTimeoutChan <- timeout
+					}
+					handlePrevoteTimeout := func(timeout timer.Timeout) {
+						onPrevoteTimeoutChan <- timeout
+					}
+					handlePrecommitTimeout := func(timeout timer.Timeout) {
+						onPrecommitTimeoutChan <- timeout
+					}
+					constantTimer := timer.NewLinearTimer(opts, handleProposeTimeout, handlePrevoteTimeout, handlePrecommitTimeout)
 
 					// timeout should be the same for any round/height
 					height := processutil.RandomHeight(r)
@@ -84,7 +93,16 @@ var _ = Describe("Timer", func() {
 					onProposeTimeoutChan := make(chan timer.Timeout, 1)
 					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
 					onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
-					constantTimer := timer.NewLinearTimer(opts, onProposeTimeoutChan, onPrevoteTimeoutChan, onPrecommitTimeoutChan)
+					handleProposeTimeout := func(timeout timer.Timeout) {
+						onProposeTimeoutChan <- timeout
+					}
+					handlePrevoteTimeout := func(timeout timer.Timeout) {
+						onPrevoteTimeoutChan <- timeout
+					}
+					handlePrecommitTimeout := func(timeout timer.Timeout) {
+						onPrecommitTimeoutChan <- timeout
+					}
+					constantTimer := timer.NewLinearTimer(opts, handleProposeTimeout, handlePrevoteTimeout, handlePrecommitTimeout)
 
 					// timeout should be the same for any round/height
 					height := processutil.RandomHeight(r)
@@ -139,7 +157,16 @@ var _ = Describe("Timer", func() {
 					onProposeTimeoutChan := make(chan timer.Timeout, 1)
 					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
 					onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
-					constantTimer := timer.NewLinearTimer(opts, onProposeTimeoutChan, onPrevoteTimeoutChan, onPrecommitTimeoutChan)
+					handleProposeTimeout := func(timeout timer.Timeout) {
+						onProposeTimeoutChan <- timeout
+					}
+					handlePrevoteTimeout := func(timeout timer.Timeout) {
+						onPrevoteTimeoutChan <- timeout
+					}
+					handlePrecommitTimeout := func(timeout timer.Timeout) {
+						onPrecommitTimeoutChan <- timeout
+					}
+					constantTimer := timer.NewLinearTimer(opts, handleProposeTimeout, handlePrevoteTimeout, handlePrecommitTimeout)
 
 					// timeout should be the same for any round/height
 					height := processutil.RandomHeight(r)
@@ -195,7 +222,16 @@ var _ = Describe("Timer", func() {
 					onProposeTimeoutChan := make(chan timer.Timeout, 1)
 					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
 					onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
-					constantTimer := timer.NewLinearTimer(opts, onProposeTimeoutChan, onPrevoteTimeoutChan, onPrecommitTimeoutChan)
+					handleProposeTimeout := func(timeout timer.Timeout) {
+						onProposeTimeoutChan <- timeout
+					}
+					handlePrevoteTimeout := func(timeout timer.Timeout) {
+						onPrevoteTimeoutChan <- timeout
+					}
+					handlePrecommitTimeout := func(timeout timer.Timeout) {
+						onPrecommitTimeoutChan <- timeout
+					}
+					constantTimer := timer.NewLinearTimer(opts, handleProposeTimeout, handlePrevoteTimeout, handlePrecommitTimeout)
 
 					// timeout should scale up linearly with round
 					height := processutil.RandomHeight(r)
@@ -251,7 +287,16 @@ var _ = Describe("Timer", func() {
 					onProposeTimeoutChan := make(chan timer.Timeout, 1)
 					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
 					onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
-					constantTimer := timer.NewLinearTimer(opts, onProposeTimeoutChan, onPrevoteTimeoutChan, onPrecommitTimeoutChan)
+					handleProposeTimeout := func(timeout timer.Timeout) {
+						onProposeTimeoutChan <- timeout
+					}
+					handlePrevoteTimeout := func(timeout timer.Timeout) {
+						onPrevoteTimeoutChan <- timeout
+					}
+					handlePrecommitTimeout := func(timeout timer.Timeout) {
+						onPrecommitTimeoutChan <- timeout
+					}
+					constantTimer := timer.NewLinearTimer(opts, handleProposeTimeout, handlePrevoteTimeout, handlePrecommitTimeout)
 
 					// timeout should scale up linearly with round
 					height := processutil.RandomHeight(r)
@@ -307,7 +352,16 @@ var _ = Describe("Timer", func() {
 					onProposeTimeoutChan := make(chan timer.Timeout, 1)
 					onPrevoteTimeoutChan := make(chan timer.Timeout, 1)
 					onPrecommitTimeoutChan := make(chan timer.Timeout, 1)
-					constantTimer := timer.NewLinearTimer(opts, onProposeTimeoutChan, onPrevoteTimeoutChan, onPrecommitTimeoutChan)
+					handleProposeTimeout := func(timeout timer.Timeout) {
+						onProposeTimeoutChan <- timeout
+					}
+					handlePrevoteTimeout := func(timeout timer.Timeout) {
+						onPrevoteTimeoutChan <- timeout
+					}
+					handlePrecommitTimeout := func(timeout timer.Timeout) {
+						onPrecommitTimeoutChan <- timeout
+					}
+					constantTimer := timer.NewLinearTimer(opts, handleProposeTimeout, handlePrevoteTimeout, handlePrecommitTimeout)
 
 					// timeout should scale up linearly with round
 					height := processutil.RandomHeight(r)

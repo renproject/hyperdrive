@@ -182,15 +182,15 @@ var _ = Describe("Process", func() {
 						DefaultOptions().
 						WithTimeout(10 * time.Millisecond).
 						WithTimeoutScaling(0)
-					onProposeTimeoutChan := make(chan timer.Timeout, 2)
-					timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
+					handleProposeTimeout := func(timeout timer.Timeout) {
+						Expect(timeout.Height).To(Equal(process.Height(1)))
+						Expect(timeout.Round).To(Equal(round))
+					}
+					timer := timer.NewLinearTimer(timerOptions, handleProposeTimeout, nil, nil)
 
 					p := process.New(whoami, 33, timer, scheduler, nil, nil, nil, nil, nil)
 					p.StartRound(round)
 
-					timeout := <-onProposeTimeoutChan
-					Expect(timeout.Height).To(Equal(process.Height(1)))
-					Expect(timeout.Round).To(Equal(round))
 					return true
 				}
 				Expect(quick.Check(f, nil)).To(Succeed())
@@ -228,8 +228,8 @@ var _ = Describe("Process", func() {
 								DefaultOptions().
 								WithTimeout(10 * time.Millisecond).
 								WithTimeoutScaling(0)
-							onProposeTimeoutChan := make(chan timer.Timeout, 2)
-							timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
+							handleProposeTimeout := func(timeout timer.Timeout) {}
+							timer := timer.NewLinearTimer(timerOptions, handleProposeTimeout, nil, nil)
 
 							p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
 							p.OnTimeoutPropose(process.Height(1), round)
@@ -259,8 +259,8 @@ var _ = Describe("Process", func() {
 								DefaultOptions().
 								WithTimeout(10 * time.Millisecond).
 								WithTimeoutScaling(0)
-							onProposeTimeoutChan := make(chan timer.Timeout, 2)
-							timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
+							handleProposeTimeout := func(timeout timer.Timeout) {}
+							timer := timer.NewLinearTimer(timerOptions, handleProposeTimeout, nil, nil)
 
 							p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
 							p.State.CurrentStep = process.Prevoting
@@ -290,8 +290,8 @@ var _ = Describe("Process", func() {
 							DefaultOptions().
 							WithTimeout(10 * time.Millisecond).
 							WithTimeoutScaling(0)
-						onProposeTimeoutChan := make(chan timer.Timeout, 2)
-						timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
+						handleProposeTimeout := func(timeout timer.Timeout) {}
+						timer := timer.NewLinearTimer(timerOptions, handleProposeTimeout, nil, nil)
 						p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
 
 						// set the current round
@@ -329,8 +329,8 @@ var _ = Describe("Process", func() {
 						DefaultOptions().
 						WithTimeout(10 * time.Millisecond).
 						WithTimeoutScaling(0)
-					onProposeTimeoutChan := make(chan timer.Timeout, 2)
-					timer := timer.NewLinearTimer(timerOptions, onProposeTimeoutChan, nil, nil)
+					handleProposeTimeout := func(timeout timer.Timeout) {}
+					timer := timer.NewLinearTimer(timerOptions, handleProposeTimeout, nil, nil)
 					p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
 
 					// when a new process starts, it starts at height == 1
@@ -376,8 +376,8 @@ var _ = Describe("Process", func() {
 								DefaultOptions().
 								WithTimeout(10 * time.Millisecond).
 								WithTimeoutScaling(0)
-							onPrevoteTimeoutChan := make(chan timer.Timeout, 2)
-							timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
+							handlePrevoteTimeout := func(timeout timer.Timeout) {}
+							timer := timer.NewLinearTimer(timerOptions, nil, handlePrevoteTimeout, nil)
 
 							p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
 							p.State.CurrentStep = process.Prevoting
@@ -408,8 +408,8 @@ var _ = Describe("Process", func() {
 								DefaultOptions().
 								WithTimeout(10 * time.Millisecond).
 								WithTimeoutScaling(0)
-							onPrevoteTimeoutChan := make(chan timer.Timeout, 2)
-							timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
+							handlePrevoteTimeout := func(timeout timer.Timeout) {}
+							timer := timer.NewLinearTimer(timerOptions, nil, handlePrevoteTimeout, nil)
 
 							p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
 							someOtherStep := processutil.RandomStep(r)
@@ -445,8 +445,8 @@ var _ = Describe("Process", func() {
 							DefaultOptions().
 							WithTimeout(10 * time.Millisecond).
 							WithTimeoutScaling(0)
-						onPrevoteTimeoutChan := make(chan timer.Timeout, 2)
-						timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
+						handlePrevoteTimeout := func(timeout timer.Timeout) {}
+						timer := timer.NewLinearTimer(timerOptions, nil, handlePrevoteTimeout, nil)
 
 						p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
 						p.State.CurrentStep = process.Prevoting
@@ -482,8 +482,8 @@ var _ = Describe("Process", func() {
 						DefaultOptions().
 						WithTimeout(10 * time.Millisecond).
 						WithTimeoutScaling(0)
-					onPrevoteTimeoutChan := make(chan timer.Timeout, 2)
-					timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
+					handlePrevoteTimeout := func(timeout timer.Timeout) {}
+					timer := timer.NewLinearTimer(timerOptions, nil, handlePrevoteTimeout, nil)
 
 					p := process.New(whoami, 33, timer, nil, nil, nil, broadcaster, nil, nil)
 					p.State.CurrentStep = process.Prevoting
@@ -1353,8 +1353,11 @@ var _ = Describe("Process", func() {
 						DefaultOptions().
 						WithTimeout(1 * time.Millisecond).
 						WithTimeoutScaling(0)
-					onPrevoteTimeoutChan := make(chan timer.Timeout, 2)
-					timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
+					timeoutSignal := make(chan timer.Timeout, 1)
+					handlePrevoteTimeout := func(timeout timer.Timeout) {
+						timeoutSignal <- timeout
+					}
+					timer := timer.NewLinearTimer(timerOptions, nil, handlePrevoteTimeout, nil)
 
 					// instantiate a new process
 					// and start round
@@ -1370,7 +1373,7 @@ var _ = Describe("Process", func() {
 
 						time.Sleep(5 * time.Millisecond)
 						select {
-						case _ = <-onPrevoteTimeoutChan:
+						case _ = <-timeoutSignal:
 							// this should never happen
 							Expect(true).ToNot(BeTrue())
 						default:
@@ -1384,7 +1387,7 @@ var _ = Describe("Process", func() {
 
 					time.Sleep(5 * time.Millisecond)
 					select {
-					case timeout := <-onPrevoteTimeoutChan:
+					case timeout := <-timeoutSignal:
 						Expect(timeout.Round).To(Equal(currentRound))
 						Expect(timeout.Height).To(Equal(process.Height(1)))
 					default:
@@ -1398,7 +1401,7 @@ var _ = Describe("Process", func() {
 
 					time.Sleep(5 * time.Millisecond)
 					select {
-					case _ = <-onPrevoteTimeoutChan:
+					case _ = <-timeoutSignal:
 						// this should never happen
 						Expect(true).ToNot(BeTrue())
 					default:
@@ -1427,8 +1430,11 @@ var _ = Describe("Process", func() {
 						DefaultOptions().
 						WithTimeout(1 * time.Millisecond).
 						WithTimeoutScaling(0)
-					onPrevoteTimeoutChan := make(chan timer.Timeout, 2)
-					timer := timer.NewLinearTimer(timerOptions, nil, onPrevoteTimeoutChan, nil)
+					timeoutSignal := make(chan timer.Timeout, 2)
+					handlePrevoteTimeout := func(timeout timer.Timeout) {
+						timeoutSignal <- timeout
+					}
+					timer := timer.NewLinearTimer(timerOptions, nil, handlePrevoteTimeout, nil)
 
 					// instantiate a new process
 					// and start round
@@ -1448,7 +1454,7 @@ var _ = Describe("Process", func() {
 
 						time.Sleep(5 * time.Millisecond)
 						select {
-						case _ = <-onPrevoteTimeoutChan:
+						case _ = <-timeoutSignal:
 							// this should never happen
 							Expect(true).ToNot(BeTrue())
 						default:
@@ -1462,7 +1468,7 @@ var _ = Describe("Process", func() {
 
 					time.Sleep(5 * time.Millisecond)
 					select {
-					case _ = <-onPrevoteTimeoutChan:
+					case _ = <-timeoutSignal:
 						// this should never happen
 						Expect(true).ToNot(BeTrue())
 					default:
@@ -2000,8 +2006,11 @@ var _ = Describe("Process", func() {
 					DefaultOptions().
 					WithTimeout(1 * time.Millisecond).
 					WithTimeoutScaling(0)
-				onPrecommitTimeoutChan := make(chan timer.Timeout, 2)
-				timer := timer.NewLinearTimer(timerOptions, nil, nil, onPrecommitTimeoutChan)
+				timeoutSignal := make(chan timer.Timeout, 2)
+				handlePrecommitTimeout := func(timeout timer.Timeout) {
+					timeoutSignal <- timeout
+				}
+				timer := timer.NewLinearTimer(timerOptions, nil, nil, handlePrecommitTimeout)
 
 				// intantiate the process
 				p := process.New(id.NewPrivKey().Signatory(), f, timer, nil, nil, nil, nil, nil, nil)
@@ -2017,7 +2026,7 @@ var _ = Describe("Process", func() {
 
 					time.Sleep(5 * time.Millisecond)
 					select {
-					case _ = <-onPrecommitTimeoutChan:
+					case _ = <-timeoutSignal:
 						// this should never happen
 						Expect(true).ToNot(BeTrue())
 					default:
@@ -2031,7 +2040,7 @@ var _ = Describe("Process", func() {
 
 				time.Sleep(5 * time.Millisecond)
 				select {
-				case timeout := <-onPrecommitTimeoutChan:
+				case timeout := <-timeoutSignal:
 					Expect(timeout.Height).To(Equal(process.Height(1)))
 					Expect(timeout.Round).To(Equal(currentRound))
 				default:
@@ -2045,7 +2054,7 @@ var _ = Describe("Process", func() {
 
 				time.Sleep(5 * time.Millisecond)
 				select {
-				case _ = <-onPrecommitTimeoutChan:
+				case _ = <-timeoutSignal:
 					// this should never happen
 					Expect(true).ToNot(BeTrue())
 				default:
@@ -2070,8 +2079,11 @@ var _ = Describe("Process", func() {
 					DefaultOptions().
 					WithTimeout(1 * time.Millisecond).
 					WithTimeoutScaling(0)
-				onPrecommitTimeoutChan := make(chan timer.Timeout, 2)
-				timer := timer.NewLinearTimer(timerOptions, nil, nil, onPrecommitTimeoutChan)
+				timeoutSignal := make(chan timer.Timeout, 2)
+				handlePrecommitTimeout := func(timeout timer.Timeout) {
+					timeoutSignal <- timeout
+				}
+				timer := timer.NewLinearTimer(timerOptions, nil, nil, handlePrecommitTimeout)
 
 				// intantiate the process
 				p := process.New(id.NewPrivKey().Signatory(), f, timer, nil, nil, nil, nil, nil, nil)
@@ -2087,7 +2099,7 @@ var _ = Describe("Process", func() {
 
 					time.Sleep(5 * time.Millisecond)
 					select {
-					case _ = <-onPrecommitTimeoutChan:
+					case _ = <-timeoutSignal:
 						// this should never happen
 						Expect(true).ToNot(BeTrue())
 					default:
@@ -2101,7 +2113,7 @@ var _ = Describe("Process", func() {
 
 				time.Sleep(5 * time.Millisecond)
 				select {
-				case _ = <-onPrecommitTimeoutChan:
+				case _ = <-timeoutSignal:
 					// this hsould neveer happen
 					Expect(true).ToNot(BeTrue())
 				default:
@@ -2126,8 +2138,11 @@ var _ = Describe("Process", func() {
 					DefaultOptions().
 					WithTimeout(1 * time.Millisecond).
 					WithTimeoutScaling(0)
-				onPrecommitTimeoutChan := make(chan timer.Timeout, 2)
-				timer := timer.NewLinearTimer(timerOptions, nil, nil, onPrecommitTimeoutChan)
+				timeoutSignal := make(chan timer.Timeout, 2)
+				handlePrecommitTimeout := func(timeout timer.Timeout) {
+					timeoutSignal <- timeout
+				}
+				timer := timer.NewLinearTimer(timerOptions, nil, nil, handlePrecommitTimeout)
 
 				// intantiate the process
 				p := process.New(id.NewPrivKey().Signatory(), f, timer, nil, nil, nil, nil, nil, nil)
@@ -2143,7 +2158,7 @@ var _ = Describe("Process", func() {
 
 					time.Sleep(5 * time.Millisecond)
 					select {
-					case _ = <-onPrecommitTimeoutChan:
+					case _ = <-timeoutSignal:
 						// this should never happen
 						Expect(true).ToNot(BeTrue())
 					default:
@@ -2157,7 +2172,7 @@ var _ = Describe("Process", func() {
 
 				time.Sleep(5 * time.Millisecond)
 				select {
-				case _ = <-onPrecommitTimeoutChan:
+				case _ = <-timeoutSignal:
 					// this should never happen
 					Expect(true).ToNot(BeTrue())
 				default:
