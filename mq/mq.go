@@ -24,6 +24,7 @@ type MessageQueue struct {
 // New returns an empty MessageQueue.
 func New(opts Options) MessageQueue {
 	return MessageQueue{
+		opts:        opts,
 		queuesByPid: make(map[id.Signatory][]interface{}),
 	}
 }
@@ -35,7 +36,7 @@ func New(opts Options) MessageQueue {
 func (mq *MessageQueue) Consume(h process.Height, propose func(process.Propose), prevote func(process.Prevote), precommit func(process.Precommit)) (n int) {
 	for from, q := range mq.queuesByPid {
 		for len(q) > 0 {
-			if height(q[0]) > h {
+			if q[0] == nil || height(q[0]) > h {
 				break
 			}
 			switch msg := q[0].(type) {
@@ -90,6 +91,10 @@ func (mq *MessageQueue) insert(msg interface{}) {
 	msgHeight := height(msg)
 	msgRound := round(msg)
 	insertAt := sort.Search(len(q), func(i int) bool {
+		if q[i] == nil {
+			return true
+		}
+
 		height := height(q[i])
 		round := round(q[i])
 		return height > msgHeight || (height == msgHeight && round > msgRound)

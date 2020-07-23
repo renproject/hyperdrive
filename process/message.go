@@ -1,9 +1,7 @@
 package process
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
@@ -21,30 +19,32 @@ type Propose struct {
 	Signature  id.Signature `json:"signature"`
 }
 
+// NewProposeHash receives fields of a propose message and hashes the message
 func NewProposeHash(height Height, round Round, validRound Round, value Value) (id.Hash, error) {
-	buf := new(bytes.Buffer)
-	buf.Grow(surge.SizeHint(height) + surge.SizeHint(round) + surge.SizeHint(validRound) + surge.SizeHint(value))
+	sizeHint := surge.SizeHint(height) + surge.SizeHint(round) + surge.SizeHint(validRound) + surge.SizeHint(value)
+	buf := make([]byte, sizeHint)
 	return NewProposeHashWithBuffer(height, round, validRound, value, buf)
 }
 
-func NewProposeHashWithBuffer(height Height, round Round, validRound Round, value Value, buf *bytes.Buffer) (id.Hash, error) {
-	m, err := surge.Marshal(buf, height, surge.MaxBytes)
+// NewProposeHashWithBuffer receives fields of a propose message, with a bytes buffer and hashes the message
+func NewProposeHashWithBuffer(height Height, round Round, validRound Round, value Value, data []byte) (id.Hash, error) {
+	buf, rem, err := surge.Marshal(height, data, surge.MaxBytes)
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling height=%v: %v", height, err)
 	}
-	m, err = surge.Marshal(buf, round, m)
+	buf, rem, err = surge.Marshal(round, buf, rem)
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling round=%v: %v", round, err)
 	}
-	m, err = surge.Marshal(buf, validRound, m)
+	buf, rem, err = surge.Marshal(validRound, buf, rem)
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling valid round=%v: %v", validRound, err)
 	}
-	m, err = surge.Marshal(buf, value, m)
+	buf, rem, err = surge.Marshal(value, buf, rem)
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling value=%v: %v", value, err)
 	}
-	return id.NewHash(buf.Bytes()), nil
+	return id.NewHash(data), nil
 }
 
 // Equal compares two Proposes. If they are equal, then it return true,
@@ -70,61 +70,61 @@ func (propose Propose) SizeHint() int {
 }
 
 // Marshal this message into binary.
-func (propose Propose) Marshal(w io.Writer, m int) (int, error) {
-	m, err := surge.Marshal(w, propose.Height, m)
+func (propose Propose) Marshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Marshal(propose.Height, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling height=%v: %v", propose.Height, err)
+		return buf, rem, fmt.Errorf("marshaling height=%v: %v", propose.Height, err)
 	}
-	m, err = surge.Marshal(w, propose.Round, m)
+	buf, rem, err = surge.Marshal(propose.Round, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling round=%v: %v", propose.Round, err)
+		return buf, rem, fmt.Errorf("marshaling round=%v: %v", propose.Round, err)
 	}
-	m, err = surge.Marshal(w, propose.ValidRound, m)
+	buf, rem, err = surge.Marshal(propose.ValidRound, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling valid round=%v: %v", propose.ValidRound, err)
+		return buf, rem, fmt.Errorf("marshaling valid round=%v: %v", propose.ValidRound, err)
 	}
-	m, err = surge.Marshal(w, propose.Value, m)
+	buf, rem, err = surge.Marshal(propose.Value, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling value=%v: %v", propose.Value, err)
+		return buf, rem, fmt.Errorf("marshaling value=%v: %v", propose.Value, err)
 	}
-	m, err = surge.Marshal(w, propose.From, m)
+	buf, rem, err = surge.Marshal(propose.From, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling from=%v: %v", propose.From, err)
+		return buf, rem, fmt.Errorf("marshaling from=%v: %v", propose.From, err)
 	}
-	m, err = surge.Marshal(w, propose.Signature, m)
+	buf, rem, err = surge.Marshal(propose.Signature, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling signature=%v: %v", propose.Signature, err)
+		return buf, rem, fmt.Errorf("marshaling signature=%v: %v", propose.Signature, err)
 	}
-	return m, nil
+	return buf, rem, nil
 }
 
 // Unmarshal binary into this message.
-func (propose *Propose) Unmarshal(r io.Reader, m int) (int, error) {
-	m, err := surge.Unmarshal(r, &propose.Height, m)
+func (propose *Propose) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Unmarshal(&propose.Height, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling height: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling height: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &propose.Round, m)
+	buf, rem, err = surge.Unmarshal(&propose.Round, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling round: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling round: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &propose.ValidRound, m)
+	buf, rem, err = surge.Unmarshal(&propose.ValidRound, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling valid round: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling valid round: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &propose.Value, m)
+	buf, rem, err = surge.Unmarshal(&propose.Value, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling value: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling value: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &propose.From, m)
+	buf, rem, err = surge.Unmarshal(&propose.From, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling from: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling from: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &propose.Signature, m)
+	buf, rem, err = surge.Unmarshal(&propose.Signature, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling signature: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling signature: %v", err)
 	}
-	return m, nil
+	return buf, rem, nil
 }
 
 // A Prevote is sent by every correct Process at most once per Round. It is the
@@ -140,26 +140,28 @@ type Prevote struct {
 	Signature id.Signature `json:"signature"`
 }
 
+// NewPrevoteHash receives fields of a prevote message and hashes the message
 func NewPrevoteHash(height Height, round Round, value Value) (id.Hash, error) {
-	buf := new(bytes.Buffer)
-	buf.Grow(surge.SizeHint(height) + surge.SizeHint(round) + surge.SizeHint(value))
+	sizeHint := surge.SizeHint(height) + surge.SizeHint(round) + surge.SizeHint(value)
+	buf := make([]byte, sizeHint)
 	return NewPrevoteHashWithBuffer(height, round, value, buf)
 }
 
-func NewPrevoteHashWithBuffer(height Height, round Round, value Value, buf *bytes.Buffer) (id.Hash, error) {
-	m, err := surge.Marshal(buf, height, surge.MaxBytes)
+// NewPrevoteHashWithBuffer receives fields of a prevote message, with a bytes buffer and hashes the message
+func NewPrevoteHashWithBuffer(height Height, round Round, value Value, data []byte) (id.Hash, error) {
+	buf, rem, err := surge.Marshal(height, data, surge.MaxBytes)
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling height=%v: %v", height, err)
 	}
-	m, err = surge.Marshal(buf, round, m)
+	buf, rem, err = surge.Marshal(round, buf, rem)
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling round=%v: %v", round, err)
 	}
-	m, err = surge.Marshal(buf, value, m)
+	buf, rem, err = surge.Marshal(value, buf, rem)
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling value=%v: %v", value, err)
 	}
-	return id.NewHash(buf.Bytes()), nil
+	return id.NewHash(data), nil
 }
 
 // Equal compares two Prevotes. If they are equal, then it return true,
@@ -183,53 +185,53 @@ func (prevote Prevote) SizeHint() int {
 }
 
 // Marshal this message into binary.
-func (prevote Prevote) Marshal(w io.Writer, m int) (int, error) {
-	m, err := surge.Marshal(w, prevote.Height, m)
+func (prevote Prevote) Marshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Marshal(prevote.Height, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling height=%v: %v", prevote.Height, err)
+		return buf, rem, fmt.Errorf("marshaling height=%v: %v", prevote.Height, err)
 	}
-	m, err = surge.Marshal(w, prevote.Round, m)
+	buf, rem, err = surge.Marshal(prevote.Round, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling round=%v: %v", prevote.Round, err)
+		return buf, rem, fmt.Errorf("marshaling round=%v: %v", prevote.Round, err)
 	}
-	m, err = surge.Marshal(w, prevote.Value, m)
+	buf, rem, err = surge.Marshal(prevote.Value, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling value=%v: %v", prevote.Value, err)
+		return buf, rem, fmt.Errorf("marshaling value=%v: %v", prevote.Value, err)
 	}
-	m, err = surge.Marshal(w, prevote.From, m)
+	buf, rem, err = surge.Marshal(prevote.From, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling from=%v: %v", prevote.From, err)
+		return buf, rem, fmt.Errorf("marshaling from=%v: %v", prevote.From, err)
 	}
-	m, err = surge.Marshal(w, prevote.Signature, m)
+	buf, rem, err = surge.Marshal(prevote.Signature, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling signature=%v: %v", prevote.Signature, err)
+		return buf, rem, fmt.Errorf("marshaling signature=%v: %v", prevote.Signature, err)
 	}
-	return m, nil
+	return buf, rem, nil
 }
 
 // Unmarshal binary into this message.
-func (prevote *Prevote) Unmarshal(r io.Reader, m int) (int, error) {
-	m, err := surge.Unmarshal(r, &prevote.Height, m)
+func (prevote *Prevote) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Unmarshal(&prevote.Height, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling height: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling height: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &prevote.Round, m)
+	buf, rem, err = surge.Unmarshal(&prevote.Round, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling round: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling round: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &prevote.Value, m)
+	buf, rem, err = surge.Unmarshal(&prevote.Value, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling value: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling value: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &prevote.From, m)
+	buf, rem, err = surge.Unmarshal(&prevote.From, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling from: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling from: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &prevote.Signature, m)
+	buf, rem, err = surge.Unmarshal(&prevote.Signature, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling signature: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling signature: %v", err)
 	}
-	return m, nil
+	return buf, rem, nil
 }
 
 // A Precommit is sent by every correct Process at most once per Round. It is
@@ -245,26 +247,28 @@ type Precommit struct {
 	Signature id.Signature `json:"signature"`
 }
 
+// NewPrecommitHash receives fields of a precommit message and hashes the message
 func NewPrecommitHash(height Height, round Round, value Value) (id.Hash, error) {
-	buf := new(bytes.Buffer)
-	buf.Grow(surge.SizeHint(height) + surge.SizeHint(round) + surge.SizeHint(value))
+	sizeHint := surge.SizeHint(height) + surge.SizeHint(round) + surge.SizeHint(value)
+	buf := make([]byte, sizeHint)
 	return NewPrecommitHashWithBuffer(height, round, value, buf)
 }
 
-func NewPrecommitHashWithBuffer(height Height, round Round, value Value, buf *bytes.Buffer) (id.Hash, error) {
-	m, err := surge.Marshal(buf, height, surge.MaxBytes)
+// NewPrecommitHashWithBuffer receives fields of a precommit message, with a bytes buffer and hashes the message
+func NewPrecommitHashWithBuffer(height Height, round Round, value Value, data []byte) (id.Hash, error) {
+	buf, rem, err := surge.Marshal(height, data, surge.MaxBytes)
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling height=%v: %v", height, err)
 	}
-	m, err = surge.Marshal(buf, round, m)
+	buf, rem, err = surge.Marshal(round, buf, rem)
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling round=%v: %v", round, err)
 	}
-	m, err = surge.Marshal(buf, value, m)
+	buf, rem, err = surge.Marshal(value, buf, rem)
 	if err != nil {
 		return id.Hash{}, fmt.Errorf("marshaling value=%v: %v", value, err)
 	}
-	return id.NewHash(buf.Bytes()), nil
+	return id.NewHash(data), nil
 }
 
 // Equal compares two Precommits. If they are equal, then it return true,
@@ -288,51 +292,51 @@ func (precommit Precommit) SizeHint() int {
 }
 
 // Marshal this message into binary.
-func (precommit Precommit) Marshal(w io.Writer, m int) (int, error) {
-	m, err := surge.Marshal(w, precommit.Height, m)
+func (precommit Precommit) Marshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Marshal(precommit.Height, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling height=%v: %v", precommit.Height, err)
+		return buf, rem, fmt.Errorf("marshaling height=%v: %v", precommit.Height, err)
 	}
-	m, err = surge.Marshal(w, precommit.Round, m)
+	buf, rem, err = surge.Marshal(precommit.Round, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling round=%v: %v", precommit.Round, err)
+		return buf, rem, fmt.Errorf("marshaling round=%v: %v", precommit.Round, err)
 	}
-	m, err = surge.Marshal(w, precommit.Value, m)
+	buf, rem, err = surge.Marshal(precommit.Value, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling value=%v: %v", precommit.Value, err)
+		return buf, rem, fmt.Errorf("marshaling value=%v: %v", precommit.Value, err)
 	}
-	m, err = surge.Marshal(w, precommit.From, m)
+	buf, rem, err = surge.Marshal(precommit.From, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling from=%v: %v", precommit.From, err)
+		return buf, rem, fmt.Errorf("marshaling from=%v: %v", precommit.From, err)
 	}
-	m, err = surge.Marshal(w, precommit.Signature, m)
+	buf, rem, err = surge.Marshal(precommit.Signature, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling signature=%v: %v", precommit.Signature, err)
+		return buf, rem, fmt.Errorf("marshaling signature=%v: %v", precommit.Signature, err)
 	}
-	return m, nil
+	return buf, rem, nil
 }
 
 // Unmarshal binary into this message.
-func (precommit *Precommit) Unmarshal(r io.Reader, m int) (int, error) {
-	m, err := surge.Unmarshal(r, &precommit.Height, m)
+func (precommit *Precommit) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Unmarshal(&precommit.Height, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling height: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling height: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &precommit.Round, m)
+	buf, rem, err = surge.Unmarshal(&precommit.Round, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling round: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling round: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &precommit.Value, m)
+	buf, rem, err = surge.Unmarshal(&precommit.Value, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling value: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling value: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &precommit.From, m)
+	buf, rem, err = surge.Unmarshal(&precommit.From, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling from: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling from: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &precommit.Signature, m)
+	buf, rem, err = surge.Unmarshal(&precommit.Signature, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling signature: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling signature: %v", err)
 	}
-	return m, nil
+	return buf, rem, nil
 }

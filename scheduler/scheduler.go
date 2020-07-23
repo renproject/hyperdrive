@@ -17,6 +17,8 @@ import (
 	"github.com/renproject/id"
 )
 
+// RoundRobin holds a list of signatories that will participate in the round
+// robin scheduling
 type RoundRobin struct {
 	signatories []id.Signatory
 }

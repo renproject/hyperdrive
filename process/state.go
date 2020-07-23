@@ -3,7 +3,6 @@ package process
 import (
 	"bytes"
 	"fmt"
-	"io"
 
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
@@ -116,6 +115,8 @@ func (state State) Equal(other *State) bool {
 		state.ValidRound == other.ValidRound
 }
 
+// SizeHint implements the Surge SizeHinter interface, and returns the byte size
+// of the state instance
 func (state State) SizeHint() int {
 	return surge.SizeHint(state.CurrentHeight) +
 		surge.SizeHint(state.CurrentRound) +
@@ -130,100 +131,102 @@ func (state State) SizeHint() int {
 		surge.SizeHint(state.OnceFlags)
 }
 
-func (state State) Marshal(w io.Writer, m int) (int, error) {
-	m, err := surge.Marshal(w, state.CurrentHeight, m)
+// Marshal implements the Surge Marshaler interface
+func (state State) Marshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Marshal(state.CurrentHeight, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling current height=%v: %v", state.CurrentHeight, err)
+		return buf, rem, fmt.Errorf("marshaling current height=%v: %v", state.CurrentHeight, err)
 	}
-	m, err = surge.Marshal(w, state.CurrentRound, m)
+	buf, rem, err = surge.Marshal(state.CurrentRound, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling current round=%v: %v", state.CurrentRound, err)
+		return buf, rem, fmt.Errorf("marshaling current round=%v: %v", state.CurrentRound, err)
 	}
-	m, err = surge.Marshal(w, state.CurrentStep, m)
+	buf, rem, err = surge.Marshal(state.CurrentStep, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling current step=%v: %v", state.CurrentStep, err)
+		return buf, rem, fmt.Errorf("marshaling current step=%v: %v", state.CurrentStep, err)
 	}
-	m, err = surge.Marshal(w, state.LockedValue, m)
+	buf, rem, err = surge.Marshal(state.LockedValue, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling locked value=%v: %v", state.LockedValue, err)
+		return buf, rem, fmt.Errorf("marshaling locked value=%v: %v", state.LockedValue, err)
 	}
-	m, err = surge.Marshal(w, state.LockedRound, m)
+	buf, rem, err = surge.Marshal(state.LockedRound, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling locked round=%v: %v", state.LockedRound, err)
+		return buf, rem, fmt.Errorf("marshaling locked round=%v: %v", state.LockedRound, err)
 	}
-	m, err = surge.Marshal(w, state.ValidValue, m)
+	buf, rem, err = surge.Marshal(state.ValidValue, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling valid value=%v: %v", state.ValidValue, err)
+		return buf, rem, fmt.Errorf("marshaling valid value=%v: %v", state.ValidValue, err)
 	}
-	m, err = surge.Marshal(w, state.ValidRound, m)
+	buf, rem, err = surge.Marshal(state.ValidRound, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling valid round=%v: %v", state.ValidRound, err)
+		return buf, rem, fmt.Errorf("marshaling valid round=%v: %v", state.ValidRound, err)
 	}
-	m, err = surge.Marshal(w, state.ProposeLogs, m)
+	buf, rem, err = surge.Marshal(state.ProposeLogs, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling %v propose logs: %v", len(state.ProposeLogs), err)
+		return buf, rem, fmt.Errorf("marshaling %v propose logs: %v", len(state.ProposeLogs), err)
 	}
-	m, err = surge.Marshal(w, state.PrevoteLogs, m)
+	buf, rem, err = surge.Marshal(state.PrevoteLogs, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling %v prevote logs: %v", len(state.PrevoteLogs), err)
+		return buf, rem, fmt.Errorf("marshaling %v prevote logs: %v", len(state.PrevoteLogs), err)
 	}
-	m, err = surge.Marshal(w, state.PrecommitLogs, m)
+	buf, rem, err = surge.Marshal(state.PrecommitLogs, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling %v precommit logs: %v", len(state.PrecommitLogs), err)
+		return buf, rem, fmt.Errorf("marshaling %v precommit logs: %v", len(state.PrecommitLogs), err)
 	}
-	m, err = surge.Marshal(w, state.OnceFlags, m)
+	buf, rem, err = surge.Marshal(state.OnceFlags, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("marshaling %v once flags: %v", len(state.OnceFlags), err)
+		return buf, rem, fmt.Errorf("marshaling %v once flags: %v", len(state.OnceFlags), err)
 	}
-	return m, nil
+	return buf, rem, nil
 }
 
-func (state *State) Unmarshal(r io.Reader, m int) (int, error) {
-	m, err := surge.Unmarshal(r, &state.CurrentHeight, m)
+// Unmarshal implements the Surge Unmarshaler interface
+func (state *State) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Unmarshal(&state.CurrentHeight, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling current height: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling current height: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &state.CurrentRound, m)
+	buf, rem, err = surge.Unmarshal(&state.CurrentRound, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling current round: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling current round: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &state.CurrentStep, m)
+	buf, rem, err = surge.Unmarshal(&state.CurrentStep, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling current step: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling current step: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &state.LockedValue, m)
+	buf, rem, err = surge.Unmarshal(&state.LockedValue, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling locked value: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling locked value: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &state.LockedRound, m)
+	buf, rem, err = surge.Unmarshal(&state.LockedRound, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling locked round: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling locked round: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &state.ValidValue, m)
+	buf, rem, err = surge.Unmarshal(&state.ValidValue, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling valid value: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling valid value: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &state.ValidRound, m)
+	buf, rem, err = surge.Unmarshal(&state.ValidRound, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling valid round: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling valid round: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &state.ProposeLogs, m)
+	buf, rem, err = surge.Unmarshal(&state.ProposeLogs, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling propose logs: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling propose logs: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &state.PrevoteLogs, m)
+	buf, rem, err = surge.Unmarshal(&state.PrevoteLogs, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling prevote logs: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling prevote logs: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &state.PrecommitLogs, m)
+	buf, rem, err = surge.Unmarshal(&state.PrecommitLogs, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling precommit logs: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling precommit logs: %v", err)
 	}
-	m, err = surge.Unmarshal(r, &state.OnceFlags, m)
+	buf, rem, err = surge.Unmarshal(&state.OnceFlags, buf, rem)
 	if err != nil {
-		return m, fmt.Errorf("unmarshaling once flags: %v", err)
+		return buf, rem, fmt.Errorf("unmarshaling once flags: %v", err)
 	}
-	return m, nil
+	return buf, rem, nil
 }
 
 // Step defines a typedef for uint8 values that represent the step of the state
@@ -261,6 +264,21 @@ type Value id.Hash
 // it returns false.
 func (v *Value) Equal(other *Value) bool {
 	return bytes.Equal(v[:], other[:])
+}
+
+// MarshalJSON serialises a process value to JSON format
+func (v Value) MarshalJSON() ([]byte, error) {
+	return id.Hash(v).MarshalJSON()
+}
+
+// UnmarshalJSON deserialises a JSON format to process value
+func (v *Value) UnmarshalJSON(data []byte) error {
+	return (*id.Hash)(v).UnmarshalJSON(data)
+}
+
+// String implements the Stringer interface for process value
+func (v Value) String() string {
+	return id.Hash(v).String()
 }
 
 var (
