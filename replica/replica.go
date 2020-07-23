@@ -105,19 +105,10 @@ func (replica *Replica) Run(ctx context.Context) {
 				return
 
 			case timeout := <-replica.onProposeTimeout:
-				if !replica.filterHeight(timeout.Height) {
-					return
-				}
 				replica.proc.OnTimeoutPropose(timeout.Height, timeout.Round)
 			case timeout := <-replica.onPrevoteTimeout:
-				if !replica.filterHeight(timeout.Height) {
-					return
-				}
 				replica.proc.OnTimeoutPrevote(timeout.Height, timeout.Round)
 			case timeout := <-replica.onPrecommitTimeout:
-				if !replica.filterHeight(timeout.Height) {
-					return
-				}
 				replica.proc.OnTimeoutPrecommit(timeout.Height, timeout.Round)
 
 			case propose := <-replica.onPropose:

@@ -75,6 +75,23 @@ var _ = Describe("Timer", func() {
 			})
 		})
 
+		Context("with nil handlers", func() {
+			It("should ignore the timeout calls", func() {
+				opts := timer.DefaultOptions().
+					WithTimeout(1 * time.Millisecond).
+					WithTimeoutScaling(0.0)
+
+				constTimer := timer.NewLinearTimer(opts, nil, nil, nil)
+
+				height := processutil.RandomHeight(r)
+				round := processutil.RandomRound(r)
+
+				constTimer.TimeoutPropose(height, round)
+				constTimer.TimeoutPrevote(height, round)
+				constTimer.TimeoutPrecommit(height, round)
+			})
+		})
+
 		Context("without a timeout scaling factor", func() {
 			Specify("on timeout propose", func() {
 				loop := func() bool {

@@ -74,28 +74,34 @@ func NewLinearTimer(opts Options, handleTimeoutPropose, handleTimeoutPrevote, ha
 // TimeoutPropose schedules a propose timeout with a timeout period appropriately
 // calculated for the consensus height and round
 func (t *LinearTimer) TimeoutPropose(height process.Height, round process.Round) {
-	go func() {
-		time.Sleep(t.timeoutDuration(height, round))
-		t.handleTimeoutPropose(Timeout{Height: height, Round: round})
-	}()
+	if t.handleTimeoutPropose != nil {
+		go func() {
+			time.Sleep(t.timeoutDuration(height, round))
+			t.handleTimeoutPropose(Timeout{Height: height, Round: round})
+		}()
+	}
 }
 
 // TimeoutPrevote schedules a prevote timeout with a timeout period appropriately
 // calculated for the consensus height and round
 func (t *LinearTimer) TimeoutPrevote(height process.Height, round process.Round) {
-	go func() {
-		time.Sleep(t.timeoutDuration(height, round))
-		t.handleTimeoutPrevote(Timeout{Height: height, Round: round})
-	}()
+	if t.handleTimeoutPrevote != nil {
+		go func() {
+			time.Sleep(t.timeoutDuration(height, round))
+			t.handleTimeoutPrevote(Timeout{Height: height, Round: round})
+		}()
+	}
 }
 
 // TimeoutPrecommit schedules a precommit timeout with a timeout period appropriately
 // calculated for the consensus height and round
 func (t *LinearTimer) TimeoutPrecommit(height process.Height, round process.Round) {
-	go func() {
-		time.Sleep(t.timeoutDuration(height, round))
-		t.handleTimeoutPrecommit(Timeout{Height: height, Round: round})
-	}()
+	if t.handleTimeoutPrecommit != nil {
+		go func() {
+			time.Sleep(t.timeoutDuration(height, round))
+			t.handleTimeoutPrecommit(Timeout{Height: height, Round: round})
+		}()
+	}
 }
 
 func (t *LinearTimer) timeoutDuration(height process.Height, round process.Round) time.Duration {
