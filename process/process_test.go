@@ -2834,107 +2834,208 @@ var _ = Describe("Process", func() {
 		}
 
 		Context("when there are f+1 unique signatories", func() {
-			It("should start a new round set as the given future round", func() {
-				loop := func() bool {
-					currentHeight := process.Height(r.Int63())
-					currentRound := process.Round(r.Int63())
-					whoami := id.NewPrivKey().Signatory()
-					f := 5 + (r.Int() % 10)
+			Context("with f+1 prevotes", func() {
+				It("should skip to future round", func() {
+					loop := func() bool {
+						currentHeight := process.Height(r.Int63())
+						currentRound := process.Round(r.Int63())
+						futureRound := currentRound + 1 + process.Round(r.Int()%10)
+						whoami := id.NewPrivKey().Signatory()
+						f := 5 + (r.Int() % 10)
 
-					// instantiate a new process
-					p := process.New(whoami, f, nil, nil, nil, nil, nil, nil, nil)
-					p.StartRound(currentRound)
-					p.State.CurrentHeight = currentHeight
+						// instantiate a new process
+						p := process.New(whoami, f, nil, nil, nil, nil, nil, nil, nil)
+						p.StartRound(currentRound)
+						p.State.CurrentHeight = currentHeight
 
-					// f+1 unique signatories
-					signatories := make([]id.Signatory, f+1)
-					for i := range signatories {
-						signatories[i] = id.NewPrivKey().Signatory()
-					}
-
-					// feed with 1 propose message
-					futureRound := currentRound + 1 + process.Round(r.Int()%10)
-					propose := processutil.RandomPropose(r)
-					propose.From = signatories[0]
-					propose.Height = currentHeight
-					propose.Round = futureRound
-					p.Propose(propose)
-
-					// feed with f prevote/precommit messages
-					for t := 0; t < f; t++ {
-						switch r.Int() % 2 {
-						case 0:
-							msg := randomValidPrevote(r, currentHeight, futureRound)
-							msg.From = signatories[t+1]
-							p.Prevote(msg)
-						case 1:
-							msg := randomValidPrecommit(r, currentHeight, futureRound)
-							msg.From = signatories[t+1]
-							p.Precommit(msg)
-						default:
-							panic("this should never happen")
+						// f+1 unique signatories
+						signatories := make([]id.Signatory, f+1)
+						for i := range signatories {
+							signatories[i] = id.NewPrivKey().Signatory()
 						}
+
+						// feed f+1 precommit messages
+						for t := 0; t < f+1; t++ {
+							msg := randomValidPrevote(r, currentHeight, futureRound)
+							msg.From = signatories[t]
+							p.Prevote(msg)
+						}
+
+						// the process should have moved to the future round
+						Expect(p.State.CurrentRound).To(Equal(futureRound))
+
+						return true
 					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+			})
 
-					// the process should have moved to the future round
-					Expect(p.State.CurrentRound).To(Equal(futureRound))
+			Context("with f+1 precommits", func() {
+				It("should skip to future round", func() {
+					loop := func() bool {
+						currentHeight := process.Height(r.Int63())
+						currentRound := process.Round(r.Int63())
+						futureRound := currentRound + 1 + process.Round(r.Int()%10)
+						whoami := id.NewPrivKey().Signatory()
+						f := 5 + (r.Int() % 10)
 
-					return true
-				}
-				Expect(quick.Check(loop, nil)).To(Succeed())
+						// instantiate a new process
+						p := process.New(whoami, f, nil, nil, nil, nil, nil, nil, nil)
+						p.StartRound(currentRound)
+						p.State.CurrentHeight = currentHeight
+
+						// f+1 unique signatories
+						signatories := make([]id.Signatory, f+1)
+						for i := range signatories {
+							signatories[i] = id.NewPrivKey().Signatory()
+						}
+
+						// feed f+1 precommit messages
+						for t := 0; t < f+1; t++ {
+							msg := randomValidPrecommit(r, currentHeight, futureRound)
+							msg.From = signatories[t]
+							p.Precommit(msg)
+						}
+
+						// the process should have moved to the future round
+						Expect(p.State.CurrentRound).To(Equal(futureRound))
+
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+			})
+
+			Context("with f+1 messages (propose/prevote/precommit)", func() {
+				It("should start a new round set as the given future round", func() {
+					loop := func() bool {
+						currentHeight := process.Height(r.Int63())
+						currentRound := process.Round(r.Int63())
+						futureRound := currentRound + 1 + process.Round(r.Int()%10)
+						whoami := id.NewPrivKey().Signatory()
+						f := 5 + (r.Int() % 10)
+
+						// instantiate a new process
+						p := process.New(whoami, f, nil, nil, nil, nil, nil, nil, nil)
+						p.StartRound(currentRound)
+						p.State.CurrentHeight = currentHeight
+
+						// f+1 unique signatories
+						signatories := make([]id.Signatory, f+1)
+						for i := range signatories {
+							signatories[i] = id.NewPrivKey().Signatory()
+						}
+
+						// store f+1 messages (1 propose, f prevotes/precommits)
+						messages := make([]interface{}, 0, f+1)
+						propose := processutil.RandomPropose(r)
+						propose.From = signatories[0]
+						propose.Height = currentHeight
+						propose.Round = futureRound
+						messages = append(messages, propose)
+
+						// append f prevote/precommit messages
+						for t := 0; t < f; t++ {
+							switch r.Int() % 2 {
+							case 0:
+								msg := randomValidPrevote(r, currentHeight, futureRound)
+								msg.From = signatories[t+1]
+								messages = append(messages, msg)
+							case 1:
+								msg := randomValidPrecommit(r, currentHeight, futureRound)
+								msg.From = signatories[t+1]
+								messages = append(messages, msg)
+							default:
+								panic("this should never happen")
+							}
+						}
+
+						// shuffle messages
+						r.Shuffle(len(messages), func(i, j int) {
+							messages[i], messages[j] = messages[j], messages[i]
+						})
+
+						// feed those messages
+						for _, msg := range messages {
+							switch msg := msg.(type) {
+							case process.Propose:
+								p.Propose(msg)
+							case process.Prevote:
+								p.Prevote(msg)
+							case process.Precommit:
+								p.Precommit(msg)
+							}
+						}
+
+						// the process should have moved to the future round
+						Expect(p.State.CurrentRound).To(Equal(futureRound))
+
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
 			})
 		})
 
-		FContext("when there are less than f+1 unique signatories", func() {
-			It("should do nothing", func() {
-				loop := func() bool {
-					currentHeight := process.Height(r.Int63())
-					currentRound := process.Round(r.Int63())
-					whoami := id.NewPrivKey().Signatory()
-					f := 5 + (r.Int() % 10)
+		Context("when there are less than f+1 unique signatories", func() {
+			Context("with f unique signatories for 2f messages (f prevotes + f precommits)", func() {
+				It("should do nothing", func() {
+					loop := func() bool {
+						currentHeight := process.Height(r.Int63())
+						currentRound := process.Round(r.Int63())
+						futureRound := currentRound + 1 + process.Round(r.Int()%10)
+						whoami := id.NewPrivKey().Signatory()
+						f := 5 + (r.Int() % 10)
 
-					// instantiate a new process
-					p := process.New(whoami, f, nil, nil, nil, nil, nil, nil, nil)
-					p.StartRound(currentRound)
-					p.State.CurrentHeight = currentHeight
+						// instantiate a new process
+						p := process.New(whoami, f, nil, nil, nil, nil, nil, nil, nil)
+						p.StartRound(currentRound)
+						p.State.CurrentHeight = currentHeight
 
-					// f+1 signatories with the 2 being the same
-					signatories := make([]id.Signatory, f+1)
-					for i := range signatories {
-						signatories[i] = id.NewPrivKey().Signatory()
-					}
-					signatories[f] = signatories[r.Intn(f)]
-
-					// feed with 1 propose message
-					futureRound := currentRound + 1 + process.Round(r.Int()%10)
-					propose := processutil.RandomPropose(r)
-					propose.From = signatories[0]
-					propose.Height = currentHeight
-					propose.Round = futureRound
-					p.Propose(propose)
-
-					// feed with f prevote/precommit messages
-					for t := 0; t < f; t++ {
-						switch r.Int() % 2 {
-						case 0:
-							msg := randomValidPrevote(r, currentHeight, futureRound)
-							msg.From = signatories[t+1]
-							p.Prevote(msg)
-						case 1:
-							msg := randomValidPrecommit(r, currentHeight, futureRound)
-							msg.From = signatories[t+1]
-							p.Precommit(msg)
-						default:
-							panic("this should never happen")
+						// f unique signatories
+						signatories := make([]id.Signatory, f)
+						for i := range signatories {
+							signatories[i] = id.NewPrivKey().Signatory()
 						}
+
+						// 2f messages (f prevotes, f precommits)
+						messages := make([]interface{}, 0, 2*f)
+
+						// feed with f prevote/precommit messages
+						for t := 0; t < f; t++ {
+							prevote := randomValidPrevote(r, currentHeight, futureRound)
+							prevote.From = signatories[t]
+							messages = append(messages, prevote)
+
+							precommit := randomValidPrecommit(r, currentHeight, futureRound)
+							precommit.From = signatories[t]
+							messages = append(messages, precommit)
+						}
+
+						// shuffle messages
+						r.Shuffle(len(messages), func(i, j int) {
+							messages[i], messages[j] = messages[j], messages[i]
+						})
+
+						// feed those messages
+						for _, msg := range messages {
+							switch msg := msg.(type) {
+							case process.Propose:
+								p.Propose(msg)
+							case process.Prevote:
+								p.Prevote(msg)
+							case process.Precommit:
+								p.Precommit(msg)
+							}
+						}
+
+						// the process should have moved to the future round
+						Expect(p.State.CurrentRound).To(Equal(currentRound))
+
+						return true
 					}
-
-					// the process should have moved to the future round
-					Expect(p.State.CurrentRound).To(Equal(currentRound))
-
-					return true
-				}
-				Expect(quick.Check(loop, nil)).To(Succeed())
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
 			})
 		})
 
