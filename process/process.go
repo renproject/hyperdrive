@@ -741,12 +741,17 @@ func (p *Process) insertPropose(propose Propose) bool {
 		if p.broadcaster != nil {
 			p.broadcaster.BroadcastPrevote(Prevote{
 				Height: p.CurrentHeight,
-				Round:  p.CurrentRound,
+				Round:  propose.Round,
 				Value:  NilValue,
 				From:   p.whoami,
 			})
+		}
+
+		// Step to prevoting if the proposal was for the round we are currently in
+		if p.CurrentRound == propose.Round {
 			p.stepToPrevoting()
 		}
+
 		return false
 	}
 

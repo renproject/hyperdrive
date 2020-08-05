@@ -899,6 +899,109 @@ var _ = Describe("Process", func() {
 			})
 		})
 
+		Context("when we receive an invalid propose", func() {
+			Context("when the propose is for a future round", func() {
+				It("should broadcast a nil prevote for the future round", func() {
+					loop := func() bool {
+						currentHeight := process.Height(r.Int63())
+						currentRound := process.Round(r.Int63())
+						f := 5 + r.Intn(15)
+						whoami := id.NewPrivKey().Signatory()
+						acknowledge := false
+						futureRound := currentRound + 1 + process.Round(r.Intn(10))
+						broadcaster := processutil.BroadcasterCallbacks{
+							BroadcastProposeCallback: nil,
+							BroadcastPrevoteCallback: func(prevote process.Prevote) {
+								acknowledge = true
+								Expect(prevote.Value).To(Equal(process.NilValue))
+								Expect(prevote.Round).To(Equal(futureRound))
+								Expect(prevote.Height).To(Equal(currentHeight))
+							},
+							BroadcastPrecommitCallback: nil,
+						}
+						// the future proposal will be invalid
+						validator := processutil.MockValidator{
+							MockValid: func(value process.Value) bool {
+								return false
+							},
+						}
+						p := process.New(whoami, f, nil, nil, nil, validator, broadcaster, nil, nil)
+
+						p.CurrentHeight = currentHeight
+						p.StartRound(currentRound)
+
+						p.Propose(process.Propose{
+							Height:     currentHeight,
+							Round:      futureRound,
+							Value:      processutil.RandomGoodValue(r),
+							From:       id.NewPrivKey().Signatory(),
+							ValidRound: process.InvalidRound,
+						})
+
+						// make sure we have broadcasted the prevote for future round
+						Expect(acknowledge).To(BeTrue())
+
+						// make sure that in the current round we have not yet stepped to
+						// prevoting
+						Expect(p.CurrentStep).To(Equal(process.Proposing))
+
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+			})
+
+			Context("when the propose is for the current round", func() {
+				It("should broadcast a nil prevote for the current round and step to prevoting", func() {
+					loop := func() bool {
+						currentHeight := process.Height(r.Int63())
+						currentRound := process.Round(r.Int63())
+						f := 5 + r.Intn(15)
+						whoami := id.NewPrivKey().Signatory()
+						acknowledge := false
+						broadcaster := processutil.BroadcasterCallbacks{
+							BroadcastProposeCallback: nil,
+							BroadcastPrevoteCallback: func(prevote process.Prevote) {
+								acknowledge = true
+								Expect(prevote.Value).To(Equal(process.NilValue))
+								Expect(prevote.Round).To(Equal(currentRound))
+								Expect(prevote.Height).To(Equal(currentHeight))
+							},
+							BroadcastPrecommitCallback: nil,
+						}
+						// the future proposal will be invalid
+						validator := processutil.MockValidator{
+							MockValid: func(value process.Value) bool {
+								return false
+							},
+						}
+						p := process.New(whoami, f, nil, nil, nil, validator, broadcaster, nil, nil)
+
+						p.CurrentHeight = currentHeight
+						p.StartRound(currentRound)
+
+						p.Propose(process.Propose{
+							Height:     currentHeight,
+							Round:      currentRound,
+							Value:      processutil.RandomGoodValue(r),
+							From:       id.NewPrivKey().Signatory(),
+							ValidRound: process.InvalidRound,
+						})
+
+						// make sure we have broadcasted the prevote for future round
+						Expect(acknowledge).To(BeTrue())
+
+						// make sure that in the current round we have not yet stepped to
+						// prevoting
+						Expect(p.CurrentStep).To(Equal(process.Prevoting))
+
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+			})
+		})
+
 		Context("when the message sender is not the correct proposer for this height and round", func() {
 			It("should do nothing", func() {
 				f := func() bool {
