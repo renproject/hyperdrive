@@ -3037,6 +3037,69 @@ var _ = Describe("Process", func() {
 					Expect(quick.Check(loop, nil)).To(Succeed())
 				})
 			})
+
+			Context("with f unique signatories for f+1 messages (1 propose, f prevotes)", func() {
+				It("should do nothing", func() {
+					loop := func() bool {
+						currentHeight := process.Height(r.Int63())
+						currentRound := process.Round(r.Int63())
+						futureRound := currentRound + 1 + process.Round(r.Int()%10)
+						whoami := id.NewPrivKey().Signatory()
+						f := 5 + (r.Int() % 10)
+
+						// instantiate a new process
+						p := process.New(whoami, f, nil, nil, nil, nil, nil, nil, nil)
+						p.StartRound(currentRound)
+						p.State.CurrentHeight = currentHeight
+
+						// f unique signatories
+						signatories := make([]id.Signatory, f)
+						for i := range signatories {
+							signatories[i] = id.NewPrivKey().Signatory()
+						}
+
+						// 2f messages (f prevotes, f precommits)
+						messages := make([]interface{}, 0, 2*f)
+
+						// feed with f prevote messages
+						for t := 0; t < f; t++ {
+							prevote := randomValidPrevote(r, currentHeight, futureRound)
+							prevote.From = signatories[t]
+							messages = append(messages, prevote)
+						}
+
+						// add a propose message
+						propose := processutil.RandomPropose(r)
+						propose.From = signatories[r.Intn(f)]
+						propose.Height = currentHeight
+						propose.Round = futureRound
+						messages = append(messages, propose)
+
+						// shuffle messages
+						r.Shuffle(len(messages), func(i, j int) {
+							messages[i], messages[j] = messages[j], messages[i]
+						})
+
+						// feed those messages
+						for _, msg := range messages {
+							switch msg := msg.(type) {
+							case process.Propose:
+								p.Propose(msg)
+							case process.Prevote:
+								p.Prevote(msg)
+							case process.Precommit:
+								p.Precommit(msg)
+							}
+						}
+
+						// the process should have moved to the future round
+						Expect(p.State.CurrentRound).To(Equal(currentRound))
+
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+			})
 		})
 
 		It("should start a new round set as the given future round", func() {

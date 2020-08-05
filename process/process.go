@@ -665,6 +665,7 @@ func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 		p.PrevoteLogs = map[Round]map[id.Signatory]Prevote{}
 		p.PrecommitLogs = map[Round]map[id.Signatory]Precommit{}
 		p.OnceFlags = map[Round]OnceFlag{}
+		p.TraceLogs = map[Round]map[id.Signatory]bool{}
 
 		// Start from the first Round in the new Height.
 		p.StartRound(0)
@@ -688,31 +689,16 @@ func (p *Process) trySkipToFutureRound(round Round) {
 		return
 	}
 
-	// declare a map to note unique signatories to have sent messages for
-	// round > currentRound
-	uniqueSignatories := make(map[id.Signatory]struct{})
-
-	// handle the propose message
-	propose, ok := p.ProposeLogs[round]
-	if ok {
-		uniqueSignatories[propose.From] = struct{}{}
-	}
-
-	// loop over the prevotes to fetch unique prevoters
-	for signatory := range p.PrevoteLogs[round] {
-		if _, ok := uniqueSignatories[signatory]; !ok {
-			uniqueSignatories[signatory] = struct{}{}
+	// if the proposer is already a part of trace logs, ignore it
+	proposeCount := 0
+	if propose, ok := p.ProposeLogs[round]; ok {
+		if _, ok := p.TraceLogs[round][propose.From]; !ok {
+			proposeCount = 1
 		}
 	}
 
-	// loop over the precommits to fetch unique precommiters
-	for signatory := range p.PrecommitLogs[round] {
-		if _, ok := uniqueSignatories[signatory]; !ok {
-			uniqueSignatories[signatory] = struct{}{}
-		}
-	}
-
-	if len(uniqueSignatories) == int(p.f+1) {
+	// count of unique signatories that we have received any message from
+	if len(p.TraceLogs[round])+proposeCount >= int(p.f+1) {
 		p.StartRound(round)
 	}
 }
@@ -784,6 +770,9 @@ func (p *Process) insertPrevote(prevote Prevote) bool {
 	if _, ok := p.PrevoteLogs[prevote.Round]; !ok {
 		p.PrevoteLogs[prevote.Round] = map[id.Signatory]Prevote{}
 	}
+	if _, ok := p.TraceLogs[prevote.Round]; !ok {
+		p.TraceLogs[prevote.Round] = map[id.Signatory]bool{}
+	}
 
 	existingPrevote, ok := p.PrevoteLogs[prevote.Round][prevote.From]
 	if ok {
@@ -801,6 +790,7 @@ func (p *Process) insertPrevote(prevote Prevote) bool {
 	}
 
 	p.PrevoteLogs[prevote.Round][prevote.From] = prevote
+	p.TraceLogs[prevote.Round][prevote.From] = true
 	return true
 }
 
@@ -813,6 +803,9 @@ func (p *Process) insertPrecommit(precommit Precommit) bool {
 	}
 	if _, ok := p.PrecommitLogs[precommit.Round]; !ok {
 		p.PrecommitLogs[precommit.Round] = map[id.Signatory]Precommit{}
+	}
+	if _, ok := p.TraceLogs[precommit.Round]; !ok {
+		p.TraceLogs[precommit.Round] = map[id.Signatory]bool{}
 	}
 
 	existingPrecommit, ok := p.PrecommitLogs[precommit.Round][precommit.From]
@@ -831,6 +824,7 @@ func (p *Process) insertPrecommit(precommit Precommit) bool {
 	}
 
 	p.PrecommitLogs[precommit.Round][precommit.From] = precommit
+	p.TraceLogs[precommit.Round][precommit.From] = true
 	return true
 }
 
