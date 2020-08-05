@@ -680,20 +680,39 @@ func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 // received, or a Precommit is received. Because this method checks whichever
 // Round is relevant (i.e. the Round of the Propose/Prevote/Precommit), and an
 // increase in the current Round can only cause this condition to be closed, it
-// does not need to be tried whenever the current Round changes.
+// does not need to be tried whenever the current Round changes. The f+1
+// messages (one propose and f prevotes/precommits) must be from f+1 unique
+// signatories.
 func (p *Process) trySkipToFutureRound(round Round) {
 	if round <= p.CurrentRound {
 		return
 	}
 
-	msgsInRound := 0
-	if _, ok := p.ProposeLogs[round]; ok {
-		msgsInRound = 1
-	}
-	msgsInRound += len(p.PrevoteLogs[round])
-	msgsInRound += len(p.PrecommitLogs[round])
+	// declare a map to note unique signatories to have sent messages for
+	// round > currentRound
+	uniqueSignatories := make(map[id.Signatory]struct{})
 
-	if msgsInRound == int(p.f+1) {
+	// handle the propose message
+	propose, ok := p.ProposeLogs[round]
+	if ok {
+		uniqueSignatories[propose.From] = struct{}{}
+	}
+
+	// loop over the prevotes to fetch unique prevoters
+	for signatory := range p.PrevoteLogs[round] {
+		if _, ok := uniqueSignatories[signatory]; !ok {
+			uniqueSignatories[signatory] = struct{}{}
+		}
+	}
+
+	// loop over the precommits to fetch unique precommiters
+	for signatory := range p.PrecommitLogs[round] {
+		if _, ok := uniqueSignatories[signatory]; !ok {
+			uniqueSignatories[signatory] = struct{}{}
+		}
+	}
+
+	if len(uniqueSignatories) == int(p.f+1) {
 		p.StartRound(round)
 	}
 }
