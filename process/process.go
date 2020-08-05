@@ -421,7 +421,7 @@ func (p *Process) tryPrevoteUponSufficientPrevotes() {
 	if !ok {
 		return
 	}
-	if propose.ValidRound == InvalidRound || propose.ValidRound >= p.CurrentRound {
+	if propose.ValidRound <= InvalidRound || propose.ValidRound >= p.CurrentRound {
 		return
 	}
 
