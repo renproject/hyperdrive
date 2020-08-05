@@ -11,12 +11,21 @@ import (
 )
 
 // DidHandleMessage is called by the Replica after it has finished handling an
-// input message (i.e. Propose, Prevote, or Precommit), or timeout.
+// input message (i.e. Propose, Prevote, or Precommit), or timeout. The message
+// could have been either accepted and inserted into the processing queue, or
+// filtered out and dropped. The callback is called even when the context
+// within which the Replica runs gets cancelled.
 type DidHandleMessage func()
 
-// A Replica represents one Process in a replicated state machine that is bound
-// to a specific Shard. It signs Messages before sending them to other Replicas,
-// and verifies Messages before accepting them from other Replicas.
+// A Replica represents a process in a replicated state machine that
+// participates in the Hyperdrive Consensus Algorithm. It encapsulates a
+// Hyperdrive Process and exposes an interface for the Hyperdrive user to
+// insert messages (propose, prevote, precommit, timeouts). A Replica then
+// handles these messages in asynchronously after having enqueued them in
+// increasing order of height and round. A Replica is instantiated by passing
+// in the set of signatories participating in the consensus mechanism, and it
+// filters out messages if they haven't been sent by the known set of allowed
+// signatories.
 type Replica struct {
 	opts Options
 
