@@ -1481,6 +1481,126 @@ var _ = Describe("Process", func() {
 				Expect(quick.Check(loop, nil)).To(Succeed())
 			})
 		})
+
+		Context("when we are in the proposing step", func() {
+			Context("and step into prevoting step", func() {
+				Context("with >= 2f+1 prevotes", func() {
+					It("should schedule a prevote timeout", func() {
+						loop := func() bool {
+							currentHeight := process.Height(r.Int63())
+							currentRound := process.Round(r.Int63())
+							whoami := id.NewPrivKey().Signatory()
+							f := 5 + (r.Int() % 10)
+							timerOptions := timer.
+								DefaultOptions().
+								WithTimeout(1 * time.Millisecond).
+								WithTimeoutScaling(0)
+							timeoutSignal := make(chan timer.Timeout, 2)
+							handlePrevoteTimeout := func(timeout timer.Timeout) {
+								timeoutSignal <- timeout
+							}
+							timer := timer.NewLinearTimer(timerOptions, nil, handlePrevoteTimeout, nil)
+
+							p := process.New(whoami, f, timer, nil, nil, nil, nil, nil, nil)
+
+							p.StartRound(currentRound)
+							p.CurrentHeight = currentHeight
+
+							// feed >= 2f+1 prevotes
+							t := 2*f + 1 + r.Intn(10)
+							for i := 0; i < t; i++ {
+								prevote := randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), currentHeight, currentRound)
+								p.Prevote(prevote)
+							}
+
+							// make sure we haven't received any prevote timeout
+							select {
+							case _ = <-timeoutSignal:
+								Expect(true).To(BeFalse())
+							default:
+								Expect(true).To(BeTrue())
+							}
+
+							// feed a valid propose message
+							p.Propose(process.Propose{
+								Height:     currentHeight,
+								Round:      currentRound,
+								Value:      processutil.RandomGoodValue(r),
+								ValidRound: process.InvalidRound,
+								From:       id.NewPrivKey().Signatory(),
+							})
+
+							time.Sleep(5 * time.Millisecond)
+
+							select {
+							case timeout := <-timeoutSignal:
+								Expect(timeout.Height).To(Equal(currentHeight))
+								Expect(timeout.Round).To(Equal(currentRound))
+							default:
+								Expect(true).To(BeFalse())
+							}
+
+							return true
+						}
+						Expect(quick.Check(loop, nil)).To(Succeed())
+					})
+				})
+
+				Context("with < 2f+1 prevotes", func() {
+					It("should do nothing", func() {
+						loop := func() bool {
+							currentHeight := process.Height(r.Int63())
+							currentRound := process.Round(r.Int63())
+							whoami := id.NewPrivKey().Signatory()
+							f := 5 + (r.Int() % 10)
+							timerOptions := timer.
+								DefaultOptions().
+								WithTimeout(1 * time.Millisecond).
+								WithTimeoutScaling(0)
+							timeoutSignal := make(chan timer.Timeout, 2)
+							handlePrevoteTimeout := func(timeout timer.Timeout) {
+								timeoutSignal <- timeout
+							}
+							timer := timer.NewLinearTimer(timerOptions, nil, handlePrevoteTimeout, nil)
+
+							p := process.New(whoami, f, timer, nil, nil, nil, nil, nil, nil)
+
+							p.StartRound(currentRound)
+							p.CurrentHeight = currentHeight
+
+							// feed < 2f+1 prevotes
+							t := r.Intn(2*f + 1)
+							for i := 0; i < t; i++ {
+								prevote := randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), currentHeight, currentRound)
+								p.Prevote(prevote)
+							}
+
+							// feed a valid propose message
+							p.Propose(process.Propose{
+								Height:     currentHeight,
+								Round:      currentRound,
+								Value:      processutil.RandomGoodValue(r),
+								ValidRound: process.InvalidRound,
+								From:       id.NewPrivKey().Signatory(),
+							})
+
+							time.Sleep(5 * time.Millisecond)
+
+							// make sure we still haven't received any timeout
+							select {
+							case _ = <-timeoutSignal:
+								Expect(true).To(BeFalse())
+							default:
+								Expect(true).To(BeTrue())
+							}
+
+							return true
+						}
+						Expect(quick.Check(loop, nil)).To(Succeed())
+					})
+				})
+			})
+		})
 	})
 
 	// L36:
@@ -1968,6 +2088,87 @@ var _ = Describe("Process", func() {
 					return true
 				}
 				Expect(quick.Check(loop, nil)).To(Succeed())
+			})
+		})
+
+		Context("when we are in the proposing step", func() {
+			Context("and we step to prevoting step", func() {
+				Context("with >= 2f+1 nil prevotes", func() {
+					It("should precommit nil and step to precommitting", func() {
+						loop := func() bool {
+							currentHeight := process.Height(r.Int63())
+							currentRound := process.Round(r.Int63())
+							whoami := id.NewPrivKey().Signatory()
+							f := 5 + (r.Int() % 10)
+							acknowledge := false
+							broadcaster := processutil.BroadcasterCallbacks{
+								BroadcastProposeCallback: nil,
+								BroadcastPrevoteCallback: nil,
+								BroadcastPrecommitCallback: func(msg process.Precommit) {
+									Expect(msg.Value).To(Equal(process.NilValue))
+									acknowledge = true
+								},
+							}
+							p := process.New(whoami, f, nil, nil, nil, nil, broadcaster, nil, nil)
+
+							p.StartRound(currentRound)
+							p.CurrentHeight = currentHeight
+
+							// feed >= 2f+1 nil prevotes
+							t := 2*f + 1 + r.Intn(10)
+							for i := 0; i < t; i++ {
+								prevote := nilPrevoteMsg(r, id.NewPrivKey().Signatory(), currentHeight, currentRound)
+								p.Prevote(prevote)
+							}
+
+							// step to prevoting by timing out of propose step
+							p.OnTimeoutPropose(currentHeight, currentRound)
+
+							Expect(acknowledge).To(BeTrue())
+							Expect(p.CurrentStep).To(Equal(process.Precommitting))
+
+							return true
+						}
+						Expect(quick.Check(loop, nil)).To(Succeed())
+					})
+				})
+
+				Context("with < 2f+1 nil prevotes", func() {
+					It("should do nothing", func() {
+						loop := func() bool {
+							currentHeight := process.Height(r.Int63())
+							currentRound := process.Round(r.Int63())
+							whoami := id.NewPrivKey().Signatory()
+							f := 5 + (r.Int() % 10)
+							broadcaster := processutil.BroadcasterCallbacks{
+								BroadcastProposeCallback: nil,
+								BroadcastPrevoteCallback: nil,
+								BroadcastPrecommitCallback: func(msg process.Precommit) {
+									Expect(true).To(BeFalse())
+								},
+							}
+							p := process.New(whoami, f, nil, nil, nil, nil, broadcaster, nil, nil)
+
+							p.StartRound(currentRound)
+							p.CurrentHeight = currentHeight
+
+							// feed < 2f+1 nil prevotes
+							t := r.Intn(2*f + 1)
+							for i := 0; i < t; i++ {
+								prevote := nilPrevoteMsg(r, id.NewPrivKey().Signatory(), currentHeight, currentRound)
+								p.Prevote(prevote)
+							}
+
+							// step to prevoting by timing out of propose step
+							p.OnTimeoutPropose(currentHeight, currentRound)
+
+							Expect(p.CurrentStep).To(Equal(process.Prevoting))
+
+							return true
+						}
+						Expect(quick.Check(loop, nil)).To(Succeed())
+					})
+				})
 			})
 		})
 	})
@@ -2513,6 +2714,101 @@ var _ = Describe("Process", func() {
 						return true
 					}
 					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+			})
+
+			Context("when we are in proposing step", func() {
+				Context("and receive a valid propose", func() {
+					Context("while already having received >= 2f+1 precommits for proposal", func() {
+						It("should commit proposal", func() {
+							loop := func() bool {
+								currentHeight := process.Height(r.Int63())
+								currentRound := process.Round(r.Int63())
+								whoami := id.NewPrivKey().Signatory()
+								f := 5 + (r.Int() % 10)
+								acknowledge := false
+								proposedValue := processutil.RandomGoodValue(r)
+								committer := processutil.CommitterCallback{
+									Callback: func(height process.Height, value process.Value) {
+										Expect(height).To(Equal(currentHeight))
+										Expect(value).To(Equal(proposedValue))
+										acknowledge = true
+									},
+								}
+								p := process.New(whoami, f, nil, nil, nil, nil, nil, committer, nil)
+
+								p.StartRound(currentRound)
+								p.CurrentHeight = currentHeight
+
+								// feed >= 2f+1 precommits for the proposed value
+								t := 2*f + 1 + r.Intn(10)
+								for i := 0; i < t; i++ {
+									precommit := randomValidPrecommitMsg(r, currentHeight, currentRound, proposedValue)
+									p.Precommit(precommit)
+								}
+
+								Expect(acknowledge).To(BeFalse())
+
+								// feed the valid proposal
+								propose := processutil.RandomPropose(r)
+								propose.Height = currentHeight
+								propose.Round = currentRound
+								propose.Value = proposedValue
+								p.Propose(propose)
+
+								Expect(acknowledge).To(BeTrue())
+								Expect(p.CurrentHeight).To(Equal(currentHeight + 1))
+								Expect(p.CurrentRound).To(Equal(process.Round(0)))
+								Expect(p.CurrentStep).To(Equal(process.Proposing))
+
+								return true
+							}
+							Expect(quick.Check(loop, nil)).To(Succeed())
+						})
+					})
+
+					Context("while having received < 2f+1 precommits for proposal", func() {
+						It("should continue being at the current height", func() {
+							loop := func() bool {
+								currentHeight := process.Height(r.Int63())
+								currentRound := process.Round(r.Int63())
+								whoami := id.NewPrivKey().Signatory()
+								f := 5 + (r.Int() % 10)
+								proposedValue := processutil.RandomGoodValue(r)
+								committer := processutil.CommitterCallback{
+									Callback: func(height process.Height, value process.Value) {
+										Expect(true).To(BeFalse())
+									},
+								}
+								p := process.New(whoami, f, nil, nil, nil, nil, nil, committer, nil)
+
+								p.StartRound(currentRound)
+								p.CurrentHeight = currentHeight
+
+								// feed < 2f+1 precommits for the proposed value
+								t := r.Intn(2*f + 1)
+								for i := 0; i < t; i++ {
+									precommit := randomValidPrecommitMsg(r, currentHeight, currentRound, proposedValue)
+									p.Precommit(precommit)
+								}
+
+								// feed the valid proposal
+								propose := processutil.RandomPropose(r)
+								propose.Height = currentHeight
+								propose.Round = currentRound
+								propose.Value = proposedValue
+								propose.ValidRound = process.InvalidRound
+								p.Propose(propose)
+
+								Expect(p.CurrentHeight).To(Equal(currentHeight))
+								Expect(p.CurrentRound).To(Equal(currentRound))
+								Expect(p.CurrentStep).To(Equal(process.Prevoting))
+
+								return true
+							}
+							Expect(quick.Check(loop, nil)).To(Succeed())
+						})
+					})
 				})
 			})
 		})
