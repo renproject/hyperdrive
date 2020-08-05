@@ -766,6 +766,38 @@ var _ = Describe("Process", func() {
 						Expect(quick.Check(f, nil)).To(Succeed())
 					})
 				})
+
+				Context("when the propose is for an invalid round", func() {
+					It("should not panic", func() {
+						loop := func() bool {
+							currentHeight := process.Height(r.Int63())
+							currentRound := process.Round(r.Int63())
+							whoami := id.NewPrivKey().Signatory()
+							f := 5 + (r.Int() % 10)
+
+							// instantiate a new process
+							scheduledProposer := id.NewPrivKey().Signatory()
+							scheduler := scheduler.NewRoundRobin([]id.Signatory{scheduledProposer})
+							p := process.New(whoami, f, nil, scheduler, nil, nil, nil, nil, nil)
+							p.StartRound(currentRound)
+
+							// update the state
+							p.State.CurrentHeight = currentHeight
+							p.State.CurrentStep = process.Proposing
+							p.State.LockedRound = process.InvalidRound
+
+							// insert a propose for an invalid round
+							propose := processutil.RandomPropose(r)
+							propose.From = scheduledProposer
+							propose.Height = currentHeight
+							propose.Round = process.Round(-r.Int63())
+							p.Propose(propose)
+
+							return true
+						}
+						Expect(quick.Check(loop, nil)).To(Succeed())
+					})
+				})
 			})
 
 			Context("when we are not in the propose step", func() {

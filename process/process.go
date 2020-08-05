@@ -687,6 +687,10 @@ func (p *Process) insertPropose(propose Propose) bool {
 		return false
 	}
 
+	if propose.Round <= InvalidRound {
+		return false
+	}
+
 	if p.scheduler != nil {
 		proposer := p.scheduler.Schedule(propose.Height, propose.Round)
 		if !proposer.Equal(&propose.From) {
