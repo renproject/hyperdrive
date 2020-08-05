@@ -800,6 +800,64 @@ var _ = Describe("Process", func() {
 						Expect(quick.Check(loop, nil)).To(Succeed())
 					})
 				})
+
+				Context("when trying to propose a nil value", func() {
+					It("should do nothing", func() {
+						loop := func() bool {
+							currentHeight := process.Height(r.Int63())
+							currentRound := process.Round(r.Int63())
+							f := 5 + r.Intn(15)
+							whoami := id.NewPrivKey().Signatory()
+							futureRound := currentRound + process.Round(r.Intn(5))
+							acknowledge := false
+							broadcaster := processutil.BroadcasterCallbacks{
+								BroadcastProposeCallback: nil,
+								BroadcastPrevoteCallback: func(prevote process.Prevote) {
+									acknowledge = true
+									Expect(prevote.Round).To(Equal(futureRound))
+									Expect(prevote.Value).To(Equal(process.NilValue))
+								},
+								BroadcastPrecommitCallback: nil,
+							}
+							committer := processutil.CommitterCallback{
+								Callback: func(height process.Height, value process.Value) {
+									// we should not commit to the nil value proposal
+									Expect(true).To(BeFalse())
+								},
+							}
+							p := process.New(whoami, f, nil, nil, nil, nil, broadcaster, committer, nil)
+
+							p.CurrentHeight = currentHeight
+							p.StartRound(currentRound)
+
+							// feed it 2f+1 nil precommits
+							for i := 0; i <= 2*f; i++ {
+								p.Prevote(process.Prevote{
+									Height: currentHeight,
+									Round:  futureRound,
+									Value:  process.NilValue,
+									From:   id.NewPrivKey().Signatory(),
+								})
+							}
+
+							// adversary feeds it a propose message with nil value
+							p.Propose(process.Propose{
+								Height:     currentHeight,
+								Round:      futureRound,
+								Value:      process.NilValue,
+								ValidRound: process.InvalidRound,
+								From:       id.NewPrivKey().Signatory(),
+							})
+
+							Expect(acknowledge).To(BeTrue())
+							Expect(p.CurrentRound).To(Equal(futureRound))
+							Expect(p.CurrentStep).To(Equal(process.Precommitting))
+
+							return true
+						}
+						Expect(quick.Check(loop, nil)).To(Succeed())
+					})
+				})
 			})
 
 			Context("when we are not in the propose step", func() {
@@ -831,7 +889,7 @@ var _ = Describe("Process", func() {
 							Height:     process.Height(1),
 							Round:      round,
 							ValidRound: process.InvalidRound,
-							Value:      processutil.RandomValue(r),
+							Value:      processutil.RandomGoodValue(r),
 							From:       scheduledProposer,
 						})
 						return true
@@ -2903,7 +2961,7 @@ var _ = Describe("Process", func() {
 				for t := 0; t < tMax; t++ {
 					msg := process.Propose{
 						From:   id.NewPrivKey().Signatory(),
-						Value:  processutil.RandomValue(r),
+						Value:  processutil.RandomGoodValue(r),
 						Height: currentHeight,
 						Round:  futureRound,
 					}
@@ -3098,7 +3156,7 @@ var _ = Describe("Process", func() {
 					p.StartRound(round)
 
 					// receive the first propose msg
-					firstValue := processutil.RandomValue(r)
+					firstValue := processutil.RandomGoodValue(r)
 					propose1 := process.Propose{
 						From:   doubleSender,
 						Height: process.Height(1),
@@ -3118,9 +3176,9 @@ var _ = Describe("Process", func() {
 					Expect(acknowledge).ToNot(BeTrue())
 
 					// on second propose msg (different), catch as double
-					secondValue := processutil.RandomValue(r)
+					secondValue := processutil.RandomGoodValue(r)
 					for secondValue == firstValue {
-						secondValue = processutil.RandomValue(r)
+						secondValue = processutil.RandomGoodValue(r)
 					}
 					propose2 := process.Propose{
 						From:   doubleSender,
