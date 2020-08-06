@@ -689,16 +689,9 @@ func (p *Process) trySkipToFutureRound(round Round) {
 		return
 	}
 
-	// if the proposer is already a part of trace logs, ignore it
-	proposeCount := 0
-	if propose, ok := p.ProposeLogs[round]; ok {
-		if _, ok := p.TraceLogs[round][propose.From]; !ok {
-			proposeCount = 1
-		}
-	}
-
-	// count of unique signatories that we have received any message from
-	if len(p.TraceLogs[round])+proposeCount >= int(p.f+1) {
+	// count of unique signatories that we have received any message from in the
+	// given round and at the current height
+	if len(p.TraceLogs[round]) >= int(p.f+1) {
 		p.StartRound(round)
 	}
 }
@@ -757,7 +750,16 @@ func (p *Process) insertPropose(propose Propose) bool {
 		return false
 	}
 
+	if _, ok := p.ProposeLogs[propose.Round]; ok {
+		return false
+	}
+
 	p.ProposeLogs[propose.Round] = propose
+
+	if _, ok := p.TraceLogs[propose.Round]; !ok {
+		p.TraceLogs[propose.Round] = map[id.Signatory]bool{}
+	}
+	p.TraceLogs[propose.Round][propose.From] = true
 	return true
 }
 

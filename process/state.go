@@ -42,8 +42,8 @@ type State struct {
 	PrecommitLogs map[Round]map[id.Signatory]Precommit `json:"precommitLogs"`
 	// OnceFlags prevents events from happening more than once.
 	OnceFlags map[Round]OnceFlag `json:"onceFlags"`
-	// TraceLogs store the unique signatories from which we have received prevote
-	// or precommit messages in a specific round for the current height
+	// TraceLogs store the unique signatories from which we have received a msg
+	// (propose/prevote/precommit) in a specific round for the current height
 	TraceLogs map[Round]map[id.Signatory]bool
 }
 
