@@ -791,7 +791,9 @@ var _ = Describe("Process", func() {
 							propose.From = scheduledProposer
 							propose.Height = currentHeight
 							propose.Round = process.Round(-r.Int63())
-							p.Propose(propose)
+							Expect(func() {
+								p.Propose(propose)
+							}).ToNot(Panic())
 
 							return true
 						}
