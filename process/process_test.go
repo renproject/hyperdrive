@@ -974,8 +974,7 @@ var _ = Describe("Process", func() {
 										acknowledge := false
 										broadcaster := processutil.BroadcasterCallbacks{
 											BroadcastProposeCallback: func(msg process.Propose) {
-												// this should never get called
-												Expect(true).ToNot(BeTrue())
+												Fail("unexpectedly received a propose broadcast")
 											},
 											BroadcastPrevoteCallback: func(msg process.Prevote) {
 												Expect(msg.Value).To(Equal(proposedValue))
@@ -983,8 +982,7 @@ var _ = Describe("Process", func() {
 												acknowledge = true
 											},
 											BroadcastPrecommitCallback: func(msg process.Precommit) {
-												// this should never get called
-												Expect(true).ToNot(BeTrue())
+												Fail("unexpectedly received a precommit broadcast")
 											},
 										}
 										// create process and start this round
@@ -1042,8 +1040,7 @@ var _ = Describe("Process", func() {
 										acknowledge := false
 										broadcaster := processutil.BroadcasterCallbacks{
 											BroadcastProposeCallback: func(msg process.Propose) {
-												// this should never get called
-												Expect(true).ToNot(BeTrue())
+												Fail("unexpectedly received a propose broadcast")
 											},
 											BroadcastPrevoteCallback: func(msg process.Prevote) {
 												Expect(msg.Value).To(Equal(proposedValue))
@@ -1051,8 +1048,7 @@ var _ = Describe("Process", func() {
 												acknowledge = true
 											},
 											BroadcastPrecommitCallback: func(msg process.Precommit) {
-												// this should never get called
-												Expect(true).ToNot(BeTrue())
+												Fail("unexpectedly received a precommit broadcast")
 											},
 										}
 										// create process and start this round
@@ -1116,8 +1112,7 @@ var _ = Describe("Process", func() {
 										acknowledge := false
 										broadcaster := processutil.BroadcasterCallbacks{
 											BroadcastProposeCallback: func(msg process.Propose) {
-												// this should never get called
-												Expect(true).ToNot(BeTrue())
+												Fail("unexpectedly received a propose broadcast")
 											},
 											BroadcastPrevoteCallback: func(msg process.Prevote) {
 												// nil prevote
@@ -1126,8 +1121,7 @@ var _ = Describe("Process", func() {
 												acknowledge = true
 											},
 											BroadcastPrecommitCallback: func(msg process.Precommit) {
-												// this should never get called
-												Expect(true).ToNot(BeTrue())
+												Fail("unexpectedly received a precommit broadcast")
 											},
 										}
 										// create process and start this round
@@ -1187,8 +1181,7 @@ var _ = Describe("Process", func() {
 									acknowledge := false
 									broadcaster := processutil.BroadcasterCallbacks{
 										BroadcastProposeCallback: func(msg process.Propose) {
-											// this should never get called
-											Expect(true).ToNot(BeTrue())
+											Fail("unexpectedly received a propose broadcast")
 										},
 										BroadcastPrevoteCallback: func(msg process.Prevote) {
 											// nil prevote
@@ -1197,8 +1190,7 @@ var _ = Describe("Process", func() {
 											acknowledge = true
 										},
 										BroadcastPrecommitCallback: func(msg process.Precommit) {
-											// this should never get called
-											Expect(true).ToNot(BeTrue())
+											Fail("unexpectedly received a precommit broadcast")
 										},
 									}
 									// create process and start this round
@@ -1258,16 +1250,13 @@ var _ = Describe("Process", func() {
 								// broadcaster callbacks, only a prevote is expected
 								broadcaster := processutil.BroadcasterCallbacks{
 									BroadcastProposeCallback: func(msg process.Propose) {
-										// this should never get called
-										Expect(true).ToNot(BeTrue())
+										Fail("unexpectedly received a propose broadcast")
 									},
 									BroadcastPrevoteCallback: func(msg process.Prevote) {
-										// this should never get called
-										Expect(true).ToNot(BeTrue())
+										Fail("unexpectedly received a prevote broadcast")
 									},
 									BroadcastPrecommitCallback: func(msg process.Precommit) {
-										// this should never get called
-										Expect(true).ToNot(BeTrue())
+										Fail("unexpectedly received a precommit broadcast")
 									},
 								}
 								// create process and start this round
@@ -1320,8 +1309,7 @@ var _ = Describe("Process", func() {
 					}
 					broadcaster := processutil.BroadcasterCallbacks{
 						BroadcastPrevoteCallback: func(msg process.Prevote) {
-							// this should never get called
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly received a prevote broadcast")
 						},
 					}
 					p := process.New(whoami, f, nil, mockScheduler, nil, mockValidator, broadcaster, nil, nil)
@@ -1408,8 +1396,7 @@ var _ = Describe("Process", func() {
 						time.Sleep(5 * time.Millisecond)
 						select {
 						case _ = <-timeoutSignal:
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly received a prevote timeout")
 						default:
 							Expect(true).To(BeTrue())
 						}
@@ -1425,8 +1412,7 @@ var _ = Describe("Process", func() {
 						Expect(timeout.Round).To(Equal(currentRound))
 						Expect(timeout.Height).To(Equal(process.Height(1)))
 					default:
-						// we do expect to receive a scheduled timeout
-						Expect(true).ToNot(BeTrue())
+						Fail("expected to receive a prevote timeout")
 					}
 
 					// should not schedule a timeout again (that the once flags work)
@@ -1436,8 +1422,7 @@ var _ = Describe("Process", func() {
 					time.Sleep(5 * time.Millisecond)
 					select {
 					case _ = <-timeoutSignal:
-						// this should never happen
-						Expect(true).ToNot(BeTrue())
+						Fail("unexpectedly received a prevote timeout")
 					default:
 						Expect(true).To(BeTrue())
 					}
@@ -1489,8 +1474,7 @@ var _ = Describe("Process", func() {
 						time.Sleep(5 * time.Millisecond)
 						select {
 						case _ = <-timeoutSignal:
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly received a prevote timeout")
 						default:
 							Expect(true).To(BeTrue())
 						}
@@ -1503,16 +1487,134 @@ var _ = Describe("Process", func() {
 					time.Sleep(5 * time.Millisecond)
 					select {
 					case _ = <-timeoutSignal:
-						// this should never happen
-						Expect(true).ToNot(BeTrue())
+						Fail("unexpectedly received a prevote timeout")
 					default:
-						// we dont expect to receive any timeout
 						Expect(true).To(BeTrue())
 					}
 
 					return true
 				}
 				Expect(quick.Check(loop, nil)).To(Succeed())
+			})
+		})
+
+		Context("when we are in the proposing step", func() {
+			Context("and step into prevoting step", func() {
+				Context("with >= 2f+1 prevotes", func() {
+					It("should schedule a prevote timeout", func() {
+						loop := func() bool {
+							currentHeight := process.Height(r.Int63())
+							currentRound := process.Round(r.Int63())
+							whoami := id.NewPrivKey().Signatory()
+							f := 5 + (r.Int() % 10)
+							timerOptions := timer.
+								DefaultOptions().
+								WithTimeout(1 * time.Millisecond).
+								WithTimeoutScaling(0)
+							timeoutSignal := make(chan timer.Timeout, 2)
+							handlePrevoteTimeout := func(timeout timer.Timeout) {
+								timeoutSignal <- timeout
+							}
+							timer := timer.NewLinearTimer(timerOptions, nil, handlePrevoteTimeout, nil)
+
+							p := process.New(whoami, f, timer, nil, nil, nil, nil, nil, nil)
+
+							p.StartRound(currentRound)
+							p.CurrentHeight = currentHeight
+
+							// feed >= 2f+1 prevotes
+							t := 2*f + 1 + r.Intn(10)
+							for i := 0; i < t; i++ {
+								prevote := randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), currentHeight, currentRound)
+								p.Prevote(prevote)
+							}
+
+							// make sure we haven't received any prevote timeout
+							select {
+							case _ = <-timeoutSignal:
+								Fail("unexpectedly received a prevote timeout")
+							default:
+								Expect(true).To(BeTrue())
+							}
+
+							// feed a valid propose message
+							p.Propose(process.Propose{
+								Height:     currentHeight,
+								Round:      currentRound,
+								Value:      processutil.RandomGoodValue(r),
+								ValidRound: process.InvalidRound,
+								From:       id.NewPrivKey().Signatory(),
+							})
+
+							time.Sleep(5 * time.Millisecond)
+
+							select {
+							case timeout := <-timeoutSignal:
+								Expect(timeout.Height).To(Equal(currentHeight))
+								Expect(timeout.Round).To(Equal(currentRound))
+							default:
+								Fail("expected to receive a prevote timeout")
+							}
+
+							return true
+						}
+						Expect(quick.Check(loop, nil)).To(Succeed())
+					})
+				})
+
+				Context("with < 2f+1 prevotes", func() {
+					It("should do nothing", func() {
+						loop := func() bool {
+							currentHeight := process.Height(r.Int63())
+							currentRound := process.Round(r.Int63())
+							whoami := id.NewPrivKey().Signatory()
+							f := 5 + (r.Int() % 10)
+							timerOptions := timer.
+								DefaultOptions().
+								WithTimeout(1 * time.Millisecond).
+								WithTimeoutScaling(0)
+							timeoutSignal := make(chan timer.Timeout, 2)
+							handlePrevoteTimeout := func(timeout timer.Timeout) {
+								timeoutSignal <- timeout
+							}
+							timer := timer.NewLinearTimer(timerOptions, nil, handlePrevoteTimeout, nil)
+
+							p := process.New(whoami, f, timer, nil, nil, nil, nil, nil, nil)
+
+							p.StartRound(currentRound)
+							p.CurrentHeight = currentHeight
+
+							// feed < 2f+1 prevotes
+							t := r.Intn(2*f + 1)
+							for i := 0; i < t; i++ {
+								prevote := randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), currentHeight, currentRound)
+								p.Prevote(prevote)
+							}
+
+							// feed a valid propose message
+							p.Propose(process.Propose{
+								Height:     currentHeight,
+								Round:      currentRound,
+								Value:      processutil.RandomGoodValue(r),
+								ValidRound: process.InvalidRound,
+								From:       id.NewPrivKey().Signatory(),
+							})
+
+							time.Sleep(5 * time.Millisecond)
+
+							// make sure we still haven't received any timeout
+							select {
+							case _ = <-timeoutSignal:
+								Fail("unexpectedly received a prevote timeout")
+							default:
+								Expect(true).To(BeTrue())
+							}
+
+							return true
+						}
+						Expect(quick.Check(loop, nil)).To(Succeed())
+					})
+				})
 			})
 		})
 	})
@@ -1564,12 +1666,10 @@ var _ = Describe("Process", func() {
 							acknowledge := false
 							broadcaster := processutil.BroadcasterCallbacks{
 								BroadcastProposeCallback: func(msg process.Propose) {
-									// we dont expect any propose
-									Expect(true).ToNot(BeTrue())
+									Fail("unexpectedly received a propose broadcast")
 								},
 								BroadcastPrevoteCallback: func(msg process.Prevote) {
-									// we dont expect any prevotes
-									Expect(true).ToNot(BeTrue())
+									Fail("unexpectedly received a prevote broadcast")
 								},
 								BroadcastPrecommitCallback: func(msg process.Precommit) {
 									Expect(msg.From.Equal(&whoami)).To(BeTrue())
@@ -1667,16 +1767,13 @@ var _ = Describe("Process", func() {
 
 							broadcaster := processutil.BroadcasterCallbacks{
 								BroadcastProposeCallback: func(msg process.Propose) {
-									// we dont expect any propose
-									Expect(true).ToNot(BeTrue())
+									Fail("unexpectedly received a propose broadcast")
 								},
 								BroadcastPrevoteCallback: func(msg process.Prevote) {
-									// we dont expect any prevotes
-									Expect(true).ToNot(BeTrue())
+									Fail("unexpectedly received a prevote broadcast")
 								},
 								BroadcastPrecommitCallback: func(msg process.Precommit) {
-									// we dont expect any prevotes
-									Expect(true).ToNot(BeTrue())
+									Fail("unexpectedly received a precommit broadcast")
 								},
 							}
 							scheduledProposer := id.NewPrivKey().Signatory()
@@ -1754,16 +1851,13 @@ var _ = Describe("Process", func() {
 
 						broadcaster := processutil.BroadcasterCallbacks{
 							BroadcastProposeCallback: func(msg process.Propose) {
-								// we dont expect any propose
-								Expect(true).ToNot(BeTrue())
+								Fail("unexpectedly received a propose broadcast")
 							},
 							BroadcastPrevoteCallback: func(msg process.Prevote) {
-								// we dont expect any prevotes
-								Expect(true).ToNot(BeTrue())
+								Fail("unexpectedly received a prevote broadcast")
 							},
 							BroadcastPrecommitCallback: func(msg process.Precommit) {
-								// we dont expect any prevotes
-								Expect(true).ToNot(BeTrue())
+								Fail("unexpectedly received a precommit broadcast")
 							},
 						}
 						scheduledProposer := id.NewPrivKey().Signatory()
@@ -1826,16 +1920,14 @@ var _ = Describe("Process", func() {
 
 					broadcaster := processutil.BroadcasterCallbacks{
 						BroadcastProposeCallback: func(msg process.Propose) {
-							// we dont expect any propose
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly received a propose broadcast")
 						},
 						BroadcastPrevoteCallback: func(msg process.Prevote) {
 							// the process will prevote nil (for the invalid propose)
 							Expect(msg.Value).To(Equal(process.NilValue))
 						},
 						BroadcastPrecommitCallback: func(msg process.Precommit) {
-							// we dont expect any prevotes
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly received a precommit broadcast")
 						},
 					}
 					scheduledProposer := id.NewPrivKey().Signatory()
@@ -1911,12 +2003,10 @@ var _ = Describe("Process", func() {
 					acknowledge := false
 					broadcaster := processutil.BroadcasterCallbacks{
 						BroadcastProposeCallback: func(msg process.Propose) {
-							// we expect to never receive propose broadcast
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly received a propose broadcast")
 						},
 						BroadcastPrevoteCallback: func(msg process.Prevote) {
-							// we expect to never receive prevote broadcast
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly received a prevote broadcast")
 						},
 						BroadcastPrecommitCallback: func(msg process.Precommit) {
 							// the process precommits nil
@@ -1963,16 +2053,13 @@ var _ = Describe("Process", func() {
 					acknowledge := false
 					broadcaster := processutil.BroadcasterCallbacks{
 						BroadcastProposeCallback: func(msg process.Propose) {
-							// we expect to never receive propose broadcast
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly received a propose broadcast")
 						},
 						BroadcastPrevoteCallback: func(msg process.Prevote) {
-							// we expect to never receive prevote broadcast
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly received a prevote broadcast")
 						},
 						BroadcastPrecommitCallback: func(msg process.Precommit) {
-							// we expect to never receive prevote broadcast
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly received a precommit broadcast")
 						},
 					}
 					f := 5 + (r.Int() % 10)
@@ -2002,6 +2089,87 @@ var _ = Describe("Process", func() {
 					return true
 				}
 				Expect(quick.Check(loop, nil)).To(Succeed())
+			})
+		})
+
+		Context("when we are in the proposing step", func() {
+			Context("and we step to prevoting step", func() {
+				Context("with >= 2f+1 nil prevotes", func() {
+					It("should precommit nil and step to precommitting", func() {
+						loop := func() bool {
+							currentHeight := process.Height(r.Int63())
+							currentRound := process.Round(r.Int63())
+							whoami := id.NewPrivKey().Signatory()
+							f := 5 + (r.Int() % 10)
+							acknowledge := false
+							broadcaster := processutil.BroadcasterCallbacks{
+								BroadcastProposeCallback: nil,
+								BroadcastPrevoteCallback: nil,
+								BroadcastPrecommitCallback: func(msg process.Precommit) {
+									Expect(msg.Value).To(Equal(process.NilValue))
+									acknowledge = true
+								},
+							}
+							p := process.New(whoami, f, nil, nil, nil, nil, broadcaster, nil, nil)
+
+							p.StartRound(currentRound)
+							p.CurrentHeight = currentHeight
+
+							// feed >= 2f+1 nil prevotes
+							t := 2*f + 1 + r.Intn(10)
+							for i := 0; i < t; i++ {
+								prevote := nilPrevoteMsg(r, id.NewPrivKey().Signatory(), currentHeight, currentRound)
+								p.Prevote(prevote)
+							}
+
+							// step to prevoting by timing out of propose step
+							p.OnTimeoutPropose(currentHeight, currentRound)
+
+							Expect(acknowledge).To(BeTrue())
+							Expect(p.CurrentStep).To(Equal(process.Precommitting))
+
+							return true
+						}
+						Expect(quick.Check(loop, nil)).To(Succeed())
+					})
+				})
+
+				Context("with < 2f+1 nil prevotes", func() {
+					It("should do nothing", func() {
+						loop := func() bool {
+							currentHeight := process.Height(r.Int63())
+							currentRound := process.Round(r.Int63())
+							whoami := id.NewPrivKey().Signatory()
+							f := 5 + (r.Int() % 10)
+							broadcaster := processutil.BroadcasterCallbacks{
+								BroadcastProposeCallback: nil,
+								BroadcastPrevoteCallback: nil,
+								BroadcastPrecommitCallback: func(msg process.Precommit) {
+									Fail("unexpectedly received a precommit broadcast")
+								},
+							}
+							p := process.New(whoami, f, nil, nil, nil, nil, broadcaster, nil, nil)
+
+							p.StartRound(currentRound)
+							p.CurrentHeight = currentHeight
+
+							// feed < 2f+1 nil prevotes
+							t := r.Intn(2*f + 1)
+							for i := 0; i < t; i++ {
+								prevote := nilPrevoteMsg(r, id.NewPrivKey().Signatory(), currentHeight, currentRound)
+								p.Prevote(prevote)
+							}
+
+							// step to prevoting by timing out of propose step
+							p.OnTimeoutPropose(currentHeight, currentRound)
+
+							Expect(p.CurrentStep).To(Equal(process.Prevoting))
+
+							return true
+						}
+						Expect(quick.Check(loop, nil)).To(Succeed())
+					})
+				})
 			})
 		})
 	})
@@ -2061,8 +2229,7 @@ var _ = Describe("Process", func() {
 					time.Sleep(5 * time.Millisecond)
 					select {
 					case _ = <-timeoutSignal:
-						// this should never happen
-						Expect(true).ToNot(BeTrue())
+						Fail("unexpectedly received a precommit timeout")
 					default:
 						Expect(true).To(BeTrue())
 					}
@@ -2078,7 +2245,7 @@ var _ = Describe("Process", func() {
 					Expect(timeout.Height).To(Equal(process.Height(1)))
 					Expect(timeout.Round).To(Equal(currentRound))
 				default:
-					Expect(true).ToNot(BeTrue())
+					Fail("expected to receive a precommit timeout")
 				}
 
 				// sending further messages should not schedule another timeout
@@ -2089,8 +2256,7 @@ var _ = Describe("Process", func() {
 				time.Sleep(5 * time.Millisecond)
 				select {
 				case _ = <-timeoutSignal:
-					// this should never happen
-					Expect(true).ToNot(BeTrue())
+					Fail("unexpectedly received a precommit timeout")
 				default:
 					Expect(true).To(BeTrue())
 				}
@@ -2134,8 +2300,7 @@ var _ = Describe("Process", func() {
 					time.Sleep(5 * time.Millisecond)
 					select {
 					case _ = <-timeoutSignal:
-						// this should never happen
-						Expect(true).ToNot(BeTrue())
+						Fail("unexpectedly received a precommit timeout")
 					default:
 						Expect(true).To(BeTrue())
 					}
@@ -2148,8 +2313,7 @@ var _ = Describe("Process", func() {
 				time.Sleep(5 * time.Millisecond)
 				select {
 				case _ = <-timeoutSignal:
-					// this hsould neveer happen
-					Expect(true).ToNot(BeTrue())
+					Fail("unexpectedly received a precommit timeout")
 				default:
 					Expect(true).To(BeTrue())
 				}
@@ -2193,8 +2357,7 @@ var _ = Describe("Process", func() {
 					time.Sleep(5 * time.Millisecond)
 					select {
 					case _ = <-timeoutSignal:
-						// this should never happen
-						Expect(true).ToNot(BeTrue())
+						Fail("unexpectedly received a precommit timeout")
 					default:
 						Expect(true).To(BeTrue())
 					}
@@ -2207,8 +2370,7 @@ var _ = Describe("Process", func() {
 				time.Sleep(5 * time.Millisecond)
 				select {
 				case _ = <-timeoutSignal:
-					// this should never happen
-					Expect(true).ToNot(BeTrue())
+					Fail("unexpectedly received a precommit timeout")
 				default:
 					Expect(true).To(BeTrue())
 				}
@@ -2384,25 +2546,20 @@ var _ = Describe("Process", func() {
 					loop := func() bool {
 						currentHeight := process.Height(r.Int63())
 						currentRound := process.Round(r.Int63())
-						proposedValue := processutil.RandomValue(r)
-						for proposedValue == process.NilValue {
-							proposedValue = processutil.RandomValue(r)
-						}
+						proposedValue := processutil.RandomGoodValue(r)
 						whoami := id.NewPrivKey().Signatory()
 						f := 5 + (r.Int() % 10)
 						committer := processutil.CommitterCallback{
 							Callback: func(height process.Height, value process.Value) {
-								// the process should never broadcast a commit
-								Expect(true).ToNot(BeTrue())
+								Fail("unexpectedly received a commit")
 							},
 						}
 						broadcaster := processutil.BroadcasterCallbacks{
-							// the process should not broadcast any message
 							BroadcastProposeCallback: func(msg process.Propose) {
-								Expect(true).ToNot(BeTrue())
+								Fail("unexpectedly received a propose broadcast")
 							},
 							BroadcastPrecommitCallback: func(msg process.Precommit) {
-								Expect(true).ToNot(BeTrue())
+								Fail("unexpectedly received a precommit broadcast")
 							},
 						}
 
@@ -2459,8 +2616,7 @@ var _ = Describe("Process", func() {
 						f := 5 + (r.Int() % 10)
 						committer := processutil.CommitterCallback{
 							Callback: func(height process.Height, value process.Value) {
-								// the process should never broadcast the commit
-								Expect(true).ToNot(BeTrue())
+								Fail("unexpectedly received a commit")
 							},
 						}
 						scheduler := scheduler.NewRoundRobin([]id.Signatory{id.NewPrivKey().Signatory()})
@@ -2510,8 +2666,7 @@ var _ = Describe("Process", func() {
 						f := 5 + (r.Int() % 10)
 						committer := processutil.CommitterCallback{
 							Callback: func(height process.Height, value process.Value) {
-								// the process should never broadcast the commit
-								Expect(true).ToNot(BeTrue())
+								Fail("unexpectedly received a commit")
 							},
 						}
 						validator := processutil.MockValidator{MockValid: func(process.Value) bool { return false }}
@@ -2547,6 +2702,101 @@ var _ = Describe("Process", func() {
 						return true
 					}
 					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+			})
+
+			Context("when we are in proposing step", func() {
+				Context("and receive a valid propose", func() {
+					Context("while already having received >= 2f+1 precommits for proposal", func() {
+						It("should commit proposal", func() {
+							loop := func() bool {
+								currentHeight := process.Height(r.Int63())
+								currentRound := process.Round(r.Int63())
+								whoami := id.NewPrivKey().Signatory()
+								f := 5 + (r.Int() % 10)
+								acknowledge := false
+								proposedValue := processutil.RandomGoodValue(r)
+								committer := processutil.CommitterCallback{
+									Callback: func(height process.Height, value process.Value) {
+										Expect(height).To(Equal(currentHeight))
+										Expect(value).To(Equal(proposedValue))
+										acknowledge = true
+									},
+								}
+								p := process.New(whoami, f, nil, nil, nil, nil, nil, committer, nil)
+
+								p.StartRound(currentRound)
+								p.CurrentHeight = currentHeight
+
+								// feed >= 2f+1 precommits for the proposed value
+								t := 2*f + 1 + r.Intn(10)
+								for i := 0; i < t; i++ {
+									precommit := randomValidPrecommitMsg(r, currentHeight, currentRound, proposedValue)
+									p.Precommit(precommit)
+								}
+
+								Expect(acknowledge).To(BeFalse())
+
+								// feed the valid proposal
+								propose := processutil.RandomPropose(r)
+								propose.Height = currentHeight
+								propose.Round = currentRound
+								propose.Value = proposedValue
+								p.Propose(propose)
+
+								Expect(acknowledge).To(BeTrue())
+								Expect(p.CurrentHeight).To(Equal(currentHeight + 1))
+								Expect(p.CurrentRound).To(Equal(process.Round(0)))
+								Expect(p.CurrentStep).To(Equal(process.Proposing))
+
+								return true
+							}
+							Expect(quick.Check(loop, nil)).To(Succeed())
+						})
+					})
+
+					Context("while having received < 2f+1 precommits for proposal", func() {
+						It("should continue being at the current height", func() {
+							loop := func() bool {
+								currentHeight := process.Height(r.Int63())
+								currentRound := process.Round(r.Int63())
+								whoami := id.NewPrivKey().Signatory()
+								f := 5 + (r.Int() % 10)
+								proposedValue := processutil.RandomGoodValue(r)
+								committer := processutil.CommitterCallback{
+									Callback: func(height process.Height, value process.Value) {
+										Fail("unexpectedly received a commit")
+									},
+								}
+								p := process.New(whoami, f, nil, nil, nil, nil, nil, committer, nil)
+
+								p.StartRound(currentRound)
+								p.CurrentHeight = currentHeight
+
+								// feed < 2f+1 precommits for the proposed value
+								t := r.Intn(2*f + 1)
+								for i := 0; i < t; i++ {
+									precommit := randomValidPrecommitMsg(r, currentHeight, currentRound, proposedValue)
+									p.Precommit(precommit)
+								}
+
+								// feed the valid proposal
+								propose := processutil.RandomPropose(r)
+								propose.Height = currentHeight
+								propose.Round = currentRound
+								propose.Value = proposedValue
+								propose.ValidRound = process.InvalidRound
+								p.Propose(propose)
+
+								Expect(p.CurrentHeight).To(Equal(currentHeight))
+								Expect(p.CurrentRound).To(Equal(currentRound))
+								Expect(p.CurrentStep).To(Equal(process.Prevoting))
+
+								return true
+							}
+							Expect(quick.Check(loop, nil)).To(Succeed())
+						})
+					})
 				})
 			})
 		})
@@ -2834,16 +3084,13 @@ var _ = Describe("Process", func() {
 							acknowledge = true
 						},
 						CatchDoublePrevoteCallback: func(prevote1 process.Prevote, prevote2 process.Prevote) {
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly caught prevote as a double prevote")
 						},
 						CatchDoublePrecommitCallback: func(precommit1 process.Precommit, precommit2 process.Precommit) {
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly caught precommit as a double precommit")
 						},
 						CatchOutOfTurnProposeCallback: func(propose process.Propose) {
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly caught propose as an out-of-turn propose")
 						},
 					}
 					scheduler := scheduler.NewRoundRobin([]id.Signatory{doubleSender})
@@ -2903,8 +3150,7 @@ var _ = Describe("Process", func() {
 					acknowledge := false
 					catcher := processutil.CatcherCallbacks{
 						CatchDoubleProposeCallback: func(propose1 process.Propose, propose2 process.Propose) {
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly caught propose as a double propose")
 						},
 						CatchDoublePrevoteCallback: func(prevote1 process.Prevote, prevote2 process.Prevote) {
 							Expect(prevote1.From.Equal(&doubleSender)).To(BeTrue())
@@ -2912,12 +3158,10 @@ var _ = Describe("Process", func() {
 							acknowledge = true
 						},
 						CatchDoublePrecommitCallback: func(precommit1 process.Precommit, precommit2 process.Precommit) {
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly caught precommit as a double precommit")
 						},
 						CatchOutOfTurnProposeCallback: func(propose process.Propose) {
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly caught propose as an out-of-turn propose")
 						},
 					}
 					p := process.New(whoami, 33, nil, nil, nil, nil, nil, nil, catcher)
@@ -2990,12 +3234,10 @@ var _ = Describe("Process", func() {
 					acknowledge := false
 					catcher := processutil.CatcherCallbacks{
 						CatchDoubleProposeCallback: func(propose1 process.Propose, propose2 process.Propose) {
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly caught propose as a double propose")
 						},
 						CatchDoublePrevoteCallback: func(prevote1 process.Prevote, prevote2 process.Prevote) {
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly caught prevote as a double prevote")
 						},
 						CatchDoublePrecommitCallback: func(precommit1 process.Precommit, precommit2 process.Precommit) {
 							Expect(precommit1.From.Equal(&doubleSender)).To(BeTrue())
@@ -3003,8 +3245,7 @@ var _ = Describe("Process", func() {
 							acknowledge = true
 						},
 						CatchOutOfTurnProposeCallback: func(propose process.Propose) {
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly caught propose as an out-of-turn propose")
 						},
 					}
 					p := process.New(whoami, 33, nil, nil, nil, nil, nil, nil, catcher)
@@ -3078,16 +3319,13 @@ var _ = Describe("Process", func() {
 					acknowledge := false
 					catcher := processutil.CatcherCallbacks{
 						CatchDoubleProposeCallback: func(propose1 process.Propose, propose2 process.Propose) {
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly caught propose as a double propose")
 						},
 						CatchDoublePrevoteCallback: func(prevote1 process.Prevote, prevote2 process.Prevote) {
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly caught prevote as a double prevote")
 						},
 						CatchDoublePrecommitCallback: func(precommit1 process.Precommit, precommit2 process.Precommit) {
-							// this should never happen
-							Expect(true).ToNot(BeTrue())
+							Fail("unexpectedly caught precommit as a double precommit")
 						},
 						CatchOutOfTurnProposeCallback: func(propose process.Propose) {
 							Expect(propose.From.Equal(&outOfTurnSender)).To(BeTrue())
