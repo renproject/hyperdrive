@@ -223,6 +223,12 @@ func (replica *Replica) UpdateState(height process.Height, round process.Round, 
 		WithCurrentStep(step)
 }
 
+// State returns the current height, round and step of the replica's underlying
+// process
+func (replica Replica) State() (process.Height, process.Round, process.Step) {
+	return replica.proc.CurrentHeight, replica.proc.CurrentRound, replica.proc.CurrentStep
+}
+
 // CurrentHeight returns the height (in terms of block number) that the replica
 // is currently at
 func (replica Replica) CurrentHeight() process.Height {
