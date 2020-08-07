@@ -2906,7 +2906,7 @@ var _ = Describe("Process", func() {
 				})
 			})
 
-			Context("with f+1 messages (propose/prevote/precommit)", func() {
+			Context("with f+1 messages proposes/prevotes/precommits", func() {
 				It("should start a new round set as the given future round", func() {
 					loop := func() bool {
 						currentHeight := process.Height(r.Int63())

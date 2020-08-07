@@ -756,10 +756,12 @@ func (p *Process) insertPropose(propose Propose) bool {
 
 	p.ProposeLogs[propose.Round] = propose
 
+	// add the proposer to the appropriate round's trace logs
 	if _, ok := p.TraceLogs[propose.Round]; !ok {
 		p.TraceLogs[propose.Round] = map[id.Signatory]bool{}
 	}
 	p.TraceLogs[propose.Round][propose.From] = true
+
 	return true
 }
 
@@ -771,9 +773,6 @@ func (p *Process) insertPrevote(prevote Prevote) bool {
 	}
 	if _, ok := p.PrevoteLogs[prevote.Round]; !ok {
 		p.PrevoteLogs[prevote.Round] = map[id.Signatory]Prevote{}
-	}
-	if _, ok := p.TraceLogs[prevote.Round]; !ok {
-		p.TraceLogs[prevote.Round] = map[id.Signatory]bool{}
 	}
 
 	existingPrevote, ok := p.PrevoteLogs[prevote.Round][prevote.From]
@@ -792,7 +791,13 @@ func (p *Process) insertPrevote(prevote Prevote) bool {
 	}
 
 	p.PrevoteLogs[prevote.Round][prevote.From] = prevote
+
+	// add the prevoter to the appropriate round's trace logs
+	if _, ok := p.TraceLogs[prevote.Round]; !ok {
+		p.TraceLogs[prevote.Round] = map[id.Signatory]bool{}
+	}
 	p.TraceLogs[prevote.Round][prevote.From] = true
+
 	return true
 }
 
@@ -805,9 +810,6 @@ func (p *Process) insertPrecommit(precommit Precommit) bool {
 	}
 	if _, ok := p.PrecommitLogs[precommit.Round]; !ok {
 		p.PrecommitLogs[precommit.Round] = map[id.Signatory]Precommit{}
-	}
-	if _, ok := p.TraceLogs[precommit.Round]; !ok {
-		p.TraceLogs[precommit.Round] = map[id.Signatory]bool{}
 	}
 
 	existingPrecommit, ok := p.PrecommitLogs[precommit.Round][precommit.From]
@@ -826,7 +828,13 @@ func (p *Process) insertPrecommit(precommit Precommit) bool {
 	}
 
 	p.PrecommitLogs[precommit.Round][precommit.From] = precommit
+
+	// add the precommitter to the appropriate round's trace logs
+	if _, ok := p.TraceLogs[precommit.Round]; !ok {
+		p.TraceLogs[precommit.Round] = map[id.Signatory]bool{}
+	}
 	p.TraceLogs[precommit.Round][precommit.From] = true
+
 	return true
 }
 
