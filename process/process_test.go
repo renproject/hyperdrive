@@ -730,7 +730,7 @@ var _ = Describe("Process", func() {
 				})
 
 				Context("when the propose message is invalid", func() {
-					It("should prevote nil and move to the precommitting step", func() {
+					It("should prevote nil and move to the prevoting step", func() {
 						f := func() bool {
 							round := processutil.RandomRound(r)
 							for round == process.InvalidRound {
