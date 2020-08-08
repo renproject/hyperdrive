@@ -1406,7 +1406,7 @@ var _ = Describe("Process", func() {
 					prevoteMsg := randomValidPrevoteMsg(r, id.NewPrivKey().Signatory(), process.Height(1), currentRound)
 					p.Prevote(prevoteMsg)
 
-					time.Sleep(5 * time.Millisecond)
+					time.Sleep(10 * time.Millisecond)
 					select {
 					case timeout := <-timeoutSignal:
 						Expect(timeout.Round).To(Equal(currentRound))
@@ -1546,7 +1546,7 @@ var _ = Describe("Process", func() {
 								From:       id.NewPrivKey().Signatory(),
 							})
 
-							time.Sleep(5 * time.Millisecond)
+							time.Sleep(10 * time.Millisecond)
 
 							select {
 							case timeout := <-timeoutSignal:
