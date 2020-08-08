@@ -474,7 +474,7 @@ func (p *Process) tryTimeoutPrevoteUponSufficientPrevotes() {
 	if p.CurrentStep != Prevoting {
 		return
 	}
-	if len(p.PrevoteLogs[p.CurrentRound]) == 2*p.f+1 {
+	if len(p.PrevoteLogs[p.CurrentRound]) >= 2*p.f+1 {
 		if p.timer != nil {
 			p.timer.TimeoutPrevote(p.CurrentHeight, p.CurrentRound)
 			p.setOnceFlag(p.CurrentRound, OnceFlagTimeoutPrevoteUponSufficientPrevotes)
@@ -564,7 +564,7 @@ func (p *Process) tryPrecommitNilUponSufficientPrevotes() {
 			prevotesForNil++
 		}
 	}
-	if prevotesForNil == 2*p.f+1 {
+	if prevotesForNil >= 2*p.f+1 {
 		if p.broadcaster != nil {
 			p.broadcaster.BroadcastPrecommit(Precommit{
 				Height: p.CurrentHeight,
@@ -631,7 +631,7 @@ func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 			precommitsForValue++
 		}
 	}
-	if precommitsForValue == 2*p.f+1 {
+	if precommitsForValue >= 2*p.f+1 {
 		p.committer.Commit(p.CurrentHeight, propose.Value)
 		p.CurrentHeight++
 
