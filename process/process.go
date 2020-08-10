@@ -671,6 +671,7 @@ func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 
 		// Empty message logs in preparation for the new Height.
 		p.ProposeLogs = map[Round]Propose{}
+		p.ProposeIsValid = map[Round]bool{}
 		p.PrevoteLogs = map[Round]map[id.Signatory]Prevote{}
 		p.PrecommitLogs = map[Round]map[id.Signatory]Precommit{}
 		p.OnceFlags = map[Round]OnceFlag{}

@@ -101,6 +101,9 @@ func (state State) Clone() State {
 	for round, propose := range state.ProposeLogs {
 		cloned.ProposeLogs[round] = propose
 	}
+	for round, proposeIsValid := range state.ProposeIsValid {
+		cloned.ProposeIsValid[round] = proposeIsValid
+	}
 	for round, prevotes := range state.PrevoteLogs {
 		cloned.PrevoteLogs[round] = make(map[id.Signatory]Prevote)
 		for signatory, prevote := range prevotes {
