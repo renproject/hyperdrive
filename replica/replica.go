@@ -214,6 +214,20 @@ func (replica *Replica) TimeoutPrecommit(ctx context.Context, timeout timer.Time
 	}
 }
 
+// ResetHeight updates the state of the replica's underlying process with the
+// given new height. This is only meant to be used while resynchronising the
+// chain with the most up-to-date chain, hence modifying the height.
+func (replica *Replica) ResetHeight(newHeight process.Height) {
+	replica.proc.State = process.DefaultState().
+		WithCurrentHeight(newHeight)
+}
+
+// State returns the current height, round and step of the replica's underlying
+// process
+func (replica Replica) State() (process.Height, process.Round, process.Step) {
+	return replica.proc.CurrentHeight, replica.proc.CurrentRound, replica.proc.CurrentStep
+}
+
 // CurrentHeight returns the height (in terms of block number) that the replica
 // is currently at
 func (replica Replica) CurrentHeight() process.Height {
