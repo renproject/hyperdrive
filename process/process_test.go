@@ -2854,7 +2854,7 @@ var _ = Describe("Process", func() {
 							signatories[i] = id.NewPrivKey().Signatory()
 						}
 
-						// feed f+1 precommit messages
+						// feed f+1 prevote messages
 						for t := 0; t < f+1; t++ {
 							msg := randomValidPrevote(r, currentHeight, futureRound)
 							msg.From = signatories[t]
@@ -2945,8 +2945,6 @@ var _ = Describe("Process", func() {
 								msg := randomValidPrecommit(r, currentHeight, futureRound)
 								msg.From = signatories[t+1]
 								messages = append(messages, msg)
-							default:
-								panic("this should never happen")
 							}
 						}
 
@@ -3029,7 +3027,7 @@ var _ = Describe("Process", func() {
 							}
 						}
 
-						// the process should have moved to the future round
+						// the process should remain in the current round
 						Expect(p.State.CurrentRound).To(Equal(currentRound))
 
 						return true
@@ -3058,8 +3056,8 @@ var _ = Describe("Process", func() {
 							signatories[i] = id.NewPrivKey().Signatory()
 						}
 
-						// 2f messages (f prevotes, f precommits)
-						messages := make([]interface{}, 0, 2*f)
+						// f+1 messages (1 propose, f prevotes)
+						messages := make([]interface{}, 0, f+1)
 
 						// feed with f prevote messages
 						for t := 0; t < f; t++ {
@@ -3092,7 +3090,7 @@ var _ = Describe("Process", func() {
 							}
 						}
 
-						// the process should have moved to the future round
+						// the process should remain in the current round
 						Expect(p.State.CurrentRound).To(Equal(currentRound))
 
 						return true
