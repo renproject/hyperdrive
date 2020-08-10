@@ -739,7 +739,7 @@ func (p *Process) insertPropose(propose Propose) bool {
 
 	// By never inserting a Propose that is not valid, we can avoid the validity
 	// checks elsewhere in the Process.
-	if p.validator != nil && !p.validator.Valid(propose.Value) {
+	if propose.Value == NilValue || (p.validator != nil && !p.validator.Valid(propose.Value)) {
 		if p.broadcaster != nil {
 			p.broadcaster.BroadcastPrevote(Prevote{
 				Height: p.CurrentHeight,
@@ -749,27 +749,6 @@ func (p *Process) insertPropose(propose Propose) bool {
 			})
 			p.stepToPrevoting()
 		}
-		return false
-	}
-
-	// If we are here, it means the proposal is either valid, or was not passed
-	// through a Validator implementation. If its the latter case, we should
-	// not allow a nil value to be added to our propose logs, with the honest
-	// nodes trying to prevote and eventually precommit nil to advance round
-	if propose.Value == NilValue {
-		if p.broadcaster != nil {
-			p.broadcaster.BroadcastPrevote(Prevote{
-				Height: p.CurrentHeight,
-				Round:  propose.Round,
-				Value:  NilValue,
-				From:   p.whoami,
-			})
-		}
-
-		if p.CurrentRound == propose.Round {
-			p.stepToPrevoting()
-		}
-
 		return false
 	}
 
