@@ -439,7 +439,7 @@ func (p *Process) tryPrevoteUponSufficientPrevotes() {
 	if !ok {
 		return
 	}
-	if propose.ValidRound == InvalidRound || propose.ValidRound >= p.CurrentRound {
+	if propose.ValidRound <= InvalidRound || propose.ValidRound >= p.CurrentRound {
 		return
 	}
 
@@ -702,6 +702,10 @@ func (p *Process) trySkipToFutureRound(round Round) {
 // was accepted and inserted, then it return true, otherwise it returns false.
 func (p *Process) insertPropose(propose Propose) bool {
 	if propose.Height != p.CurrentHeight {
+		return false
+	}
+
+	if propose.Round <= InvalidRound {
 		return false
 	}
 
