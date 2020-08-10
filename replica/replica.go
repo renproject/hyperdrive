@@ -214,13 +214,11 @@ func (replica *Replica) TimeoutPrecommit(ctx context.Context, timeout timer.Time
 	}
 }
 
-// UpdateState updates the state of the replica's underlying process with the
+// UpdateHeight updates the state of the replica's underlying process with the
 // given height, round and step
-func (replica *Replica) UpdateState(height process.Height, round process.Round, step process.Step) {
+func (replica *Replica) UpdateHeight(height process.Height) {
 	replica.proc.State = process.DefaultState().
-		WithCurrentHeight(height).
-		WithCurrentRound(round).
-		WithCurrentStep(step)
+		WithCurrentHeight(height)
 }
 
 // State returns the current height, round and step of the replica's underlying
