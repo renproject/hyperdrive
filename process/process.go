@@ -100,7 +100,7 @@ type Process struct {
 	whoami id.Signatory
 	// f is the maximum number of malicious adversaries that the Process can
 	// withstand while still maintaining safety and liveliness.
-	f int
+	f uint64
 
 	// Input interface that provide data to the Process.
 	timer     Timer
@@ -132,7 +132,7 @@ func New(
 ) Process {
 	return Process{
 		whoami: whoami,
-		f:      f,
+		f:      uint64(f),
 
 		timer:     timer,
 		scheduler: scheduler,
@@ -150,12 +150,22 @@ func New(
 // SizeHint returns the number of bytes required to represent this Process in
 // binary.
 func (p Process) SizeHint() int {
-	return surge.SizeHint(p.State)
+	return p.whoami.SizeHint() +
+		surge.SizeHint(p.f) +
+		surge.SizeHint(p.State)
 }
 
 // Marshal this Process into binary.
 func (p Process) Marshal(buf []byte, rem int) ([]byte, int, error) {
-	buf, rem, err := surge.Marshal(p.State, buf, rem)
+	buf, rem, err := p.whoami.Marshal(buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling whoami: %v", err)
+	}
+	buf, rem, err = surge.Marshal(p.f, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling f: %v", err)
+	}
+	buf, rem, err = surge.Marshal(p.State, buf, rem)
 	if err != nil {
 		return buf, rem, fmt.Errorf("marshaling state: %v", err)
 	}
@@ -164,7 +174,15 @@ func (p Process) Marshal(buf []byte, rem int) ([]byte, int, error) {
 
 // Unmarshal from binary into this Process.
 func (p *Process) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
-	buf, rem, err := surge.Unmarshal(&p.State, buf, rem)
+	buf, rem, err := p.whoami.Unmarshal(buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling whoami: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&p.f, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling f: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&p.State, buf, rem)
 	if err != nil {
 		return buf, rem, fmt.Errorf("unmarshaling state: %v", err)
 	}
@@ -431,7 +449,7 @@ func (p *Process) tryPrevoteUponSufficientPrevotes() {
 			prevotesInValidRound++
 		}
 	}
-	if prevotesInValidRound < 2*p.f+1 {
+	if prevotesInValidRound < int(2*p.f+1) {
 		return
 	}
 
@@ -474,7 +492,7 @@ func (p *Process) tryTimeoutPrevoteUponSufficientPrevotes() {
 	if p.CurrentStep != Prevoting {
 		return
 	}
-	if len(p.PrevoteLogs[p.CurrentRound]) >= 2*p.f+1 {
+	if len(p.PrevoteLogs[p.CurrentRound]) >= int(2*p.f+1) {
 		if p.timer != nil {
 			p.timer.TimeoutPrevote(p.CurrentHeight, p.CurrentRound)
 			p.setOnceFlag(p.CurrentRound, OnceFlagTimeoutPrevoteUponSufficientPrevotes)
@@ -516,7 +534,7 @@ func (p *Process) tryPrecommitUponSufficientPrevotes() {
 			prevotesForValue++
 		}
 	}
-	if prevotesForValue < 2*p.f+1 {
+	if prevotesForValue < int(2*p.f+1) {
 		return
 	}
 
@@ -564,7 +582,7 @@ func (p *Process) tryPrecommitNilUponSufficientPrevotes() {
 			prevotesForNil++
 		}
 	}
-	if prevotesForNil >= 2*p.f+1 {
+	if prevotesForNil >= int(2*p.f+1) {
 		if p.broadcaster != nil {
 			p.broadcaster.BroadcastPrecommit(Precommit{
 				Height: p.CurrentHeight,
@@ -590,7 +608,7 @@ func (p *Process) tryTimeoutPrecommitUponSufficientPrecommits() {
 	if p.checkOnceFlag(p.CurrentRound, OnceFlagTimeoutPrecommitUponSufficientPrecommits) {
 		return
 	}
-	if len(p.PrecommitLogs[p.CurrentRound]) == 2*p.f+1 {
+	if len(p.PrecommitLogs[p.CurrentRound]) == int(2*p.f+1) {
 		if p.timer != nil {
 			p.timer.TimeoutPrecommit(p.CurrentHeight, p.CurrentRound)
 			p.setOnceFlag(p.CurrentRound, OnceFlagTimeoutPrecommitUponSufficientPrecommits)
@@ -631,7 +649,7 @@ func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 			precommitsForValue++
 		}
 	}
-	if precommitsForValue >= 2*p.f+1 {
+	if precommitsForValue >= int(2*p.f+1) {
 		p.committer.Commit(p.CurrentHeight, propose.Value)
 		p.CurrentHeight++
 
@@ -675,7 +693,7 @@ func (p *Process) trySkipToFutureRound(round Round) {
 	msgsInRound += len(p.PrevoteLogs[round])
 	msgsInRound += len(p.PrecommitLogs[round])
 
-	if msgsInRound == p.f+1 {
+	if msgsInRound == int(p.f+1) {
 		p.StartRound(round)
 	}
 }
