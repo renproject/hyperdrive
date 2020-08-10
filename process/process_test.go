@@ -756,7 +756,7 @@ var _ = Describe("Process", func() {
 								Height:     process.Height(1),
 								Round:      round,
 								ValidRound: process.InvalidRound,
-								Value:      processutil.RandomValue(r),
+								Value:      processutil.RandomGoodValue(r),
 								From:       scheduledProposer,
 							})
 							Expect(acknowledge).To(BeTrue())

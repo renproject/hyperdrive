@@ -394,18 +394,17 @@ func (p *Process) tryPrevoteUponPropose() {
 	if propose.ValidRound != InvalidRound {
 		return
 	}
+	proposeIsValid, _ := p.ProposeIsValid[p.CurrentRound]
 
-	if p.LockedRound == InvalidRound || p.LockedValue.Equal(&propose.Value) {
-		if p.broadcaster != nil {
+	if p.broadcaster != nil {
+		if (p.LockedRound == InvalidRound || p.LockedValue.Equal(&propose.Value)) && proposeIsValid {
 			p.broadcaster.BroadcastPrevote(Prevote{
 				Height: p.CurrentHeight,
 				Round:  p.CurrentRound,
 				Value:  propose.Value,
 				From:   p.whoami,
 			})
-		}
-	} else {
-		if p.broadcaster != nil {
+		} else {
 			p.broadcaster.BroadcastPrevote(Prevote{
 				Height: p.CurrentHeight,
 				Round:  p.CurrentRound,
@@ -414,6 +413,7 @@ func (p *Process) tryPrevoteUponPropose() {
 			})
 		}
 	}
+
 	p.stepToPrevoting()
 }
 
@@ -442,6 +442,7 @@ func (p *Process) tryPrevoteUponSufficientPrevotes() {
 	if propose.ValidRound <= InvalidRound || propose.ValidRound >= p.CurrentRound {
 		return
 	}
+	proposeIsValid, _ := p.ProposeIsValid[p.CurrentRound]
 
 	prevotesInValidRound := 0
 	for _, prevote := range p.PrevoteLogs[propose.ValidRound] {
@@ -453,17 +454,15 @@ func (p *Process) tryPrevoteUponSufficientPrevotes() {
 		return
 	}
 
-	if p.LockedRound <= propose.ValidRound || p.LockedValue.Equal(&propose.Value) {
-		if p.broadcaster != nil {
+	if p.broadcaster != nil {
+		if (p.LockedRound <= propose.ValidRound || p.LockedValue.Equal(&propose.Value)) && proposeIsValid {
 			p.broadcaster.BroadcastPrevote(Prevote{
 				Height: p.CurrentHeight,
 				Round:  p.CurrentRound,
 				Value:  propose.Value,
 				From:   p.whoami,
 			})
-		}
-	} else {
-		if p.broadcaster != nil {
+		} else {
 			p.broadcaster.BroadcastPrevote(Prevote{
 				Height: p.CurrentHeight,
 				Round:  p.CurrentRound,
@@ -472,6 +471,7 @@ func (p *Process) tryPrevoteUponSufficientPrevotes() {
 			})
 		}
 	}
+
 	p.stepToPrevoting()
 }
 
@@ -526,6 +526,10 @@ func (p *Process) tryPrecommitUponSufficientPrevotes() {
 
 	propose, ok := p.ProposeLogs[p.CurrentRound]
 	if !ok {
+		return
+	}
+	proposeIsValid, _ := p.ProposeIsValid[p.CurrentRound]
+	if !proposeIsValid {
 		return
 	}
 	prevotesForValue := 0
@@ -643,6 +647,11 @@ func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 	if !ok {
 		return
 	}
+	proposeIsValid, _ := p.ProposeIsValid[round]
+	if !proposeIsValid {
+		return
+	}
+
 	precommitsForValue := 0
 	for _, precommit := range p.PrecommitLogs[round] {
 		if precommit.Value.Equal(&propose.Value) {
@@ -747,12 +756,9 @@ func (p *Process) insertPropose(propose Propose) bool {
 			})
 		}
 
-		// Step to prevoting if the proposal was for the round we are currently in
-		if p.CurrentRound == propose.Round {
-			p.stepToPrevoting()
-		}
-
-		return false
+		p.ProposeLogs[propose.Round] = propose
+		p.ProposeIsValid[propose.Round] = false
+		return true
 	}
 
 	if _, ok := p.ProposeLogs[propose.Round]; ok {
@@ -760,6 +766,7 @@ func (p *Process) insertPropose(propose Propose) bool {
 	}
 
 	p.ProposeLogs[propose.Round] = propose
+	p.ProposeIsValid[propose.Round] = true
 
 	// add the proposer to the appropriate round's trace logs
 	if _, ok := p.TraceLogs[propose.Round]; !ok {

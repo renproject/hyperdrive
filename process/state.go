@@ -36,6 +36,9 @@ type State struct {
 
 	// ProposeLogs store the Proposes for all Rounds.
 	ProposeLogs map[Round]Propose `json:"proposeLogs"`
+	// ProposeIsValid is a map that stores whether the received proposal for the
+	// consensus round is valid or not
+	ProposeIsValid map[Round]bool
 	// PrevoteLogs store the Prevotes for all Processes in all Rounds.
 	PrevoteLogs map[Round]map[id.Signatory]Prevote `json:"prevoteLogs"`
 	// PrecommitLogs store the Precommits for all Processes in all Rounds.
@@ -60,11 +63,12 @@ func DefaultState() State {
 		ValidValue:    NilValue,
 		ValidRound:    InvalidRound,
 
-		ProposeLogs:   make(map[Round]Propose),
-		PrevoteLogs:   make(map[Round]map[id.Signatory]Prevote),
-		PrecommitLogs: make(map[Round]map[id.Signatory]Precommit),
-		OnceFlags:     make(map[Round]OnceFlag),
-		TraceLogs:     make(map[Round]map[id.Signatory]bool),
+		ProposeLogs:    make(map[Round]Propose),
+		ProposeIsValid: make(map[Round]bool),
+		PrevoteLogs:    make(map[Round]map[id.Signatory]Prevote),
+		PrecommitLogs:  make(map[Round]map[id.Signatory]Precommit),
+		TraceLogs:      make(map[Round]map[id.Signatory]bool),
+		OnceFlags:      make(map[Round]OnceFlag),
 	}
 }
 
@@ -87,11 +91,12 @@ func (state State) Clone() State {
 		ValidValue:    state.ValidValue,
 		ValidRound:    state.ValidRound,
 
-		ProposeLogs:   make(map[Round]Propose),
-		PrevoteLogs:   make(map[Round]map[id.Signatory]Prevote),
-		PrecommitLogs: make(map[Round]map[id.Signatory]Precommit),
-		OnceFlags:     make(map[Round]OnceFlag),
-		TraceLogs:     make(map[Round]map[id.Signatory]bool),
+		ProposeLogs:    make(map[Round]Propose),
+		ProposeIsValid: make(map[Round]bool),
+		PrevoteLogs:    make(map[Round]map[id.Signatory]Prevote),
+		PrecommitLogs:  make(map[Round]map[id.Signatory]Precommit),
+		TraceLogs:      make(map[Round]map[id.Signatory]bool),
+		OnceFlags:      make(map[Round]OnceFlag),
 	}
 	for round, propose := range state.ProposeLogs {
 		cloned.ProposeLogs[round] = propose
@@ -144,6 +149,7 @@ func (state State) SizeHint() int {
 		surge.SizeHint(state.ValidValue) +
 		surge.SizeHint(state.ValidRound) +
 		surge.SizeHint(state.ProposeLogs) +
+		surge.SizeHint(state.ProposeIsValid) +
 		surge.SizeHint(state.PrevoteLogs) +
 		surge.SizeHint(state.PrecommitLogs) +
 		surge.SizeHint(state.OnceFlags) +
@@ -183,6 +189,10 @@ func (state State) Marshal(buf []byte, rem int) ([]byte, int, error) {
 	buf, rem, err = surge.Marshal(state.ProposeLogs, buf, rem)
 	if err != nil {
 		return buf, rem, fmt.Errorf("marshaling %v propose logs: %v", len(state.ProposeLogs), err)
+	}
+	buf, rem, err = surge.Marshal(state.ProposeIsValid, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling %v propose is valid: %v", len(state.ProposeIsValid), err)
 	}
 	buf, rem, err = surge.Marshal(state.PrevoteLogs, buf, rem)
 	if err != nil {
@@ -236,6 +246,10 @@ func (state *State) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
 	buf, rem, err = surge.Unmarshal(&state.ProposeLogs, buf, rem)
 	if err != nil {
 		return buf, rem, fmt.Errorf("unmarshaling propose logs: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.ProposeIsValid, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling propose is valid: %v", err)
 	}
 	buf, rem, err = surge.Unmarshal(&state.PrevoteLogs, buf, rem)
 	if err != nil {
