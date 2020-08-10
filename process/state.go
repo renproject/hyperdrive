@@ -68,6 +68,13 @@ func DefaultState() State {
 	}
 }
 
+// WithCurrentHeight returns a process state having modified its current height
+// with the given height
+func (state State) WithCurrentHeight(height Height) State {
+	state.CurrentHeight = height
+	return state
+}
+
 // Clone the State into another copy that can be modified without affecting the
 // original.
 func (state State) Clone() State {
