@@ -2990,6 +2990,7 @@ var _ = Describe("Process", func() {
 						propose.From = signatories[0]
 						propose.Height = currentHeight
 						propose.Round = futureRound
+						propose.Value = processutil.RandomGoodValue(r)
 						messages = append(messages, propose)
 
 						// append f prevote/precommit messages
