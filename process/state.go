@@ -42,6 +42,9 @@ type State struct {
 	PrecommitLogs map[Round]map[id.Signatory]Precommit `json:"precommitLogs"`
 	// OnceFlags prevents events from happening more than once.
 	OnceFlags map[Round]OnceFlag `json:"onceFlags"`
+	// TraceLogs store the unique signatories from which we have received a msg
+	// (propose/prevote/precommit) in a specific round for the current height
+	TraceLogs map[Round]map[id.Signatory]bool
 }
 
 // DefaultState returns a State with all fields set to their default values. The
@@ -61,6 +64,7 @@ func DefaultState() State {
 		PrevoteLogs:   make(map[Round]map[id.Signatory]Prevote),
 		PrecommitLogs: make(map[Round]map[id.Signatory]Precommit),
 		OnceFlags:     make(map[Round]OnceFlag),
+		TraceLogs:     make(map[Round]map[id.Signatory]bool),
 	}
 }
 
@@ -87,6 +91,7 @@ func (state State) Clone() State {
 		PrevoteLogs:   make(map[Round]map[id.Signatory]Prevote),
 		PrecommitLogs: make(map[Round]map[id.Signatory]Precommit),
 		OnceFlags:     make(map[Round]OnceFlag),
+		TraceLogs:     make(map[Round]map[id.Signatory]bool),
 	}
 	for round, propose := range state.ProposeLogs {
 		cloned.ProposeLogs[round] = propose
@@ -105,6 +110,12 @@ func (state State) Clone() State {
 	}
 	for round, onceFlag := range state.OnceFlags {
 		cloned.OnceFlags[round] = onceFlag
+	}
+	for round, traces := range state.TraceLogs {
+		cloned.TraceLogs[round] = make(map[id.Signatory]bool)
+		for signatory, trace := range traces {
+			cloned.TraceLogs[round][signatory] = trace
+		}
 	}
 	return cloned
 }
@@ -135,7 +146,8 @@ func (state State) SizeHint() int {
 		surge.SizeHint(state.ProposeLogs) +
 		surge.SizeHint(state.PrevoteLogs) +
 		surge.SizeHint(state.PrecommitLogs) +
-		surge.SizeHint(state.OnceFlags)
+		surge.SizeHint(state.OnceFlags) +
+		surge.SizeHint(state.TraceLogs)
 }
 
 // Marshal implements the Surge Marshaler interface
@@ -183,6 +195,10 @@ func (state State) Marshal(buf []byte, rem int) ([]byte, int, error) {
 	buf, rem, err = surge.Marshal(state.OnceFlags, buf, rem)
 	if err != nil {
 		return buf, rem, fmt.Errorf("marshaling %v once flags: %v", len(state.OnceFlags), err)
+	}
+	buf, rem, err = surge.Marshal(state.TraceLogs, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling %v trace logs: %v", len(state.TraceLogs), err)
 	}
 	return buf, rem, nil
 }
@@ -232,6 +248,10 @@ func (state *State) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
 	buf, rem, err = surge.Unmarshal(&state.OnceFlags, buf, rem)
 	if err != nil {
 		return buf, rem, fmt.Errorf("unmarshaling once flags: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.TraceLogs, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling trace logs: %v", err)
 	}
 	return buf, rem, nil
 }
