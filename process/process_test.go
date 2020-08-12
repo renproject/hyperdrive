@@ -901,21 +901,17 @@ var _ = Describe("Process", func() {
 
 		Context("when we receive an invalid propose", func() {
 			Context("when the propose is for a future round", func() {
-				It("should broadcast a nil prevote for the future round", func() {
+				It("should insert the proposal as invalid, but do nothing", func() {
 					loop := func() bool {
 						currentHeight := process.Height(r.Int63())
 						currentRound := process.Round(r.Int63())
 						f := 5 + r.Intn(15)
 						whoami := id.NewPrivKey().Signatory()
-						acknowledge := false
 						futureRound := currentRound + 1 + process.Round(r.Intn(10))
 						broadcaster := processutil.BroadcasterCallbacks{
 							BroadcastProposeCallback: nil,
 							BroadcastPrevoteCallback: func(prevote process.Prevote) {
-								acknowledge = true
-								Expect(prevote.Value).To(Equal(process.NilValue))
-								Expect(prevote.Round).To(Equal(futureRound))
-								Expect(prevote.Height).To(Equal(currentHeight))
+								Fail("unexpectedly received a prevote broadcast")
 							},
 							BroadcastPrecommitCallback: nil,
 						}
@@ -938,16 +934,106 @@ var _ = Describe("Process", func() {
 							ValidRound: process.InvalidRound,
 						})
 
-						// make sure we have broadcasted the prevote for future round
-						Expect(acknowledge).To(BeTrue())
-
-						// make sure that in the current round we have not yet stepped to
-						// prevoting
+						// make sure that we still are in the current round we have not yet
+						// stepped to prevoting
 						Expect(p.CurrentStep).To(Equal(process.Proposing))
 
 						return true
 					}
 					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+
+				Context("when we also receive f+1 future round messages", func() {
+					It("should prevote nil and advance to prevoting step", func() {
+						loop := func() bool {
+							currentHeight := process.Height(r.Int63())
+							currentRound := process.Round(r.Int63())
+							f := 5 + r.Intn(15)
+							whoami := id.NewPrivKey().Signatory()
+							futureRound := currentRound + 1 + process.Round(r.Intn(10))
+							acknowledge := false
+							broadcaster := processutil.BroadcasterCallbacks{
+								BroadcastProposeCallback: nil,
+								BroadcastPrevoteCallback: func(prevote process.Prevote) {
+									Expect(prevote.Value).To(Equal(process.NilValue))
+									Expect(prevote.Round).To(Equal(futureRound))
+									Expect(prevote.From).To(Equal(whoami))
+									acknowledge = true
+								},
+								BroadcastPrecommitCallback: nil,
+							}
+							// the future proposal will be invalid
+							validator := processutil.MockValidator{
+								MockValid: func(value process.Value) bool {
+									return false
+								},
+							}
+							p := process.New(whoami, f, nil, nil, nil, validator, broadcaster, nil, nil)
+
+							p.CurrentHeight = currentHeight
+							p.StartRound(currentRound)
+
+							p.Propose(process.Propose{
+								Height:     currentHeight,
+								Round:      futureRound,
+								Value:      processutil.RandomGoodValue(r),
+								From:       id.NewPrivKey().Signatory(),
+								ValidRound: process.InvalidRound,
+							})
+
+							// make sure that we still are in the current round we have not
+							// yet stepped to prevoting, and we also haven't prevoted
+							Expect(p.CurrentStep).To(Equal(process.Proposing))
+							Expect(p.CurrentRound).To(Equal(currentRound))
+							Expect(acknowledge).To(BeFalse())
+
+							// construct f future round prevotes/precommits
+							messages := make([]interface{}, f+1)
+							for t := 0; t < f+1; t++ {
+								switch r.Int() % 2 {
+								case 0:
+									msg := process.Prevote{
+										Height:    currentHeight,
+										Round:     futureRound,
+										From:      id.NewPrivKey().Signatory(),
+										Value:     processutil.RandomGoodValue(r),
+										Signature: id.Signature{},
+									}
+									messages = append(messages, msg)
+								case 1:
+									msg := process.Precommit{
+										Height:    currentHeight,
+										Round:     futureRound,
+										From:      id.NewPrivKey().Signatory(),
+										Value:     processutil.RandomGoodValue(r),
+										Signature: id.Signature{},
+									}
+									messages = append(messages, msg)
+								}
+							}
+
+							// feed those messages
+							for _, msg := range messages {
+								switch msg := msg.(type) {
+								case process.Propose:
+									p.Propose(msg)
+								case process.Prevote:
+									p.Prevote(msg)
+								case process.Precommit:
+									p.Precommit(msg)
+								}
+							}
+
+							// make sure that we are in the future round, and advanced to the
+							// prevoting step, while having prevoted
+							Expect(p.CurrentStep).To(Equal(process.Prevoting))
+							Expect(p.CurrentRound).To(Equal(futureRound))
+							Expect(acknowledge).To(BeTrue())
+
+							return true
+						}
+						Expect(quick.Check(loop, nil)).To(Succeed())
+					})
 				})
 			})
 

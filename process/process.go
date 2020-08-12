@@ -751,15 +751,6 @@ func (p *Process) insertPropose(propose Propose) bool {
 	// inserted the propose message to our propose logs, while explicitly marking
 	// it as invalid.
 	if propose.Value == NilValue || (p.validator != nil && !p.validator.Valid(propose.Value)) {
-		if p.broadcaster != nil {
-			p.broadcaster.BroadcastPrevote(Prevote{
-				Height: p.CurrentHeight,
-				Round:  propose.Round,
-				Value:  NilValue,
-				From:   p.whoami,
-			})
-		}
-
 		p.ProposeLogs[propose.Round] = propose
 		p.ProposeIsValid[propose.Round] = false
 		return true
