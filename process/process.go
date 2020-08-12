@@ -737,7 +737,7 @@ func (p *Process) insertPropose(propose Propose) bool {
 
 	// By never inserting a Propose that is not valid, we can avoid the validity
 	// checks elsewhere in the Process.
-	if p.validator != nil && !p.validator.Valid(propose.Value) {
+	if propose.Value == NilValue || (p.validator != nil && !p.validator.Valid(propose.Value)) {
 		if p.broadcaster != nil {
 			p.broadcaster.BroadcastPrevote(Prevote{
 				Height: p.CurrentHeight,
