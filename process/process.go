@@ -665,6 +665,7 @@ func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 		p.PrevoteLogs = map[Round]map[id.Signatory]Prevote{}
 		p.PrecommitLogs = map[Round]map[id.Signatory]Precommit{}
 		p.OnceFlags = map[Round]OnceFlag{}
+		p.TraceLogs = map[Round]map[id.Signatory]bool{}
 
 		// Start from the first Round in the new Height.
 		p.StartRound(0)
@@ -680,20 +681,17 @@ func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 // received, or a Precommit is received. Because this method checks whichever
 // Round is relevant (i.e. the Round of the Propose/Prevote/Precommit), and an
 // increase in the current Round can only cause this condition to be closed, it
-// does not need to be tried whenever the current Round changes.
+// does not need to be tried whenever the current Round changes. The f+1
+// messages (one propose and f prevotes/precommits) must be from f+1 unique
+// signatories.
 func (p *Process) trySkipToFutureRound(round Round) {
 	if round <= p.CurrentRound {
 		return
 	}
 
-	msgsInRound := 0
-	if _, ok := p.ProposeLogs[round]; ok {
-		msgsInRound = 1
-	}
-	msgsInRound += len(p.PrevoteLogs[round])
-	msgsInRound += len(p.PrecommitLogs[round])
-
-	if msgsInRound == int(p.f+1) {
+	// count of unique signatories that we have received any message from in the
+	// given round and at the current height
+	if len(p.TraceLogs[round]) >= int(p.f+1) {
 		p.StartRound(round)
 	}
 }
@@ -752,7 +750,18 @@ func (p *Process) insertPropose(propose Propose) bool {
 		return false
 	}
 
+	if _, ok := p.ProposeLogs[propose.Round]; ok {
+		return false
+	}
+
 	p.ProposeLogs[propose.Round] = propose
+
+	// add the proposer to the appropriate round's trace logs
+	if _, ok := p.TraceLogs[propose.Round]; !ok {
+		p.TraceLogs[propose.Round] = map[id.Signatory]bool{}
+	}
+	p.TraceLogs[propose.Round][propose.From] = true
+
 	return true
 }
 
@@ -782,6 +791,13 @@ func (p *Process) insertPrevote(prevote Prevote) bool {
 	}
 
 	p.PrevoteLogs[prevote.Round][prevote.From] = prevote
+
+	// add the prevoter to the appropriate round's trace logs
+	if _, ok := p.TraceLogs[prevote.Round]; !ok {
+		p.TraceLogs[prevote.Round] = map[id.Signatory]bool{}
+	}
+	p.TraceLogs[prevote.Round][prevote.From] = true
+
 	return true
 }
 
@@ -812,6 +828,13 @@ func (p *Process) insertPrecommit(precommit Precommit) bool {
 	}
 
 	p.PrecommitLogs[precommit.Round][precommit.From] = precommit
+
+	// add the precommitter to the appropriate round's trace logs
+	if _, ok := p.TraceLogs[precommit.Round]; !ok {
+		p.TraceLogs[precommit.Round] = map[id.Signatory]bool{}
+	}
+	p.TraceLogs[precommit.Round][precommit.From] = true
+
 	return true
 }
 
