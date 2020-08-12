@@ -3765,16 +3765,6 @@ var _ = Describe("Process", func() {
 					p := process.New(whoami, 33, nil, scheduler, nil, nil, nil, nil, catcher)
 					p.StartRound(round)
 
-					// receive propose msg from the scheduled sender
-					propose1 := process.Propose{
-						From:   scheduledSender,
-						Height: process.Height(1),
-						Round:  round,
-						Value:  processutil.RandomValue(r),
-					}
-					p.Propose(propose1)
-					Expect(acknowledge).ToNot(BeTrue())
-
 					// receive propose from out of turn sender, must catch
 					propose2 := process.Propose{
 						From:   outOfTurnSender,
