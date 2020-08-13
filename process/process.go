@@ -394,18 +394,17 @@ func (p *Process) tryPrevoteUponPropose() {
 	if propose.ValidRound != InvalidRound {
 		return
 	}
+	proposeIsValid, _ := p.ProposeIsValid[p.CurrentRound]
 
-	if p.LockedRound == InvalidRound || p.LockedValue.Equal(&propose.Value) {
-		if p.broadcaster != nil {
+	if p.broadcaster != nil {
+		if (p.LockedRound == InvalidRound || p.LockedValue.Equal(&propose.Value)) && proposeIsValid {
 			p.broadcaster.BroadcastPrevote(Prevote{
 				Height: p.CurrentHeight,
 				Round:  p.CurrentRound,
 				Value:  propose.Value,
 				From:   p.whoami,
 			})
-		}
-	} else {
-		if p.broadcaster != nil {
+		} else {
 			p.broadcaster.BroadcastPrevote(Prevote{
 				Height: p.CurrentHeight,
 				Round:  p.CurrentRound,
@@ -414,6 +413,7 @@ func (p *Process) tryPrevoteUponPropose() {
 			})
 		}
 	}
+
 	p.stepToPrevoting()
 }
 
@@ -442,6 +442,7 @@ func (p *Process) tryPrevoteUponSufficientPrevotes() {
 	if propose.ValidRound <= InvalidRound || propose.ValidRound >= p.CurrentRound {
 		return
 	}
+	proposeIsValid, _ := p.ProposeIsValid[p.CurrentRound]
 
 	prevotesInValidRound := 0
 	for _, prevote := range p.PrevoteLogs[propose.ValidRound] {
@@ -453,17 +454,15 @@ func (p *Process) tryPrevoteUponSufficientPrevotes() {
 		return
 	}
 
-	if p.LockedRound <= propose.ValidRound || p.LockedValue.Equal(&propose.Value) {
-		if p.broadcaster != nil {
+	if p.broadcaster != nil {
+		if (p.LockedRound <= propose.ValidRound || p.LockedValue.Equal(&propose.Value)) && proposeIsValid {
 			p.broadcaster.BroadcastPrevote(Prevote{
 				Height: p.CurrentHeight,
 				Round:  p.CurrentRound,
 				Value:  propose.Value,
 				From:   p.whoami,
 			})
-		}
-	} else {
-		if p.broadcaster != nil {
+		} else {
 			p.broadcaster.BroadcastPrevote(Prevote{
 				Height: p.CurrentHeight,
 				Round:  p.CurrentRound,
@@ -472,6 +471,7 @@ func (p *Process) tryPrevoteUponSufficientPrevotes() {
 			})
 		}
 	}
+
 	p.stepToPrevoting()
 }
 
@@ -526,6 +526,10 @@ func (p *Process) tryPrecommitUponSufficientPrevotes() {
 
 	propose, ok := p.ProposeLogs[p.CurrentRound]
 	if !ok {
+		return
+	}
+	proposeIsValid, _ := p.ProposeIsValid[p.CurrentRound]
+	if !proposeIsValid {
 		return
 	}
 	prevotesForValue := 0
@@ -643,6 +647,11 @@ func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 	if !ok {
 		return
 	}
+	proposeIsValid, _ := p.ProposeIsValid[round]
+	if !proposeIsValid {
+		return
+	}
+
 	precommitsForValue := 0
 	for _, precommit := range p.PrecommitLogs[round] {
 		if precommit.Value.Equal(&propose.Value) {
@@ -662,6 +671,7 @@ func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 
 		// Empty message logs in preparation for the new Height.
 		p.ProposeLogs = map[Round]Propose{}
+		p.ProposeIsValid = map[Round]bool{}
 		p.PrevoteLogs = map[Round]map[id.Signatory]Prevote{}
 		p.PrecommitLogs = map[Round]map[id.Signatory]Precommit{}
 		p.OnceFlags = map[Round]OnceFlag{}
@@ -707,56 +717,49 @@ func (p *Process) insertPropose(propose Propose) bool {
 		return false
 	}
 
+	// We have caught a Process attempting to broadcast two different Proposes at
+	// the same Height and Round. Even though we only explicitly check the Round,
+	// we know that the Proposes will have the same Height, because we only keep
+	// message logs for message with the same Height as the current Height of the
+	// Process.
+	if existingPropose, ok := p.ProposeLogs[propose.Round]; ok {
+		if !propose.Equal(&existingPropose) {
+			if p.catcher != nil {
+				p.catcher.CatchDoublePropose(propose, existingPropose)
+			}
+		}
+		return false
+	}
+
 	if p.scheduler != nil {
 		proposer := p.scheduler.Schedule(propose.Height, propose.Round)
 		if !proposer.Equal(&propose.From) {
-			// We have caught a Process attempting to broadcast a propose
-			// when it was not the scheduled proposer for that height and round.
-			// This is caught as an out of turn propose
+			// We have caught a Process attempting to broadcast a propose when it was
+			// not the scheduled proposer for that height and round. This is caught
+			// as an out of turn propose
 			if p.catcher != nil {
 				p.catcher.CatchOutOfTurnPropose(propose)
 			}
 			return false
 		}
-
-		existingPropose, ok := p.ProposeLogs[propose.Round]
-		if ok {
-			// We have caught a Process attempting to broadcast two different
-			// Proposes at the same Height and Round. Even though we only
-			// explicitly check the Round, we know that the Proposes will have the
-			// same Height, because we only keep message logs for message with the
-			// same Height as the current Height of the Process.
-			if !propose.Equal(&existingPropose) {
-				if p.catcher != nil {
-					p.catcher.CatchDoublePropose(propose, existingPropose)
-				}
-			}
-			return false
-		}
 	}
 
-	// By never inserting a Propose that is not valid, we can avoid the validity
-	// checks elsewhere in the Process.
+	// We discard a nil value proposal. If a validator implementation is provided
+	// we check and store the proposal's validity. In the case of an invalid
+	// proposal, we broadcast a nil prevote, and avoid adding this message to the
+	// trace logs as it is an invalid proposal. We return true as we have in fact
+	// inserted the propose message to our propose logs, while explicitly marking
+	// it as invalid.
 	if propose.Value == NilValue || (p.validator != nil && !p.validator.Valid(propose.Value)) {
-		if p.broadcaster != nil {
-			p.broadcaster.BroadcastPrevote(Prevote{
-				Height: p.CurrentHeight,
-				Round:  p.CurrentRound,
-				Value:  NilValue,
-				From:   p.whoami,
-			})
-			p.stepToPrevoting()
-		}
-		return false
+		p.ProposeLogs[propose.Round] = propose
+		p.ProposeIsValid[propose.Round] = false
+		return true
 	}
 
-	if _, ok := p.ProposeLogs[propose.Round]; ok {
-		return false
-	}
-
+	// If we're here, it means that the proposal is valid. We add the proposer to
+	// the appropriate round's trace logs
 	p.ProposeLogs[propose.Round] = propose
-
-	// add the proposer to the appropriate round's trace logs
+	p.ProposeIsValid[propose.Round] = true
 	if _, ok := p.TraceLogs[propose.Round]; !ok {
 		p.TraceLogs[propose.Round] = map[id.Signatory]bool{}
 	}
