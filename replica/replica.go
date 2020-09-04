@@ -224,14 +224,12 @@ func (replica *Replica) ResetHeight(newHeight process.Height) {
 	replica.proc.State = process.DefaultState().WithCurrentHeight(newHeight)
 }
 
-// State returns the current height, round and step of the replica's underlying
-// process
+// State returns the current height, round and step of the underlying process.
 func (replica Replica) State() (process.Height, process.Round, process.Step) {
 	return replica.proc.CurrentHeight, replica.proc.CurrentRound, replica.proc.CurrentStep
 }
 
-// CurrentHeight returns the height (in terms of block number) that the replica
-// is currently at
+// CurrentHeight returns the current height of the underlying process.
 func (replica Replica) CurrentHeight() process.Height {
 	return replica.proc.CurrentHeight
 }
