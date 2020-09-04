@@ -553,10 +553,14 @@ func (p *Process) tryPrecommitUponSufficientPrevotes() {
 				From:   p.whoami,
 			})
 		}
-		p.stepToPrecommitting()
+
+		// We defer this call, so that the once flag is set before we exit this
+		// method.
+		defer p.stepToPrecommitting()
 
 		// Beacuse the LockedValue and LockedRound have changed, we need to try
-		// this condition again.
+		// this condition again. We defer this call, so that the once flag is
+		// set before we exit this method.
 		defer func() {
 			p.tryPrevoteUponPropose()
 			p.tryPrevoteUponSufficientPrevotes()
