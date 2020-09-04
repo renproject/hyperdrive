@@ -715,6 +715,22 @@ func (p *Process) insertPropose(propose Propose) bool {
 		return false
 	}
 
+	// It is important to check the schedule (here), before checking for
+	// duplicate proposals (below), because duplicate proposals are only
+	// relevant if they come from the scheduled proposer.
+	if p.scheduler != nil {
+		proposer := p.scheduler.Schedule(propose.Height, propose.Round)
+		if !proposer.Equal(&propose.From) {
+			// We have caught a Process attempting to broadcast a propose when it was
+			// not the scheduled proposer for that height and round. This is caught
+			// as an out of turn propose
+			if p.catcher != nil {
+				p.catcher.CatchOutOfTurnPropose(propose)
+			}
+			return false
+		}
+	}
+
 	// We have caught a Process attempting to broadcast two different Proposes at
 	// the same Height and Round. Even though we only explicitly check the Round,
 	// we know that the Proposes will have the same Height, because we only keep
@@ -727,19 +743,6 @@ func (p *Process) insertPropose(propose Propose) bool {
 			}
 		}
 		return false
-	}
-
-	if p.scheduler != nil {
-		proposer := p.scheduler.Schedule(propose.Height, propose.Round)
-		if !proposer.Equal(&propose.From) {
-			// We have caught a Process attempting to broadcast a propose when it was
-			// not the scheduled proposer for that height and round. This is caught
-			// as an out of turn propose
-			if p.catcher != nil {
-				p.catcher.CatchOutOfTurnPropose(propose)
-			}
-			return false
-		}
 	}
 
 	// We discard a nil value proposal. If a validator implementation is provided
