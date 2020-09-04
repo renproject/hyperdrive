@@ -635,9 +635,7 @@ func (p *Process) tryTimeoutPrecommitUponSufficientPrecommits() {
 // Round of the Propose/Precommit), it does not need to be tried whenever the
 // current Round changes.
 //
-// We can avoid explicitly checking for validity of the Propose value, because
-// no Propose value is stored in the message logs unless it is valid. We can
-// also avoid checking for a nil-decision at the current Height, because the
+// We can avoid checking for a nil-decision at the current Height, because the
 // only condition under which this would not be true is when the Process has
 // progressed passed the Height in question (put another way, the fact that this
 // method causes the Height to be incremented prevents it from being triggered
