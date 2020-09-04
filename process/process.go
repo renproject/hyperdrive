@@ -74,7 +74,12 @@ type Committer interface {
 
 // A Catcher is used to catch bad behaviour in other Processes. For example,
 // when the same Process sends two different Proposes at the same Height and
-// Round.
+// Round. Not all instances of bad behaviour are caught by the Process. For
+// example, when a Process moves to a new height, it will stop processing
+// messages from previous heights, and so malicious behaviour that occurs in
+// those dropped messages will not be caught. If it is required that all bad
+// behaviour is caught, then additional checks must be made — outside the
+// context of Hyperdrive — before passing messages to the Process.
 type Catcher interface {
 	CatchDoublePropose(Propose, Propose)
 	CatchDoublePrevote(Prevote, Prevote)
