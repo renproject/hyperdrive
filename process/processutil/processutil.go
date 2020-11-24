@@ -240,7 +240,6 @@ func RandomPropose(r *rand.Rand) process.Propose {
 			ValidRound: RandomRound(r),
 			Value:      RandomValue(r),
 			From:       id.Signatory{},
-			Signature:  id.Signature{},
 		}
 	case 2:
 		signatory := id.Signatory{}
@@ -257,7 +256,6 @@ func RandomPropose(r *rand.Rand) process.Propose {
 			ValidRound: RandomRound(r),
 			Value:      RandomValue(r),
 			From:       signatory,
-			Signature:  signature,
 		}
 	default:
 		msg := process.Propose{
@@ -267,16 +265,7 @@ func RandomPropose(r *rand.Rand) process.Propose {
 			Value:      RandomValue(r),
 		}
 		privKey := id.NewPrivKey()
-		hash, err := process.NewProposeHash(msg.Height, msg.Round, msg.ValidRound, msg.Value)
-		if err != nil {
-			panic(err)
-		}
-		signature, err := privKey.Sign(&hash)
-		if err != nil {
-			panic(err)
-		}
 		msg.From = privKey.Signatory()
-		msg.Signature = signature
 		return msg
 	}
 }
@@ -290,11 +279,10 @@ func RandomPrevote(r *rand.Rand) process.Prevote {
 		return process.Prevote{}
 	case 1:
 		return process.Prevote{
-			Height:    RandomHeight(r),
-			Round:     RandomRound(r),
-			Value:     RandomValue(r),
-			From:      id.Signatory{},
-			Signature: id.Signature{},
+			Height: RandomHeight(r),
+			Round:  RandomRound(r),
+			Value:  RandomValue(r),
+			From:   id.Signatory{},
 		}
 	case 2:
 		signatory := id.Signatory{}
@@ -306,11 +294,10 @@ func RandomPrevote(r *rand.Rand) process.Prevote {
 			signature[i] = byte(r.Int())
 		}
 		return process.Prevote{
-			Height:    RandomHeight(r),
-			Round:     RandomRound(r),
-			Value:     RandomValue(r),
-			From:      signatory,
-			Signature: signature,
+			Height: RandomHeight(r),
+			Round:  RandomRound(r),
+			Value:  RandomValue(r),
+			From:   signatory,
 		}
 	default:
 		msg := process.Prevote{
@@ -319,16 +306,7 @@ func RandomPrevote(r *rand.Rand) process.Prevote {
 			Value:  RandomValue(r),
 		}
 		privKey := id.NewPrivKey()
-		hash, err := process.NewPrevoteHash(msg.Height, msg.Round, msg.Value)
-		if err != nil {
-			panic(err)
-		}
-		signature, err := privKey.Sign(&hash)
-		if err != nil {
-			panic(err)
-		}
 		msg.From = privKey.Signatory()
-		msg.Signature = signature
 		return msg
 	}
 }
@@ -342,11 +320,10 @@ func RandomPrecommit(r *rand.Rand) process.Precommit {
 		return process.Precommit{}
 	case 1:
 		return process.Precommit{
-			Height:    RandomHeight(r),
-			Round:     RandomRound(r),
-			Value:     RandomValue(r),
-			From:      id.Signatory{},
-			Signature: id.Signature{},
+			Height: RandomHeight(r),
+			Round:  RandomRound(r),
+			Value:  RandomValue(r),
+			From:   id.Signatory{},
 		}
 	case 2:
 		signatory := id.Signatory{}
@@ -358,11 +335,10 @@ func RandomPrecommit(r *rand.Rand) process.Precommit {
 			signature[i] = byte(r.Int())
 		}
 		return process.Precommit{
-			Height:    RandomHeight(r),
-			Round:     RandomRound(r),
-			Value:     RandomValue(r),
-			From:      signatory,
-			Signature: signature,
+			Height: RandomHeight(r),
+			Round:  RandomRound(r),
+			Value:  RandomValue(r),
+			From:   signatory,
 		}
 	default:
 		msg := process.Precommit{
@@ -371,16 +347,7 @@ func RandomPrecommit(r *rand.Rand) process.Precommit {
 			Value:  RandomValue(r),
 		}
 		privKey := id.NewPrivKey()
-		hash, err := process.NewPrecommitHash(msg.Height, msg.Round, msg.Value)
-		if err != nil {
-			panic(err)
-		}
-		signature, err := privKey.Sign(&hash)
-		if err != nil {
-			panic(err)
-		}
 		msg.From = privKey.Signatory()
-		msg.Signature = signature
 		return msg
 	}
 }

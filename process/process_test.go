@@ -993,20 +993,18 @@ var _ = Describe("Process", func() {
 								switch r.Int() % 2 {
 								case 0:
 									msg := process.Prevote{
-										Height:    currentHeight,
-										Round:     futureRound,
-										From:      id.NewPrivKey().Signatory(),
-										Value:     processutil.RandomGoodValue(r),
-										Signature: id.Signature{},
+										Height: currentHeight,
+										Round:  futureRound,
+										From:   id.NewPrivKey().Signatory(),
+										Value:  processutil.RandomGoodValue(r),
 									}
 									messages = append(messages, msg)
 								case 1:
 									msg := process.Precommit{
-										Height:    currentHeight,
-										Round:     futureRound,
-										From:      id.NewPrivKey().Signatory(),
-										Value:     processutil.RandomGoodValue(r),
-										Signature: id.Signature{},
+										Height: currentHeight,
+										Round:  futureRound,
+										From:   id.NewPrivKey().Signatory(),
+										Value:  processutil.RandomGoodValue(r),
 									}
 									messages = append(messages, msg)
 								}

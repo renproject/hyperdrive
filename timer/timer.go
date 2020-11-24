@@ -12,19 +12,25 @@ import (
 // Timeout represents an event emitted by the Linear Timer whenever
 // a scheduled timeout is triggered
 type Timeout struct {
-	Height process.Height
-	Round  process.Round
+	MessageType process.MessageType
+	Height      process.Height
+	Round       process.Round
 }
 
 // SizeHint implements surge SizeHinter for Timeout
 func (timeout Timeout) SizeHint() int {
-	return surge.SizeHint(timeout.Height) +
+	return surge.SizeHintI8 +
+		surge.SizeHint(timeout.Height) +
 		surge.SizeHint(timeout.Round)
 }
 
 // Marshal implements surge Marshaler for Timeout
 func (timeout Timeout) Marshal(buf []byte, rem int) ([]byte, int, error) {
-	buf, rem, err := surge.Marshal(timeout.Height, buf, rem)
+	buf, rem, err := surge.MarshalI8(int8(timeout.MessageType), buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling MeesageType=%v: %v", timeout.MessageType, err)
+	}
+	buf, rem, err = surge.Marshal(timeout.Height, buf, rem)
 	if err != nil {
 		return buf, rem, fmt.Errorf("marshaling Height=%v: %v", timeout.Height, err)
 	}
@@ -38,7 +44,11 @@ func (timeout Timeout) Marshal(buf []byte, rem int) ([]byte, int, error) {
 
 // Unmarshal implements surge Unmarshaler for Timeout
 func (timeout *Timeout) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
-	buf, rem, err := surge.Unmarshal(&timeout.Height, buf, rem)
+	buf, rem, err := surge.UnmarshalI8((*int8)(&timeout.MessageType), buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling MessageType: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&timeout.Height, buf, rem)
 	if err != nil {
 		return buf, rem, fmt.Errorf("unmarshaling Height: %v", err)
 	}
@@ -77,7 +87,7 @@ func (t *LinearTimer) TimeoutPropose(height process.Height, round process.Round)
 	if t.handleTimeoutPropose != nil {
 		go func() {
 			time.Sleep(t.timeoutDuration(height, round))
-			t.handleTimeoutPropose(Timeout{Height: height, Round: round})
+			t.handleTimeoutPropose(Timeout{MessageType: process.MessageTypePropose, Height: height, Round: round})
 		}()
 	}
 }
@@ -88,7 +98,7 @@ func (t *LinearTimer) TimeoutPrevote(height process.Height, round process.Round)
 	if t.handleTimeoutPrevote != nil {
 		go func() {
 			time.Sleep(t.timeoutDuration(height, round))
-			t.handleTimeoutPrevote(Timeout{Height: height, Round: round})
+			t.handleTimeoutPrevote(Timeout{MessageType: process.MessageTypePrevote, Height: height, Round: round})
 		}()
 	}
 }
@@ -99,7 +109,7 @@ func (t *LinearTimer) TimeoutPrecommit(height process.Height, round process.Roun
 	if t.handleTimeoutPrecommit != nil {
 		go func() {
 			time.Sleep(t.timeoutDuration(height, round))
-			t.handleTimeoutPrecommit(Timeout{Height: height, Round: round})
+			t.handleTimeoutPrecommit(Timeout{MessageType: process.MessageTypePrecommit, Height: height, Round: round})
 		}()
 	}
 }

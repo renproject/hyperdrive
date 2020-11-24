@@ -1,7 +1,7 @@
 // Package process implements the Byzantine fault tolerant consensus algorithm
 // described by "The latest gossip of BFT consensus" (Buchman et al.), which can
 // be found at https://arxiv.org/pdf/1807.04938.pdf. It makes extensive use of
-// dependency injection, and concrete implementions  must be careful to meet all
+// dependency injection, and concrete implementations must be careful to meet all
 // of the requirements specified by the interface, otherwise the correctness of
 // the consensus algorithm can be broken.
 package process
@@ -29,7 +29,7 @@ type Timer interface {
 	TimeoutPrecommit(Height, Round)
 }
 
-// A Scheduler is used to determine which Process should be proposing a Vaue at
+// A Scheduler is used to determine which Process should be proposing a Value at
 // the given Height and Round. A Scheduler must be derived solely from the
 // Height, Round, and Values on which all correct Processes have already
 // achieved consensus.
@@ -250,7 +250,7 @@ func (p *Process) Start() {
 	p.StartRound(0)
 }
 
-// StartRound will progress the Process to a new Round. It does not asssume that
+// StartRound will progress the Process to a new Round. It does not assume that
 // the Height has changed. Since this changes the current Round and the current
 // Step, most of the condition methods will be retried at the end (by way of
 // defer).
@@ -279,7 +279,7 @@ func (p *Process) StartRound(round Round) {
 
 	// Set the state the new round, and set the step to the first step in the
 	// sequence. We do not have special methods dedicated to change the current
-	// Roound, or changing the current Step to Proposing, because StartRound is
+	// Round, or changing the current Step to Proposing, because StartRound is
 	// the only location where this logic happens.
 	p.CurrentRound = round
 	p.CurrentStep = Proposing
@@ -563,7 +563,7 @@ func (p *Process) tryPrecommitUponSufficientPrevotes() {
 		// method.
 		defer p.stepToPrecommitting()
 
-		// Beacuse the LockedValue and LockedRound have changed, we need to try
+		// Because the LockedValue and LockedRound have changed, we need to try
 		// this condition again. We defer this call, so that the once flag is
 		// set before we exit this method.
 		defer func() {

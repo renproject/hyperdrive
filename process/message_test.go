@@ -30,14 +30,13 @@ var _ = Describe("Propose", func() {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 		It("should equal itself", func() {
-			f := func(height process.Height, round, validRound process.Round, value process.Value, from id.Signatory, signature id.Signature) bool {
+			f := func(height process.Height, round, validRound process.Round, value process.Value, from id.Signatory) bool {
 				expected := process.Propose{
 					Height:     height,
 					Round:      round,
 					ValidRound: validRound,
 					Value:      value,
 					From:       from,
-					Signature:  signature,
 				}
 				data, err := surge.ToBinary(expected)
 				Expect(err).ToNot(HaveOccurred())
@@ -222,11 +221,10 @@ var _ = Describe("Prevote", func() {
 		It("should equal itself", func() {
 			f := func(height process.Height, round process.Round, value process.Value, from id.Signatory, signature id.Signature) bool {
 				expected := process.Prevote{
-					Height:    height,
-					Round:     round,
-					Value:     value,
-					From:      from,
-					Signature: signature,
+					Height: height,
+					Round:  round,
+					Value:  value,
+					From:   from,
 				}
 				data, err := surge.ToBinary(expected)
 				Expect(err).ToNot(HaveOccurred())
@@ -286,11 +284,10 @@ var _ = Describe("Precommit", func() {
 		It("should equal itself", func() {
 			f := func(height process.Height, round process.Round, value process.Value, from id.Signatory, signature id.Signature) bool {
 				expected := process.Precommit{
-					Height:    height,
-					Round:     round,
-					Value:     value,
-					From:      from,
-					Signature: signature,
+					Height: height,
+					Round:  round,
+					Value:  value,
+					From:   from,
 				}
 				data, err := surge.ToBinary(expected)
 				Expect(err).ToNot(HaveOccurred())
