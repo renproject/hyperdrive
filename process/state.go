@@ -10,7 +10,7 @@ import (
 
 // The State of a Process. It should be saved after every method call on the
 // Process, but should not be saved during method calls (interacting with the
-// State concurently is unsafe). It is worth noting that the State does not
+// State concurrently is unsafe). It is worth noting that the State does not
 // contain a decision array, because it delegates this responsibility to the
 // Committer interface.
 //

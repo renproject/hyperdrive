@@ -7,16 +7,24 @@ import (
 	"github.com/renproject/surge"
 )
 
+type MessageType int8
+
+const (
+	MessageTypePropose   MessageType = 1
+	MessageTypePrevote   MessageType = 2
+	MessageTypePrecommit MessageType = 3
+)
+
 // A Propose message is sent by the proposer Process at most once per Round. The
 // Scheduler interfaces determines which Process is the proposer at any given
 // Height and Round.
 type Propose struct {
-	Height     Height       `json:"height"`
-	Round      Round        `json:"round"`
-	ValidRound Round        `json:"validRound"`
-	Value      Value        `json:"value"`
-	From       id.Signatory `json:"from"`
-	Signature  id.Signature `json:"signature"`
+	Height     Height `json:"height"`
+	Round      Round  `json:"round"`
+	ValidRound Round  `json:"validRound"`
+	Value      Value  `json:"value"`
+
+	From id.Signatory `json:"from"`
 }
 
 // NewProposeHash receives fields of a propose message and hashes the message
@@ -65,8 +73,7 @@ func (propose Propose) SizeHint() int {
 		surge.SizeHint(propose.Round) +
 		surge.SizeHint(propose.ValidRound) +
 		surge.SizeHint(propose.Value) +
-		surge.SizeHint(propose.From) +
-		surge.SizeHint(propose.Signature)
+		surge.SizeHint(propose.From)
 }
 
 // Marshal this message into binary.
@@ -90,10 +97,6 @@ func (propose Propose) Marshal(buf []byte, rem int) ([]byte, int, error) {
 	buf, rem, err = surge.Marshal(propose.From, buf, rem)
 	if err != nil {
 		return buf, rem, fmt.Errorf("marshaling from=%v: %v", propose.From, err)
-	}
-	buf, rem, err = surge.Marshal(propose.Signature, buf, rem)
-	if err != nil {
-		return buf, rem, fmt.Errorf("marshaling signature=%v: %v", propose.Signature, err)
 	}
 	return buf, rem, nil
 }
@@ -120,10 +123,6 @@ func (propose *Propose) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
 	if err != nil {
 		return buf, rem, fmt.Errorf("unmarshaling from: %v", err)
 	}
-	buf, rem, err = surge.Unmarshal(&propose.Signature, buf, rem)
-	if err != nil {
-		return buf, rem, fmt.Errorf("unmarshaling signature: %v", err)
-	}
 	return buf, rem, nil
 }
 
@@ -133,11 +132,11 @@ func (propose *Propose) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
 // there are many other conditions which can cause a Process to Prevote. See the
 // Process for more information.
 type Prevote struct {
-	Height    Height       `json:"height"`
-	Round     Round        `json:"round"`
-	Value     Value        `json:"value"`
-	From      id.Signatory `json:"from"`
-	Signature id.Signature `json:"signature"`
+	Height Height `json:"height"`
+	Round  Round  `json:"round"`
+	Value  Value  `json:"value"`
+
+	From id.Signatory `json:"from"`
 }
 
 // NewPrevoteHash receives fields of a prevote message and hashes the message
@@ -180,8 +179,7 @@ func (prevote Prevote) SizeHint() int {
 	return surge.SizeHint(prevote.Height) +
 		surge.SizeHint(prevote.Round) +
 		surge.SizeHint(prevote.Value) +
-		surge.SizeHint(prevote.From) +
-		surge.SizeHint(prevote.Signature)
+		surge.SizeHint(prevote.From)
 }
 
 // Marshal this message into binary.
@@ -201,10 +199,6 @@ func (prevote Prevote) Marshal(buf []byte, rem int) ([]byte, int, error) {
 	buf, rem, err = surge.Marshal(prevote.From, buf, rem)
 	if err != nil {
 		return buf, rem, fmt.Errorf("marshaling from=%v: %v", prevote.From, err)
-	}
-	buf, rem, err = surge.Marshal(prevote.Signature, buf, rem)
-	if err != nil {
-		return buf, rem, fmt.Errorf("marshaling signature=%v: %v", prevote.Signature, err)
 	}
 	return buf, rem, nil
 }
@@ -227,10 +221,6 @@ func (prevote *Prevote) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
 	if err != nil {
 		return buf, rem, fmt.Errorf("unmarshaling from: %v", err)
 	}
-	buf, rem, err = surge.Unmarshal(&prevote.Signature, buf, rem)
-	if err != nil {
-		return buf, rem, fmt.Errorf("unmarshaling signature: %v", err)
-	}
 	return buf, rem, nil
 }
 
@@ -240,11 +230,11 @@ func (prevote *Prevote) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
 // progress to the next Height. However, there are many other conditions which
 // can cause a Process to Precommit. See the Process for more information.
 type Precommit struct {
-	Height    Height       `json:"height"`
-	Round     Round        `json:"round"`
-	Value     Value        `json:"value"`
-	From      id.Signatory `json:"from"`
-	Signature id.Signature `json:"signature"`
+	Height Height `json:"height"`
+	Round  Round  `json:"round"`
+	Value  Value  `json:"value"`
+
+	From id.Signatory `json:"from"`
 }
 
 // NewPrecommitHash receives fields of a precommit message and hashes the message
@@ -287,8 +277,7 @@ func (precommit Precommit) SizeHint() int {
 	return surge.SizeHint(precommit.Height) +
 		surge.SizeHint(precommit.Round) +
 		surge.SizeHint(precommit.Value) +
-		surge.SizeHint(precommit.From) +
-		surge.SizeHint(precommit.Signature)
+		surge.SizeHint(precommit.From)
 }
 
 // Marshal this message into binary.
@@ -308,10 +297,6 @@ func (precommit Precommit) Marshal(buf []byte, rem int) ([]byte, int, error) {
 	buf, rem, err = surge.Marshal(precommit.From, buf, rem)
 	if err != nil {
 		return buf, rem, fmt.Errorf("marshaling from=%v: %v", precommit.From, err)
-	}
-	buf, rem, err = surge.Marshal(precommit.Signature, buf, rem)
-	if err != nil {
-		return buf, rem, fmt.Errorf("marshaling signature=%v: %v", precommit.Signature, err)
 	}
 	return buf, rem, nil
 }
@@ -333,10 +318,6 @@ func (precommit *Precommit) Unmarshal(buf []byte, rem int) ([]byte, int, error) 
 	buf, rem, err = surge.Unmarshal(&precommit.From, buf, rem)
 	if err != nil {
 		return buf, rem, fmt.Errorf("unmarshaling from: %v", err)
-	}
-	buf, rem, err = surge.Unmarshal(&precommit.Signature, buf, rem)
-	if err != nil {
-		return buf, rem, fmt.Errorf("unmarshaling signature: %v", err)
 	}
 	return buf, rem, nil
 }

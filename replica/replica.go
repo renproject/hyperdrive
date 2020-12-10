@@ -32,14 +32,8 @@ type Replica struct {
 	proc         process.Process
 	procsAllowed map[id.Signatory]bool
 
-	onProposeTimeout   chan timer.Timeout
-	onPrevoteTimeout   chan timer.Timeout
-	onPrecommitTimeout chan timer.Timeout
-
-	onPropose   chan process.Propose
-	onPrevote   chan process.Prevote
-	onPrecommit chan process.Precommit
-	mq          mq.MessageQueue
+	mch chan interface{}
+	mq  mq.MessageQueue
 
 	didHandleMessage DidHandleMessage
 }
@@ -82,14 +76,8 @@ func New(
 		proc:         proc,
 		procsAllowed: procsAllowed,
 
-		onProposeTimeout:   make(chan timer.Timeout, opts.MessageQueueOpts.MaxCapacity),
-		onPrevoteTimeout:   make(chan timer.Timeout, opts.MessageQueueOpts.MaxCapacity),
-		onPrecommitTimeout: make(chan timer.Timeout, opts.MessageQueueOpts.MaxCapacity),
-
-		onPropose:   make(chan process.Propose, opts.MessageQueueOpts.MaxCapacity),
-		onPrevote:   make(chan process.Prevote, opts.MessageQueueOpts.MaxCapacity),
-		onPrecommit: make(chan process.Precommit, opts.MessageQueueOpts.MaxCapacity),
-		mq:          mq.New(opts.MessageQueueOpts),
+		mch: make(chan interface{}, opts.MessageQueueOpts.MaxCapacity),
+		mq:  mq.New(opts.MessageQueueOpts),
 
 		didHandleMessage: didHandleMessage,
 	}
@@ -112,38 +100,44 @@ func (replica *Replica) Run(ctx context.Context) {
 			case <-ctx.Done():
 				isRunning = false
 				return
-
-			case timeout := <-replica.onProposeTimeout:
-				replica.proc.OnTimeoutPropose(timeout.Height, timeout.Round)
-			case timeout := <-replica.onPrevoteTimeout:
-				replica.proc.OnTimeoutPrevote(timeout.Height, timeout.Round)
-			case timeout := <-replica.onPrecommitTimeout:
-				replica.proc.OnTimeoutPrecommit(timeout.Height, timeout.Round)
-
-			case propose := <-replica.onPropose:
-				if !replica.filterHeight(propose.Height) {
-					return
+			case m := <-replica.mch:
+				switch m := m.(type) {
+				case timer.Timeout:
+					switch m.MessageType {
+					case process.MessageTypePropose:
+						replica.proc.OnTimeoutPropose(m.Height, m.Round)
+					case process.MessageTypePrevote:
+						replica.proc.OnTimeoutPrevote(m.Height, m.Round)
+					case process.MessageTypePrecommit:
+						replica.proc.OnTimeoutPrecommit(m.Height, m.Round)
+					default:
+						return
+					}
+				case process.Propose:
+					if !replica.filterHeight(m.Height) {
+						return
+					}
+					if !replica.filterFrom(m.From) {
+						return
+					}
+					replica.mq.InsertPropose(m)
+				case process.Prevote:
+					if !replica.filterHeight(m.Height) {
+						return
+					}
+					if !replica.filterFrom(m.From) {
+						return
+					}
+					replica.mq.InsertPrevote(m)
+				case process.Precommit:
+					if !replica.filterHeight(m.Height) {
+						return
+					}
+					if !replica.filterFrom(m.From) {
+						return
+					}
+					replica.mq.InsertPrecommit(m)
 				}
-				if !replica.filterFrom(propose.From) {
-					return
-				}
-				replica.mq.InsertPropose(propose)
-			case prevote := <-replica.onPrevote:
-				if !replica.filterHeight(prevote.Height) {
-					return
-				}
-				if !replica.filterFrom(prevote.From) {
-					return
-				}
-				replica.mq.InsertPrevote(prevote)
-			case precommit := <-replica.onPrecommit:
-				if !replica.filterHeight(precommit.Height) {
-					return
-				}
-				if !replica.filterFrom(precommit.From) {
-					return
-				}
-				replica.mq.InsertPrecommit(precommit)
 			}
 
 			replica.flush()
@@ -157,7 +151,7 @@ func (replica *Replica) Run(ctx context.Context) {
 func (replica *Replica) Propose(ctx context.Context, propose process.Propose) {
 	select {
 	case <-ctx.Done():
-	case replica.onPropose <- propose:
+	case replica.mch <- propose:
 	}
 }
 
@@ -167,7 +161,7 @@ func (replica *Replica) Propose(ctx context.Context, propose process.Propose) {
 func (replica *Replica) Prevote(ctx context.Context, prevote process.Prevote) {
 	select {
 	case <-ctx.Done():
-	case replica.onPrevote <- prevote:
+	case replica.mch <- prevote:
 	}
 }
 
@@ -177,7 +171,7 @@ func (replica *Replica) Prevote(ctx context.Context, prevote process.Prevote) {
 func (replica *Replica) Precommit(ctx context.Context, precommit process.Precommit) {
 	select {
 	case <-ctx.Done():
-	case replica.onPrecommit <- precommit:
+	case replica.mch <- precommit:
 	}
 }
 
@@ -188,7 +182,7 @@ func (replica *Replica) Precommit(ctx context.Context, precommit process.Precomm
 func (replica *Replica) TimeoutPropose(ctx context.Context, timeout timer.Timeout) {
 	select {
 	case <-ctx.Done():
-	case replica.onProposeTimeout <- timeout:
+	case replica.mch <- timeout:
 	}
 }
 
@@ -199,7 +193,7 @@ func (replica *Replica) TimeoutPropose(ctx context.Context, timeout timer.Timeou
 func (replica *Replica) TimeoutPrevote(ctx context.Context, timeout timer.Timeout) {
 	select {
 	case <-ctx.Done():
-	case replica.onPrevoteTimeout <- timeout:
+	case replica.mch <- timeout:
 	}
 }
 
@@ -210,7 +204,7 @@ func (replica *Replica) TimeoutPrevote(ctx context.Context, timeout timer.Timeou
 func (replica *Replica) TimeoutPrecommit(ctx context.Context, timeout timer.Timeout) {
 	select {
 	case <-ctx.Done():
-	case replica.onPrecommitTimeout <- timeout:
+	case replica.mch <- timeout:
 	}
 }
 
