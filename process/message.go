@@ -13,7 +13,24 @@ const (
 	MessageTypePropose   MessageType = 1
 	MessageTypePrevote   MessageType = 2
 	MessageTypePrecommit MessageType = 3
+	MessageTypeTimeout   MessageType = 4
 )
+
+// String implements the Stringer interface.
+func (ty MessageType) String() string {
+	switch ty {
+	case MessageTypePropose:
+		return "Propose"
+	case MessageTypePrevote:
+		return "Prevote"
+	case MessageTypePrecommit:
+		return "Precommit"
+	case MessageTypeTimeout:
+		return "Timeout"
+	default:
+		return "Unknown"
+	}
+}
 
 // A Propose message is sent by the proposer Process at most once per Round. The
 // Scheduler interfaces determines which Process is the proposer at any given
