@@ -72,7 +72,7 @@ type LinearTimer struct {
 }
 
 // NewLinearTimer constructs a new Linear Timer from the input options and channels
-func NewLinearTimer(opts Options, handleTimeoutPropose, handleTimeoutPrevote, handleTimeoutPrecommit func(Timeout)) process.Timer {
+func NewLinearTimer(opts Options, handleTimeoutPropose, handleTimeoutPrevote, handleTimeoutPrecommit func(Timeout)) *LinearTimer {
 	return &LinearTimer{
 		opts:                   opts,
 		handleTimeoutPropose:   handleTimeoutPropose,
@@ -86,7 +86,7 @@ func NewLinearTimer(opts Options, handleTimeoutPropose, handleTimeoutPrevote, ha
 func (t *LinearTimer) TimeoutPropose(height process.Height, round process.Round) {
 	if t.handleTimeoutPropose != nil {
 		go func() {
-			time.Sleep(t.timeoutDuration(height, round))
+			time.Sleep(t.DurationAtHeightAndRound(height, round))
 			t.handleTimeoutPropose(Timeout{MessageType: process.MessageTypePropose, Height: height, Round: round})
 		}()
 	}
@@ -97,7 +97,7 @@ func (t *LinearTimer) TimeoutPropose(height process.Height, round process.Round)
 func (t *LinearTimer) TimeoutPrevote(height process.Height, round process.Round) {
 	if t.handleTimeoutPrevote != nil {
 		go func() {
-			time.Sleep(t.timeoutDuration(height, round))
+			time.Sleep(t.DurationAtHeightAndRound(height, round))
 			t.handleTimeoutPrevote(Timeout{MessageType: process.MessageTypePrevote, Height: height, Round: round})
 		}()
 	}
@@ -108,12 +108,15 @@ func (t *LinearTimer) TimeoutPrevote(height process.Height, round process.Round)
 func (t *LinearTimer) TimeoutPrecommit(height process.Height, round process.Round) {
 	if t.handleTimeoutPrecommit != nil {
 		go func() {
-			time.Sleep(t.timeoutDuration(height, round))
+			time.Sleep(t.DurationAtHeightAndRound(height, round))
 			t.handleTimeoutPrecommit(Timeout{MessageType: process.MessageTypePrecommit, Height: height, Round: round})
 		}()
 	}
 }
 
-func (t *LinearTimer) timeoutDuration(height process.Height, round process.Round) time.Duration {
+// DurationAtHeightAndRound returns the duration of the timeout at the given
+// height and round. This is the duration that the other methods will wait
+// before scheduling their respective timeout events.
+func (t *LinearTimer) DurationAtHeightAndRound(height process.Height, round process.Round) time.Duration {
 	return t.opts.Timeout + t.opts.Timeout*time.Duration(float64(round)*t.opts.TimeoutScaling)
 }
