@@ -140,7 +140,7 @@ var _ = Describe("Replica", func() {
 				},
 				// Validator
 				processutil.MockValidator{
-					MockValid: func(value process.Value) bool {
+					MockValid: func(_ process.Height, _ process.Round, value process.Value) bool {
 						// if this is a malicious replica, but less than f total malicious
 						if validationFn != nil && replicaIndex < f {
 							return validationFn(value)

@@ -62,7 +62,7 @@ type Broadcaster interface {
 // A Validator is used to validate a proposed Value. Processes are not required
 // to agree on the validity of a Value.
 type Validator interface {
-	Valid(Value) bool
+	Valid(Height, Round, Value) bool
 }
 
 // A Committer is used to emit Values that are committed. The commitment of a
@@ -760,7 +760,7 @@ func (p *Process) insertPropose(propose Propose) bool {
 	// trace logs as it is an invalid proposal. We return true as we have in fact
 	// inserted the propose message to our propose logs, while explicitly marking
 	// it as invalid.
-	if propose.Value == NilValue || (p.validator != nil && !p.validator.Valid(propose.Value)) {
+	if propose.Value == NilValue || (p.validator != nil && !p.validator.Valid(propose.Height, propose.Round, propose.Value)) {
 		p.ProposeLogs[propose.Round] = propose
 		p.ProposeIsValid[propose.Round] = false
 		return true
