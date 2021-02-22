@@ -7,13 +7,18 @@ import (
 	"github.com/renproject/surge"
 )
 
+// MessageType enumerates the various types of Hyperdrive messages.
 type MessageType int8
 
 const (
-	MessageTypePropose   MessageType = 1
-	MessageTypePrevote   MessageType = 2
+	// MessageTypePropose is the message type for a propose message.
+	MessageTypePropose MessageType = 1
+	// MessageTypePrevote is the message type for a prevote message.
+	MessageTypePrevote MessageType = 2
+	// MessageTypePrecommit is the message type for a precommit message.
 	MessageTypePrecommit MessageType = 3
-	MessageTypeTimeout   MessageType = 4
+	// MessageTypeTimeout is the message type for a timeout message.
+	MessageTypeTimeout MessageType = 4
 )
 
 // String implements the Stringer interface.
