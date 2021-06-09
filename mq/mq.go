@@ -60,9 +60,12 @@ func (mq *MessageQueue) Consume(h process.Height, propose func(process.Propose),
 func (mq *MessageQueue) DropMessagesBelowHeight(h process.Height) {
 	for from, q := range mq.queuesByPid {
 		lastIndexBelowHeight := 0
-		for i, m := range q {
+		for _, m := range q {
+			if m == nil {
+				break
+			}
 			if height(m) < h {
-				i++
+				lastIndexBelowHeight++
 			}
 		}
 		mq.queuesByPid[from] = q[lastIndexBelowHeight:]
