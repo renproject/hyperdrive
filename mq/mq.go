@@ -55,6 +55,20 @@ func (mq *MessageQueue) Consume(h process.Height, propose func(process.Propose),
 	return
 }
 
+// DropMessagesBelowHeight removes all messages from the internal message
+// queues that have height less than the given height.
+func (mq *MessageQueue) DropMessagesBelowHeight(h process.Height) {
+	for from, q := range mq.queuesByPid {
+		lastIndexBelowHeight := 0
+		for i, m := range q {
+			if height(m) < h {
+				i++
+			}
+		}
+		mq.queuesByPid[from] = q[lastIndexBelowHeight:]
+	}
+}
+
 // InsertPropose message into the MessageQueue. This method assumes that the
 // sender has already been authenticated and filtered.
 func (mq *MessageQueue) InsertPropose(propose process.Propose) {
