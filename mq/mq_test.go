@@ -369,7 +369,7 @@ var _ = Describe("MQ", func() {
 					}
 
 					// cannot consume msgs of height less than the min height
-					n := queue.Consume(minHeight - 1, proposeCallback, prevoteCallback, precommitCallback)
+					n := queue.Consume(minHeight-1, proposeCallback, prevoteCallback, precommitCallback)
 					Expect(n).To(Equal(0))
 					Expect(i).To(Equal(0))
 
