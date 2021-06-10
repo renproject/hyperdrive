@@ -46,6 +46,47 @@ var _ = Describe("MQ", func() {
 		}
 	}
 
+	insertRandomMessages := func(queue *mq.MessageQueue, sender id.Signatory) (process.Height, process.Height, int) {
+		// at the most 20 heights and rounds in increasing order
+		heights := make([]process.Height, 1+r.Intn(10))
+		nextHeight := 1
+		nextRound := 0
+		for s := 0; s < cap(heights); s++ {
+			nextHeight = nextHeight + r.Intn(10)
+			heights[s] = process.Height(nextHeight)
+		}
+		rounds := make([]process.Round, 1+r.Intn(10))
+		for t := 0; t < cap(rounds); t++ {
+			nextRound = nextRound + r.Intn(10)
+			rounds[t] = process.Round(nextRound)
+		}
+
+		// append all messages and shuffle them
+		msgsCount := cap(heights) * cap(rounds)
+		msgs := make([]interface{}, 0, msgsCount)
+		for s := range heights {
+			for t := range rounds {
+				msg := randomMsg(r, sender, heights[s], rounds[t])
+				msgs = append(msgs, msg)
+			}
+		}
+		r.Shuffle(len(msgs), func(i, j int) { msgs[i], msgs[j] = msgs[j], msgs[i] })
+
+		// insert all msgs
+		for _, msg := range msgs {
+			switch msg := msg.(type) {
+			case process.Propose:
+				queue.InsertPropose(msg)
+			case process.Prevote:
+				queue.InsertPrevote(msg)
+			case process.Precommit:
+				queue.InsertPrecommit(msg)
+			}
+		}
+
+		return heights[0], heights[len(heights)-1], msgsCount
+	}
+
 	Context("when we instantiate a new message queue", func() {
 		It("should return an empty mq with the given options", func() {
 			opts := mq.DefaultOptions()
@@ -261,42 +302,7 @@ var _ = Describe("MQ", func() {
 
 				loop := func() bool {
 					sender := id.NewPrivKey().Signatory()
-					// at the most 20 heights and rounds in increasing order
-					heights := make([]process.Height, 1+r.Intn(10))
-					nextHeight := 1
-					nextRound := 0
-					for s := 0; s < cap(heights); s++ {
-						nextHeight = nextHeight + r.Intn(10)
-						heights[s] = process.Height(nextHeight)
-					}
-					rounds := make([]process.Round, 1+r.Intn(10))
-					for t := 0; t < cap(rounds); t++ {
-						nextRound = nextRound + r.Intn(10)
-						rounds[t] = process.Round(nextRound)
-					}
-
-					// append all messages and shuffle them
-					msgsCount := cap(heights) * cap(rounds)
-					msgs := make([]interface{}, 0, msgsCount)
-					for s := range heights {
-						for t := range rounds {
-							msg := randomMsg(r, sender, heights[s], rounds[t])
-							msgs = append(msgs, msg)
-						}
-					}
-					r.Shuffle(len(msgs), func(i, j int) { msgs[i], msgs[j] = msgs[j], msgs[i] })
-
-					// insert all msgs
-					for _, msg := range msgs {
-						switch msg := msg.(type) {
-						case process.Propose:
-							queue.InsertPropose(msg)
-						case process.Prevote:
-							queue.InsertPrevote(msg)
-						case process.Precommit:
-							queue.InsertPrecommit(msg)
-						}
-					}
+					minHeight, maxHeight, msgsCount := insertRandomMessages(&queue, sender)
 
 					// we should first consume msg1 and then msg2
 					prevHeight := process.Height(-1)
@@ -362,14 +368,13 @@ var _ = Describe("MQ", func() {
 						i++
 					}
 
-					// cannot consume msgs of height less than lowerHeight
-					lowerHeight := heights[0] - 1
-					n := queue.Consume(lowerHeight, proposeCallback, prevoteCallback, precommitCallback)
+					// cannot consume msgs of height less than the min height
+					n := queue.Consume(minHeight-1, proposeCallback, prevoteCallback, precommitCallback)
 					Expect(n).To(Equal(0))
 					Expect(i).To(Equal(0))
 
 					// consume all messages
-					n = queue.Consume(heights[len(heights)-1], proposeCallback, prevoteCallback, precommitCallback)
+					n = queue.Consume(maxHeight, proposeCallback, prevoteCallback, precommitCallback)
 					Expect(n).To(Equal(msgsCount))
 					Expect(i).To(Equal(msgsCount))
 
@@ -377,6 +382,34 @@ var _ = Describe("MQ", func() {
 				}
 				Expect(quick.Check(loop, nil)).To(Succeed())
 			})
+		})
+	})
+
+	Context("when dropping all messages below a certain height", func() {
+		It("should remove all corresponding messages from the queues", func() {
+			opts := mq.DefaultOptions()
+			queue := mq.New(opts)
+
+			loop := func() bool {
+				sender := id.NewPrivKey().Signatory()
+				_, maxHeight, _ := insertRandomMessages(&queue, sender)
+				thresholdHeight := process.Height(r.Intn(int(maxHeight)))
+				queue.DropMessagesBelowHeight(thresholdHeight)
+
+				proposeCallback := func(propose process.Propose) {
+					Expect(propose.Height >= thresholdHeight).To(BeTrue())
+				}
+				prevoteCallback := func(prevote process.Prevote) {
+					Expect(prevote.Height >= thresholdHeight).To(BeTrue())
+				}
+				precommitCallback := func(precommit process.Precommit) {
+					Expect(precommit.Height >= thresholdHeight).To(BeTrue())
+				}
+
+				_ = queue.Consume(maxHeight, proposeCallback, prevoteCallback, precommitCallback)
+				return true
+			}
+			Expect(quick.Check(loop, nil)).To(Succeed())
 		})
 	})
 

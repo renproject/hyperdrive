@@ -137,6 +137,9 @@ func (replica *Replica) Run(ctx context.Context) {
 						return
 					}
 					replica.mq.InsertPrecommit(m)
+				case process.Height:
+					replica.proc.State = process.DefaultState().WithCurrentHeight(m)
+					replica.mq.DropMessagesBelowHeight(m)
 				}
 			}
 
@@ -211,11 +214,17 @@ func (replica *Replica) TimeoutPrecommit(ctx context.Context, timeout timer.Time
 // ResetHeight of the underlying process to a future height. This is should only
 // be used when resynchronising the chain. If the given height is less than or
 // equal to the current height, nothing happens.
-func (replica *Replica) ResetHeight(newHeight process.Height) {
+//
+// NOTE: All messages that are currently in the message queue for heights less
+// than the given height will be dropped.
+func (replica *Replica) ResetHeight(ctx context.Context, newHeight process.Height) {
 	if newHeight <= replica.proc.State.CurrentHeight {
 		return
 	}
-	replica.proc.State = process.DefaultState().WithCurrentHeight(newHeight)
+	select {
+	case <-ctx.Done():
+	case replica.mch <- newHeight:
+	}
 }
 
 // State returns the current height, round and step of the underlying process.
