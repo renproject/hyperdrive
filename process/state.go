@@ -8,6 +8,13 @@ import (
 	"github.com/renproject/surge"
 )
 
+var (
+	// DefaulHeight is set to 1, because the genesis block is assumed to exist
+	// at Height 0.
+	DefaultHeight = Height(1)
+	DefaultRound  = Round(0)
+)
+
 // The State of a Process. It should be saved after every method call on the
 // Process, but should not be saved during method calls (interacting with the
 // State concurrently is unsafe). It is worth noting that the State does not
@@ -50,13 +57,11 @@ type State struct {
 	TraceLogs map[Round]map[id.Signatory]bool
 }
 
-// DefaultState returns a State with all fields set to their default values. The
-// Height default to 1, because the genesis block is assumed to exist at Height
-// 0.
+// DefaultState returns a State with all fields set to their default values.
 func DefaultState() State {
 	return State{
-		CurrentHeight: 1, // Skip genesis.
-		CurrentRound:  0,
+		CurrentHeight: DefaultHeight,
+		CurrentRound:  DefaultRound,
 		CurrentStep:   Proposing,
 		LockedValue:   NilValue,
 		LockedRound:   InvalidRound,

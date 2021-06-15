@@ -53,8 +53,9 @@ func New(
 ) *Replica {
 	f := len(signatories) / 3
 	scheduler := scheduler.NewRoundRobin(signatories)
-	proc := process.New(
+	proc := process.NewWithCurrentHeight(
 		whoami,
+		opts.StartingHeight,
 		f,
 		linearTimer,
 		scheduler,

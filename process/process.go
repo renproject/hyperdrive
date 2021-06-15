@@ -135,6 +135,34 @@ func New(
 	committer Committer,
 	catcher Catcher,
 ) Process {
+	return NewWithCurrentHeight(
+		whoami,
+		DefaultHeight,
+		f,
+		timer,
+		scheduler,
+		proposer,
+		validator,
+		broadcaster,
+		committer,
+		catcher,
+	)
+}
+
+// NewWithCurrentHeight returns a new Process that starts at the given height
+// with empty message logs.
+func NewWithCurrentHeight(
+	whoami id.Signatory,
+	height Height,
+	f int,
+	timer Timer,
+	scheduler Scheduler,
+	proposer Proposer,
+	validator Validator,
+	broadcaster Broadcaster,
+	committer Committer,
+	catcher Catcher,
+) Process {
 	return Process{
 		whoami: whoami,
 		f:      uint64(f),
@@ -148,7 +176,7 @@ func New(
 		committer:   committer,
 		catcher:     catcher,
 
-		State: DefaultState(),
+		State: DefaultState().WithCurrentHeight(height),
 	}
 }
 
