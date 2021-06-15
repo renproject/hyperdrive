@@ -2,6 +2,7 @@ package replica
 
 import (
 	"github.com/renproject/hyperdrive/mq"
+	"github.com/renproject/hyperdrive/process"
 
 	"go.uber.org/zap"
 )
@@ -9,6 +10,7 @@ import (
 // Options represent the options for a Hyperdrive Replica
 type Options struct {
 	Logger           *zap.Logger
+	StartingHeight   process.Height
 	MessageQueueOpts mq.Options
 }
 
@@ -20,6 +22,7 @@ func DefaultOptions() Options {
 	}
 	return Options{
 		Logger:           logger,
+		StartingHeight:   process.DefaultHeight,
 		MessageQueueOpts: mq.DefaultOptions(),
 	}
 }
@@ -27,6 +30,12 @@ func DefaultOptions() Options {
 // WithLogger updates the logger used in the Replica with the provided logger
 func (opts Options) WithLogger(logger *zap.Logger) Options {
 	opts.Logger = logger
+	return opts
+}
+
+// WithStartingHeight updates the height that the Replica will start at
+func (opts Options) WithStartingHeight(height process.Height) Options {
+	opts.StartingHeight = height
 	return opts
 }
 
