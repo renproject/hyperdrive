@@ -1,63 +1,338 @@
 package process
 
 import (
-	"github.com/renproject/hyperdrive/block"
+	"bytes"
+	"fmt"
+
+	"github.com/renproject/id"
+	"github.com/renproject/surge"
 )
 
-// The State of a Process. It is isolated from the Process so that it can be
-// easily marshaled to/from JSON.
+var (
+	// DefaulHeight is set to 1, because the genesis block is assumed to exist
+	// at Height 0.
+	DefaultHeight = Height(1)
+	DefaultRound  = Round(0)
+)
+
+// The State of a Process. It should be saved after every method call on the
+// Process, but should not be saved during method calls (interacting with the
+// State concurrently is unsafe). It is worth noting that the State does not
+// contain a decision array, because it delegates this responsibility to the
+// Committer interface.
+//
+// L1:
+//
+//  Initialization:
+//      currentHeight := 0 /* current height, or consensus instance we are currently executing */
+//      currentRound  := 0 /* current round number */
+//      currentStep ∈ {propose, prevote, precommit}
+//      decision[]  := nil
+//      lockedValue := nil
+//      lockedRound := −1
+//      validValue  := nil
+//      validRound  := −1
 type State struct {
-	CurrentHeight block.Height `json:"currentHeight"`
-	CurrentRound  block.Round  `json:"currentRound"`
-	CurrentStep   Step         `json:"currentStep"`
+	CurrentHeight Height `json:"currentHeight"`
+	CurrentRound  Round  `json:"currentRound"`
+	CurrentStep   Step   `json:"currentStep"`
+	LockedValue   Value  `json:"lockedValue"` // The most recent value for which a precommit message has been sent.
+	LockedRound   Round  `json:"lockedRound"` // The last round in which the process sent a precommit message that is not nil.
+	ValidValue    Value  `json:"validValue"`  // The most recent possible decision value.
+	ValidRound    Round  `json:"validRound"`  // The last round in which valid value is updated.
 
-	LockedBlock block.Block `json:"lockedBlock"` // the most recent block for which a precommit message has been sent
-	LockedRound block.Round `json:"lockedRound"` // the last round in which the process sent a precommit message that is not nil.
-	ValidBlock  block.Block `json:"validBlock"`  // store the most recent possible decision value
-	ValidRound  block.Round `json:"validRound"`  // is the last round in which valid value is updated
-
-	Proposals  *Inbox `json:"proposals"`
-	Prevotes   *Inbox `json:"prevotes"`
-	Precommits *Inbox `json:"precommits"`
+	// ProposeLogs store the Proposes for all Rounds.
+	ProposeLogs map[Round]Propose `json:"proposeLogs"`
+	// ProposeIsValid is a map that stores whether the received proposal for the
+	// consensus round is valid or not
+	ProposeIsValid map[Round]bool
+	// PrevoteLogs store the Prevotes for all Processes in all Rounds.
+	PrevoteLogs map[Round]map[id.Signatory]Prevote `json:"prevoteLogs"`
+	// PrecommitLogs store the Precommits for all Processes in all Rounds.
+	PrecommitLogs map[Round]map[id.Signatory]Precommit `json:"precommitLogs"`
+	// OnceFlags prevents events from happening more than once.
+	OnceFlags map[Round]OnceFlag `json:"onceFlags"`
+	// TraceLogs store the unique signatories from which we have received a msg
+	// (propose/prevote/precommit) in a specific round for the current height
+	TraceLogs map[Round]map[id.Signatory]bool
 }
 
-// DefaultState returns a State with all values set to the default. See
-// https://arxiv.org/pdf/1807.04938.pdf for more information.
-func DefaultState(f int) State {
+// DefaultState returns a State with all fields set to their default values.
+func DefaultState() State {
 	return State{
-		CurrentHeight: 1, // Skip the genesis block
-		CurrentRound:  0,
-		CurrentStep:   StepPropose,
-		LockedBlock:   block.InvalidBlock,
-		LockedRound:   block.InvalidRound,
-		ValidBlock:    block.InvalidBlock,
-		ValidRound:    block.InvalidRound,
-		Proposals:     NewInbox(f, ProposeMessageType),
-		Prevotes:      NewInbox(f, PrevoteMessageType),
-		Precommits:    NewInbox(f, PrecommitMessageType),
+		CurrentHeight: DefaultHeight,
+		CurrentRound:  DefaultRound,
+		CurrentStep:   Proposing,
+		LockedValue:   NilValue,
+		LockedRound:   InvalidRound,
+		ValidValue:    NilValue,
+		ValidRound:    InvalidRound,
+
+		ProposeLogs:    make(map[Round]Propose),
+		ProposeIsValid: make(map[Round]bool),
+		PrevoteLogs:    make(map[Round]map[id.Signatory]Prevote),
+		PrecommitLogs:  make(map[Round]map[id.Signatory]Precommit),
+		TraceLogs:      make(map[Round]map[id.Signatory]bool),
+		OnceFlags:      make(map[Round]OnceFlag),
 	}
 }
 
-// Reset the State (not all values are reset). See
-// https://arxiv.org/pdf/1807.04938.pdf for more information.
-func (state *State) Reset(height block.Height) {
-	state.LockedBlock = block.InvalidBlock
-	state.LockedRound = block.InvalidRound
-	state.ValidBlock = block.InvalidBlock
-	state.ValidRound = block.InvalidRound
-	state.Proposals.Reset(height)
-	state.Prevotes.Reset(height)
-	state.Precommits.Reset(height)
+// WithCurrentHeight returns a process state having modified its current height
+// with the given height
+func (state State) WithCurrentHeight(height Height) State {
+	state.CurrentHeight = height
+	return state
 }
 
-// Equal compares one State with another.
-func (state *State) Equal(other State) bool {
+// Clone the State into another copy that can be modified without affecting the
+// original.
+func (state State) Clone() State {
+	cloned := State{
+		CurrentHeight: state.CurrentHeight,
+		CurrentRound:  state.CurrentRound,
+		CurrentStep:   state.CurrentStep,
+		LockedValue:   state.LockedValue,
+		LockedRound:   state.LockedRound,
+		ValidValue:    state.ValidValue,
+		ValidRound:    state.ValidRound,
+
+		ProposeLogs:    make(map[Round]Propose),
+		ProposeIsValid: make(map[Round]bool),
+		PrevoteLogs:    make(map[Round]map[id.Signatory]Prevote),
+		PrecommitLogs:  make(map[Round]map[id.Signatory]Precommit),
+		TraceLogs:      make(map[Round]map[id.Signatory]bool),
+		OnceFlags:      make(map[Round]OnceFlag),
+	}
+	for round, propose := range state.ProposeLogs {
+		cloned.ProposeLogs[round] = propose
+	}
+	for round, proposeIsValid := range state.ProposeIsValid {
+		cloned.ProposeIsValid[round] = proposeIsValid
+	}
+	for round, prevotes := range state.PrevoteLogs {
+		cloned.PrevoteLogs[round] = make(map[id.Signatory]Prevote)
+		for signatory, prevote := range prevotes {
+			cloned.PrevoteLogs[round][signatory] = prevote
+		}
+	}
+	for round, precommits := range state.PrecommitLogs {
+		cloned.PrecommitLogs[round] = make(map[id.Signatory]Precommit)
+		for signatory, precommit := range precommits {
+			cloned.PrecommitLogs[round][signatory] = precommit
+		}
+	}
+	for round, onceFlag := range state.OnceFlags {
+		cloned.OnceFlags[round] = onceFlag
+	}
+	for round, traces := range state.TraceLogs {
+		cloned.TraceLogs[round] = make(map[id.Signatory]bool)
+		for signatory, trace := range traces {
+			cloned.TraceLogs[round][signatory] = trace
+		}
+	}
+	return cloned
+}
+
+// Equal compares two States. If they are equal, then it returns true, otherwise
+// it returns false. Message logs and once-flags are ignored for the purpose of
+// equality.
+func (state State) Equal(other *State) bool {
 	return state.CurrentHeight == other.CurrentHeight &&
 		state.CurrentRound == other.CurrentRound &&
 		state.CurrentStep == other.CurrentStep &&
-		state.LockedBlock.Equal(other.LockedBlock) &&
+		state.LockedValue.Equal(&other.LockedValue) &&
 		state.LockedRound == other.LockedRound &&
-		state.ValidBlock.Equal(other.ValidBlock) &&
+		state.ValidValue.Equal(&other.ValidValue) &&
 		state.ValidRound == other.ValidRound
 }
 
+// SizeHint implements the Surge SizeHinter interface, and returns the byte size
+// of the state instance
+func (state State) SizeHint() int {
+	return surge.SizeHint(state.CurrentHeight) +
+		surge.SizeHint(state.CurrentRound) +
+		surge.SizeHint(state.CurrentStep) +
+		surge.SizeHint(state.LockedValue) +
+		surge.SizeHint(state.LockedRound) +
+		surge.SizeHint(state.ValidValue) +
+		surge.SizeHint(state.ValidRound) +
+		surge.SizeHint(state.ProposeLogs) +
+		surge.SizeHint(state.ProposeIsValid) +
+		surge.SizeHint(state.PrevoteLogs) +
+		surge.SizeHint(state.PrecommitLogs) +
+		surge.SizeHint(state.OnceFlags) +
+		surge.SizeHint(state.TraceLogs)
+}
+
+// Marshal implements the Surge Marshaler interface
+func (state State) Marshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Marshal(state.CurrentHeight, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling current height=%v: %v", state.CurrentHeight, err)
+	}
+	buf, rem, err = surge.Marshal(state.CurrentRound, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling current round=%v: %v", state.CurrentRound, err)
+	}
+	buf, rem, err = surge.Marshal(state.CurrentStep, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling current step=%v: %v", state.CurrentStep, err)
+	}
+	buf, rem, err = surge.Marshal(state.LockedValue, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling locked value=%v: %v", state.LockedValue, err)
+	}
+	buf, rem, err = surge.Marshal(state.LockedRound, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling locked round=%v: %v", state.LockedRound, err)
+	}
+	buf, rem, err = surge.Marshal(state.ValidValue, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling valid value=%v: %v", state.ValidValue, err)
+	}
+	buf, rem, err = surge.Marshal(state.ValidRound, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling valid round=%v: %v", state.ValidRound, err)
+	}
+	buf, rem, err = surge.Marshal(state.ProposeLogs, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling %v propose logs: %v", len(state.ProposeLogs), err)
+	}
+	buf, rem, err = surge.Marshal(state.ProposeIsValid, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling %v propose is valid: %v", len(state.ProposeIsValid), err)
+	}
+	buf, rem, err = surge.Marshal(state.PrevoteLogs, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling %v prevote logs: %v", len(state.PrevoteLogs), err)
+	}
+	buf, rem, err = surge.Marshal(state.PrecommitLogs, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling %v precommit logs: %v", len(state.PrecommitLogs), err)
+	}
+	buf, rem, err = surge.Marshal(state.OnceFlags, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling %v once flags: %v", len(state.OnceFlags), err)
+	}
+	buf, rem, err = surge.Marshal(state.TraceLogs, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling %v trace logs: %v", len(state.TraceLogs), err)
+	}
+	return buf, rem, nil
+}
+
+// Unmarshal implements the Surge Unmarshaler interface
+func (state *State) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Unmarshal(&state.CurrentHeight, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling current height: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.CurrentRound, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling current round: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.CurrentStep, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling current step: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.LockedValue, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling locked value: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.LockedRound, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling locked round: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.ValidValue, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling valid value: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.ValidRound, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling valid round: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.ProposeLogs, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling propose logs: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.ProposeIsValid, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling propose is valid: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.PrevoteLogs, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling prevote logs: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.PrecommitLogs, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling precommit logs: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.OnceFlags, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling once flags: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&state.TraceLogs, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling trace logs: %v", err)
+	}
+	return buf, rem, nil
+}
+
+// Step defines a typedef for uint8 values that represent the step of the state
+// of a Process partaking in the consensus algorithm.
+type Step uint8
+
+// Enumerate step values.
+const (
+	Proposing     = Step(0)
+	Prevoting     = Step(1)
+	Precommitting = Step(2)
+)
+
+// Height defines a typedef for int64 values that represent the height of a
+// Value at which the consensus algorithm is attempting to reach consensus.
+type Height int64
+
+// Round defines a typedef for int64 values that represent the round of a Value
+// at which the consensus algorithm is attempting to reach consensus.
+type Round int64
+
+const (
+	// InvalidRound is a reserved int64 that represents an invalid Round. It is
+	// used when a Process is trying to represent that it does have have a
+	// LockedRound or ValidRound.
+	InvalidRound = Round(-1)
+)
+
+// Value defines a typedef for hashes that represent the hashes of proposed
+// values in the consensus algorithm. In the context of a blockchain, a Value
+// would be a block.
+type Value id.Hash
+
+// Equal compares two Values. If they are equal, then it returns true, otherwise
+// it returns false.
+func (v *Value) Equal(other *Value) bool {
+	return bytes.Equal(v[:], other[:])
+}
+
+// MarshalJSON serialises a process value to JSON format
+func (v Value) MarshalJSON() ([]byte, error) {
+	return id.Hash(v).MarshalJSON()
+}
+
+// UnmarshalJSON deserialises a JSON format to process value
+func (v *Value) UnmarshalJSON(data []byte) error {
+	return (*id.Hash)(v).UnmarshalJSON(data)
+}
+
+// String implements the Stringer interface for process value
+func (v Value) String() string {
+	return id.Hash(v).String()
+}
+
+var (
+	// NilValue is a reserved hash that represents when a Process is
+	// prevoting/precommitting to nothing (i.e. the Process wants to progress to
+	// the next Round).
+	NilValue = Value(id.Hash{})
+)

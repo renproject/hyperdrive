@@ -1,701 +1,926 @@
+// Package process implements the Byzantine fault tolerant consensus algorithm
+// described by "The latest gossip of BFT consensus" (Buchman et al.), which can
+// be found at https://arxiv.org/pdf/1807.04938.pdf. It makes extensive use of
+// dependency injection, and concrete implementations must be careful to meet all
+// of the requirements specified by the interface, otherwise the correctness of
+// the consensus algorithm can be broken.
 package process
 
 import (
-	"io"
-	"sync"
-	"time"
+	"fmt"
 
-	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
-	"github.com/sirupsen/logrus"
 )
 
-// Step in the consensus algorithm.
-type Step uint8
-
-// SizeHint of how many bytes will be needed to represent steps in
-// binary.
-func (Step) SizeHint() int {
-	return 1
-}
-
-// Marshal this step into binary.
-func (step Step) Marshal(w io.Writer, m int) (int, error) {
-	return surge.Marshal(w, uint8(step), m)
-}
-
-// Unmarshal into this step from binary.
-func (step *Step) Unmarshal(r io.Reader, m int) (int, error) {
-	return surge.Unmarshal(r, (*uint8)(step), m)
-}
-
-// Define all Steps.
-const (
-	StepNil Step = iota
-	StepPropose
-	StepPrevote
-	StepPrecommit
-)
-
-// NilReasons can be used to provide contextual information alongside an error
-// upon validating blocks.
-type NilReasons map[string][]byte
-
-// A Blockchain defines a storage interface for Blocks that is based around
-// Height.
-type Blockchain interface {
-	InsertBlockAtHeight(block.Height, block.Block)
-	BlockAtHeight(block.Height) (block.Block, bool)
-	BlockExistsAtHeight(block.Height) bool
-}
-
-// A SaveRestorer defines a storage interface for the State.
-type SaveRestorer interface {
-	Save(*State)
-	Restore(*State)
-}
-
-// A Proposer builds a `block.Block` for proposals.
-type Proposer interface {
-	BlockProposal(block.Height, block.Round) block.Block
-}
-
-// A Validator validates a `block.Block` that has been proposed.
-type Validator interface {
-	IsBlockValid(block block.Block, checkHistory bool) (NilReasons, error)
-}
-
-// An Observer is notified when note-worthy events happen for the first time.
-type Observer interface {
-	DidCommitBlock(block.Height)
-	DidReceiveSufficientNilPrevotes(messages Messages, f int)
-}
-
-// A Scheduler determines which `id.Signatory` should be broadcasting
-// proposals in at a given `block.Height` and `block.Round`.
-type Scheduler interface {
-	Schedule(block.Height, block.Round) id.Signatory
-}
-
-// A Broadcaster sends a Message to a either specific Process or as many
-// Processes in the network as possible.
-type Broadcaster interface {
-	Broadcast(Message)
-	Cast(id.Signatory, Message)
-}
-
-// A Timer determines the timeout duration at a given Step and `block.Round`.
+// A Timer is used to schedule timeout events.
 type Timer interface {
-	Timeout(step Step, round block.Round) time.Duration
+	// TimeoutPropose is called when the Process needs its OnTimeoutPropose
+	// method called after a timeout. The timeout should be proportional to the
+	// Round.
+	TimeoutPropose(Height, Round)
+	// TimeoutPrevote is called when the Process needs its OnTimeoutPrevote
+	// method called after a timeout. The timeout should be proportional to the
+	// Round.
+	TimeoutPrevote(Height, Round)
+	// TimeoutPrecommit is called when the Process needs its OnTimeoutPrecommit
+	// method called after a timeout. The timeout should be proportional to the
+	// Round.
+	TimeoutPrecommit(Height, Round)
 }
 
-// Processes defines a wrapper type around the []Process type.
-type Processes []Process
+// A Scheduler is used to determine which Process should be proposing a Value at
+// the given Height and Round. A Scheduler must be derived solely from the
+// Height, Round, and Values on which all correct Processes have already
+// achieved consensus.
+type Scheduler interface {
+	Schedule(height Height, round Round) id.Signatory
+}
 
-// A Process defines a state machine in the distributed replicated state
-// machine. See https://arxiv.org/pdf/1807.04938.pdf for more information.
+// A Proposer is used to propose new Values for consensus. A Proposer must only
+// ever return a valid Value, and once it returns a Value, it must never return
+// a different Value for the same Height and Round.
+type Proposer interface {
+	Propose(Height, Round) Value
+}
+
+// A Broadcaster is used to broadcast Propose, Prevote, and Precommit messages
+// to all Processes in the consensus algorithm, including the Process that
+// initiated the broadcast. It is assumed that all messages between correct
+// Processes are eventually delivered, although no specific order is assumed.
+//
+// Once a Value has been broadcast as part of a Propose, Prevote, or Precommit
+// message, different Values must not be broadcast for that same message type
+// with the same Height and Round. The same restriction applies to valid Rounds
+// broadcast with a Propose message.
+type Broadcaster interface {
+	BroadcastPropose(Propose)
+	BroadcastPrevote(Prevote)
+	BroadcastPrecommit(Precommit)
+}
+
+// A Validator is used to validate a proposed Value. Processes are not required
+// to agree on the validity of a Value.
+type Validator interface {
+	Valid(Height, Round, Value) bool
+}
+
+// A Committer is used to emit Values that are committed. The commitment of a
+// new Value implies that all correct Processes agree on this Value at this
+// Height, and will never revert.
+type Committer interface {
+	Commit(Height, Value)
+}
+
+// A Catcher is used to catch bad behaviour in other Processes. For example,
+// when the same Process sends two different Proposes at the same Height and
+// Round. Not all instances of bad behaviour are caught by the Process. For
+// example, when a Process moves to a new height, it will stop processing
+// messages from previous heights, and so malicious behaviour that occurs in
+// those dropped messages will not be caught. If it is required that all bad
+// behaviour is caught, then additional checks must be made — outside the
+// context of Hyperdrive — before passing messages to the Process.
+type Catcher interface {
+	CatchDoublePropose(Propose, Propose)
+	CatchDoublePrevote(Prevote, Prevote)
+	CatchDoublePrecommit(Precommit, Precommit)
+	CatchOutOfTurnPropose(Propose)
+}
+
+// A Process is a deterministic finite state automaton that communicates with
+// other Processes to implement a Byzantine fault tolerant consensus algorithm.
+// It is intended to be used as part of a larger component that implements a
+// Byzantine fault tolerant replicated state machine.
+//
+// All messages from previous and future Heights will be ignored. The component
+// using the Process should buffer all messages from future Heights so that they
+// are not lost. It is assumed that this component will also handle the
+// authentication and rate-limiting of messages.
+//
+// Processes are not safe for concurrent use. All methods must be called by the
+// same goroutine that allocates and starts the Process.
 type Process struct {
-	logger logrus.FieldLogger
-	mu     *sync.Mutex
+	// whoami represents the identity of this Process. It is assumed that the
+	// ECDSA private key required to prove ownership of this identity is known.
+	whoami id.Signatory
+	// f is the maximum number of malicious adversaries that the Process can
+	// withstand while still maintaining safety and liveliness.
+	f uint64
 
-	signatory  id.Signatory
-	blockchain Blockchain
-	state      State
+	// Input interface that provide data to the Process.
+	timer     Timer
+	scheduler Scheduler
+	proposer  Proposer
+	validator Validator
 
-	saveRestorer SaveRestorer
-	proposer     Proposer
-	validator    Validator
-	scheduler    Scheduler
-	broadcaster  Broadcaster
-	timer        Timer
-	observer     Observer
+	// Output interfaces that received data from the Process.
+	broadcaster Broadcaster
+	committer   Committer
+	catcher     Catcher
+
+	// State of the Process.
+	State `json:"state"`
 }
 
-// New Process initialised to the default state, starting in the first round.
-func New(logger logrus.FieldLogger, signatory id.Signatory, blockchain Blockchain, state State, saveRestorer SaveRestorer, proposer Proposer, validator Validator, observer Observer, broadcaster Broadcaster, scheduler Scheduler, timer Timer) *Process {
-	p := &Process{
-		logger: logger,
-		mu:     new(sync.Mutex),
+// New returns a new Process that is in the default State with empty message
+// logs.
+func New(
+	whoami id.Signatory,
+	f int,
+	timer Timer,
+	scheduler Scheduler,
+	proposer Proposer,
+	validator Validator,
+	broadcaster Broadcaster,
+	committer Committer,
+	catcher Catcher,
+) Process {
+	return NewWithCurrentHeight(
+		whoami,
+		DefaultHeight,
+		f,
+		timer,
+		scheduler,
+		proposer,
+		validator,
+		broadcaster,
+		committer,
+		catcher,
+	)
+}
 
-		signatory:  signatory,
-		blockchain: blockchain,
-		state:      state,
+// NewWithCurrentHeight returns a new Process that starts at the given height
+// with empty message logs.
+func NewWithCurrentHeight(
+	whoami id.Signatory,
+	height Height,
+	f int,
+	timer Timer,
+	scheduler Scheduler,
+	proposer Proposer,
+	validator Validator,
+	broadcaster Broadcaster,
+	committer Committer,
+	catcher Catcher,
+) Process {
+	return Process{
+		whoami: whoami,
+		f:      uint64(f),
 
-		saveRestorer: saveRestorer,
-		proposer:     proposer,
-		validator:    validator,
-		observer:     observer,
-		broadcaster:  broadcaster,
-		scheduler:    scheduler,
-		timer:        timer,
+		timer:     timer,
+		scheduler: scheduler,
+		proposer:  proposer,
+		validator: validator,
+
+		broadcaster: broadcaster,
+		committer:   committer,
+		catcher:     catcher,
+
+		State: DefaultState().WithCurrentHeight(height),
 	}
-	return p
 }
 
-// Save the current state of the process using the saveRestorer.
-func (p *Process) Save() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.saveRestorer.Save(&p.state)
-}
-
-// Restore the current state of the process using the saveRestorer.
-func (p *Process) Restore() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.saveRestorer.Restore(&p.state)
-}
-
-// SizeHint returns the number of bytes required to store this process in
+// SizeHint returns the number of bytes required to represent this Process in
 // binary.
-func (p *Process) SizeHint() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.state.SizeHint()
+func (p Process) SizeHint() int {
+	return p.whoami.SizeHint() +
+		surge.SizeHint(p.f) +
+		surge.SizeHint(p.State)
 }
 
-// Marshal the process into binary.
-func (p *Process) Marshal(w io.Writer, m int) (int, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.state.Marshal(w, m)
-}
-
-// Unmarshal into this process from binary.
-func (p *Process) Unmarshal(r io.Reader, m int) (int, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.state.Unmarshal(r, m)
-}
-
-// Start the process.
-func (p *Process) Start() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	// Log the starting state of process for debugging purpose.
-	p.logger.Debugf("🎰 starting process at height=%v, round=%v, step=%v", p.state.CurrentHeight, p.state.CurrentRound, p.state.CurrentStep)
-	numProposes := p.state.Proposals.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
-	numPrevotes := p.state.Prevotes.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
-	numPrecommits := p.state.Precommits.QueryByHeightRound(p.state.CurrentHeight, p.state.CurrentRound)
-	p.logger.Debugf("propose inbox len=%v, prevote inbox len=%v, precommit inbox len=%v", numProposes, numPrevotes, numPrecommits)
-
-	// Resend our latest messages to others.
-	p.resendLatestMessages(nil)
-
-	// Query others for previous messages.
-	resync := NewResync(p.state.CurrentHeight, p.state.CurrentRound)
-	p.broadcaster.Broadcast(resync)
-
-	// Start the Process from previous state.
-	if p.state.CurrentStep == StepNil || p.state.CurrentStep == StepPropose {
-		p.startRound(p.state.CurrentRound)
-	}
-	if numPrevotes >= 2*p.state.Prevotes.f+1 && p.state.CurrentStep == StepPrevote {
-		p.scheduleTimeoutPrevote(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrevote, p.state.CurrentRound))
-	}
-	if numPrecommits >= 2*p.state.Precommits.f+1 {
-		p.scheduleTimeoutPrecommit(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrecommit, p.state.CurrentRound))
-	}
-}
-
-// StartRound is safe for concurrent use. See
-// https://arxiv.org/pdf/1807.04938.pdf for more information.
-func (p *Process) StartRound(round block.Round) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.startRound(round)
-}
-
-// HandleMessage is safe for concurrent use. See
-// https://arxiv.org/pdf/1807.04938.pdf for more information.
-func (p *Process) HandleMessage(m Message) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	switch m := m.(type) {
-	case *Propose:
-		p.handlePropose(m)
-	case *Prevote:
-		p.handlePrevote(m)
-	case *Precommit:
-		p.handlePrecommit(m)
-	case *Resync:
-		p.handleResync(m)
-	}
-}
-
-// resend sends any messages stored at the given height and round to the `to`
-// signatory. If no signatory is provided, we broadcast the message to all known
-// peers.
-func (p *Process) resend(to *id.Signatory, height block.Height, round block.Round) {
-	proposal := p.state.Proposals.QueryByHeightRoundSignatory(height, round, p.signatory)
-	prevote := p.state.Prevotes.QueryByHeightRoundSignatory(height, round, p.signatory)
-	precommit := p.state.Precommits.QueryByHeightRoundSignatory(height, round, p.signatory)
-	if proposal != nil {
-		// Resend messages to all peers if no signatory is provided.
-		if to == nil {
-			p.broadcaster.Broadcast(proposal)
-		} else {
-			p.broadcaster.Cast(*to, proposal)
-		}
-	}
-	if prevote != nil {
-		if to == nil {
-			p.broadcaster.Broadcast(prevote)
-		} else {
-			p.broadcaster.Cast(*to, prevote)
-		}
-	}
-	if precommit != nil {
-		if to == nil {
-			p.broadcaster.Broadcast(precommit)
-		} else {
-			p.broadcaster.Cast(*to, precommit)
-		}
-	}
-}
-
-func (p *Process) resendLatestMessages(to *id.Signatory) {
-	if !p.state.Equal(DefaultState(p.state.Prevotes.f)) {
-		p.logger.Debugf("resending messages at current height=%v and current round=%v", p.state.CurrentHeight, p.state.CurrentRound)
-		p.resend(to, p.state.CurrentHeight, p.state.CurrentRound)
-		if p.state.CurrentRound > 0 {
-			p.logger.Debugf("resending messages at current height=%v and previous round=%v", p.state.CurrentHeight, p.state.CurrentRound-1)
-			p.resend(to, p.state.CurrentHeight, p.state.CurrentRound-1)
-		} else if p.state.CurrentHeight > 0 {
-			maxRound := block.Round(0)
-			for round := range p.state.Proposals.messages[p.state.CurrentHeight-1] {
-				if round > maxRound {
-					maxRound = round
-				}
-			}
-			p.logger.Debugf("resending messages at previous height=%v and previous round=%v", p.state.CurrentHeight-1, maxRound)
-			p.resend(to, p.state.CurrentHeight-1, maxRound)
-		}
-	}
-}
-
-func (p *Process) startRound(round block.Round) {
-	p.state.CurrentRound = round
-	p.state.CurrentStep = StepPropose
-
-	// If process p is the proposer.
-	if p.signatory.Equal(p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound)) {
-		var proposal block.Block
-		if p.state.ValidBlock.Hash() != block.InvalidHash {
-			proposal = p.state.ValidBlock
-		} else {
-			proposal = p.proposer.BlockProposal(p.state.CurrentHeight, p.state.CurrentRound)
-		}
-		propose := NewPropose(
-			p.state.CurrentHeight,
-			p.state.CurrentRound,
-			proposal,
-			p.state.ValidRound,
-		)
-
-		// Include the previous block for nodes to catch up
-		previousBlock, ok := p.blockchain.BlockAtHeight(p.state.CurrentHeight - 1)
-		if !ok {
-			panic("fail to get previous block from storage")
-		}
-		messages := p.state.Precommits.QueryMessagesByHeightWithHighestRound(p.state.CurrentHeight - 1)
-		commits := make([]Precommit, 0, len(messages))
-		for _, message := range messages {
-			commit := message.(*Precommit)
-			if commit.blockHash.Equal(previousBlock.Hash()) {
-				commits = append(commits, *commit)
-			}
-		}
-		propose.latestCommit = LatestCommit{
-			Block:      previousBlock,
-			Precommits: commits,
-		}
-		p.logger.Infof("🔊 proposed block=%v at height=%v and round=%v", propose.BlockHash(), propose.height, propose.round)
-		p.broadcaster.Broadcast(propose)
-	} else {
-		p.scheduleTimeoutPropose(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPropose, p.state.CurrentRound))
-	}
-}
-
-func (p *Process) handlePropose(propose *Propose) {
-	p.syncLatestCommit(propose.latestCommit)
-
-	p.logger.Debugf("received propose at height=%v and round=%v", propose.height, propose.round)
-	_, firstTime, _, _, _ := p.state.Proposals.Insert(propose)
-
-	// upon Propose{currentHeight, currentRound, block, -1}
-	if propose.Height() == p.state.CurrentHeight && propose.Round() == p.state.CurrentRound && propose.ValidRound() == block.InvalidRound {
-		// from Schedule{currentHeight, currentRound}
-		if propose.Signatory().Equal(p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound)) {
-			// while currentStep = StepPropose
-			if p.state.CurrentStep == StepPropose {
-				var prevote *Prevote
-				nilReasons, err := p.validator.IsBlockValid(propose.Block(), true)
-				if err == nil && (p.state.LockedRound == block.InvalidRound || p.state.LockedBlock.Equal(propose.Block())) {
-					prevote = NewPrevote(
-						p.state.CurrentHeight,
-						p.state.CurrentRound,
-						propose.Block().Hash(),
-						nilReasons,
-					)
-					p.logger.Debugf("prevoted=%v at height=%v and round=%v", propose.BlockHash(), propose.height, propose.round)
-				} else {
-					prevote = NewPrevote(
-						p.state.CurrentHeight,
-						p.state.CurrentRound,
-						block.InvalidHash,
-						nilReasons,
-					)
-					p.logger.Warnf("prevoted=<nil> at height=%v and round=%v (invalid propose: %v)", propose.height, propose.round, err)
-				}
-				p.state.CurrentStep = StepPrevote
-				p.broadcaster.Broadcast(prevote)
-			}
-		}
-	}
-
-	// Resend our prevote from the valid round if it exists in case of missed
-	// messages.
-	if propose.ValidRound() > block.InvalidRound {
-		prevote := p.state.Prevotes.QueryByHeightRoundSignatory(propose.Height(), propose.ValidRound(), p.signatory)
-		if prevote != nil {
-			p.broadcaster.Broadcast(prevote)
-		}
-	}
-
-	// upon f+1 *{currentHeight, round, *, *} and round > currentRound
-	n := p.numberOfMessagesAtCurrentHeight(propose.Round())
-	if n > p.state.Prevotes.F() && propose.Height() == p.state.CurrentHeight && propose.Round() > p.state.CurrentRound {
-		p.startRound(propose.Round())
-	}
-
-	p.checkProposeInCurrentHeightAndRoundWithPrevotes()
-	if firstTime {
-		p.checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime()
-	}
-	p.checkProposeInCurrentHeightWithPrecommits(propose.Round())
-}
-
-func (p *Process) handlePrevote(prevote *Prevote) {
-	prevoteDebugStr := "<nil>"
-	if !prevote.blockHash.Equal(block.InvalidHash) {
-		prevoteDebugStr = prevote.blockHash.String()
-	}
-	p.logger.Debugf("received prevote=%v at height=%v and round=%v", prevoteDebugStr, prevote.height, prevote.round)
-	_, _, _, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash := p.state.Prevotes.Insert(prevote)
-	if firstTimeExceeding2F && prevote.Height() == p.state.CurrentHeight && prevote.Round() == p.state.CurrentRound && p.state.CurrentStep == StepPrevote {
-		// upon 2f+1 Prevote{currentHeight, currentRound, *} while step = StepPrevote for the first time
-		p.scheduleTimeoutPrevote(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrevote, p.state.CurrentRound))
-	}
-
-	// upon f+1 Prevote{currentHeight, currentRound, nil}
-	if n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, p.state.CurrentRound, block.InvalidHash); n > p.state.Prevotes.F() {
-		// if we are the proposer
-		if p.signatory.Equal(p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound)) {
-			p.observer.DidReceiveSufficientNilPrevotes(p.state.Prevotes.QueryMessagesByHeightRound(p.state.CurrentHeight, p.state.CurrentRound), p.state.Prevotes.F())
-		}
-	}
-
-	// upon 2f+1 Prevote{currentHeight, currentRound, nil} while currentStep = StepPrevote
-	if n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, p.state.CurrentRound, block.InvalidHash); n > 2*p.state.Prevotes.F() && p.state.CurrentStep == StepPrevote {
-		precommit := NewPrecommit(
-			p.state.CurrentHeight,
-			p.state.CurrentRound,
-			block.InvalidHash,
-		)
-		p.logger.Debugf("precommited=<nil> at height=%v and round=%v (2f+1 prevote=<nil>)", precommit.height, precommit.round)
-		p.state.CurrentStep = StepPrecommit
-		p.broadcaster.Broadcast(precommit)
-	}
-
-	// upon f+1 *{currentHeight, round, *, *} and round > currentRound
-	n := p.numberOfMessagesAtCurrentHeight(prevote.Round())
-	if n > p.state.Prevotes.F() && prevote.Height() == p.state.CurrentHeight && prevote.Round() > p.state.CurrentRound {
-		p.startRound(prevote.Round())
-	}
-
-	p.checkProposeInCurrentHeightAndRoundWithPrevotes()
-	if firstTimeExceeding2FOnBlockHash {
-		p.checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime()
-	}
-}
-
-func (p *Process) handlePrecommit(precommit *Precommit) {
-	precommitDebugStr := "<nil>"
-	if !precommit.blockHash.Equal(block.InvalidHash) {
-		precommitDebugStr = precommit.blockHash.String()
-	}
-	p.logger.Debugf("received precommit=%v at height=%v and round=%v", precommitDebugStr, precommit.height, precommit.round)
-	// upon 2f+1 Precommit{currentHeight, currentRound, *} for the first time
-	_, _, _, firstTimeExceeding2F, _ := p.state.Precommits.Insert(precommit)
-	if firstTimeExceeding2F && precommit.Height() == p.state.CurrentHeight && precommit.Round() == p.state.CurrentRound {
-		p.scheduleTimeoutPrecommit(p.state.CurrentHeight, p.state.CurrentRound, p.timer.Timeout(StepPrecommit, p.state.CurrentRound))
-	}
-
-	// upon f+1 *{currentHeight, round, *, *} and round > currentRound
-	n := p.numberOfMessagesAtCurrentHeight(precommit.Round())
-	if n > p.state.Precommits.F() && precommit.Height() == p.state.CurrentHeight && precommit.Round() > p.state.CurrentRound {
-		p.startRound(precommit.Round())
-	}
-
-	p.checkProposeInCurrentHeightWithPrecommits(precommit.Round())
-}
-
-func (p *Process) handleResync(resync *Resync) {
-	p.logger.Debugf("received resync at height=%v and round=%v", resync.height, resync.round)
-
-	// Resend our latest messages to the requestor.
-	p.resendLatestMessages(&resync.signatory)
-}
-
-// timeoutPropose checks if we have move to a new height, a new round or a new
-// step after the timeout. If not, prevote for a invalid block and broadcast
-// the vote, then move to prevote step.
-func (p *Process) timeoutPropose(height block.Height, round block.Round) {
-	if height == p.state.CurrentHeight && round == p.state.CurrentRound && p.state.CurrentStep == StepPropose {
-		prevote := NewPrevote(
-			p.state.CurrentHeight,
-			p.state.CurrentRound,
-			block.InvalidHash,
-			nil,
-		)
-		p.logger.Warnf("prevoted=<nil> at height=%v and round=%v (timeout)", prevote.height, prevote.round)
-		p.state.CurrentStep = StepPrevote
-		p.broadcaster.Broadcast(prevote)
-	}
-}
-
-func (p *Process) timeoutPrevote(height block.Height, round block.Round) {
-	if height == p.state.CurrentHeight && round == p.state.CurrentRound && p.state.CurrentStep == StepPrevote {
-		precommit := NewPrecommit(
-			p.state.CurrentHeight,
-			p.state.CurrentRound,
-			block.InvalidHash,
-		)
-		p.logger.Warnf("precommitted=<nil> at height=%v and round=%v (timeout)", precommit.height, precommit.round)
-		p.state.CurrentStep = StepPrecommit
-		p.broadcaster.Broadcast(precommit)
-	}
-}
-
-func (p *Process) timeoutPrecommit(height block.Height, round block.Round) {
-	if height == p.state.CurrentHeight && round == p.state.CurrentRound {
-		p.startRound(p.state.CurrentRound + 1)
-	}
-}
-
-func (p *Process) scheduleTimeoutPropose(height block.Height, round block.Round, duration time.Duration) {
-	go func() {
-		time.Sleep(duration)
-
-		p.mu.Lock()
-		defer p.mu.Unlock()
-
-		p.timeoutPropose(height, round)
-	}()
-}
-
-func (p *Process) scheduleTimeoutPrevote(height block.Height, round block.Round, duration time.Duration) {
-	go func() {
-		time.Sleep(duration)
-
-		p.mu.Lock()
-		defer p.mu.Unlock()
-
-		p.timeoutPrevote(height, round)
-	}()
-}
-
-func (p *Process) scheduleTimeoutPrecommit(height block.Height, round block.Round, duration time.Duration) {
-	go func() {
-		time.Sleep(duration)
-
-		p.mu.Lock()
-		defer p.mu.Unlock()
-
-		p.timeoutPrecommit(height, round)
-	}()
-}
-
-func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotes() {
-	// upon Propose{currentHeight, currentRound, block, validRound} from Schedule(currentHeight, currentRound)
-	m := p.state.Proposals.QueryByHeightRoundSignatory(p.state.CurrentHeight, p.state.CurrentRound, p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound))
-	if m == nil {
-		return
-	}
-	propose := m.(*Propose)
-
-	if propose.ValidRound() > block.InvalidRound {
-		// and 2f+1 Prevote{currentHeight, validRound, blockHash}
-		n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, propose.ValidRound(), propose.BlockHash())
-		if n > 2*p.state.Prevotes.F() {
-			// while step = StepPropose and validRound >= 0 and validRound < currentRound
-			if p.state.CurrentStep == StepPropose && propose.ValidRound() < p.state.CurrentRound {
-				var prevote *Prevote
-				nilReasons, err := p.validator.IsBlockValid(propose.Block(), true)
-				if err == nil && (p.state.LockedRound <= propose.ValidRound() || p.state.LockedBlock.Equal(propose.Block())) {
-					prevote = NewPrevote(
-						p.state.CurrentHeight,
-						p.state.CurrentRound,
-						propose.Block().Hash(),
-						nilReasons,
-					)
-					p.logger.Debugf("prevoted=%v at height=%v and round=%v (2f+1 valid prevotes)", prevote.blockHash, prevote.height, prevote.round)
-				} else {
-					prevote = NewPrevote(
-						p.state.CurrentHeight,
-						p.state.CurrentRound,
-						block.InvalidHash,
-						nilReasons,
-					)
-					p.logger.Warnf("prevoted=<nil> at height=%v and round=%v (invalid propose: %v)", prevote.height, prevote.round, err)
-				}
-
-				p.state.CurrentStep = StepPrevote
-				p.broadcaster.Broadcast(prevote)
-			}
-		}
-	}
-}
-
-// checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime must only be
-// called when a Propose or Prevote has been seen for the first time, and it is
-// possible that a Propose and 2f+1 Prevotes has been seen for the first time at
-// the current `block.Height` and `block.Round`. This can happen when a Propose
-// is seen for the first time at the current `block.Height` and `block.Round`,
-// or, when a Prevote is seen for the first time at the current `block.Height`
-// and `block.Round`. It is ok to call this function multiple times
-// pre-emptively, but this call must only succeed once.
-func (p *Process) checkProposeInCurrentHeightAndRoundWithPrevotesForTheFirstTime() {
-	// upon Propose{currentHeight, currentRound, block, *} from Schedule(currentHeight, currentRound)
-	m := p.state.Proposals.QueryByHeightRoundSignatory(p.state.CurrentHeight, p.state.CurrentRound, p.scheduler.Schedule(p.state.CurrentHeight, p.state.CurrentRound))
-	if m == nil {
-		return
-	}
-	propose := m.(*Propose)
-
-	// and 2f+1 Prevote{currentHeight, currentRound, blockHash} while Validate(block) and step >= StepPrevote for the first time
-	n := p.state.Prevotes.QueryByHeightRoundBlockHash(p.state.CurrentHeight, p.state.CurrentRound, propose.BlockHash())
-	if n > 2*p.state.Prevotes.F() {
-		_, err := p.validator.IsBlockValid(propose.Block(), true)
-		if p.state.CurrentStep >= StepPrevote && err == nil {
-			p.state.ValidBlock = propose.Block()
-			p.state.ValidRound = p.state.CurrentRound
-			if p.state.CurrentStep == StepPrevote {
-				p.state.LockedBlock = propose.Block()
-				p.state.LockedRound = p.state.CurrentRound
-				p.state.CurrentStep = StepPrecommit
-				precommit := NewPrecommit(
-					p.state.CurrentHeight,
-					p.state.CurrentRound,
-					propose.Block().Hash(),
-				)
-				p.logger.Debugf("precommitted=%v at height=%v and round=%v", precommit.blockHash, p.state.CurrentHeight, p.state.CurrentRound)
-				p.broadcaster.Broadcast(precommit)
-			}
-		} else {
-			p.logger.Warnf("nothing precommitted at height=%v, round=%v and step=%v (invalid block: %v)", propose.height, propose.round, p.state.CurrentStep, err)
-		}
-	}
-}
-
-func (p *Process) checkProposeInCurrentHeightWithPrecommits(round block.Round) {
-	// upon Propose{currentHeight, round, block, *} from Schedule(currentHeight, round)
-	m := p.state.Proposals.QueryByHeightRoundSignatory(p.state.CurrentHeight, round, p.scheduler.Schedule(p.state.CurrentHeight, round))
-	if m == nil {
-		return
-	}
-	propose := m.(*Propose)
-
-	// and 2f+1 Precommits{currentHeight, round, blockHash}
-	n := p.state.Precommits.QueryByHeightRoundBlockHash(p.state.CurrentHeight, round, propose.BlockHash())
-	if n > 2*p.state.Precommits.F() {
-		// while !BlockExistsAtHeight(currentHeight)
-		if !p.blockchain.BlockExistsAtHeight(p.state.CurrentHeight) {
-			_, err := p.validator.IsBlockValid(propose.Block(), false)
-			if err == nil {
-				p.blockchain.InsertBlockAtHeight(p.state.CurrentHeight, propose.Block())
-				p.state.CurrentHeight++
-				p.state.Reset(p.state.CurrentHeight - 1)
-				if p.observer != nil {
-					p.observer.DidCommitBlock(p.state.CurrentHeight - 1)
-				}
-				p.logger.Infof("✅ committed block=%v at height=%v", propose.BlockHash(), propose.height)
-				p.startRound(0)
-			} else {
-				p.logger.Warnf("nothing committed at height=%v and round=%v (invalid block: %v)", propose.height, propose.round, err)
-			}
-		}
-	}
-}
-
-func (p *Process) numberOfMessagesAtCurrentHeight(round block.Round) int {
-	numUniqueProposals := p.state.Proposals.QueryByHeightRound(p.state.CurrentHeight, round)
-	numUniquePrevotes := p.state.Prevotes.QueryByHeightRound(p.state.CurrentHeight, round)
-	numUniquePrecommits := p.state.Precommits.QueryByHeightRound(p.state.CurrentHeight, round)
-	return numUniqueProposals + numUniquePrevotes + numUniquePrecommits
-}
-
-func (p *Process) syncLatestCommit(latestCommit LatestCommit) {
-	// Check that the latest commit is from the future
-	if latestCommit.Block.Header().Height() <= p.state.CurrentHeight {
-		return
-	}
-
-	// Check the proposed block and previous block without historical data. It
-	// needs the validator to store the previous execute state.
-	_, err := p.validator.IsBlockValid(latestCommit.Block, false)
+// Marshal this Process into binary.
+func (p Process) Marshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := p.whoami.Marshal(buf, rem)
 	if err != nil {
-		p.logger.Warnf("error syncing to height=%v and round=%v (invalid block: %v)", latestCommit.Block.Header().Height(), latestCommit.Block.Header().Round(), err)
-		return
+		return buf, rem, fmt.Errorf("marshaling whoami: %v", err)
 	}
-
-	// Validate the commits
-	signatories := map[id.Signatory]struct{}{}
-	baseBlock, ok := p.blockchain.BlockAtHeight(0)
-	if !ok {
-		panic("no genesis block")
+	buf, rem, err = surge.Marshal(p.f, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling f: %v", err)
 	}
-	for _, sig := range baseBlock.Header().Signatories() {
-		signatories[sig] = struct{}{}
+	buf, rem, err = surge.Marshal(p.State, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling state: %v", err)
 	}
-	for _, commit := range latestCommit.Precommits {
-		if err := Verify(&commit); err != nil {
-			return
-		}
-		if _, ok := signatories[commit.signatory]; !ok {
-			return
-		}
-		if !commit.blockHash.Equal(latestCommit.Block.Hash()) {
-			return
-		}
-		if commit.height != latestCommit.Block.Header().Height() {
-			return
-		}
-		if commit.round != latestCommit.Block.Header().Round() {
-			return
-		}
-	}
-
-	// Check we have 2f+1 distinct commits
-	signatories = map[id.Signatory]struct{}{}
-	for _, commit := range latestCommit.Precommits {
-		signatories[commit.Signatory()] = struct{}{}
-	}
-	if len(signatories) < 2*p.state.Proposals.f+1 {
-		return
-	}
-
-	// if the commits are valid, store the block if we don't have one
-	if !p.blockchain.BlockExistsAtHeight(latestCommit.Block.Header().Height()) {
-		p.blockchain.InsertBlockAtHeight(latestCommit.Block.Header().Height(), latestCommit.Block)
-	}
-	p.logger.Infof("syncing from height=%v to height=%v", p.state.CurrentHeight, latestCommit.Block.Header().Height()+1)
-	p.state.CurrentHeight = latestCommit.Block.Header().Height() + 1
-	p.state.CurrentRound = 0
-	p.state.Reset(latestCommit.Block.Header().Height())
-	p.startRound(p.state.CurrentRound)
+	return buf, rem, nil
 }
+
+// Unmarshal from binary into this Process.
+func (p *Process) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := p.whoami.Unmarshal(buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling whoami: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&p.f, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling f: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&p.State, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling state: %v", err)
+	}
+	return buf, rem, nil
+}
+
+// Propose is used to notify the Process that a Propose message has been
+// received (this includes Propose messages that the Process itself has
+// broadcast). All conditions that could be opened by the receipt of a Propose
+// message will be tried.
+func (p *Process) Propose(propose Propose) {
+	if !p.insertPropose(propose) {
+		return
+	}
+
+	p.trySkipToFutureRound(propose.Round)
+	p.tryCommitUponSufficientPrecommits(propose.Round)
+	p.tryPrecommitUponSufficientPrevotes()
+	p.tryPrevoteUponPropose()
+	p.tryPrevoteUponSufficientPrevotes()
+}
+
+// Prevote is used to notify the Process that a Prevote message has been
+// received (this includes Prevote messages that the Process itself has
+// broadcast). All conditions that could be opened by the receipt of a Prevote
+// message will be tried.
+func (p *Process) Prevote(prevote Prevote) {
+	if !p.insertPrevote(prevote) {
+		return
+	}
+
+	p.trySkipToFutureRound(prevote.Round)
+	p.tryPrecommitUponSufficientPrevotes()
+	p.tryPrecommitNilUponSufficientPrevotes()
+	p.tryPrevoteUponSufficientPrevotes()
+	p.tryTimeoutPrevoteUponSufficientPrevotes()
+}
+
+// Precommit is used to notify the Process that a Precommit message has been
+// received (this includes Precommit messages that the Process itself has
+// broadcast). All conditions that could be opened by the receipt of a Precommit
+// message will be tried.
+func (p *Process) Precommit(precommit Precommit) {
+	if !p.insertPrecommit(precommit) {
+		return
+	}
+
+	p.trySkipToFutureRound(precommit.Round)
+	p.tryCommitUponSufficientPrecommits(precommit.Round)
+	p.tryTimeoutPrecommitUponSufficientPrecommits()
+}
+
+// Start the Process.
+//
+// L10:
+//	upon start do
+//		StartRound(0)
+//
+func (p *Process) Start() {
+	p.StartRound(0)
+}
+
+// StartRound will progress the Process to a new Round. It does not assume that
+// the Height has changed. Since this changes the current Round and the current
+// Step, most of the condition methods will be retried at the end (by way of
+// defer).
+//
+// L11:
+//	Function StartRound(round)
+//		currentRound ← round
+//		currentStep ← propose
+//		if proposer(currentHeight, currentRound) = p then
+//			if validValue != nil then
+//				proposal ← validValue
+//			else
+//				proposal ← getValue()
+//			broadcast〈PROPOSAL, currentHeight, currentRound, proposal, validRound〉
+//		else
+//			schedule OnTimeoutPropose(currentHeight, currentRound) to be executed after timeoutPropose(currentRound)
+func (p *Process) StartRound(round Round) {
+	defer func() {
+		p.tryPrecommitUponSufficientPrevotes()
+		p.tryPrecommitNilUponSufficientPrevotes()
+		p.tryPrevoteUponPropose()
+		p.tryPrevoteUponSufficientPrevotes()
+		p.tryTimeoutPrecommitUponSufficientPrecommits()
+		p.tryTimeoutPrevoteUponSufficientPrevotes()
+	}()
+
+	// Set the state the new round, and set the step to the first step in the
+	// sequence. We do not have special methods dedicated to change the current
+	// Round, or changing the current Step to Proposing, because StartRound is
+	// the only location where this logic happens.
+	p.CurrentRound = round
+	p.CurrentStep = Proposing
+
+	// If we are not the proposer, then we trigger the propose timeout.
+	// We proceed only if we have a scheduler impl, because if not, we never
+	// know who the scheduled proposer is.
+	if p.scheduler != nil {
+		proposer := p.scheduler.Schedule(p.CurrentHeight, p.CurrentRound)
+		if !p.whoami.Equal(&proposer) {
+			if p.timer != nil {
+				p.timer.TimeoutPropose(p.CurrentHeight, p.CurrentRound)
+			}
+			return
+		}
+
+		// If we are the proposer, then we emit a propose.
+		proposeValue := p.ValidValue
+		if proposeValue.Equal(&NilValue) {
+			if p.proposer != nil {
+				proposeValue = p.proposer.Propose(p.CurrentHeight, p.CurrentRound)
+			}
+		}
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPropose(Propose{
+				Height:     p.CurrentHeight,
+				Round:      p.CurrentRound,
+				ValidRound: p.ValidRound,
+				Value:      proposeValue,
+				From:       p.whoami,
+			})
+		}
+	}
+}
+
+// OnTimeoutPropose is used to notify the Process that a timeout has been
+// activated. It must only be called after the TimeoutPropose method in the
+// Timer has been called.
+//
+// L57:
+//	Function OnTimeoutPropose(height, round)
+//		if height = currentHeight ∧ round = currentRound ∧ currentStep = propose then
+//			broadcast〈PREVOTE, currentHeight, currentRound, nil
+//			currentStep ← prevote
+func (p *Process) OnTimeoutPropose(height Height, round Round) {
+	if height == p.CurrentHeight && round == p.CurrentRound && p.CurrentStep == Proposing {
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPrevote(Prevote{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  NilValue,
+				From:   p.whoami,
+			})
+		}
+		p.stepToPrevoting()
+	}
+}
+
+// OnTimeoutPrevote is used to notify the Process that a timeout has been
+// activated. It must only be called after the TimeoutPrevote method in the
+// Timer has been called.
+//
+// L61:
+//	Function OnTimeoutPrevote(height, round)
+//		if height = currentHeight ∧ round = currentRound ∧ currentStep = prevote then
+//			broadcast〈PRECOMMIT, currentHeight, currentRound, nil
+//			currentStep ← precommitting
+func (p *Process) OnTimeoutPrevote(height Height, round Round) {
+	if height == p.CurrentHeight && round == p.CurrentRound && p.CurrentStep == Prevoting {
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPrecommit(Precommit{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  NilValue,
+				From:   p.whoami,
+			})
+		}
+		p.stepToPrecommitting()
+	}
+}
+
+// OnTimeoutPrecommit is used to notify the Process that a timeout has been
+// activated. It must only be called after the TimeoutPrecommit method in the
+// Timer has been called.
+//
+// L65:
+//	Function OnTimeoutPrecommit(height, round)
+//		if height = currentHeight ∧ round = currentRound then
+//			StartRound(currentRound + 1)
+func (p *Process) OnTimeoutPrecommit(height Height, round Round) {
+	if height == p.CurrentHeight && round == p.CurrentRound {
+		p.StartRound(round + 1)
+	}
+}
+
+// L22:
+//  upon〈PROPOSAL, currentHeight, currentRound, v, −1〉from proposer(currentHeight, currentRound)
+//  while currentStep = propose do
+//      if valid(v) ∧ (lockedRound = −1 ∨ lockedValue = v) then
+//          broadcast〈PREVOTE, currentHeight, currentRound, id(v)
+//      else
+//          broadcast〈PREVOTE, currentHeight, currentRound, nil
+//      currentStep ← prevote
+//
+// This method must be tried whenever a Propose is received at the current
+// Round, the current Round changes, the current Step changes to Prevote, the
+// LockedRound changes, or the the LockedValue changes.
+func (p *Process) tryPrevoteUponPropose() {
+	if p.CurrentStep != Proposing {
+		return
+	}
+
+	propose, ok := p.ProposeLogs[p.CurrentRound]
+	if !ok {
+		return
+	}
+	if propose.ValidRound != InvalidRound {
+		return
+	}
+	proposeIsValid, _ := p.ProposeIsValid[p.CurrentRound]
+
+	if p.broadcaster != nil {
+		if (p.LockedRound == InvalidRound || p.LockedValue.Equal(&propose.Value)) && proposeIsValid {
+			p.broadcaster.BroadcastPrevote(Prevote{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  propose.Value,
+				From:   p.whoami,
+			})
+		} else {
+			p.broadcaster.BroadcastPrevote(Prevote{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  NilValue,
+				From:   p.whoami,
+			})
+		}
+	}
+
+	p.stepToPrevoting()
+}
+
+// L28:
+//
+//  upon〈PROPOSAL, currentHeight, currentRound, v, vr〉from proposer(currentHeight, currentRound) AND 2f+ 1〈PREVOTE, currentHeight, vr, id(v)〉
+//  while currentStep = propose ∧ (vr ≥ 0 ∧ vr < currentRound) do
+//      if valid(v) ∧ (lockedRound ≤ vr ∨ lockedValue = v) then
+//          broadcast〈PREVOTE, currentHeight, currentRound, id(v)〉
+//      else
+//          broadcast〈PREVOTE, currentHeight, currentRound, nil〉
+//      currentStep ← prevote
+//
+// This method must be tried whenever a Propose is received at the current Rond,
+// a Prevote is received (at any Round), the current Round changes, the
+// LockedRound changes, or the the LockedValue changes.
+func (p *Process) tryPrevoteUponSufficientPrevotes() {
+	if p.CurrentStep != Proposing {
+		return
+	}
+
+	propose, ok := p.ProposeLogs[p.CurrentRound]
+	if !ok {
+		return
+	}
+	if propose.ValidRound <= InvalidRound || propose.ValidRound >= p.CurrentRound {
+		return
+	}
+	proposeIsValid, _ := p.ProposeIsValid[p.CurrentRound]
+
+	prevotesInValidRound := 0
+	for _, prevote := range p.PrevoteLogs[propose.ValidRound] {
+		if prevote.Value.Equal(&propose.Value) {
+			prevotesInValidRound++
+		}
+	}
+	if prevotesInValidRound < int(2*p.f+1) {
+		return
+	}
+
+	if p.broadcaster != nil {
+		if (p.LockedRound <= propose.ValidRound || p.LockedValue.Equal(&propose.Value)) && proposeIsValid {
+			p.broadcaster.BroadcastPrevote(Prevote{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  propose.Value,
+				From:   p.whoami,
+			})
+		} else {
+			p.broadcaster.BroadcastPrevote(Prevote{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  NilValue,
+				From:   p.whoami,
+			})
+		}
+	}
+
+	p.stepToPrevoting()
+}
+
+// L34:
+//
+//  upon 2f+ 1〈PREVOTE, currentHeight, currentRound, ∗〉
+//  while currentStep = prevote for the first time do
+//      scheduleOnTimeoutPrevote(currentHeight, currentRound) to be executed after timeoutPrevote(currentRound)
+//
+// This method must be tried whenever a Prevote is received at the current
+// Round, the current Round changes, or the current Step changes to Prevoting.
+// It assumes that the Timer will eventually call the OnTimeoutPrevote method.
+// This method must only succeed once in any current Round.
+func (p *Process) tryTimeoutPrevoteUponSufficientPrevotes() {
+	if p.checkOnceFlag(p.CurrentRound, OnceFlagTimeoutPrevoteUponSufficientPrevotes) {
+		return
+	}
+	if p.CurrentStep != Prevoting {
+		return
+	}
+	if len(p.PrevoteLogs[p.CurrentRound]) >= int(2*p.f+1) {
+		if p.timer != nil {
+			p.timer.TimeoutPrevote(p.CurrentHeight, p.CurrentRound)
+			p.setOnceFlag(p.CurrentRound, OnceFlagTimeoutPrevoteUponSufficientPrevotes)
+		}
+	}
+}
+
+// L36:
+//
+//  upon〈PROPOSAL, currentHeight, currentRound, v, ∗〉from proposer(currentHeight, currentRound) AND 2f+ 1〈PREVOTE, currentHeight, currentRound, id(v)〉
+//  while valid(v) ∧ currentStep ≥ prevote for the first time do
+//      if currentStep = prevote then
+//          lockedValue ← v
+//          lockedRound ← currentRound
+//          broadcast〈PRECOMMIT, currentHeight, currentRound, id(v))〉
+//          currentStep ← precommit
+//      validValue ← v
+//      validRound ← currentRound
+//
+// This method must be tried whenever a Propose is received at the current
+// Round, a Prevote is received at the current Round, the current Round changes,
+// or the current Step changes to Prevoting or Precommitting. This method must
+// only succeed once in any current Round.
+func (p *Process) tryPrecommitUponSufficientPrevotes() {
+	if p.checkOnceFlag(p.CurrentRound, OnceFlagPrecommitUponSufficientPrevotes) {
+		return
+	}
+	if p.CurrentStep < Prevoting {
+		return
+	}
+
+	propose, ok := p.ProposeLogs[p.CurrentRound]
+	if !ok {
+		return
+	}
+	proposeIsValid, _ := p.ProposeIsValid[p.CurrentRound]
+	if !proposeIsValid {
+		return
+	}
+	prevotesForValue := 0
+	for _, prevote := range p.PrevoteLogs[p.CurrentRound] {
+		if prevote.Value.Equal(&propose.Value) {
+			prevotesForValue++
+		}
+	}
+	if prevotesForValue < int(2*p.f+1) {
+		return
+	}
+
+	if p.CurrentStep == Prevoting {
+		p.LockedValue = propose.Value
+		p.LockedRound = p.CurrentRound
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPrecommit(Precommit{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  propose.Value,
+				From:   p.whoami,
+			})
+		}
+
+		// We defer this call, so that the once flag is set before we exit this
+		// method.
+		defer p.stepToPrecommitting()
+
+		// Because the LockedValue and LockedRound have changed, we need to try
+		// this condition again. We defer this call, so that the once flag is
+		// set before we exit this method.
+		defer func() {
+			p.tryPrevoteUponPropose()
+			p.tryPrevoteUponSufficientPrevotes()
+		}()
+	}
+	p.ValidValue = propose.Value
+	p.ValidRound = p.CurrentRound
+	p.setOnceFlag(p.CurrentRound, OnceFlagPrecommitUponSufficientPrevotes)
+}
+
+// L44:
+//
+//  upon 2f+ 1〈PREVOTE, currentHeight, currentRound, nil〉
+//  while currentStep = prevote do
+//      broadcast〈PRECOMMIT, currentHeight, currentRound, nil〉
+//      currentStep ← precommit
+//
+// This method must be tried whenever a Prevote is received at the current
+// Round, the current Round changes, or the Step changes to Prevoting.
+func (p *Process) tryPrecommitNilUponSufficientPrevotes() {
+	if p.CurrentStep != Prevoting {
+		return
+	}
+	prevotesForNil := 0
+	for _, prevote := range p.PrevoteLogs[p.CurrentRound] {
+		if prevote.Value.Equal(&NilValue) {
+			prevotesForNil++
+		}
+	}
+	if prevotesForNil >= int(2*p.f+1) {
+		if p.broadcaster != nil {
+			p.broadcaster.BroadcastPrecommit(Precommit{
+				Height: p.CurrentHeight,
+				Round:  p.CurrentRound,
+				Value:  NilValue,
+				From:   p.whoami,
+			})
+		}
+		p.stepToPrecommitting()
+	}
+}
+
+// L47:
+//
+//  upon 2f+ 1〈PRECOMMIT, currentHeight, currentRound, ∗〉for the first time do
+//      scheduleOnTimeoutPrecommit(currentHeight, currentRound) to be executed after timeoutPrecommit(currentRound)
+//
+// This method must be tried whenever a Precommit is received at the current
+// Round, or the current Round changes. It assumes that the Timer will
+// eventually call the OnTimeoutPrecommit method. This method must only succeed
+// once in any current Round.
+func (p *Process) tryTimeoutPrecommitUponSufficientPrecommits() {
+	if p.checkOnceFlag(p.CurrentRound, OnceFlagTimeoutPrecommitUponSufficientPrecommits) {
+		return
+	}
+	if len(p.PrecommitLogs[p.CurrentRound]) == int(2*p.f+1) {
+		if p.timer != nil {
+			p.timer.TimeoutPrecommit(p.CurrentHeight, p.CurrentRound)
+			p.setOnceFlag(p.CurrentRound, OnceFlagTimeoutPrecommitUponSufficientPrecommits)
+		}
+	}
+}
+
+// L49:
+//
+//  upon〈PROPOSAL, currentHeight, r, v, ∗〉from proposer(currentHeight, r) AND 2f+ 1〈PRECOMMIT, currentHeight, r, id(v)〉
+//  while decision[currentHeight] = nil do
+//      if valid(v) then
+//          decision[currentHeight] = v
+//          currentHeight ← currentHeight + 1
+//          reset
+//          StartRound(0)
+//
+// This method must be tried whenever a Propose is received, or a Precommit is
+// received. Because this method checks whichever Round is relevant (i.e. the
+// Round of the Propose/Precommit), it does not need to be tried whenever the
+// current Round changes.
+//
+// We can avoid checking for a nil-decision at the current Height, because the
+// only condition under which this would not be true is when the Process has
+// progressed passed the Height in question (put another way, the fact that this
+// method causes the Height to be incremented prevents it from being triggered
+// multiple times).
+func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
+	propose, ok := p.ProposeLogs[round]
+	if !ok {
+		return
+	}
+	proposeIsValid, _ := p.ProposeIsValid[round]
+	if !proposeIsValid {
+		return
+	}
+
+	precommitsForValue := 0
+	for _, precommit := range p.PrecommitLogs[round] {
+		if precommit.Value.Equal(&propose.Value) {
+			precommitsForValue++
+		}
+	}
+	if precommitsForValue >= int(2*p.f+1) {
+		p.committer.Commit(p.CurrentHeight, propose.Value)
+		p.CurrentHeight++
+
+		// Reset lockedRound, lockedValue, validRound, and validValue to initial
+		// values.
+		p.LockedValue = NilValue
+		p.LockedRound = InvalidRound
+		p.ValidValue = NilValue
+		p.ValidRound = InvalidRound
+
+		// Empty message logs in preparation for the new Height.
+		p.ProposeLogs = map[Round]Propose{}
+		p.ProposeIsValid = map[Round]bool{}
+		p.PrevoteLogs = map[Round]map[id.Signatory]Prevote{}
+		p.PrecommitLogs = map[Round]map[id.Signatory]Precommit{}
+		p.OnceFlags = map[Round]OnceFlag{}
+		p.TraceLogs = map[Round]map[id.Signatory]bool{}
+
+		// Start from the first Round in the new Height.
+		p.StartRound(0)
+	}
+}
+
+// L55:
+//
+//  upon f+ 1〈∗, currentHeight, r, ∗, ∗〉with r > currentRound do
+//      StartRound(r)
+//
+// This method must be tried whenever a Propose is received, a Prevote is
+// received, or a Precommit is received. Because this method checks whichever
+// Round is relevant (i.e. the Round of the Propose/Prevote/Precommit), and an
+// increase in the current Round can only cause this condition to be closed, it
+// does not need to be tried whenever the current Round changes. The f+1
+// messages (one propose and f prevotes/precommits) must be from f+1 unique
+// signatories.
+func (p *Process) trySkipToFutureRound(round Round) {
+	if round <= p.CurrentRound {
+		return
+	}
+
+	// count of unique signatories that we have received any message from in the
+	// given round and at the current height
+	if len(p.TraceLogs[round]) >= int(p.f+1) {
+		p.StartRound(round)
+	}
+}
+
+// insertPropose after validating it and checking for duplicates. If the Propose
+// was accepted and inserted, then it return true, otherwise it returns false.
+func (p *Process) insertPropose(propose Propose) bool {
+	if propose.Height != p.CurrentHeight {
+		return false
+	}
+
+	if propose.Round <= InvalidRound {
+		return false
+	}
+
+	// It is important to check the schedule (here), before checking for
+	// duplicate proposals (below), because duplicate proposals are only
+	// relevant if they come from the scheduled proposer.
+	if p.scheduler != nil {
+		proposer := p.scheduler.Schedule(propose.Height, propose.Round)
+		if !proposer.Equal(&propose.From) {
+			// We have caught a Process attempting to broadcast a propose when it was
+			// not the scheduled proposer for that height and round. This is caught
+			// as an out of turn propose
+			if p.catcher != nil {
+				p.catcher.CatchOutOfTurnPropose(propose)
+			}
+			return false
+		}
+	}
+
+	// We have caught a Process attempting to broadcast two different Proposes at
+	// the same Height and Round. Even though we only explicitly check the Round,
+	// we know that the Proposes will have the same Height, because we only keep
+	// message logs for message with the same Height as the current Height of the
+	// Process.
+	if existingPropose, ok := p.ProposeLogs[propose.Round]; ok {
+		if !propose.Equal(&existingPropose) {
+			if p.catcher != nil {
+				p.catcher.CatchDoublePropose(propose, existingPropose)
+			}
+		}
+		return false
+	}
+
+	// We discard a nil value proposal. If a validator implementation is provided
+	// we check and store the proposal's validity. In the case of an invalid
+	// proposal, we broadcast a nil prevote, and avoid adding this message to the
+	// trace logs as it is an invalid proposal. We return true as we have in fact
+	// inserted the propose message to our propose logs, while explicitly marking
+	// it as invalid.
+	if propose.Value == NilValue || (p.validator != nil && !p.validator.Valid(propose.Height, propose.Round, propose.Value)) {
+		p.ProposeLogs[propose.Round] = propose
+		p.ProposeIsValid[propose.Round] = false
+		return true
+	}
+
+	// If we're here, it means that the proposal is valid. We add the proposer to
+	// the appropriate round's trace logs
+	p.ProposeLogs[propose.Round] = propose
+	p.ProposeIsValid[propose.Round] = true
+	if _, ok := p.TraceLogs[propose.Round]; !ok {
+		p.TraceLogs[propose.Round] = map[id.Signatory]bool{}
+	}
+	p.TraceLogs[propose.Round][propose.From] = true
+
+	return true
+}
+
+// insertPrevote after validating it and checking for duplicates. If the Prevote
+// was accepted and inserted, then it return true, otherwise it returns false.
+func (p *Process) insertPrevote(prevote Prevote) bool {
+	if prevote.Height != p.CurrentHeight {
+		return false
+	}
+	if _, ok := p.PrevoteLogs[prevote.Round]; !ok {
+		p.PrevoteLogs[prevote.Round] = map[id.Signatory]Prevote{}
+	}
+
+	existingPrevote, ok := p.PrevoteLogs[prevote.Round][prevote.From]
+	if ok {
+		// We have caught a Process attempting to broadcast two different
+		// Prevotes at the same Height and Round. Even though we only explicitly
+		// check the Round, we know that the Prevotes will have the same Height,
+		// because we only keep message logs for message with the same Height as
+		// the current Height of the Process.
+		if !prevote.Equal(&existingPrevote) {
+			if p.catcher != nil {
+				p.catcher.CatchDoublePrevote(prevote, existingPrevote)
+			}
+		}
+		return false
+	}
+
+	p.PrevoteLogs[prevote.Round][prevote.From] = prevote
+
+	// add the prevoter to the appropriate round's trace logs
+	if _, ok := p.TraceLogs[prevote.Round]; !ok {
+		p.TraceLogs[prevote.Round] = map[id.Signatory]bool{}
+	}
+	p.TraceLogs[prevote.Round][prevote.From] = true
+
+	return true
+}
+
+// insertPrecommit after validating it and checking for duplicates. If the
+// Precommit was accepted and inserted, then it return true, otherwise it
+// returns false.
+func (p *Process) insertPrecommit(precommit Precommit) bool {
+	if precommit.Height != p.CurrentHeight {
+		return false
+	}
+	if _, ok := p.PrecommitLogs[precommit.Round]; !ok {
+		p.PrecommitLogs[precommit.Round] = map[id.Signatory]Precommit{}
+	}
+
+	existingPrecommit, ok := p.PrecommitLogs[precommit.Round][precommit.From]
+	if ok {
+		// We have caught a Process attempting to broadcast two different
+		// Precommits at the same Height and Round. Even though we only
+		// explicitly check the Round, we know that the Precommits will have the
+		// same Height, because we only keep message logs for message with the
+		// same Height as the current Height of the Process.
+		if !precommit.Equal(&existingPrecommit) {
+			if p.catcher != nil {
+				p.catcher.CatchDoublePrecommit(precommit, existingPrecommit)
+			}
+		}
+		return false
+	}
+
+	p.PrecommitLogs[precommit.Round][precommit.From] = precommit
+
+	// add the precommitter to the appropriate round's trace logs
+	if _, ok := p.TraceLogs[precommit.Round]; !ok {
+		p.TraceLogs[precommit.Round] = map[id.Signatory]bool{}
+	}
+	p.TraceLogs[precommit.Round][precommit.From] = true
+
+	return true
+}
+
+// stepToPrevoting puts the Process into the Prevoting Step. This will also try
+// other methods that might now have passing conditions.
+func (p *Process) stepToPrevoting() {
+	p.CurrentStep = Prevoting
+
+	// Because the current Step of the Process has changed, new conditions might
+	// be open, so we try the relevant ones. Once flags protect us against
+	// double-tries where necessary.
+	p.tryPrecommitUponSufficientPrevotes()
+	p.tryPrecommitNilUponSufficientPrevotes()
+	p.tryTimeoutPrevoteUponSufficientPrevotes()
+}
+
+// stepToPrecommitting puts the Process into the Precommitting Step. This will
+// also try other methods that might now have passing conditions.
+func (p *Process) stepToPrecommitting() {
+	p.CurrentStep = Precommitting
+
+	// Because the current Step of the Process has changed, new conditions might
+	// be open, so we try the relevant ones. Once flags protect us against
+	// double-tries where necessary.
+	p.tryPrecommitUponSufficientPrevotes()
+}
+
+// checkOnceFlag returns true if the OnceFlag has already been set for the given
+// Round. Otherwise, it returns false.
+func (p *Process) checkOnceFlag(round Round, flag OnceFlag) bool {
+	return p.OnceFlags[round]&flag == flag
+}
+
+// setOnceFlag set the OnceFlag for the given Round.
+func (p *Process) setOnceFlag(round Round, flag OnceFlag) {
+	p.OnceFlags[round] |= flag
+}
+
+// A OnceFlag is used to guarantee that events only happen once in any given
+// Round.
+type OnceFlag uint16
+
+// Enumerate all OnceFlag values.
+const (
+	OnceFlagTimeoutPrecommitUponSufficientPrecommits = OnceFlag(1)
+	OnceFlagTimeoutPrevoteUponSufficientPrevotes     = OnceFlag(2)
+	OnceFlagPrecommitUponSufficientPrevotes          = OnceFlag(4)
+)

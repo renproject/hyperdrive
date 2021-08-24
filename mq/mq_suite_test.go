@@ -1,4 +1,4 @@
-package block_test
+package mq_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestBlock(t *testing.T) {
+func TestMq(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Block Suite")
+	RunSpecs(t, "Message Queue Suite")
 }

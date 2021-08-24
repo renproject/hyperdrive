@@ -1,575 +1,345 @@
 package process
 
 import (
-	"crypto/ecdsa"
-	"crypto/sha256"
-	"errors"
 	"fmt"
-	"io"
 
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/renproject/hyperdrive/block"
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
 )
 
-// MessageType distinguished between the three valid (and one invalid) messages
-// types that are supported during consensus rounds.
-type MessageType uint64
-
-// SizeHint of how many bytes will be needed to represent message types in
-// binary.
-func (mt MessageType) SizeHint() int {
-	return surge.SizeHint(uint64(mt))
-}
-
-// Marshal this message type into binary.
-func (mt MessageType) Marshal(w io.Writer, m int) (int, error) {
-	return surge.Marshal(w, uint64(mt), m)
-}
-
-// Unmarshal into this message type from binary.
-func (mt *MessageType) Unmarshal(r io.Reader, m int) (int, error) {
-	return surge.Unmarshal(r, (*uint64)(mt), m)
-}
+// MessageType enumerates the various types of Hyperdrive messages.
+type MessageType int8
 
 const (
-	// NilMessageType is invalid and must not be used.
-	NilMessageType = 0
-	// ProposeMessageType is used by messages that propose blocks for consensus.
-	ProposeMessageType = 1
-	// PrevoteMessageType is used by messages that are prevoting for block
-	// hashes (or nil prevoting).
-	PrevoteMessageType = 2
-	// PrecommitMessageType is used by messages that are precommitting for block
-	// hashes (or nil precommitting).
-	PrecommitMessageType = 3
-	// ResyncMessageType is used by messages that query others for previous
-	// messages.
-	ResyncMessageType = 4
+	// MessageTypePropose is the message type for a propose message.
+	MessageTypePropose MessageType = 1
+	// MessageTypePrevote is the message type for a prevote message.
+	MessageTypePrevote MessageType = 2
+	// MessageTypePrecommit is the message type for a precommit message.
+	MessageTypePrecommit MessageType = 3
+	// MessageTypeTimeout is the message type for a timeout message.
+	MessageTypeTimeout MessageType = 4
 )
 
-// Messages is a wrapper around the `[]Message` type.
-type Messages []Message
-
-// The Message interface defines the common behaviour of all messages that are
-// broadcast throughout the network during consensus rounds.
-type Message interface {
-	// Stringer allows Messages to format themselves as strings. This is mostly
-	// used for generating sighashes.
-	fmt.Stringer
-	// Surger allows Messages to un/marshal themselves from/to binary.
-	surge.Surger
-
-	// The Signatory that sent the message.
-	Signatory() id.Signatory
-	// The SigHash that is expected to by signed by the signatory. This is used
-	// to authenticate the claimed signatory.
-	SigHash() id.Hash
-	// The Signature produced by the signatory signing the sighash. This is used
-	// to authenticate the claimed signatory.
-	Sig() id.Signature
-
-	// The Height of the blockchain in which this message was broadcast.
-	Height() block.Height
-	// The Round of consensus in which this message was broadcast.
-	Round() block.Round
-	// The BlockHash of the block to this message concerns. Proposals will be
-	// proposing the block identified  by this hash, prevotes will be prevoting
-	// for the block identified by this hash (nil prevotes will use
-	// `InvalidBlockHash`), and precommits will be precommitting for block
-	// identified by this hash (nil precommits will also use
-	// `InvalidBlockHash`).
-	BlockHash() id.Hash
-
-	// Type returns the message type of this message. This is useful for
-	// marshaling/unmarshaling when type information is elided.
-	Type() MessageType
-}
-
-var (
-	// ErrBlockHashNotProvided is returned when querying the block hash for a
-	// message type that does not implement the function.
-	ErrBlockHashNotProvided = errors.New("block hash not provided")
-)
-
-// Sign a message using an ECDSA private key. The resulting signature will be
-// stored inside the message.
-func Sign(m Message, privKey ecdsa.PrivateKey) error {
-	sigHash := m.SigHash()
-	signatory := id.NewSignatory(privKey.PublicKey)
-	sig, err := crypto.Sign(sigHash[:], &privKey)
-	if err != nil {
-		return fmt.Errorf("invariant violation: error signing message: %v", err)
-	}
-	if len(sig) != id.SignatureLength {
-		return fmt.Errorf("invariant violation: invalid signed message, expected = %v, got = %v", id.SignatureLength, len(sig))
-	}
-
-	switch m := m.(type) {
-	case *Propose:
-		m.signatory = signatory
-		copy(m.sig[:], sig)
-	case *Prevote:
-		m.signatory = signatory
-		copy(m.sig[:], sig)
-	case *Precommit:
-		m.signatory = signatory
-		copy(m.sig[:], sig)
-	case *Resync:
-		m.signatory = signatory
-		copy(m.sig[:], sig)
+// String implements the Stringer interface.
+func (ty MessageType) String() string {
+	switch ty {
+	case MessageTypePropose:
+		return "Propose"
+	case MessageTypePrevote:
+		return "Prevote"
+	case MessageTypePrecommit:
+		return "Precommit"
+	case MessageTypeTimeout:
+		return "Timeout"
 	default:
-		panic(fmt.Errorf("invariant violation: unexpected message type=%T", m))
+		return "Unknown"
 	}
-	return nil
 }
 
-// Verify that the signature in a message is from the expected signatory. This
-// is done by checking the `Message.Sig()` against the `Message.SigHash()` and
-// `Message.Signatory()`.
-func Verify(m Message) error {
-	sigHash := m.SigHash()
-	sig := m.Sig()
-	pubKey, err := crypto.SigToPub(sigHash[:], sig[:])
-	if err != nil {
-		return fmt.Errorf("error verifying message: %v", err)
-	}
-
-	signatory := id.NewSignatory(*pubKey)
-	if !m.Signatory().Equal(signatory) {
-		return fmt.Errorf("bad signatory: expected signatory=%v, got signatory=%v", m.Signatory(), signatory)
-	}
-	return nil
-}
-
-// Proposes is a wrapper around the `[]Propose` type.
-type Proposes []Propose
-
-// Propose a block for committment.
+// A Propose message is sent by the proposer Process at most once per Round. The
+// Scheduler interfaces determines which Process is the proposer at any given
+// Height and Round.
 type Propose struct {
-	signatory  id.Signatory
-	sig        id.Signature
-	height     block.Height
-	round      block.Round
-	block      block.Block
-	validRound block.Round
+	Height     Height `json:"height"`
+	Round      Round  `json:"round"`
+	ValidRound Round  `json:"validRound"`
+	Value      Value  `json:"value"`
 
-	latestCommit LatestCommit
+	From id.Signatory `json:"from"`
 }
 
-// The LatestCommit can be attached to a proposal. It stores the latest
-// committed block, and a set of precommits that prove this block was committed.
-// This is useful for allowing processes that have fallen out-of-sync to fast
-// forward. See https://github.com/renproject/hyperdrive/wiki/Consensus for more
-// information about fast fowarding.
-type LatestCommit struct {
-	Block      block.Block
-	Precommits []Precommit
+// NewProposeHash receives fields of a propose message and hashes the message
+func NewProposeHash(height Height, round Round, validRound Round, value Value) (id.Hash, error) {
+	sizeHint := surge.SizeHint(height) + surge.SizeHint(round) + surge.SizeHint(validRound) + surge.SizeHint(value)
+	buf := make([]byte, sizeHint)
+	return NewProposeHashWithBuffer(height, round, validRound, value, buf)
 }
 
-func NewPropose(height block.Height, round block.Round, b block.Block, validRound block.Round) *Propose {
-	return &Propose{
-		height:     height,
-		round:      round,
-		block:      b,
-		validRound: validRound,
-		latestCommit: LatestCommit{
-			Block:      block.InvalidBlock,
-			Precommits: []Precommit{},
-		},
-	}
-}
-
-func (propose *Propose) Signatory() id.Signatory {
-	return propose.signatory
-}
-
-func (propose *Propose) SigHash() id.Hash {
-	return sha256.Sum256([]byte(propose.String()))
-}
-
-func (propose *Propose) Sig() id.Signature {
-	return propose.sig
-}
-
-func (propose *Propose) Height() block.Height {
-	return propose.height
-}
-
-func (propose *Propose) Round() block.Round {
-	return propose.round
-}
-
-func (propose *Propose) BlockHash() id.Hash {
-	return propose.block.Hash()
-}
-
-func (propose *Propose) Type() MessageType {
-	return ProposeMessageType
-}
-
-func (propose *Propose) Block() block.Block {
-	return propose.block
-}
-
-func (propose *Propose) ValidRound() block.Round {
-	return propose.validRound
-}
-
-func (propose *Propose) String() string {
-	return fmt.Sprintf("Propose(Height=%v,Round=%v,BlockHash=%v,ValidRound=%v)", propose.Height(), propose.Round(), propose.BlockHash(), propose.ValidRound())
-}
-
-// Prevotes is a wrapper around the `[]Prevote` type.
-type Prevotes []Prevote
-
-// Prevote for a block hash.
-type Prevote struct {
-	signatory  id.Signatory
-	sig        id.Signature
-	height     block.Height
-	round      block.Round
-	blockHash  id.Hash
-	nilReasons NilReasons
-}
-
-func NewPrevote(height block.Height, round block.Round, blockHash id.Hash, nilReasons NilReasons) *Prevote {
-	return &Prevote{
-		height:     height,
-		round:      round,
-		blockHash:  blockHash,
-		nilReasons: nilReasons,
-	}
-}
-
-func (prevote *Prevote) Signatory() id.Signatory {
-	return prevote.signatory
-}
-
-func (prevote *Prevote) SigHash() id.Hash {
-	return sha256.Sum256([]byte(prevote.String()))
-}
-
-func (prevote *Prevote) Sig() id.Signature {
-	return prevote.sig
-}
-
-func (prevote *Prevote) Height() block.Height {
-	return prevote.height
-}
-
-func (prevote *Prevote) Round() block.Round {
-	return prevote.round
-}
-
-func (prevote *Prevote) BlockHash() id.Hash {
-	return prevote.blockHash
-}
-
-func (prevote *Prevote) NilReasons() NilReasons {
-	return prevote.nilReasons
-}
-
-func (prevote *Prevote) Type() MessageType {
-	return PrevoteMessageType
-}
-
-func (prevote *Prevote) String() string {
-	nilReasonsBytes, err := surge.ToBinary(prevote.NilReasons())
+// NewProposeHashWithBuffer receives fields of a propose message, with a bytes buffer and hashes the message
+func NewProposeHashWithBuffer(height Height, round Round, validRound Round, value Value, data []byte) (id.Hash, error) {
+	buf, rem, err := surge.Marshal(height, data, surge.MaxBytes)
 	if err != nil {
-		return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash())
+		return id.Hash{}, fmt.Errorf("marshaling height=%v: %v", height, err)
 	}
-	nilReasonsHash := id.Hash(sha256.Sum256(nilReasonsBytes))
-	return fmt.Sprintf("Prevote(Height=%v,Round=%v,BlockHash=%v,NilReasons=%v)", prevote.Height(), prevote.Round(), prevote.BlockHash(), nilReasonsHash.String())
+	buf, rem, err = surge.Marshal(round, buf, rem)
+	if err != nil {
+		return id.Hash{}, fmt.Errorf("marshaling round=%v: %v", round, err)
+	}
+	buf, rem, err = surge.Marshal(validRound, buf, rem)
+	if err != nil {
+		return id.Hash{}, fmt.Errorf("marshaling valid round=%v: %v", validRound, err)
+	}
+	buf, rem, err = surge.Marshal(value, buf, rem)
+	if err != nil {
+		return id.Hash{}, fmt.Errorf("marshaling value=%v: %v", value, err)
+	}
+	return id.NewHash(data), nil
 }
 
-// Precommits is a wrapper around the `[]Precommit` type.
-type Precommits []Precommit
+// Equal compares two Proposes. If they are equal, then it return true,
+// otherwise it returns false. The signatures are not checked for equality,
+// because signatures include randomness.
+func (propose Propose) Equal(other *Propose) bool {
+	return propose.Height == other.Height &&
+		propose.Round == other.Round &&
+		propose.ValidRound == other.ValidRound &&
+		propose.Value.Equal(&other.Value) &&
+		propose.From.Equal(&other.From)
+}
 
-// Precommit a block hash.
+// SizeHint returns the number of bytes required to represent this message in
+// binary.
+func (propose Propose) SizeHint() int {
+	return surge.SizeHint(propose.Height) +
+		surge.SizeHint(propose.Round) +
+		surge.SizeHint(propose.ValidRound) +
+		surge.SizeHint(propose.Value) +
+		surge.SizeHint(propose.From)
+}
+
+// Marshal this message into binary.
+func (propose Propose) Marshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Marshal(propose.Height, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling height=%v: %v", propose.Height, err)
+	}
+	buf, rem, err = surge.Marshal(propose.Round, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling round=%v: %v", propose.Round, err)
+	}
+	buf, rem, err = surge.Marshal(propose.ValidRound, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling valid round=%v: %v", propose.ValidRound, err)
+	}
+	buf, rem, err = surge.Marshal(propose.Value, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling value=%v: %v", propose.Value, err)
+	}
+	buf, rem, err = surge.Marshal(propose.From, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling from=%v: %v", propose.From, err)
+	}
+	return buf, rem, nil
+}
+
+// Unmarshal binary into this message.
+func (propose *Propose) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Unmarshal(&propose.Height, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling height: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&propose.Round, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling round: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&propose.ValidRound, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling valid round: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&propose.Value, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling value: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&propose.From, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling from: %v", err)
+	}
+	return buf, rem, nil
+}
+
+// A Prevote is sent by every correct Process at most once per Round. It is the
+// first step of reaching consensus. Informally, if a correct Process receives
+// 2F+1 Precommits for a Value, then it will Precommit to that Value. However,
+// there are many other conditions which can cause a Process to Prevote. See the
+// Process for more information.
+type Prevote struct {
+	Height Height `json:"height"`
+	Round  Round  `json:"round"`
+	Value  Value  `json:"value"`
+
+	From id.Signatory `json:"from"`
+}
+
+// NewPrevoteHash receives fields of a prevote message and hashes the message
+func NewPrevoteHash(height Height, round Round, value Value) (id.Hash, error) {
+	sizeHint := surge.SizeHint(height) + surge.SizeHint(round) + surge.SizeHint(value)
+	buf := make([]byte, sizeHint)
+	return NewPrevoteHashWithBuffer(height, round, value, buf)
+}
+
+// NewPrevoteHashWithBuffer receives fields of a prevote message, with a bytes buffer and hashes the message
+func NewPrevoteHashWithBuffer(height Height, round Round, value Value, data []byte) (id.Hash, error) {
+	buf, rem, err := surge.Marshal(height, data, surge.MaxBytes)
+	if err != nil {
+		return id.Hash{}, fmt.Errorf("marshaling height=%v: %v", height, err)
+	}
+	buf, rem, err = surge.Marshal(round, buf, rem)
+	if err != nil {
+		return id.Hash{}, fmt.Errorf("marshaling round=%v: %v", round, err)
+	}
+	buf, rem, err = surge.Marshal(value, buf, rem)
+	if err != nil {
+		return id.Hash{}, fmt.Errorf("marshaling value=%v: %v", value, err)
+	}
+	return id.NewHash(data), nil
+}
+
+// Equal compares two Prevotes. If they are equal, then it return true,
+// otherwise it returns false. The signatures are not checked for equality,
+// because signatures include randomness.
+func (prevote Prevote) Equal(other *Prevote) bool {
+	return prevote.Height == other.Height &&
+		prevote.Round == other.Round &&
+		prevote.Value.Equal(&other.Value) &&
+		prevote.From.Equal(&other.From)
+}
+
+// SizeHint returns the number of bytes required to represent this message in
+// binary.
+func (prevote Prevote) SizeHint() int {
+	return surge.SizeHint(prevote.Height) +
+		surge.SizeHint(prevote.Round) +
+		surge.SizeHint(prevote.Value) +
+		surge.SizeHint(prevote.From)
+}
+
+// Marshal this message into binary.
+func (prevote Prevote) Marshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Marshal(prevote.Height, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling height=%v: %v", prevote.Height, err)
+	}
+	buf, rem, err = surge.Marshal(prevote.Round, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling round=%v: %v", prevote.Round, err)
+	}
+	buf, rem, err = surge.Marshal(prevote.Value, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling value=%v: %v", prevote.Value, err)
+	}
+	buf, rem, err = surge.Marshal(prevote.From, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling from=%v: %v", prevote.From, err)
+	}
+	return buf, rem, nil
+}
+
+// Unmarshal binary into this message.
+func (prevote *Prevote) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Unmarshal(&prevote.Height, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling height: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&prevote.Round, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling round: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&prevote.Value, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling value: %v", err)
+	}
+	buf, rem, err = surge.Unmarshal(&prevote.From, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling from: %v", err)
+	}
+	return buf, rem, nil
+}
+
+// A Precommit is sent by every correct Process at most once per Round. It is
+// the second step of reaching consensus. Informally, if a correct Process
+// receives 2F+1 Precommits for a Value, then it will commit to that Value and
+// progress to the next Height. However, there are many other conditions which
+// can cause a Process to Precommit. See the Process for more information.
 type Precommit struct {
-	signatory id.Signatory
-	sig       id.Signature
-	height    block.Height
-	round     block.Round
-	blockHash id.Hash
+	Height Height `json:"height"`
+	Round  Round  `json:"round"`
+	Value  Value  `json:"value"`
+
+	From id.Signatory `json:"from"`
 }
 
-func NewPrecommit(height block.Height, round block.Round, blockHash id.Hash) *Precommit {
-	return &Precommit{
-		height:    height,
-		round:     round,
-		blockHash: blockHash,
+// NewPrecommitHash receives fields of a precommit message and hashes the message
+func NewPrecommitHash(height Height, round Round, value Value) (id.Hash, error) {
+	sizeHint := surge.SizeHint(height) + surge.SizeHint(round) + surge.SizeHint(value)
+	buf := make([]byte, sizeHint)
+	return NewPrecommitHashWithBuffer(height, round, value, buf)
+}
+
+// NewPrecommitHashWithBuffer receives fields of a precommit message, with a bytes buffer and hashes the message
+func NewPrecommitHashWithBuffer(height Height, round Round, value Value, data []byte) (id.Hash, error) {
+	buf, rem, err := surge.Marshal(height, data, surge.MaxBytes)
+	if err != nil {
+		return id.Hash{}, fmt.Errorf("marshaling height=%v: %v", height, err)
 	}
-}
-
-func (precommit *Precommit) Signatory() id.Signatory {
-	return precommit.signatory
-}
-
-func (precommit *Precommit) SigHash() id.Hash {
-	return sha256.Sum256([]byte(precommit.String()))
-}
-
-func (precommit *Precommit) Sig() id.Signature {
-	return precommit.sig
-}
-
-func (precommit *Precommit) Height() block.Height {
-	return precommit.height
-}
-
-func (precommit *Precommit) Round() block.Round {
-	return precommit.round
-}
-
-func (precommit *Precommit) BlockHash() id.Hash {
-	return precommit.blockHash
-}
-
-func (precommit *Precommit) Type() MessageType {
-	return PrecommitMessageType
-}
-
-func (precommit *Precommit) String() string {
-	return fmt.Sprintf("Precommit(Height=%v,Round=%v,BlockHash=%v)", precommit.Height(), precommit.Round(), precommit.BlockHash())
-}
-
-// Resyncs is a wrapper around the `[]Resync` type.
-type Resyncs []Resync
-
-// Resync previous messages.
-type Resync struct {
-	signatory id.Signatory
-	sig       id.Signature
-	height    block.Height
-	round     block.Round
-}
-
-func NewResync(height block.Height, round block.Round) *Resync {
-	return &Resync{
-		height: height,
-		round:  round,
+	buf, rem, err = surge.Marshal(round, buf, rem)
+	if err != nil {
+		return id.Hash{}, fmt.Errorf("marshaling round=%v: %v", round, err)
 	}
+	buf, rem, err = surge.Marshal(value, buf, rem)
+	if err != nil {
+		return id.Hash{}, fmt.Errorf("marshaling value=%v: %v", value, err)
+	}
+	return id.NewHash(data), nil
 }
 
-func (resync *Resync) Signatory() id.Signatory {
-	return resync.signatory
+// Equal compares two Precommits. If they are equal, then it return true,
+// otherwise it returns false. The signatures are not checked for equality,
+// because signatures include randomness.
+func (precommit Precommit) Equal(other *Precommit) bool {
+	return precommit.Height == other.Height &&
+		precommit.Round == other.Round &&
+		precommit.Value.Equal(&other.Value) &&
+		precommit.From.Equal(&other.From)
 }
 
-func (resync *Resync) SigHash() id.Hash {
-	return sha256.Sum256([]byte(resync.String()))
+// SizeHint returns the number of bytes required to represent this message in
+// binary.
+func (precommit Precommit) SizeHint() int {
+	return surge.SizeHint(precommit.Height) +
+		surge.SizeHint(precommit.Round) +
+		surge.SizeHint(precommit.Value) +
+		surge.SizeHint(precommit.From)
 }
 
-func (resync *Resync) Sig() id.Signature {
-	return resync.sig
+// Marshal this message into binary.
+func (precommit Precommit) Marshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Marshal(precommit.Height, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling height=%v: %v", precommit.Height, err)
+	}
+	buf, rem, err = surge.Marshal(precommit.Round, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling round=%v: %v", precommit.Round, err)
+	}
+	buf, rem, err = surge.Marshal(precommit.Value, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling value=%v: %v", precommit.Value, err)
+	}
+	buf, rem, err = surge.Marshal(precommit.From, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("marshaling from=%v: %v", precommit.From, err)
+	}
+	return buf, rem, nil
 }
 
-func (resync *Resync) Height() block.Height {
-	return resync.height
-}
-
-func (resync *Resync) Round() block.Round {
-	return resync.round
-}
-
-func (resync *Resync) BlockHash() id.Hash {
-	panic(ErrBlockHashNotProvided)
-}
-
-func (resync *Resync) Type() MessageType {
-	return ResyncMessageType
-}
-
-func (resync *Resync) String() string {
-	return fmt.Sprintf("Resync(Height=%v,Round=%v)", resync.Height(), resync.Round())
-}
-
-// An Inbox is storage container for one type message. Any type of message can
-// be stored, but an attempt to store messages of different types in one inbox
-// will cause a panic. Inboxes are used extensively by the consensus algorithm
-// to track how many messages (of particular types) have been received, and
-// under what conditions. For example, inboxes are used to track when `2F+1`
-// prevote messages have been received for a specific block hash for the first
-// time.
-type Inbox struct {
-	f           int
-	messages    map[block.Height]map[block.Round]map[id.Signatory]Message
-	messageType MessageType
-}
-
-// NewInbox returns an inbox for one type of message. It assumes at most `F`
-// adversaries are present.
-func NewInbox(f int, messageType MessageType) *Inbox {
-	if f <= 0 {
-		panic(fmt.Sprintf("invariant violation: f = %v needs to be a positive number", f))
+// Unmarshal binary into this message.
+func (precommit *Precommit) Unmarshal(buf []byte, rem int) ([]byte, int, error) {
+	buf, rem, err := surge.Unmarshal(&precommit.Height, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling height: %v", err)
 	}
-	if messageType == NilMessageType {
-		panic("invariant violation: message type cannot be nil")
+	buf, rem, err = surge.Unmarshal(&precommit.Round, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling round: %v", err)
 	}
-	return &Inbox{
-		f:           f,
-		messages:    map[block.Height]map[block.Round]map[id.Signatory]Message{},
-		messageType: messageType,
+	buf, rem, err = surge.Unmarshal(&precommit.Value, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling value: %v", err)
 	}
-}
-
-// Insert a message into the inbox. It returns:
-//
-// - `n` the number of unique messages at the height and round of the inserted
-//    message (not necessarily for the same block hash),
-// - `firstTime` whether, or not, this is the first time this message has been
-//   seen,
-// - `firstTimeExceedingF` whether, or not, `n` has exceeded `F` for the first
-//   time as a result of this message being inserted,
-// - `firstTimeExceeding2F` whether, or not, `n` has exceeded `2F` for the first
-//   time as a result of this message being inserted, and
-// - `firstTimeExceeding2FOnBlockHash` whether, or not, this is the first
-//   time that more than `2F` unique messages have been seen for the same block.
-//
-// This method is used extensively for tracking the different conditions under
-// which the state machine is allowed to transition between various states. Its
-// correctness is fundamental to the correctness of the overall implementation.
-func (inbox *Inbox) Insert(message Message) (n int, firstTime, firstTimeExceedingF, firstTimeExceeding2F, firstTimeExceeding2FOnBlockHash bool) {
-	if message.Type() != inbox.messageType {
-		panic(fmt.Sprintf("pre-condition violation: expected type %v, got type %T", inbox.messageType, message))
+	buf, rem, err = surge.Unmarshal(&precommit.From, buf, rem)
+	if err != nil {
+		return buf, rem, fmt.Errorf("unmarshaling from: %v", err)
 	}
-
-	height, round, signatory := message.Height(), message.Round(), message.Signatory()
-	if _, ok := inbox.messages[height]; !ok {
-		inbox.messages[height] = map[block.Round]map[id.Signatory]Message{}
-	}
-	if _, ok := inbox.messages[height][round]; !ok {
-		inbox.messages[height][round] = map[id.Signatory]Message{}
-	}
-
-	previousN := len(inbox.messages[height][round])
-	_, ok := inbox.messages[height][round][signatory]
-
-	inbox.messages[height][round][signatory] = message
-
-	n = len(inbox.messages[height][round])
-	nOnBlockHash := 0
-	if !ok {
-		nOnBlockHash = inbox.QueryByHeightRoundBlockHash(height, round, message.BlockHash())
-	}
-
-	firstTime = (previousN == 0) && (n == 1)
-	firstTimeExceedingF = (previousN == inbox.F()) && (n == inbox.F()+1)
-	firstTimeExceeding2F = (previousN == 2*inbox.F()) && (n == 2*inbox.F()+1)
-	firstTimeExceeding2FOnBlockHash = !ok && (nOnBlockHash == 2*inbox.F()+1)
-	return
-}
-
-// Delete removes all messages at a given height.
-func (inbox *Inbox) Delete(height block.Height) {
-	delete(inbox.messages, height)
-}
-
-// QueryMessagesByHeightRound returns all unique messages that have been
-// received at the specified height and round. The specific block hash of the
-// messages are ignored and might be different from each other.
-func (inbox *Inbox) QueryMessagesByHeightRound(height block.Height, round block.Round) []Message {
-	if _, ok := inbox.messages[height]; !ok {
-		return nil
-	}
-	if _, ok := inbox.messages[height][round]; !ok {
-		return nil
-	}
-	messages := make([]Message, 0, len(inbox.messages[height][round]))
-	for _, message := range inbox.messages[height][round] {
-		messages = append(messages, message)
-	}
-	return messages
-}
-
-// QueryMessagesByHeightWithHighestRound returns all unique messages that have
-// been received at the specified height and at the heighest round observed (for
-// the specified height). The specific block hash of the messages are ignored
-// and might be different from each other.
-func (inbox *Inbox) QueryMessagesByHeightWithHighestRound(height block.Height) []Message {
-	if _, ok := inbox.messages[height]; !ok {
-		return nil
-	}
-	highestRound := block.Round(-1)
-	for round := range inbox.messages[height] {
-		if round > highestRound {
-			highestRound = round
-		}
-	}
-	if highestRound == -1 {
-		return nil
-	}
-	if _, ok := inbox.messages[height][highestRound]; !ok {
-		return nil
-	}
-	messages := make([]Message, 0, len(inbox.messages[height][highestRound]))
-	for _, message := range inbox.messages[height][highestRound] {
-		messages = append(messages, message)
-	}
-	return messages
-}
-
-// QueryByHeightRoundBlockHash returns the number of unique messages that have
-// been received at the specified height and round. Only messages that reference
-// the specified block hash are considered.
-func (inbox *Inbox) QueryByHeightRoundBlockHash(height block.Height, round block.Round, blockHash id.Hash) (n int) {
-	if _, ok := inbox.messages[height]; !ok {
-		return
-	}
-	if _, ok := inbox.messages[height][round]; !ok {
-		return
-	}
-	for _, message := range inbox.messages[height][round] {
-		if blockHash.Equal(message.BlockHash()) {
-			n++
-		}
-	}
-	return
-}
-
-// QueryByHeightRoundSignatory the message (or nil) sent by a specific signatory
-// at a specific height and round.
-func (inbox *Inbox) QueryByHeightRoundSignatory(height block.Height, round block.Round, sig id.Signatory) Message {
-	if _, ok := inbox.messages[height]; !ok {
-		return nil
-	}
-	if _, ok := inbox.messages[height][round]; !ok {
-		return nil
-	}
-	return inbox.messages[height][round][sig]
-}
-
-// QueryByHeightRound returns the number of unique messages that have been
-// received at the specified height and round. The specific block hash of the
-// messages are ignored and might be different from each other.
-func (inbox *Inbox) QueryByHeightRound(height block.Height, round block.Round) (n int) {
-	if _, ok := inbox.messages[height]; !ok {
-		return
-	}
-	if _, ok := inbox.messages[height][round]; !ok {
-		return
-	}
-	n = len(inbox.messages[height][round])
-	return
-}
-
-// Reset the inbox to a specific height. All messages for height lower than the
-// specified height are dropped. This is necessary to ensure that, over time,
-// the storage space of the inbox is bounded.
-func (inbox *Inbox) Reset(height block.Height) {
-	for blockHeight := range inbox.messages {
-		if blockHeight < height {
-			delete(inbox.messages, blockHeight)
-		}
-	}
-}
-
-func (inbox *Inbox) F() int {
-	return inbox.f
-}
-
-func (inbox *Inbox) MessageType() MessageType {
-	return inbox.messageType
+	return buf, rem, nil
 }

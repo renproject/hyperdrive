@@ -1,4 +1,4 @@
-package process_test
+package timer_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestProc(t *testing.T) {
+func TestTimer(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Process Suite")
+	RunSpecs(t, "Timer Suite")
 }
