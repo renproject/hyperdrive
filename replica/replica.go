@@ -141,6 +141,17 @@ func (replica *Replica) Run(ctx context.Context) {
 				case process.Height:
 					replica.proc.State = process.DefaultState().WithCurrentHeight(m)
 					replica.mq.DropMessagesBelowHeight(m)
+				case []id.Signatory:
+					procAllowed := map[id.Signatory]bool{}
+					for _, sig := range m{
+						procAllowed[sig] = true
+					}
+					oldF := len(replica.procsAllowed) / 3
+					newF := len(procAllowed)
+					if newF != oldF{
+						replica.proc.ResetF(uint64(newF))
+					}
+					replica.procsAllowed = procAllowed
 				}
 			}
 
@@ -212,7 +223,7 @@ func (replica *Replica) TimeoutPrecommit(ctx context.Context, timeout timer.Time
 	}
 }
 
-// ResetHeight of the underlying process to a future height. This is should only
+// ResetHeight of the underlying process to a future height. This should only
 // be used when resynchronising the chain. If the given height is less than or
 // equal to the current height, nothing happens.
 //
@@ -225,6 +236,18 @@ func (replica *Replica) ResetHeight(ctx context.Context, newHeight process.Heigh
 	select {
 	case <-ctx.Done():
 	case replica.mch <- newHeight:
+	}
+}
+
+// ResetSignatories of the replica and underlying process with a new set of signatories.
+func (replica *Replica) ResetSignatories(ctx context.Context, signatories []id.Signatory) {
+	if len(signatories) == 0  {
+		return
+	}
+
+	select {
+	case <-ctx.Done():
+	case replica.mch <- signatories:
 	}
 }
 

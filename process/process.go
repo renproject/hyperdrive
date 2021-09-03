@@ -8,6 +8,7 @@ package process
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
@@ -341,6 +342,10 @@ func (p *Process) StartRound(round Round) {
 			})
 		}
 	}
+}
+
+func (p *Process) ResetF(f uint64) {
+	atomic.StoreUint64(&p.f, f)
 }
 
 // OnTimeoutPropose is used to notify the Process that a timeout has been
