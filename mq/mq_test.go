@@ -108,6 +108,7 @@ var _ = Describe("MQ", func() {
 				proposeCallback,
 				prevoteCallback,
 				precommitCallback,
+				map[id.Signatory]bool{},
 			)
 
 			Expect(n).To(Equal(0))
@@ -124,6 +125,8 @@ var _ = Describe("MQ", func() {
 					sender := id.NewPrivKey().Signatory()
 					lowerHeight := process.Height(r.Int63())
 					higherHeight := lowerHeight + 1 + process.Height(r.Intn(100))
+					procsAllowed := map[id.Signatory]bool{}
+					procsAllowed[sender] = true
 
 					// send msg1
 					msg1 := randomMsg(r, sender, lowerHeight, processutil.RandomRound(r))
@@ -199,12 +202,12 @@ var _ = Describe("MQ", func() {
 
 					// cannot consume msgs of height less than lowerHeight
 					evenLowerHeight := lowerHeight - 1 - process.Height(r.Intn(100))
-					n := queue.Consume(evenLowerHeight, proposeCallback, prevoteCallback, precommitCallback)
+					n := queue.Consume(evenLowerHeight, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
 					Expect(n).To(Equal(0))
 					Expect(i).To(Equal(0))
 
 					// consume all messages
-					n = queue.Consume(higherHeight, proposeCallback, prevoteCallback, precommitCallback)
+					n = queue.Consume(higherHeight, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
 					Expect(n).To(Equal(2))
 					Expect(i).To(Equal(2))
 
@@ -222,6 +225,9 @@ var _ = Describe("MQ", func() {
 				loop := func() bool {
 					sender := id.NewPrivKey().Signatory()
 					height := process.Height(r.Int63())
+					procsAllowed := map[id.Signatory]bool{}
+					procsAllowed[sender] = true
+
 					// at the most 20 rounds
 					rounds := make([]process.Round, 1+r.Intn(20))
 					for t := 0; t < cap(rounds); t++ {
@@ -280,12 +286,12 @@ var _ = Describe("MQ", func() {
 
 					// cannot consume msgs of height less than lowerHeight
 					lowerHeight := height - 1 - process.Height(r.Intn(100))
-					n := queue.Consume(lowerHeight, proposeCallback, prevoteCallback, precommitCallback)
+					n := queue.Consume(lowerHeight, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
 					Expect(n).To(Equal(0))
 					Expect(t).To(Equal(0))
 
 					// consume all messages
-					n = queue.Consume(height, proposeCallback, prevoteCallback, precommitCallback)
+					n = queue.Consume(height, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
 					Expect(n).To(Equal(cap(rounds)))
 					Expect(t).To(Equal(cap(rounds)))
 
@@ -303,6 +309,8 @@ var _ = Describe("MQ", func() {
 				loop := func() bool {
 					sender := id.NewPrivKey().Signatory()
 					minHeight, maxHeight, msgsCount := insertRandomMessages(&queue, sender)
+					procsAllowed := map[id.Signatory]bool{}
+					procsAllowed[sender] = true
 
 					// we should first consume msg1 and then msg2
 					prevHeight := process.Height(-1)
@@ -369,12 +377,12 @@ var _ = Describe("MQ", func() {
 					}
 
 					// cannot consume msgs of height less than the min height
-					n := queue.Consume(minHeight-1, proposeCallback, prevoteCallback, precommitCallback)
+					n := queue.Consume(minHeight-1, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
 					Expect(n).To(Equal(0))
 					Expect(i).To(Equal(0))
 
 					// consume all messages
-					n = queue.Consume(maxHeight, proposeCallback, prevoteCallback, precommitCallback)
+					n = queue.Consume(maxHeight, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
 					Expect(n).To(Equal(msgsCount))
 					Expect(i).To(Equal(msgsCount))
 
@@ -392,6 +400,8 @@ var _ = Describe("MQ", func() {
 
 			loop := func() bool {
 				sender := id.NewPrivKey().Signatory()
+				procsAllowed := map[id.Signatory]bool{}
+				procsAllowed[sender] = true
 				_, maxHeight, _ := insertRandomMessages(&queue, sender)
 				thresholdHeight := process.Height(r.Intn(int(maxHeight)))
 				queue.DropMessagesBelowHeight(thresholdHeight)
@@ -406,7 +416,7 @@ var _ = Describe("MQ", func() {
 					Expect(precommit.Height >= thresholdHeight).To(BeTrue())
 				}
 
-				_ = queue.Consume(maxHeight, proposeCallback, prevoteCallback, precommitCallback)
+				_ = queue.Consume(maxHeight, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
 				return true
 			}
 			Expect(quick.Check(loop, nil)).To(Succeed())
@@ -418,6 +428,7 @@ var _ = Describe("MQ", func() {
 			loop := func() bool {
 				opts := mq.DefaultOptions().WithMaxCapacity(1)
 				queue := mq.New(opts)
+				procsAllowed := map[id.Signatory]bool{}
 
 				// insert a msg
 				originalSender := id.NewPrivKey().Signatory()
@@ -425,6 +436,7 @@ var _ = Describe("MQ", func() {
 				originalMsg.From = originalSender
 				originalMsg.Height = process.Height(1)
 				originalMsg.Round = process.Round(1)
+				procsAllowed[originalMsg.From] = true
 				queue.InsertPropose(originalMsg)
 
 				// any message in height > 1 or (height = 1 || round > 1) will be dropped
@@ -434,11 +446,12 @@ var _ = Describe("MQ", func() {
 				msg.From = id.NewPrivKey().Signatory()
 				msg.Height = process.Height(1)
 				msg.Round = process.Round(2)
+				procsAllowed[msg.From] = true
 				queue.InsertPropose(msg)
 
 				// so consuming will only return the first msg
 				proposeCallback := func(propose process.Propose) {}
-				n := queue.Consume(process.Height(1), proposeCallback, nil, nil)
+				n := queue.Consume(process.Height(1), proposeCallback, nil, nil, procsAllowed)
 				Expect(n).To(Equal(2))
 
 				// re-insert the original msg
@@ -458,7 +471,7 @@ var _ = Describe("MQ", func() {
 					Expect(propose.Round).To(Equal(originalMsg.Round))
 					Expect(propose.From).To(Equal(originalSender))
 				}
-				n = queue.Consume(process.Height(1), proposeCallback, nil, nil)
+				n = queue.Consume(process.Height(1), proposeCallback, nil, nil, procsAllowed)
 				Expect(n).To(Equal(1))
 
 				// re-insert the original msg
@@ -477,7 +490,7 @@ var _ = Describe("MQ", func() {
 					Expect(propose.Round).To(Equal(msg.Round))
 					Expect(propose.From).To(Equal(originalSender))
 				}
-				n = queue.Consume(process.Height(1), proposeCallback, nil, nil)
+				n = queue.Consume(process.Height(1), proposeCallback, nil, nil, procsAllowed)
 				Expect(n).To(Equal(1))
 
 				return true
@@ -497,6 +510,8 @@ var _ = Describe("MQ", func() {
 				// msgsCount > c
 				sender := id.NewPrivKey().Signatory()
 				height := process.Height(1)
+				procsAllowed := map[id.Signatory]bool{}
+				procsAllowed[sender] = true
 				msgsCount := c + 5 + r.Intn(20)
 				rounds := make([]process.Round, msgsCount)
 				msgs := make([]interface{}, msgsCount)
@@ -553,7 +568,7 @@ var _ = Describe("MQ", func() {
 					i++
 				}
 
-				n := queue.Consume(height, proposeCallback, prevoteCallback, precommitCallback)
+				n := queue.Consume(height, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
 				Expect(n).To(Equal(c))
 				Expect(i).To(Equal(c))
 
