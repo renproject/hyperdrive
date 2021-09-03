@@ -344,8 +344,9 @@ func (p *Process) StartRound(round Round) {
 	}
 }
 
-func (p *Process) ResetF(f uint64) {
+func (p *Process) ResetF(f uint64, scheduler Scheduler) {
 	atomic.StoreUint64(&p.f, f)
+	p.scheduler = scheduler
 }
 
 // OnTimeoutPropose is used to notify the Process that a timeout has been

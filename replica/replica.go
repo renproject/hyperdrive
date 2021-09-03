@@ -146,12 +146,11 @@ func (replica *Replica) Run(ctx context.Context) {
 					for _, sig := range m{
 						procAllowed[sig] = true
 					}
-					oldF := len(replica.procsAllowed) / 3
-					newF := len(procAllowed)
-					if newF != oldF{
-						replica.proc.ResetF(uint64(newF))
-					}
 					replica.procsAllowed = procAllowed
+
+					scheduler := scheduler.NewRoundRobin(m)
+					f := len(procAllowed) /3
+					replica.proc.ResetF(uint64(f), scheduler)
 				}
 			}
 
