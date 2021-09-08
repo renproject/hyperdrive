@@ -33,22 +33,31 @@ func New(opts Options) MessageQueue {
 // have heights up to (and including) the given height. The appropriate callback
 // will be called for every message that is consumed. All consumed messages will
 // be dropped from the MessageQueue.
-func (mq *MessageQueue) Consume(h process.Height, propose func(process.Propose), prevote func(process.Prevote), precommit func(process.Precommit)) (n int) {
+func (mq *MessageQueue) Consume(h process.Height, propose func(process.Propose), prevote func(process.Prevote), precommit func(process.Precommit), procsAllowed map[id.Signatory]bool) (n int) {
 	for from, q := range mq.queuesByPid {
 		for len(q) > 0 {
 			if q[0] == nil || height(q[0]) > h {
 				break
 			}
-			switch msg := q[0].(type) {
-			case process.Propose:
-				propose(msg)
-			case process.Prevote:
-				prevote(msg)
-			case process.Precommit:
-				precommit(msg)
-			}
-			n++
-			q = q[1:]
+			func() {
+				defer func() {
+					n++
+					q = q[1:]
+				}()
+
+				if ok := procsAllowed[from]; !ok {
+					return
+				}
+
+				switch msg := q[0].(type) {
+				case process.Propose:
+					propose(msg)
+				case process.Prevote:
+					prevote(msg)
+				case process.Precommit:
+					precommit(msg)
+				}
+			}()
 		}
 		mq.queuesByPid[from] = q
 	}

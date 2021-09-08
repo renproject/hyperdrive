@@ -118,15 +118,9 @@ func (replica *Replica) Run(ctx context.Context) {
 					if !replica.filterHeight(m.Height) {
 						return
 					}
-					if !replica.filterFrom(m.From) {
-						return
-					}
 					replica.mq.InsertPropose(m)
 				case process.Prevote:
 					if !replica.filterHeight(m.Height) {
-						return
-					}
-					if !replica.filterFrom(m.From) {
 						return
 					}
 					replica.mq.InsertPrevote(m)
@@ -134,13 +128,20 @@ func (replica *Replica) Run(ctx context.Context) {
 					if !replica.filterHeight(m.Height) {
 						return
 					}
-					if !replica.filterFrom(m.From) {
-						return
-					}
 					replica.mq.InsertPrecommit(m)
 				case process.Height:
 					replica.proc.State = process.DefaultState().WithCurrentHeight(m)
 					replica.mq.DropMessagesBelowHeight(m)
+				case []id.Signatory:
+					procAllowed := map[id.Signatory]bool{}
+					for _, sig := range m {
+						procAllowed[sig] = true
+					}
+					replica.procsAllowed = procAllowed
+
+					scheduler := scheduler.NewRoundRobin(m)
+					f := len(procAllowed) / 3
+					replica.proc.ResetF(uint64(f), scheduler)
 				}
 			}
 
@@ -212,19 +213,28 @@ func (replica *Replica) TimeoutPrecommit(ctx context.Context, timeout timer.Time
 	}
 }
 
-// ResetHeight of the underlying process to a future height. This is should only
+// ResetHeight of the underlying process to a future height. This should only
 // be used when resynchronising the chain. If the given height is less than or
 // equal to the current height, nothing happens.
 //
 // NOTE: All messages that are currently in the message queue for heights less
 // than the given height will be dropped.
-func (replica *Replica) ResetHeight(ctx context.Context, newHeight process.Height) {
+func (replica *Replica) ResetHeight(ctx context.Context, newHeight process.Height, signatories []id.Signatory) {
 	if newHeight <= replica.proc.State.CurrentHeight {
 		return
 	}
 	select {
 	case <-ctx.Done():
 	case replica.mch <- newHeight:
+	}
+
+	if len(signatories) == 0 {
+		return
+	}
+
+	select {
+	case <-ctx.Done():
+	case replica.mch <- signatories:
 	}
 }
 
@@ -242,10 +252,6 @@ func (replica *Replica) filterHeight(height process.Height) bool {
 	return height >= replica.proc.CurrentHeight
 }
 
-func (replica *Replica) filterFrom(from id.Signatory) bool {
-	return replica.procsAllowed[from]
-}
-
 func (replica *Replica) flush() {
 	for {
 		n := replica.mq.Consume(
@@ -253,6 +259,7 @@ func (replica *Replica) flush() {
 			replica.proc.Propose,
 			replica.proc.Prevote,
 			replica.proc.Precommit,
+			replica.procsAllowed,
 		)
 		if n == 0 {
 			return
