@@ -35,12 +35,14 @@ func New(opts Options) MessageQueue {
 // be dropped from the MessageQueue.
 func (mq *MessageQueue) Consume(h process.Height, propose func(process.Propose), prevote func(process.Prevote), precommit func(process.Precommit), procsAllowed map[id.Signatory]bool) (n int) {
 	for from, q := range mq.queuesByPid {
-		if ok := procsAllowed[from] ; !ok{
-			mq.queuesByPid[from] = nil
-		}
 		for len(q) > 0 {
 			if q[0] == nil || height(q[0]) > h {
 				break
+			}
+			if ok := procsAllowed[from] ; !ok{
+				n++
+				q = q[1:]
+				continue
 			}
 			switch msg := q[0].(type) {
 			case process.Propose:
