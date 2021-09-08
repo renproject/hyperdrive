@@ -39,21 +39,25 @@ func (mq *MessageQueue) Consume(h process.Height, propose func(process.Propose),
 			if q[0] == nil || height(q[0]) > h {
 				break
 			}
-			if ok := procsAllowed[from] ; !ok{
-				n++
-				q = q[1:]
-				continue
-			}
-			switch msg := q[0].(type) {
-			case process.Propose:
-				propose(msg)
-			case process.Prevote:
-				prevote(msg)
-			case process.Precommit:
-				precommit(msg)
-			}
-			n++
-			q = q[1:]
+			func() {
+				defer func() {
+					n++
+					q = q[1:]
+				}()
+
+				if ok := procsAllowed[from]; !ok {
+					return
+				}
+
+				switch msg := q[0].(type) {
+				case process.Propose:
+					propose(msg)
+				case process.Prevote:
+					prevote(msg)
+				case process.Precommit:
+					precommit(msg)
+				}
+			}()
 		}
 		mq.queuesByPid[from] = q
 	}
