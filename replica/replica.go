@@ -134,13 +134,13 @@ func (replica *Replica) Run(ctx context.Context) {
 					replica.mq.DropMessagesBelowHeight(m)
 				case []id.Signatory:
 					procAllowed := map[id.Signatory]bool{}
-					for _, sig := range m{
+					for _, sig := range m {
 						procAllowed[sig] = true
 					}
 					replica.procsAllowed = procAllowed
 
 					scheduler := scheduler.NewRoundRobin(m)
-					f := len(procAllowed) /3
+					f := len(procAllowed) / 3
 					replica.proc.ResetF(uint64(f), scheduler)
 				}
 			}
