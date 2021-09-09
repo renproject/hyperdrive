@@ -118,15 +118,9 @@ func (replica *Replica) Run(ctx context.Context) {
 					if !replica.filterHeight(m.Height) {
 						return
 					}
-					if !replica.filterFrom(m.From) {
-						return
-					}
 					replica.mq.InsertPropose(m)
 				case process.Prevote:
 					if !replica.filterHeight(m.Height) {
-						return
-					}
-					if !replica.filterFrom(m.From) {
 						return
 					}
 					replica.mq.InsertPrevote(m)
@@ -134,13 +128,20 @@ func (replica *Replica) Run(ctx context.Context) {
 					if !replica.filterHeight(m.Height) {
 						return
 					}
-					if !replica.filterFrom(m.From) {
-						return
-					}
 					replica.mq.InsertPrecommit(m)
-				case process.Height:
-					replica.proc.State = process.DefaultState().WithCurrentHeight(m)
-					replica.mq.DropMessagesBelowHeight(m)
+				case ResetHeightMessage:
+					replica.proc.State = process.DefaultState().WithCurrentHeight(m.height)
+					replica.mq.DropMessagesBelowHeight(m.height)
+
+					// If the signatories change in the new height
+					if len(m.signatories) != 0 {
+						f := len(m.signatories) / 3
+						replica.proc.StartWithNewSignatories(uint64(f), m.scheduler)
+						replica.procsAllowed = map[id.Signatory]bool{}
+						for _, sig := range m.signatories {
+							replica.procsAllowed[sig] = true
+						}
+					}
 				}
 			}
 
@@ -218,13 +219,18 @@ func (replica *Replica) TimeoutPrecommit(ctx context.Context, timeout timer.Time
 //
 // NOTE: All messages that are currently in the message queue for heights less
 // than the given height will be dropped.
-func (replica *Replica) ResetHeight(ctx context.Context, newHeight process.Height) {
+func (replica *Replica) ResetHeight(ctx context.Context, newHeight process.Height, signatories []id.Signatory) {
 	if newHeight <= replica.proc.State.CurrentHeight {
 		return
 	}
+	message := ResetHeightMessage{
+		height:      newHeight,
+		signatories: signatories,
+		scheduler:   scheduler.NewRoundRobin(signatories),
+	}
 	select {
 	case <-ctx.Done():
-	case replica.mch <- newHeight:
+	case replica.mch <- message:
 	}
 }
 
@@ -242,20 +248,27 @@ func (replica *Replica) filterHeight(height process.Height) bool {
 	return height >= replica.proc.CurrentHeight
 }
 
-func (replica *Replica) filterFrom(from id.Signatory) bool {
-	return replica.procsAllowed[from]
-}
-
 func (replica *Replica) flush() {
+	copied := map[id.Signatory]bool{}
+	for sig := range replica.procsAllowed {
+		copied[sig] = true
+	}
 	for {
 		n := replica.mq.Consume(
 			replica.proc.CurrentHeight,
 			replica.proc.Propose,
 			replica.proc.Prevote,
 			replica.proc.Precommit,
+			copied,
 		)
 		if n == 0 {
 			return
 		}
 	}
+}
+
+type ResetHeightMessage struct {
+	height      process.Height
+	signatories []id.Signatory
+	scheduler   process.Scheduler
 }

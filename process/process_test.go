@@ -820,9 +820,10 @@ var _ = Describe("Process", func() {
 								BroadcastPrecommitCallback: nil,
 							}
 							committer := processutil.CommitterCallback{
-								Callback: func(height process.Height, value process.Value) {
+								Callback: func(height process.Height, value process.Value) (uint64, process.Scheduler) {
 									// we should not commit to the nil value proposal
 									Expect(true).To(BeFalse())
+									return 0, nil
 								},
 							}
 							p := process.New(whoami, f, nil, nil, nil, nil, broadcaster, committer, nil)
@@ -2674,10 +2675,11 @@ var _ = Describe("Process", func() {
 						f := 5 + (r.Int() % 10)
 						acknowledge := false
 						committer := processutil.CommitterCallback{
-							Callback: func(height process.Height, value process.Value) {
+							Callback: func(height process.Height, value process.Value) (uint64, process.Scheduler) {
 								Expect(height).To(Equal(currentHeight))
 								Expect(value).To(Equal(proposedValue))
 								acknowledge = true
+								return 0, nil
 							},
 						}
 						scheduledProposer := id.NewPrivKey().Signatory()
@@ -2737,10 +2739,11 @@ var _ = Describe("Process", func() {
 						f := 5 + (r.Int() % 10)
 						acknowledge := false
 						committer := processutil.CommitterCallback{
-							Callback: func(height process.Height, value process.Value) {
+							Callback: func(height process.Height, value process.Value) (uint64, process.Scheduler) {
 								Expect(height).To(Equal(currentHeight))
 								Expect(value).To(Equal(proposedValue))
 								acknowledge = true
+								return 0, nil
 							},
 						}
 
@@ -2795,8 +2798,9 @@ var _ = Describe("Process", func() {
 						whoami := id.NewPrivKey().Signatory()
 						f := 5 + (r.Int() % 10)
 						committer := processutil.CommitterCallback{
-							Callback: func(height process.Height, value process.Value) {
+							Callback: func(height process.Height, value process.Value) (uint64, process.Scheduler) {
 								Fail("unexpectedly received a commit")
+								return 0, nil
 							},
 						}
 						broadcaster := processutil.BroadcasterCallbacks{
@@ -2860,8 +2864,9 @@ var _ = Describe("Process", func() {
 						whoami := id.NewPrivKey().Signatory()
 						f := 5 + (r.Int() % 10)
 						committer := processutil.CommitterCallback{
-							Callback: func(height process.Height, value process.Value) {
+							Callback: func(height process.Height, value process.Value) (uint64, process.Scheduler) {
 								Fail("unexpectedly received a commit")
+								return 0, nil
 							},
 						}
 						scheduler := scheduler.NewRoundRobin([]id.Signatory{id.NewPrivKey().Signatory()})
@@ -2910,8 +2915,9 @@ var _ = Describe("Process", func() {
 						whoami := id.NewPrivKey().Signatory()
 						f := 5 + (r.Int() % 10)
 						committer := processutil.CommitterCallback{
-							Callback: func(height process.Height, value process.Value) {
+							Callback: func(height process.Height, value process.Value) (uint64, process.Scheduler) {
 								Fail("unexpectedly received a commit")
+								return 0, nil
 							},
 						}
 						validator := processutil.MockValidator{MockValid: func(process.Height, process.Round, process.Value) bool { return false }}
@@ -2962,10 +2968,11 @@ var _ = Describe("Process", func() {
 								acknowledge := false
 								proposedValue := processutil.RandomGoodValue(r)
 								committer := processutil.CommitterCallback{
-									Callback: func(height process.Height, value process.Value) {
+									Callback: func(height process.Height, value process.Value) (uint64, process.Scheduler) {
 										Expect(height).To(Equal(currentHeight))
 										Expect(value).To(Equal(proposedValue))
 										acknowledge = true
+										return 0, nil
 									},
 								}
 								p := process.New(whoami, f, nil, nil, nil, nil, nil, committer, nil)
@@ -3009,8 +3016,9 @@ var _ = Describe("Process", func() {
 								f := 5 + (r.Int() % 10)
 								proposedValue := processutil.RandomGoodValue(r)
 								committer := processutil.CommitterCallback{
-									Callback: func(height process.Height, value process.Value) {
+									Callback: func(height process.Height, value process.Value) (uint64, process.Scheduler) {
 										Fail("unexpectedly received a commit")
+										return 0, nil
 									},
 								}
 								p := process.New(whoami, f, nil, nil, nil, nil, nil, committer, nil)
