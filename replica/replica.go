@@ -249,17 +249,13 @@ func (replica *Replica) filterHeight(height process.Height) bool {
 }
 
 func (replica *Replica) flush() {
-	copied := map[id.Signatory]bool{}
-	for sig := range replica.procsAllowed {
-		copied[sig] = true
-	}
 	for {
 		n := replica.mq.Consume(
 			replica.proc.CurrentHeight,
 			replica.proc.Propose,
 			replica.proc.Prevote,
 			replica.proc.Precommit,
-			copied,
+			replica.procsAllowed,
 		)
 		if n == 0 {
 			return
