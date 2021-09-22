@@ -116,6 +116,221 @@ var _ = Describe("MQ", func() {
 	})
 
 	Context("when we can insert new messages", func() {
+		Context("when filtering the sender against the whitelist", func() {
+			Context("when the sender is whitelisted", func() {
+				It("should process the message", func() {
+					opts := mq.DefaultOptions()
+					queue := mq.New(opts)
+
+					loop := func() bool {
+						sender := id.NewPrivKey().Signatory()
+						height := process.Height(r.Int63())
+						round := process.Round(r.Int63())
+						procsAllowed := map[id.Signatory]bool{}
+						procsAllowed[sender] = true
+
+						msg := randomMsg(r, sender, height, round)
+						switch msg := msg.(type) {
+						case process.Propose:
+							queue.InsertPropose(msg)
+						case process.Prevote:
+							queue.InsertPrevote(msg)
+						case process.Precommit:
+							queue.InsertPrecommit(msg)
+						}
+
+						processed := false
+						proposeCallback := func(propose process.Propose) {
+							processed = true
+						}
+						prevoteCallback := func(prevote process.Prevote) {
+							processed = true
+						}
+						precommitCallback := func(precommit process.Precommit) {
+							processed = true
+						}
+
+						// cannot consume msgs of height less than lowerHeight
+						n := queue.Consume(height, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
+						Expect(n).To(Equal(1))
+						Expect(processed).Should(BeTrue())
+
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+			})
+
+			Context("when the sender is not whitelisted", func() {
+				It("should reject the message", func() {
+					opts := mq.DefaultOptions()
+					queue := mq.New(opts)
+
+					loop := func() bool {
+						sender := id.NewPrivKey().Signatory()
+						height := process.Height(r.Int63())
+						round := process.Round(r.Int63())
+						procsAllowed := map[id.Signatory]bool{}
+
+						msg := randomMsg(r, sender, height, round)
+						switch msg := msg.(type) {
+						case process.Propose:
+							queue.InsertPropose(msg)
+						case process.Prevote:
+							queue.InsertPrevote(msg)
+						case process.Precommit:
+							queue.InsertPrecommit(msg)
+						}
+
+						processed := false
+						proposeCallback := func(propose process.Propose) {
+							processed = true
+						}
+						prevoteCallback := func(prevote process.Prevote) {
+							processed = true
+						}
+						precommitCallback := func(precommit process.Precommit) {
+							processed = true
+						}
+
+						// It should filter out the message
+						n := queue.Consume(height, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
+						Expect(n).To(Equal(1))
+						Expect(processed).Should(BeFalse())
+
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+			})
+
+			Context("when sender is removed from the whitelist in the future", func() {
+				It("should process message from the sender until it's removed from the whitelist", func() {
+					opts := mq.DefaultOptions()
+					queue := mq.New(opts)
+
+					loop := func() bool {
+						sender := id.NewPrivKey().Signatory()
+						height := process.Height(r.Int63())
+						higherHeight := height + 1 + process.Height(r.Intn(100))
+						round := process.Round(r.Int63())
+						procsAllowed := map[id.Signatory]bool{}
+						procsAllowed[sender] = true
+
+						msg := randomMsg(r, sender, height, round)
+						switch msg := msg.(type) {
+						case process.Propose:
+							queue.InsertPropose(msg)
+						case process.Prevote:
+							queue.InsertPrevote(msg)
+						case process.Precommit:
+							queue.InsertPrecommit(msg)
+						}
+
+						msgWithHigherHeight := randomMsg(r, sender, higherHeight, round)
+						switch msgWithHigherHeight := msgWithHigherHeight.(type) {
+						case process.Propose:
+							queue.InsertPropose(msgWithHigherHeight)
+						case process.Prevote:
+							queue.InsertPrevote(msgWithHigherHeight)
+						case process.Precommit:
+							queue.InsertPrecommit(msgWithHigherHeight)
+						}
+
+						processed := false
+						proposeCallback := func(propose process.Propose) {
+							processed = true
+						}
+						prevoteCallback := func(prevote process.Prevote) {
+							processed = true
+						}
+						precommitCallback := func(precommit process.Precommit) {
+							processed = true
+						}
+
+						// It should process the message when consuming current height
+						n := queue.Consume(height, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
+						Expect(n).To(Equal(1))
+						Expect(processed).Should(BeTrue())
+
+						// Remove the sender from whitelist
+						delete(procsAllowed, sender)
+						processed = false
+
+						// It should not process the message when consuming future height
+						n = queue.Consume(higherHeight, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
+						Expect(n).To(Equal(1))
+						Expect(processed).Should(BeFalse())
+
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+			})
+
+			Context("when sender is added to the whitelist in the future", func() {
+				It("should not process message from the sender until it's added to the whitelist", func() {
+					opts := mq.DefaultOptions()
+					queue := mq.New(opts)
+
+					loop := func() bool {
+						sender := id.NewPrivKey().Signatory()
+						height := process.Height(r.Int63())
+						higherHeight := height + 1 + process.Height(r.Intn(100))
+						round := process.Round(r.Int63())
+						procsAllowed := map[id.Signatory]bool{}
+
+						msg := randomMsg(r, sender, height, round)
+						switch msg := msg.(type) {
+						case process.Propose:
+							queue.InsertPropose(msg)
+						case process.Prevote:
+							queue.InsertPrevote(msg)
+						case process.Precommit:
+							queue.InsertPrecommit(msg)
+						}
+
+						msgWithHigherHeight := randomMsg(r, sender, higherHeight, round)
+						switch msgWithHigherHeight := msgWithHigherHeight.(type) {
+						case process.Propose:
+							queue.InsertPropose(msgWithHigherHeight)
+						case process.Prevote:
+							queue.InsertPrevote(msgWithHigherHeight)
+						case process.Precommit:
+							queue.InsertPrecommit(msgWithHigherHeight)
+						}
+
+						processed := false
+						proposeCallback := func(propose process.Propose) {
+							processed = true
+						}
+						prevoteCallback := func(prevote process.Prevote) {
+							processed = true
+						}
+						precommitCallback := func(precommit process.Precommit) {
+							processed = true
+						}
+
+						// It should not process the message when consuming current height
+						n := queue.Consume(height, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
+						Expect(n).To(Equal(1))
+						Expect(processed).Should(BeFalse())
+
+						// Add the sender to whitelist
+						procsAllowed[sender] = true
+
+						// It should process the message when consuming future height
+						n = queue.Consume(higherHeight, proposeCallback, prevoteCallback, precommitCallback, procsAllowed)
+						Expect(n).To(Equal(1))
+						Expect(processed).Should(BeTrue())
+
+						return true
+					}
+					Expect(quick.Check(loop, nil)).To(Succeed())
+				})
+			})
+		})
+
 		Context("when two messages have different heights", func() {
 			It("should correctly sort the messages based on height", func() {
 				opts := mq.DefaultOptions()
