@@ -69,7 +69,7 @@ type Validator interface {
 // new Value implies that all correct Processes agree on this Value at this
 // Height, and will never revert.
 type Committer interface {
-	Commit(Height, Value)
+	Commit(Height, Value) (uint64, Scheduler)
 }
 
 // A Catcher is used to catch bad behaviour in other Processes. For example,
@@ -275,6 +275,12 @@ func (p *Process) Precommit(precommit Precommit) {
 //		StartRound(0)
 //
 func (p *Process) Start() {
+	p.StartRound(0)
+}
+
+func (p *Process) StartWithNewSignatories(f uint64, scheduler Scheduler) {
+	p.f = f
+	p.scheduler = scheduler
 	p.StartRound(0)
 }
 
@@ -694,7 +700,13 @@ func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 		}
 	}
 	if precommitsForValue >= int(2*p.f+1) {
-		p.committer.Commit(p.CurrentHeight, propose.Value)
+		f, scheduler := p.committer.Commit(p.CurrentHeight, propose.Value)
+		if f != 0 {
+			p.f = f
+		}
+		if scheduler != nil {
+			p.scheduler = scheduler
+		}
 		p.CurrentHeight++
 
 		// Reset lockedRound, lockedValue, validRound, and validValue to initial

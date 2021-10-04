@@ -155,7 +155,7 @@ var _ = Describe("Replica", func() {
 				},
 				// Committer
 				processutil.CommitterCallback{
-					Callback: func(height process.Height, value process.Value) {
+					Callback: func(height process.Height, value process.Value) (uint64, process.Scheduler) {
 						// add to the map of commits
 						mqMutex.Lock()
 						(*commits)[replicaIndex][height] = value
@@ -165,6 +165,7 @@ var _ = Describe("Replica", func() {
 						if height == targetHeight {
 							completionSignal <- true
 						}
+						return 0, nil
 					},
 				},
 				// Catcher
