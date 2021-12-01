@@ -824,10 +824,15 @@ var _ = Describe("Replica", func() {
 
 						// if its not yet killed
 						if _, isKilled := killedReplicas[uint8(id)]; !isKilled {
+							var err error
+							intermTargetHeight, _, _, err = replicas[id].State(context.Background())
+							if err != nil {
+								panic(err)
+							}
+
 							// kill the replica
 							killedReplicas[uint8(id)] = true
 							replicaCtxCancels[id]()
-							intermTargetHeight = replicas[id].CurrentHeight()
 						}
 					}
 				}
