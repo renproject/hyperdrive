@@ -42,15 +42,15 @@ func (broadcaster BroadcasterCallbacks) BroadcastPrecommit(precommit process.Pre
 // CommitterCallback provides a callback function to test the Committer
 // behaviour required by a Process
 type CommitterCallback struct {
-	Callback func(process.Height, process.Value)
+	Callback func(process.Height, process.Value) (uint64, process.Scheduler)
 }
 
 // Commit passes the commitment parameters height and round to the commit callback, if present
-func (committer CommitterCallback) Commit(height process.Height, value process.Value) {
+func (committer CommitterCallback) Commit(height process.Height, value process.Value) (uint64, process.Scheduler) {
 	if committer.Callback == nil {
-		return
+		return 0, nil
 	}
-	committer.Callback(height, value)
+	return committer.Callback(height, value)
 }
 
 // MockProposer is a mock implementation of the Proposer interface
