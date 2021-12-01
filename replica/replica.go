@@ -141,6 +141,12 @@ func (replica *Replica) Run(ctx context.Context) {
 				case process.Height:
 					replica.proc.State = process.DefaultState().WithCurrentHeight(m)
 					replica.mq.DropMessagesBelowHeight(m)
+				case getState:
+					m.responder <- getStateResponse{
+						height: replica.proc.CurrentHeight,
+						round:  replica.proc.CurrentRound,
+						step:   replica.proc.CurrentStep,
+					}
 				}
 			}
 
@@ -228,14 +234,32 @@ func (replica *Replica) ResetHeight(ctx context.Context, newHeight process.Heigh
 	}
 }
 
-// State returns the current height, round and step of the underlying process.
-func (replica Replica) State() (process.Height, process.Round, process.Step) {
-	return replica.proc.CurrentHeight, replica.proc.CurrentRound, replica.proc.CurrentStep
+type getState struct {
+	responder chan getStateResponse
 }
 
-// CurrentHeight returns the current height of the underlying process.
-func (replica Replica) CurrentHeight() process.Height {
-	return replica.proc.CurrentHeight
+type getStateResponse struct {
+	height process.Height
+	round  process.Round
+	step   process.Step
+}
+
+// State returns the current height, round and step of the underlying process.
+func (replica Replica) State(ctx context.Context) (process.Height, process.Round, process.Step, error) {
+	responder := make(chan getStateResponse, 1)
+
+	select {
+	case <-ctx.Done():
+		return process.Height(0), process.Round(0), process.Step(0), ctx.Err()
+	case replica.mch <- getState{responder}:
+	}
+
+	select {
+	case <-ctx.Done():
+		return process.Height(0), process.Round(0), process.Step(0), ctx.Err()
+	case response := <-responder:
+		return response.height, response.round, response.step, nil
+	}
 }
 
 func (replica *Replica) filterHeight(height process.Height) bool {
