@@ -8,6 +8,7 @@ package process
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"github.com/renproject/id"
 	"github.com/renproject/surge"
@@ -315,7 +316,7 @@ func (p *Process) StartRound(round Round) {
 	// sequence. We do not have special methods dedicated to change the current
 	// Round, or changing the current Step to Proposing, because StartRound is
 	// the only location where this logic happens.
-	p.CurrentRound = round
+	atomic.StoreInt64((*int64)(&p.CurrentRound), int64(round))
 	p.CurrentStep = Proposing
 
 	// If we are not the proposer, then we trigger the propose timeout.
@@ -707,7 +708,7 @@ func (p *Process) tryCommitUponSufficientPrecommits(round Round) {
 		if scheduler != nil {
 			p.scheduler = scheduler
 		}
-		p.CurrentHeight++
+		atomic.AddInt64((*int64)(&p.CurrentHeight), 1)
 
 		// Reset lockedRound, lockedValue, validRound, and validValue to initial
 		// values.

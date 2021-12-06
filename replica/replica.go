@@ -2,6 +2,7 @@ package replica
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/renproject/hyperdrive/mq"
 	"github.com/renproject/hyperdrive/process"
@@ -142,12 +143,6 @@ func (replica *Replica) Run(ctx context.Context) {
 							replica.procsAllowed[sig] = true
 						}
 					}
-				case getState:
-					m.responder <- getStateResponse{
-						height: replica.proc.CurrentHeight,
-						round:  replica.proc.CurrentRound,
-						step:   replica.proc.CurrentStep,
-					}
 				}
 			}
 
@@ -240,32 +235,12 @@ func (replica *Replica) ResetHeight(ctx context.Context, newHeight process.Heigh
 	}
 }
 
-type getState struct {
-	responder chan getStateResponse
+func (replica Replica) Height() process.Height {
+	return process.Height(atomic.LoadInt64((*int64)(&replica.proc.State.CurrentHeight)))
 }
 
-type getStateResponse struct {
-	height process.Height
-	round  process.Round
-	step   process.Step
-}
-
-// State returns the current height, round and step of the underlying process.
-func (replica Replica) State(ctx context.Context) (process.Height, process.Round, process.Step, error) {
-	responder := make(chan getStateResponse, 1)
-
-	select {
-	case <-ctx.Done():
-		return process.Height(0), process.Round(0), process.Step(0), ctx.Err()
-	case replica.mch <- getState{responder}:
-	}
-
-	select {
-	case <-ctx.Done():
-		return process.Height(0), process.Round(0), process.Step(0), ctx.Err()
-	case response := <-responder:
-		return response.height, response.round, response.step, nil
-	}
+func (replica Replica) Round() process.Round {
+	return process.Round(atomic.LoadInt64((*int64)(&replica.proc.State.CurrentRound)))
 }
 
 func (replica *Replica) filterHeight(height process.Height) bool {
