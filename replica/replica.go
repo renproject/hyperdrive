@@ -244,7 +244,7 @@ func (replica Replica) Round() process.Round {
 }
 
 func (replica *Replica) filterHeight(height process.Height) bool {
-	return height >= replica.proc.CurrentHeight
+	return height >= replica.Height()
 }
 
 func (replica *Replica) flush() {
